@@ -1,0 +1,242 @@
+//! Общие типы протокола: формат манифеста сборки и контракты API,
+//! разделяемые лаунчером, auth-сервером и admin-сервисом.
+
+use serde::{Deserialize, Serialize};
+
+/// На какой стороне нужен файл сборки.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Side {
+    /// Только клиент (напр. оптимизационные/визуальные моды).
+    Client,
+    /// Только сервер (напр. серверные плагины ядра).
+    Server,
+    /// И клиент, и сервер.
+    Both,
+}
+
+impl Side {
+    /// Нужен ли файл на клиенте.
+    pub fn on_client(self) -> bool {
+        matches!(self, Side::Client | Side::Both)
+    }
+
+    /// Нужен ли файл на сервере.
+    pub fn on_server(self) -> bool {
+        matches!(self, Side::Server | Side::Both)
+    }
+}
+
+/// Категория файла сборки.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum FileKind {
+    Mod,
+    Config,
+    Resource,
+    Other,
+}
+
+/// Один файл сборки.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileEntry {
+    /// Путь относительно корня `.minecraft` (напр. `mods/sodium.jar`).
+    pub path: String,
+    /// URL для скачивания.
+    pub url: String,
+    /// SHA-1 содержимого (hex).
+    pub sha1: String,
+    /// Размер в байтах.
+    pub size: u64,
+    pub side: Side,
+    pub kind: FileKind,
+    /// Затирать ли локальную версию файла при обновлении.
+    /// Для конфигов обычно `false`, чтобы не терять пользовательские правки.
+    #[serde(default = "default_true")]
+    pub overwrite: bool,
+    /// Опциональный ли это мод: игрок может включать/выключать его в лаунчере.
+    /// Для обязательных файлов (ядро, конфиги) — `false`.
+    #[serde(default)]
+    pub optional: bool,
+    /// Если файл опциональный — включён ли он по умолчанию у нового игрока.
+    #[serde(default = "default_true", rename = "enabledByDefault")]
+    pub enabled_by_default: bool,
+    /// Стабильный идентификатор опционального мода — по нему лаунчер хранит
+    /// выбор игрока (вкл/выкл). Обычно modid или slug. Только для `optional`.
+    #[serde(default, rename = "modId", skip_serializing_if = "Option::is_none")]
+    pub mod_id: Option<String>,
+    /// Человекочитаемое имя для списка модов в лаунчере.
+    #[serde(
+        default,
+        rename = "displayName",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub display_name: Option<String>,
+    /// Короткое описание мода для UI.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+/// Описание используемого загрузчика модов.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoaderInfo {
+    /// Версия Minecraft, напр. `1.21.1`.
+    pub minecraft: String,
+    /// Тип загрузчика.
+    pub kind: LoaderKind,
+    /// Версия загрузчика.
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LoaderKind {
+    Vanilla,
+    Fabric,
+    Quilt,
+    Forge,
+    NeoForge,
+}
+
+/// Манифест сборки. Лаунчер скачивает его и синхронизирует файлы.
+///
+/// Клиентский манифест содержит только файлы со `side ∈ {client, both}`;
+/// серверная часть формируется из `side ∈ {server, both}`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Manifest {
+    /// Имя сборки (для отображения).
+    #[serde(default)]
+    pub name: String,
+    /// Версия сборки (семвер или дата-билд).
+    pub version: String,
+    pub loader: LoaderInfo,
+    pub files: Vec<FileEntry>,
+}
+
+impl Manifest {
+    /// Опциональные моды клиентской части — для экрана управления в лаунчере.
+    pub fn optional_client_mods(&self) -> impl Iterator<Item = &FileEntry> {
+        self.files
+            .iter()
+            .filter(|f| f.optional && f.side.on_client())
+    }
+
+    /// Файлы, нужные клиенту.
+    pub fn client_files(&self) -> impl Iterator<Item = &FileEntry> {
+        self.files.iter().filter(|f| f.side.on_client())
+    }
+
+    /// Файлы, нужные серверу.
+    pub fn server_files(&self) -> impl Iterator<Item = &FileEntry> {
+        self.files.iter().filter(|f| f.side.on_server())
+    }
+}
+
+/// Профиль игрока, возвращаемый auth-сервером после логина.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerProfile {
+    /// UUID без дефисов (формат Mojang). Генерируется сервером при регистрации.
+    pub id: String,
+    /// Имя игрока.
+    pub name: String,
+}
+
+/// Учётные данные для входа/регистрации (логин по нику, без почты).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Credentials {
+    pub username: String,
+    pub password: String,
+}
+
+/// Успешный ответ на логин/регистрацию.
+///
+/// `token` — временный токен сессии. Лаунчер хранит его в памяти и использует
+/// для действий владельца аккаунта: загрузка/импорт скина, позже — запуск игры.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthResponse {
+    pub profile: PlayerProfile,
+    pub token: String,
+}
+
+/// Ответ проверки текущей bearer-сессии.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionResponse {
+    pub profile: PlayerProfile,
+}
+
+/// Расширенные сведения об аккаунте владельца (вкладка «Аккаунт»).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountInfo {
+    pub profile: PlayerProfile,
+    /// Привязан ли Telegram для 2FA.
+    #[serde(rename = "telegramLinked")]
+    pub telegram_linked: bool,
+    /// Имеет ли аккаунт права администратора.
+    #[serde(rename = "isAdmin")]
+    pub is_admin: bool,
+}
+
+/// Запрос смены ника.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChangeUsernameRequest {
+    #[serde(rename = "newUsername")]
+    pub new_username: String,
+}
+
+/// Запрос смены пароля (требует текущий).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChangePasswordRequest {
+    #[serde(rename = "currentPassword")]
+    pub current_password: String,
+    #[serde(rename = "newPassword")]
+    pub new_password: String,
+}
+
+/// Модель скина: `classic` (4px руки) или `slim` (3px руки).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SkinModel {
+    Classic,
+    Slim,
+}
+
+impl Default for SkinModel {
+    fn default() -> Self {
+        SkinModel::Classic
+    }
+}
+
+/// Запрос на импорт скина с лицензионного аккаунта Mojang.
+///
+/// `source` — ник Mojang или UUID (с дефисами или без). Сервер сам
+/// резолвит ник в UUID, тянет текстуру и сохраняет её у себя.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkinImportRequest {
+    /// UUID нашего аккаунта, которому привязываем скин.
+    pub uuid: String,
+    /// Источник на стороне Mojang: ник или UUID.
+    pub source: String,
+    /// Обновлять ли скин периодически по этому источнику.
+    #[serde(default)]
+    pub keep_synced: bool,
+}
+
+/// Запрос на загрузку собственного скина игроком.
+///
+/// Скин хранится на сервере и привязан к аккаунту (UUID), поэтому
+/// следует за игроком на любом устройстве.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkinUploadRequest {
+    /// UUID аккаунта, которому привязываем скин.
+    pub uuid: String,
+    /// PNG-скин в base64 (без префикса `data:`).
+    #[serde(rename = "pngBase64")]
+    pub png_base64: String,
+    /// Модель скина.
+    #[serde(default)]
+    pub model: SkinModel,
+}

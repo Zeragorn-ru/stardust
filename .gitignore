@@ -1,0 +1,19 @@
+# Rust / Cargo
+/target
+**/target
+
+# Секреты и состояние — НИКОГДА не коммитим
+.env
+*.env
+!*.env.example
+deploy/.env
+*.pem
+*.sqlite
+*.sqlite3
+
+# Tauri updater: приватный ключ подписи апдейтов
+**/.tauri-signing.key
+
+# OS / редакторы
+.DS_Store
+Thumbs.db

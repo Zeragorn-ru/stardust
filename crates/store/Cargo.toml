@@ -1,0 +1,27 @@
+[package]
+name = "store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Shared PostgreSQL storage layer (accounts, sessions, builds) for auth-server and admin-server."
+
+[dependencies]
+protocol = { path = "../protocol" }
+serde = { workspace = true }
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "macros",
+    "migrate",
+    "time",
+] }
+time = { version = "0.3", features = ["serde"] }
+sha2 = "0.10"
+rand = "0.8"
+uuid = { version = "1", features = ["v4"] }
+thiserror = "1"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

@@ -1,0 +1,23 @@
+[package]
+name = "auth-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Yggdrasil-compatible auth server (login, sessions, skins) for the launcher."
+
+[dependencies]
+protocol = { path = "../protocol" }
+store = { path = "../store" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "signal"] }
+tower-http = { version = "0.6", features = ["cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { version = "1", features = ["v4"] }
+base64 = "0.22"
+rand = "0.8"
+rsa = { version = "0.9", features = ["sha1", "pem"] }
+sha1 = { version = "0.10", features = ["oid"] }

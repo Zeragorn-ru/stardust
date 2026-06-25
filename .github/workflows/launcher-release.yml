@@ -1,0 +1,73 @@
+# Сборка лаунчера (Tauri) и публикация в GitHub Release.
+#
+# Триггер — git-тег вида v1.2.3. tauri-action собирает бинари под все
+# платформы, подписывает апдейт-артефакты и кладёт в Release вместе с
+# latest.json. Установленные лаунчеры опрашивают этот latest.json через
+# встроенный Tauri updater и предлагают обновиться.
+#
+# Секреты репозитория (Settings → Secrets and variables → Actions):
+#   TAURI_SIGNING_PRIVATE_KEY          — приватный ключ подписи апдейтов
+#                                        (содержимое .tauri-signing.key)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — пароль к нему (пустая строка, если без пароля)
+
+name: launcher-release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux deps
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "launcher/src-tauri -> target"
+
+      - name: Install frontend deps
+        working-directory: launcher
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: launcher
+          tagName: ${{ github.ref_name }}
+          releaseName: "Launcher ${{ github.ref_name }}"
+          releaseDraft: false
+          prerelease: false
+          # tauri-action соберёт latest.json и приложит его к Release.
+          args: ${{ matrix.args }}

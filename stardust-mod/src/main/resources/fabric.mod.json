@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "stardust",
+  "version": "${version}",
+  "name": "Stardust",
+  "description": "Shared client/server integration mod for Stardust Launcher.",
+  "authors": ["Stardust"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.stardust.mod.StardustMod"],
+    "client": ["dev.stardust.mod.StardustClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*"
+  }
+}

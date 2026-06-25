@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Frontend build
+dist/
+
+# Rust / Tauri build
+target/
+src-tauri/gen/
+
+# Editor
+.DS_Store
+*.log
+
+# Tauri updater signing key (NEVER commit the private key)
+src-tauri/.tauri-signing.key

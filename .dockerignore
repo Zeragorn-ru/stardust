@@ -1,0 +1,26 @@
+# Контекст сборки auth-server-образа — корень воркспейса.
+# Исключаем тяжёлое и ненужное для серверной сборки.
+
+target/
+**/target/
+
+# Фронтенд лаунчера и его зависимости в образ не нужны.
+launcher/node_modules/
+launcher/dist/
+launcher/src/
+launcher/public/
+launcher/index.html
+launcher/package.json
+launcher/package-lock.json
+launcher/vite.config.*
+launcher/tsconfig*.json
+
+# Сборочные артефакты Tauri.
+launcher/src-tauri/target/
+launcher/src-tauri/gen/
+launcher/src-tauri/icons/
+
+.git/
+.gitignore
+**/*.md
+deploy/.env

@@ -1,0 +1,69 @@
+# Docker Compose для бекенда лаунчера.
+#
+# Запуск (из каталога deploy/):
+#   cp .env.example .env   # и отредактируй пароли
+#   docker compose up -d --build
+#
+# Образы наши, локальные (секция build:), без внешнего registry —
+# собираются на месте из исходников воркспейса.
+
+services:
+  auth-db:
+    image: postgres:17-alpine
+    container_name: launcher-auth-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - launcher-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # БД наружу не публикуем — доступ только внутри сети compose.
+
+  auth-server:
+    build:
+      # Контекст — корень воркспейса (на уровень выше deploy/), чтобы
+      # Dockerfile видел Cargo.toml, crates/ и манифест Tauri-крейта.
+      context: ..
+      dockerfile: deploy/Dockerfile
+    # Образ из ghcr.io. На сервере: `docker compose pull && up -d` —
+    # тянет готовый образ (локально: `up -d --build` собирает сам).
+    # OWNER/REPO подставь через AUTH_IMAGE в .env.
+    image: ${AUTH_IMAGE:-ghcr.io/zeragorn-ru/stardust/auth-server:latest}
+    container_name: launcher-auth-server
+    restart: unless-stopped
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    environment:
+      AUTH_BIND: 0.0.0.0:8080
+      # Строка подключения PostgreSQL. Миграции применяются автоматически
+      # при старте auth-server (sqlx migrate).
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
+      # Публичный URL, под которым сервер виден игре (текстуры, skinDomains).
+      AUTH_PUBLIC_URL: ${AUTH_PUBLIC_URL:-http://127.0.0.1:8080}
+      # Ключ подписи Yggdrasil лежит в volume — иначе при пересоздании
+      # контейнера он сгенерируется заново и все выданные подписи протухнут.
+      AUTH_KEY_PATH: /data/yggdrasil_key.pem
+      RUST_LOG: ${RUST_LOG:-auth_server=info}
+    volumes:
+      - auth-keys:/data
+    ports:
+      - "${AUTH_PORT:-8080}:8080"
+    networks:
+      - launcher-net
+
+volumes:
+  auth-db-data:
+  auth-keys:
+
+networks:
+  launcher-net:
+    driver: bridge
