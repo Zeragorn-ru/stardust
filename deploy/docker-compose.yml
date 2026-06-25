@@ -1,11 +1,16 @@
 # Docker Compose для бекенда лаунчера.
 #
-# Запуск (из каталога deploy/):
-#   cp .env.example .env   # и отредактируй пароли
-#   docker compose up -d --build
+# Образ auth-server собирается CI (.github/workflows/backend.yml) и публикуется
+# в ghcr.io. На сервере ничего не собирается — только скачивается готовый
+# образ. Достаточно скопировать на сервер только docker-compose.yml и .env.
 #
-# Образы наши, локальные (секция build:), без внешнего registry —
-# собираются на месте из исходников воркспейса.
+# Запуск (из каталога с этими файлами):
+#   cp .env.example .env       # и отредактируй пароли/адрес
+#   docker compose pull        # скачать образ auth-server из ghcr.io
+#   docker compose up -d       # поднять (сборки не будет)
+#
+# Обновление бекенда после нового пуша образа CI:
+#   docker compose pull && docker compose up -d
 
 services:
   auth-db:
@@ -28,15 +33,10 @@ services:
     # БД наружу не публикуем — доступ только внутри сети compose.
 
   auth-server:
-    build:
-      # Контекст — корень воркспейса (на уровень выше deploy/), чтобы
-      # Dockerfile видел Cargo.toml, crates/ и манифест Tauri-крейта.
-      context: ..
-      dockerfile: deploy/Dockerfile
-    # Образ из ghcr.io. На сервере: `docker compose pull && up -d` —
-    # тянет готовый образ (локально: `up -d --build` собирает сам).
-    # OWNER/REPO подставь через AUTH_IMAGE в .env.
+    # Готовый образ из ghcr.io (собирается CI). На сервере не собирается.
+    # При необходимости переопредели образ/тег через AUTH_IMAGE в .env.
     image: ${AUTH_IMAGE:-ghcr.io/zeragorn-ru/stardust/auth-server:latest}
+    pull_policy: always
     container_name: launcher-auth-server
     restart: unless-stopped
     depends_on:
