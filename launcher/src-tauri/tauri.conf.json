@@ -46,7 +46,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3NDVFRDg3QjY3QTJBQzAKUldUQUtucTJoKzFGeDE5ZEhGRm5ySEdMREt4SXNsQTI3TFNRdFpIa1pXTGtLaWthN0FiNFRNaUwK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc5NkUxQkFDREFBODQwOEUKUldTT1FLamFyQnR1ZVNSTFh2MXFOaDNkYjZUanZKUis3OVR4N2IzVzVybXVYRk1XUjdWU0VabTcK",
       "endpoints": [
         "https://github.com/Zeragorn-ru/stardust/releases/latest/download/latest.json"
       ]
