@@ -18,7 +18,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 flate2 = "1"
-tauri-plugin-updater = "2"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

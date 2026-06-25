@@ -21,7 +21,6 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             commands::bootstrap(app.handle())?;
             Ok(())

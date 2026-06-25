@@ -95,35 +95,26 @@ npm run tauri dev      # запускает Vite + Tauri-окно
 
 ### Самообновление лаунчера
 
-Лаунчер обновляется через `tauri-plugin-updater`. Эндпоинт берётся из
-`tauri.conf.json` (`plugins.updater.endpoints`), но его можно переопределить
-переменной окружения:
+Лаунчер сам опрашивает GitHub Releases API, сравнивает версию с текущей и при
+наличии новой скачивает установщик NSIS (`*-setup.exe`) по HTTPS и запускает
+его. Криптоподпись апдейтов не используется — безопасность обеспечивается
+транспортом HTTPS GitHub. Эндпоинт по умолчанию задан в
+`launcher/src-tauri/src/update.rs` (`RELEASES_API`), но его можно переопределить
+переменной окружения (должна указывать на JSON одного релиза GitHub API):
 
 ```sh
-LAUNCHER_UPDATE_URL=http://127.0.0.1:8080/updates/{{target}}/{{arch}}/{{current_version}} npm run tauri dev
+LAUNCHER_UPDATE_URL=https://api.github.com/repos/OWNER/REPO/releases/latest npm run tauri dev
 ```
 
 Проверка и установка доступны в настройках лаунчера (раздел «Обновления»).
 
-**Подписи.** Обновления проверяются публичным ключом из
-`launcher/src-tauri/tauri.conf.json`. Приватный ключ лежит в
-`launcher/src-tauri/.tauri-signing.key` и **не коммитится** (в `.gitignore`).
-Чтобы собрать подписанные артефакты:
+Сборка не требует ключей подписи — релизный workflow просто собирает установщик
+и прикладывает его к GitHub Release:
 
 ```sh
 cd launcher
-# пароль ключа — в TAURI_SIGNING_PRIVATE_KEY_PASSWORD (пусто, если не задан)
-set TAURI_SIGNING_PRIVATE_KEY=src-tauri/.tauri-signing.key
-set TAURI_SIGNING_PRIVATE_KEY_PASSWORD=
 npm run tauri build
 ```
-
-Это создаст инсталлятор и `*.sig` рядом с ним; их вместе с `latest.json`
-(манифест обновления) нужно выложить на сервер обновлений.
-
-Новый ключ при необходимости генерируется командой
-`npm run tauri signer generate -- -w src-tauri/.tauri-signing.key`; публичную
-часть из `.tauri-signing.key.pub` затем кладут в `plugins.updater.pubkey`.
 
 > При деинсталляции (Windows/NSIS) лаунчер спросит, удалять ли данные из
 > `%APPDATA%\com.project.launcher` (Java, клиент, NeoForge, ассеты, настройки).

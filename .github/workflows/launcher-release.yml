@@ -1,13 +1,9 @@
 # Сборка лаунчера (Tauri) и публикация в GitHub Release.
 #
-# Триггер — git-тег вида v1.2.3. tauri-action собирает бинари под все
-# платформы, подписывает апдейт-артефакты и кладёт в Release вместе с
-# latest.json. Установленные лаунчеры опрашивают этот latest.json через
-# встроенный Tauri updater и предлагают обновиться.
-#
-# Секреты репозитория (Settings → Secrets and variables → Actions):
-#   TAURI_SIGNING_PRIVATE_KEY          — приватный ключ подписи апдейтов
-#                                        (содержимое .tauri-signing.key, без пароля)
+# Триггер — git-тег вида v1.2.3. tauri-action собирает установщики и кладёт
+# их в Release. Установленные лаунчеры сами опрашивают GitHub Releases API
+# и при наличии новой версии скачивают и запускают установщик (см. update.rs).
+# Подпись апдейтов не используется.
 
 name: launcher-release
 
@@ -56,13 +52,10 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           projectPath: launcher
           tagName: ${{ github.ref_name }}
           releaseName: "Launcher ${{ github.ref_name }}"
           releaseDraft: false
           prerelease: false
-          # tauri-action соберёт latest.json и приложит его к Release.
           args: ${{ matrix.args }}

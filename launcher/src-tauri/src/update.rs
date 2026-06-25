@@ -1,15 +1,23 @@
-// Самообновление лаунчера через tauri-plugin-updater.
+// Самообновление лаунчера через GitHub Releases.
 //
-// Эндпоинт обновлений берётся из переменной окружения `LAUNCHER_UPDATE_URL`
-// (как `LAUNCHER_AUTH_URL` для auth-сервера). Если не задана — используется
-// значение из `tauri.conf.json` (секция plugins.updater.endpoints).
+// Вместо встроенного tauri-plugin-updater (который требует подписывать
+// артефакты приватным ключом) лаунчер сам опрашивает GitHub Releases API,
+// сравнивает версию и при наличии новой скачивает установщик NSIS
+// (`*-setup.exe`) и запускает его. Транспортная безопасность обеспечивается
+// HTTPS GitHub; криптоподпись апдейта не используется.
 //
-// Подписи проверяются публичным ключом из конфига; собирать обновляемые
-// артефакты нужно с приватным ключом (см. README раздел про обновления).
+// URL релизного API можно переопределить переменной `LAUNCHER_UPDATE_URL`
+// (как `LAUNCHER_AUTH_URL` для auth-сервера). Она должна указывать на JSON
+// одного релиза GitHub Releases API (.../releases/latest).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
-use tauri_plugin_updater::UpdaterExt;
+
+/// Эндпоинт GitHub Releases API по умолчанию.
+const RELEASES_API: &str = "https://api.github.com/repos/Zeragorn-ru/stardust/releases/latest";
+
+/// User-Agent обязателен для запросов к GitHub API.
+const USER_AGENT: &str = "project-launcher-updater";
 
 /// Результат проверки обновлений для фронтенда.
 #[derive(Debug, Clone, Serialize)]
@@ -25,82 +33,199 @@ pub struct UpdateInfo {
     pub notes: Option<String>,
 }
 
-/// Строит updater с учётом переопределения эндпоинта через окружение.
-fn build_updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
-    let mut builder = app.updater_builder();
+/// Минимально необходимые поля релиза из ответа GitHub API.
+#[derive(Debug, Deserialize)]
+struct GhRelease {
+    tag_name: String,
+    #[serde(default)]
+    body: Option<String>,
+    #[serde(default)]
+    assets: Vec<GhAsset>,
+}
 
-    if let Some(url) = std::env::var("LAUNCHER_UPDATE_URL")
+/// Прикреплённый к релизу файл.
+#[derive(Debug, Deserialize)]
+struct GhAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+/// URL релизного API с учётом переопределения через окружение.
+fn api_url() -> String {
+    std::env::var("LAUNCHER_UPDATE_URL")
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
-    {
-        let endpoint = url
-            .parse()
-            .map_err(|e| format!("Некорректный LAUNCHER_UPDATE_URL: {e}"))?;
-        builder = builder
-            .endpoints(vec![endpoint])
-            .map_err(|e| e.to_string())?;
+        .unwrap_or_else(|| RELEASES_API.to_string())
+}
+
+/// HTTP-клиент с корректным User-Agent для GitHub API.
+fn http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|e| e.to_string())
+}
+
+/// Загружает данные о последнем релизе.
+async fn fetch_latest() -> Result<GhRelease, String> {
+    let resp = http_client()?
+        .get(api_url())
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|e| format!("Не удалось получить данные о релизе: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("GitHub API ответил статусом {}", resp.status()));
     }
 
-    builder.build().map_err(|e| e.to_string())
+    resp.json::<GhRelease>()
+        .await
+        .map_err(|e| format!("Не удалось разобрать ответ GitHub: {e}"))
+}
+
+/// Убирает ведущий `v`/`V` и пробелы из строки версии.
+fn normalize(v: &str) -> &str {
+    v.trim().trim_start_matches(['v', 'V'])
+}
+
+/// Возвращает true, если `latest` строго новее `current`.
+/// Сравнение покомпонентно по числам, разделённым точками (semver-подобно).
+fn is_newer(latest: &str, current: &str) -> bool {
+    let parse = |s: &str| -> Vec<u64> {
+        normalize(s)
+            .split('.')
+            .map(|p| {
+                p.chars()
+                    .take_while(|c| c.is_ascii_digit())
+                    .collect::<String>()
+                    .parse::<u64>()
+                    .unwrap_or(0)
+            })
+            .collect()
+    };
+    let a = parse(latest);
+    let b = parse(current);
+    for i in 0..a.len().max(b.len()) {
+        let x = a.get(i).copied().unwrap_or(0);
+        let y = b.get(i).copied().unwrap_or(0);
+        if x != y {
+            return x > y;
+        }
+    }
+    false
+}
+
+/// Выбирает подходящий установщик для текущей платформы.
+fn pick_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
+    #[cfg(target_os = "windows")]
+    {
+        assets
+            .iter()
+            .find(|a| a.name.to_lowercase().ends_with("-setup.exe"))
+            .or_else(|| {
+                assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".msi"))
+            })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        assets.iter().find(|a| {
+            let n = a.name.to_lowercase();
+            n.ends_with(".appimage") || n.ends_with(".dmg")
+        })
+    }
+}
+
+/// Запускает скачанный установщик. На прочих платформах не поддержано.
+fn launch_installer(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new(path)
+            .spawn()
+            .map_err(|e| format!("Не удалось запустить установщик: {e}"))?;
+        Ok(())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = path;
+        Err("Автоустановка поддерживается только на Windows".into())
+    }
 }
 
 /// Проверить наличие обновления, ничего не устанавливая.
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
     let current_version = app.package_info().version.to_string();
-    let updater = build_updater(&app)?;
+    let release = fetch_latest().await?;
+    let latest = normalize(&release.tag_name).to_string();
 
-    match updater.check().await.map_err(|e| e.to_string())? {
-        Some(update) => Ok(UpdateInfo {
+    if is_newer(&latest, &current_version) {
+        Ok(UpdateInfo {
             available: true,
             current_version,
-            version: Some(update.version.clone()),
-            notes: update.body.clone(),
-        }),
-        None => Ok(UpdateInfo {
+            version: Some(latest),
+            notes: release.body,
+        })
+    } else {
+        Ok(UpdateInfo {
             available: false,
             current_version,
             version: None,
             notes: None,
-        }),
+        })
     }
 }
 
-/// Скачать и установить доступное обновление, затем перезапустить приложение.
+/// Скачать доступное обновление и запустить установщик, затем закрыть лаунчер.
 ///
 /// Прогресс скачивания эмитится событием `launcher://update-progress`
 /// с долей 0..1 (или null, если общий размер неизвестен).
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    use std::io::Write;
     use tauri::Emitter;
 
-    let updater = build_updater(&app)?;
-    let Some(update) = updater.check().await.map_err(|e| e.to_string())? else {
-        return Err("Обновлений нет".into());
-    };
+    let release = fetch_latest().await?;
+    let asset = pick_asset(&release.assets)
+        .ok_or_else(|| "В релизе нет подходящего установщика".to_string())?;
+
+    let mut resp = http_client()?
+        .get(&asset.browser_download_url)
+        .send()
+        .await
+        .map_err(|e| format!("Не удалось скачать обновление: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Загрузка вернула статус {}", resp.status()));
+    }
+
+    let total = resp.content_length();
+    let path = std::env::temp_dir().join(&asset.name);
+    let mut file = std::fs::File::create(&path)
+        .map_err(|e| format!("Не удалось создать файл обновления: {e}"))?;
 
     let mut downloaded: u64 = 0;
-    let app_for_progress = app.clone();
+    let _ = app.emit("launcher://update-progress", Some(0.0));
+    while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
+        file.write_all(&chunk).map_err(|e| e.to_string())?;
+        downloaded += chunk.len() as u64;
+        let fraction = total.map(|t| {
+            if t > 0 {
+                downloaded as f64 / t as f64
+            } else {
+                0.0
+            }
+        });
+        let _ = app.emit("launcher://update-progress", fraction);
+    }
+    file.flush().map_err(|e| e.to_string())?;
+    drop(file);
 
-    update
-        .download_and_install(
-            move |chunk, total| {
-                downloaded += chunk as u64;
-                let fraction = total.map(|t| {
-                    if t > 0 {
-                        downloaded as f64 / t as f64
-                    } else {
-                        0.0
-                    }
-                });
-                let _ = app_for_progress.emit("launcher://update-progress", fraction);
-            },
-            || {},
-        )
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // После успешной установки перезапускаем лаунчер на новой версии.
-    app.restart();
+    // Запускаем установщик и закрываем лаунчер, чтобы он мог заменить файлы.
+    launch_installer(&path)?;
+    app.exit(0);
+    Ok(())
 }
