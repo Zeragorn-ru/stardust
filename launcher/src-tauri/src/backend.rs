@@ -11,8 +11,9 @@ use protocol::{
 };
 use serde::Deserialize;
 
-/// URL auth-сервера по умолчанию (локальная разработка).
-const DEFAULT_AUTH_URL: &str = "http://127.0.0.1:8080";
+/// URL auth-сервера по умолчанию (продакшен). Для локальной разработки
+/// перекрывается переменной окружения `LAUNCHER_AUTH_URL`.
+const DEFAULT_AUTH_URL: &str = "https://auth.zeragorn.xyz";
 
 /// Базовый URL auth-сервера без завершающего слэша.
 pub fn base_url() -> String {
