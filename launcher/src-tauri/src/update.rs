@@ -17,7 +17,7 @@ use tauri::AppHandle;
 const RELEASES_API: &str = "https://api.github.com/repos/Zeragorn-ru/stardust/releases/latest";
 
 /// User-Agent обязателен для запросов к GitHub API.
-const USER_AGENT: &str = "project-launcher-updater";
+const USER_AGENT: &str = "stardust-launcher-updater";
 
 /// Результат проверки обновлений для фронтенда.
 #[derive(Debug, Clone, Serialize)]

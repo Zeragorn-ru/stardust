@@ -114,5 +114,5 @@ npm run tauri build
 
 - `launcher.exe` — самостоятельный исполняемый файл (для портативного режима:
   положите рядом `portable.txt`)
-- `bundle/msi/Project Launcher_<версия>_x64_en-US.msi` — MSI-установщик
-- `bundle/nsis/Project Launcher_<версия>_x64-setup.exe` — NSIS-установщик
+- `bundle/msi/StarDust_<версия>_x64_en-US.msi` — MSI-установщик
+- `bundle/nsis/StarDust_<версия>_x64-setup.exe` — NSIS-установщик

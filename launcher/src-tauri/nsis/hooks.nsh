@@ -1,4 +1,4 @@
-; NSIS installer hooks for Project Launcher.
+; NSIS installer hooks for StarDust.
 ;
 ; Tauri вызывает эти макросы на соответствующих этапах работы
 ; установщика/деинсталлятора. Здесь мы при удалении программы

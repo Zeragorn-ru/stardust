@@ -49,7 +49,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     <div className="login">
       <div className="login__brand">
         <div className="login__logo">⛏</div>
-        <h1>Project Launcher</h1>
+        <h1>StarDust</h1>
         <p className="muted">
           {isRegister ? "Создайте аккаунт" : "Войдите, чтобы продолжить"}
         </p>

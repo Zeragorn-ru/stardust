@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Project Launcher",
+  "productName": "StarDust",
   "version": "0.2.1",
   "identifier": "com.project.launcher",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Project Launcher",
+        "title": "StarDust",
         "width": 920,
         "height": 600,
         "minWidth": 860,
