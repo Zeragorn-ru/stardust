@@ -1,14 +1,23 @@
 # Сборка лаунчера (Tauri) и публикация в GitHub Release.
 #
-# Триггер — git-тег вида v1.2.3. tauri-action собирает установщики и кладёт
-# их в Release. Установленные лаунчеры сами опрашивают GitHub Releases API
-# и при наличии новой версии скачивают и запускают установщик (см. update.rs).
-# Подпись апдейтов не используется.
+# Триггер релиза — git-тег вида v1.2.3. tauri-action собирает установщики и
+# кладёт их в Release. Установленные лаунчеры сами опрашивают GitHub Releases
+# API и при наличии новой версии скачивают и запускают установщик (см.
+# update.rs). Подпись апдейтов не используется.
+#
+# Push в master (по путям launcher/**) запускает ту же сборку БЕЗ публикации
+# релиза — только чтобы прогреть кэши Rust/npm. Кэш Actions привязан к git-ref:
+# тег-ран может восстановить кэш лишь из своего ref или из дефолтной ветки.
+# Поэтому без прогрева на master каждый тег компилировал зависимости с нуля.
 
 name: launcher-release
 
 on:
   push:
+    branches: [master]
+    paths:
+      - "launcher/**"
+      - ".github/workflows/launcher-release.yml"
     tags:
       - "v*"
   workflow_dispatch:
@@ -36,6 +45,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: launcher/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -44,18 +55,23 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "launcher/src-tauri -> target"
+          # Сохранять кэш и на master (дефолтная ветка), чтобы тег-раны могли
+          # его восстановить. На прочих ветках кэш не пишем.
+          save-if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install frontend deps
         working-directory: launcher
         run: npm ci
 
+      # На тегах — собрать установщики и опубликовать Release.
+      # На master — та же сборка для прогрева кэша, без публикации (нет tagName).
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: launcher
-          tagName: ${{ github.ref_name }}
-          releaseName: "Launcher ${{ github.ref_name }}"
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Launcher {0}', github.ref_name) || '' }}
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
