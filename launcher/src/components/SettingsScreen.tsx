@@ -10,8 +10,9 @@ import {
 } from "../api";
 import { useMotion } from "../motion";
 import AccountSection from "./AccountSection";
+import ModsSection from "./ModsSection";
 
-type Section = "general" | "account";
+type Section = "general" | "account" | "mods";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -138,6 +139,16 @@ export default function SettingsScreen({
           >
             Аккаунт
           </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
+              (section === "mods" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("mods")}
+          >
+            Сборка
+          </button>
         </nav>
 
         {section === "account" ? (
@@ -146,6 +157,10 @@ export default function SettingsScreen({
               profile={profile}
               onProfileChange={onProfileChange}
             />
+          </div>
+        ) : section === "mods" ? (
+          <div className="settings__body">
+            <ModsSection />
           </div>
         ) : (
           <div className="settings__body">

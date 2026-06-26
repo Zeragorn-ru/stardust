@@ -1,8 +1,15 @@
 // Синхронизация активной сборки (модпака) в игровой каталог.
 //
 // Перед запуском лаунчер тянет манифест активной сборки с admin-сервиса
-// (`GET /manifest`) и раскладывает клиентские файлы (моды, конфиги, ресурсы)
-// в game-dir. Сверка идёт по SHA-1: уже актуальные файлы не перекачиваются.
+// (`GET /manifest`) и раскладывает ВСЕ клиентские файлы в game-dir. Сверка
+// идёт по SHA-1: уже актуальные файлы не перекачиваются.
+//
+// Опциональные моды качаются всегда, но выключенные кладутся с суффиксом
+// `.dis` (напр. `mods/sodium.jar.dis`) — Minecraft/NeoForge грузит только
+// `.jar`, поэтому такой файл игнорируется. Включение/выключение мода в
+// лаунчере — это просто переименование файла ± `.dis`, без перекачки. Выбор
+// игрока хранится в `mod-choices.json` (data-dir) по `mod_id`; если выбора
+// нет — берём `enabled_by_default` из манифеста.
 //
 // Чтобы при обновлении сборки убирать удалённые из неё моды, лаунчер хранит
 // рядом список ранее установленных им файлов (`managed-files.json`). Файлы,
@@ -11,9 +18,9 @@
 // правки конфигов не теряются.
 
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
-use protocol::Manifest;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use tauri::AppHandle;
@@ -22,19 +29,45 @@ use crate::minecraft::{download_to, emit_step};
 
 /// Имя файла-реестра управляемых лаунчером файлов (лежит в game-dir).
 const STATE_FILE: &str = "managed-files.json";
+/// Имя файла с выбором игрока по опциональным модам (лежит в data-dir).
+const CHOICES_FILE: &str = "mod-choices.json";
+/// Суффикс, которым помечается выключенный мод (Minecraft его не грузит).
+const DISABLED_SUFFIX: &str = ".dis";
 
 /// Реестр файлов, установленных лаунчером из сборки.
-/// Ключ — путь относительно game-dir, значение — SHA-1 на момент установки.
+/// Ключ — путь относительно game-dir (с суффиксом `.dis`, если мод выключен),
+/// значение — SHA-1 содержимого на момент установки.
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct ManagedState {
     files: BTreeMap<String, String>,
+}
+
+/// Опциональный мод для экрана управления в лаунчере.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OptionalMod {
+    /// Стабильный идентификатор (`mod_id` из манифеста).
+    pub mod_id: String,
+    /// Человекочитаемое имя.
+    pub name: String,
+    /// Короткое описание, если задано.
+    pub description: Option<String>,
+    /// Включён ли мод у текущего игрока.
+    pub enabled: bool,
+    /// Размер файла в байтах.
+    pub size: u64,
 }
 
 /// Синхронизирует клиентские файлы активной сборки в `game_dir`.
 ///
 /// Если активной сборки нет (404) — тихо выходит: игра запустится без модпака.
 /// Сетевые/серверные ошибки пробрасываются, чтобы пользователь увидел причину.
-pub async fn sync(app: &AppHandle, http: &reqwest::Client, game_dir: &Path) -> Result<(), String> {
+pub async fn sync(
+    app: &AppHandle,
+    http: &reqwest::Client,
+    data_dir: &Path,
+    game_dir: &Path,
+) -> Result<(), String> {
     emit_step(app, "checking", "Проверяем сборку…", None);
 
     let manifest = match crate::backend::fetch_manifest(http).await? {
@@ -46,16 +79,15 @@ pub async fn sync(app: &AppHandle, http: &reqwest::Client, game_dir: &Path) -> R
         }
     };
 
+    let choices = read_choices(data_dir);
     let mut state = read_state(game_dir);
     let mut desired: BTreeMap<String, String> = BTreeMap::new();
 
-    // 1. Раскладываем нужные клиентские файлы.
-    let entries = client_entries(&manifest);
+    let entries: Vec<_> = manifest.client_files().collect();
     let total = entries.len();
     for (idx, entry) in entries.iter().enumerate() {
         let rel = sanitize_rel_path(&entry.path)
             .ok_or_else(|| format!("Недопустимый путь в манифесте: {}", entry.path))?;
-        let target = game_dir.join(&rel);
         let rel_key = rel.to_string_lossy().replace('\\', "/");
 
         emit_step(
@@ -65,32 +97,77 @@ pub async fn sync(app: &AppHandle, http: &reqwest::Client, game_dir: &Path) -> R
             Some((idx as f64) / (total.max(1) as f64)),
         );
 
-        let up_to_date = file_sha1(&target)
-            .map(|h| h.eq_ignore_ascii_case(&entry.sha1))
-            .unwrap_or(false);
+        // Включён ли мод. Обязательные файлы (ядро, конфиги) — всегда «включены».
+        let enabled = if entry.optional {
+            entry
+                .mod_id
+                .as_ref()
+                .and_then(|id| choices.get(id).copied())
+                .unwrap_or(entry.enabled_by_default)
+        } else {
+            true
+        };
 
-        if up_to_date {
-            // Файл уже актуален — ничего не качаем.
-            desired.insert(rel_key, entry.sha1.clone());
+        // Активное имя файла — то, под которым он должен лежать сейчас;
+        // неактивное — противоположный вариант (его убираем, чтобы не было
+        // дубликата мода на диске).
+        let normal = game_dir.join(&rel);
+        let disabled = disabled_variant(&normal);
+        let (active, inactive) = if enabled {
+            (normal, disabled)
+        } else {
+            (disabled, normal)
+        };
+        let active_key = if enabled {
+            rel_key.clone()
+        } else {
+            format!("{rel_key}{DISABLED_SUFFIX}")
+        };
+
+        let matches = |path: &Path| {
+            file_sha1(path)
+                .map(|h| h.eq_ignore_ascii_case(&entry.sha1))
+                .unwrap_or(false)
+        };
+
+        // 1. Уже актуален под нужным именем — ничего не делаем, чистим дубль.
+        if matches(&active) {
+            remove_if_exists(&inactive);
+            desired.insert(active_key, entry.sha1.clone());
             continue;
         }
 
-        // Если файл существует, его не велено перезаписывать и это уже наш
-        // управляемый файл (был установлен ранее) — уважаем локальные правки
-        // (типично для конфигов) и не трогаем.
-        if target.exists() && !entry.overwrite && state.files.contains_key(&rel_key) {
-            desired.insert(rel_key, entry.sha1.clone());
+        // 2. Обязательный конфиг с overwrite=false, который мы ставили ранее, —
+        //    уважаем правки игрока, не трогаем.
+        if !entry.optional
+            && active.exists()
+            && !entry.overwrite
+            && state.files.contains_key(&active_key)
+        {
+            desired.insert(active_key, entry.sha1.clone());
             continue;
         }
 
+        // 3. Нужное содержимое уже лежит под другим именем (мод просто
+        //    переключили вкл/выкл) — переименовываем, без перекачки.
+        if matches(&inactive) {
+            remove_if_exists(&active);
+            if let Some(parent) = active.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            std::fs::rename(&inactive, &active)
+                .map_err(|e| format!("Не удалось переименовать {rel_key}: {e}"))?;
+            desired.insert(active_key, entry.sha1.clone());
+            continue;
+        }
+
+        // 4. Качаем.
         let label = entry
             .display_name
             .clone()
             .unwrap_or_else(|| rel_key.clone());
-        download_to(app, http, &entry.url, &target, &label).await?;
-
-        // Проверяем целостность скачанного.
-        match file_sha1(&target) {
+        download_to(app, http, &entry.url, &active, &label).await?;
+        match file_sha1(&active) {
             Some(got) if got.eq_ignore_ascii_case(&entry.sha1) => {}
             Some(got) => {
                 return Err(format!(
@@ -100,30 +177,104 @@ pub async fn sync(app: &AppHandle, http: &reqwest::Client, game_dir: &Path) -> R
             }
             None => return Err(format!("Не удалось прочитать скачанный файл {rel_key}")),
         }
-
-        desired.insert(rel_key, entry.sha1.clone());
+        remove_if_exists(&inactive);
+        desired.insert(active_key, entry.sha1.clone());
     }
 
-    // 2. Убираем файлы, которые лаунчер ставил раньше, но в новой сборке их
-    //    больше нет (или опциональный мод выключили). Удаляем только если
-    //    игрок файл сам не менял.
+    // Убираем файлы, которые лаунчер ставил раньше, но в новой сборке их больше
+    // нет. Удаляем только если игрок файл сам не менял.
     cleanup_stale(game_dir, &state, &desired);
 
-    // 3. Сохраняем новый реестр.
     state.files = desired;
     write_state(game_dir, &state);
 
     Ok(())
 }
 
-/// Клиентские файлы, которые должны присутствовать: все обязательные плюс
-/// включённые опциональные. Пока выбор игрока не реализован в UI — опциональные
-/// моды берём по `enabled_by_default`.
-fn client_entries(manifest: &Manifest) -> Vec<&protocol::FileEntry> {
-    manifest
-        .client_files()
-        .filter(|f| !f.optional || f.enabled_by_default)
-        .collect()
+/// Список опциональных клиентских модов активной сборки с текущим состоянием
+/// (вкл/выкл) для экрана управления. Если активной сборки нет — пустой список.
+pub async fn list_optional_mods(
+    http: &reqwest::Client,
+    data_dir: &Path,
+) -> Result<Vec<OptionalMod>, String> {
+    let Some(manifest) = crate::backend::fetch_manifest(http).await? else {
+        return Ok(Vec::new());
+    };
+    let choices = read_choices(data_dir);
+
+    let mods = manifest
+        .optional_client_mods()
+        .filter_map(|entry| {
+            // Без стабильного mod_id переключать нечего — такие моды следуют
+            // значению по умолчанию и в списке не показываются.
+            let mod_id = entry.mod_id.clone()?;
+            let enabled = choices
+                .get(&mod_id)
+                .copied()
+                .unwrap_or(entry.enabled_by_default);
+            let name = entry
+                .display_name
+                .clone()
+                .unwrap_or_else(|| file_name_of(&entry.path));
+            Some(OptionalMod {
+                mod_id,
+                name,
+                description: entry.description.clone(),
+                enabled,
+                size: entry.size,
+            })
+        })
+        .collect();
+    Ok(mods)
+}
+
+/// Включает/выключает опциональный мод. Сохраняет выбор и, если файл уже
+/// скачан, мгновенно переименовывает его (± `.dis`) без обращения к серверу.
+/// Если файл ещё не установлен, выбор применится при ближайшей синхронизации.
+pub async fn set_mod_enabled(
+    http: &reqwest::Client,
+    data_dir: &Path,
+    game_dir: &Path,
+    mod_id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    // Выбор сохраняем всегда — даже если сервер недоступен.
+    let mut choices = read_choices(data_dir);
+    choices.insert(mod_id.clone(), enabled);
+    write_choices(data_dir, &choices);
+
+    // Пытаемся применить переименование сразу. Путь берём из манифеста (не
+    // доверяем фронту). Если манифест недоступен — переименование произойдёт
+    // при следующем запуске в sync().
+    if let Ok(Some(manifest)) = crate::backend::fetch_manifest(http).await {
+        let entry = manifest
+            .optional_client_mods()
+            .find(|m| m.mod_id.as_deref() == Some(mod_id.as_str()));
+        if let Some(entry) = entry {
+            if let Some(rel) = sanitize_rel_path(&entry.path) {
+                apply_enabled_state(game_dir, &rel, enabled);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Переименовывает файл мода под текущее состояние, если он уже скачан.
+fn apply_enabled_state(game_dir: &Path, rel: &Path, enabled: bool) {
+    let normal = game_dir.join(rel);
+    let disabled = disabled_variant(&normal);
+    if enabled {
+        // Делаем активным: `name.jar.dis` -> `name.jar`.
+        if !normal.exists() && disabled.exists() {
+            let _ = std::fs::rename(&disabled, &normal);
+        }
+    } else {
+        // Выключаем: `name.jar` -> `name.jar.dis`.
+        if normal.exists() {
+            remove_if_exists(&disabled);
+            let _ = std::fs::rename(&normal, &disabled);
+        }
+    }
 }
 
 /// Удаляет ранее установленные лаунчером файлы, отсутствующие в `desired`,
@@ -133,10 +284,18 @@ fn cleanup_stale(game_dir: &Path, state: &ManagedState, desired: &BTreeMap<Strin
         if desired.contains_key(rel_key) {
             continue;
         }
-        let Some(rel) = sanitize_rel_path(rel_key) else {
+        // Ключ может нести суффикс `.dis` — разбираем обратно в путь.
+        let (base, dis) = match rel_key.strip_suffix(DISABLED_SUFFIX) {
+            Some(base) => (base, true),
+            None => (rel_key.as_str(), false),
+        };
+        let Some(rel) = sanitize_rel_path(base) else {
             continue;
         };
-        let path = game_dir.join(&rel);
+        let mut path = game_dir.join(&rel);
+        if dis {
+            path = disabled_variant(&path);
+        }
         let unchanged = file_sha1(&path)
             .map(|h| h.eq_ignore_ascii_case(recorded_sha1))
             .unwrap_or(false);
@@ -144,6 +303,19 @@ fn cleanup_stale(game_dir: &Path, state: &ManagedState, desired: &BTreeMap<Strin
             let _ = std::fs::remove_file(&path);
             remove_empty_parents(game_dir, &path);
         }
+    }
+}
+
+/// Путь выключенного варианта: к исходному имени дописывается `.dis`.
+fn disabled_variant(p: &Path) -> PathBuf {
+    let mut name: OsString = p.as_os_str().to_owned();
+    name.push(DISABLED_SUFFIX);
+    PathBuf::from(name)
+}
+
+fn remove_if_exists(path: &Path) {
+    if path.exists() {
+        let _ = std::fs::remove_file(path);
     }
 }
 
@@ -159,6 +331,15 @@ fn remove_empty_parents(game_dir: &Path, file: &Path) {
         }
         dir = d.parent();
     }
+}
+
+/// Имя файла из пути манифеста (для подписи мода, если нет display_name).
+fn file_name_of(raw: &str) -> String {
+    raw.replace('\\', "/")
+        .rsplit('/')
+        .next()
+        .unwrap_or(raw)
+        .to_string()
 }
 
 /// SHA-1 файла в hex, либо `None`, если файла нет/не читается.
@@ -223,5 +404,23 @@ fn read_state(game_dir: &Path) -> ManagedState {
 fn write_state(game_dir: &Path, state: &ManagedState) {
     if let Ok(json) = serde_json::to_string_pretty(state) {
         let _ = std::fs::write(state_path(game_dir), json);
+    }
+}
+
+fn choices_path(data_dir: &Path) -> PathBuf {
+    data_dir.join(CHOICES_FILE)
+}
+
+/// Выбор игрока по опциональным модам: `mod_id` -> включён ли.
+fn read_choices(data_dir: &Path) -> BTreeMap<String, bool> {
+    std::fs::read_to_string(choices_path(data_dir))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn write_choices(data_dir: &Path, choices: &BTreeMap<String, bool>) {
+    if let Ok(json) = serde_json::to_string_pretty(choices) {
+        let _ = std::fs::write(choices_path(data_dir), json);
     }
 }

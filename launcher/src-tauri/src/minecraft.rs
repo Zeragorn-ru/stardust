@@ -74,7 +74,7 @@ pub async fn launch(
 
     // Синхронизируем активную сборку (моды/конфиги) в игровой каталог.
     // Если активной сборки нет — функция тихо вернётся, запустим без модпака.
-    crate::modpack::sync(&app, http, &game_dir).await?;
+    crate::modpack::sync(&app, http, &data_dir, &game_dir).await?;
 
     let classpath = build_modloader_classpath(&root, &version, &loader);
     let natives_dir = natives_dir(&root, &version.id);

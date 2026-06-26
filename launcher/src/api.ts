@@ -8,6 +8,7 @@
 import type {
   AccountInfo,
   AppInfo,
+  OptionalMod,
   PlayerProfile,
   Progress,
   Settings,
@@ -250,6 +251,29 @@ export async function gameRunning(): Promise<boolean> {
     return false;
   }
   return invoke<boolean>("game_running");
+}
+
+/** Опциональные моды активной сборки с состоянием вкл/выкл. */
+export async function listOptionalMods(): Promise<OptionalMod[]> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(300);
+    return [];
+  }
+  return invoke<OptionalMod[]>("list_optional_mods");
+}
+
+/** Включить/выключить опциональный мод по его modId. */
+export async function setModEnabled(
+  modId: string,
+  enabled: boolean,
+): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(150);
+    return;
+  }
+  await invoke<void>("set_mod_enabled", { modId, enabled });
 }
 
 /** Проверить наличие обновления лаунчера. */

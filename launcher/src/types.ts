@@ -64,6 +64,20 @@ export interface UpdateInfo {
   notes: string | null;
 }
 
+/** Опциональный мод активной сборки (вкладка «Сборка»). */
+export interface OptionalMod {
+  /** Стабильный идентификатор (modId из манифеста). */
+  modId: string;
+  /** Человекочитаемое имя. */
+  name: string;
+  /** Короткое описание, либо null. */
+  description: string | null;
+  /** Включён ли мод у текущего игрока. */
+  enabled: boolean;
+  /** Размер файла в байтах. */
+  size: number;
+}
+
 /** Этап работы лаунчера, влияет на отображаемый экран/состояние. */
 export type LauncherPhase =
   | "idle"

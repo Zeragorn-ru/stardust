@@ -499,6 +499,41 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     Ok(())
 }
 
+// ---------- Сборка (модпак) ----------
+
+/// Игровой каталог сборки внутри папки данных лаунчера.
+fn game_dir(app: &AppHandle) -> std::path::PathBuf {
+    paths::data_dir(app).join("minecraft").join("game")
+}
+
+/// Список опциональных модов активной сборки с состоянием вкл/выкл.
+#[tauri::command]
+async fn list_optional_mods(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Vec<crate::modpack::OptionalMod>, String> {
+    crate::modpack::list_optional_mods(&state.http, &paths::data_dir(&app)).await
+}
+
+/// Включить/выключить опциональный мод. Сохраняет выбор и, если файл уже
+/// скачан, мгновенно переименовывает его (± `.dis`).
+#[tauri::command]
+async fn set_mod_enabled(
+    mod_id: String,
+    enabled: bool,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    crate::modpack::set_mod_enabled(
+        &state.http,
+        &paths::data_dir(&app),
+        &game_dir(&app),
+        mod_id,
+        enabled,
+    )
+    .await
+}
+
 /// Жив ли сейчас процесс игры. Фронт опрашивает это, чтобы держать
 /// кнопку «Играть» неактивной, пока Minecraft запущен.
 #[tauri::command]
@@ -536,6 +571,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             change_password,
             play_game,
             game_running,
+            list_optional_mods,
+            set_mod_enabled,
             crate::update::check_update,
             crate::update::install_update,
         ])

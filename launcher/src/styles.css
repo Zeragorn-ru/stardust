@@ -1098,6 +1098,22 @@ body {
     gap: 26px;
 }
 
+.mods-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.mods-section__hint {
+    font-size: 12px;
+    line-height: 1.5;
+    margin: 0 0 4px;
+}
+
+.mods-section__size {
+    font-weight: 400;
+}
+
 .account-form {
     display: flex;
     flex-direction: column;
