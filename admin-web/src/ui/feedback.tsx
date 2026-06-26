@@ -14,6 +14,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useBodyScrollLock } from "./useBodyScrollLock";
+import { IconCheck, IconAlert, IconInfo, IconClose } from "./icons";
 
 // ───────────────────────── Типы и контексты ─────────────────────────
 
@@ -115,7 +117,27 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
               onClick={() => dismiss(t.id)}
               role="status"
             >
-              {t.text}
+              <span className="toast-icon" aria-hidden="true">
+                {t.kind === "success" ? (
+                  <IconCheck size={18} />
+                ) : t.kind === "error" ? (
+                  <IconAlert size={18} />
+                ) : (
+                  <IconInfo size={18} />
+                )}
+              </span>
+              <span className="toast-text">{t.text}</span>
+              <button
+                type="button"
+                className="toast-close icon-only"
+                aria-label="Закрыть"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  dismiss(t.id);
+                }}
+              >
+                <IconClose size={14} />
+              </button>
             </div>
           ))}
         </div>
@@ -134,14 +156,17 @@ function ConfirmDialog({
   state: ConfirmState;
   onClose: (ok: boolean) => void;
 }) {
+  useBodyScrollLock();
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose(false);
-      if (e.key === "Enter") onClose(true);
+      // Enter подтверждает только безопасные действия. Для опасных (удаление,
+      // снятие прав) требуем явного клика, чтобы случайный Enter не сработал.
+      if (e.key === "Enter" && !state.danger) onClose(true);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, state.danger]);
 
   return (
     <div className="modal-backdrop" onClick={() => onClose(false)}>

@@ -432,6 +432,28 @@ body {
     transform: none;
 }
 
+.btn--link {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    padding: 4px 8px;
+    font-size: 13px;
+    text-decoration: underline;
+}
+.btn--link:hover:not(:disabled) {
+    color: var(--text);
+    transform: none;
+}
+
+/* Альтернативные действия под формой входа: без пароля / сброс пароля. */
+.login__alt {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    margin-top: 4px;
+}
+
 .btn--play {
     background: linear-gradient(
         135deg,

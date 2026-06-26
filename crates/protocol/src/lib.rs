@@ -162,6 +162,99 @@ pub struct AuthResponse {
     pub token: String,
 }
 
+/// Результат входа: либо сразу сессия, либо требование второго фактора.
+///
+/// Внутренне тегирован полем `status`. При `two_factor_required` лаунчер
+/// показывает поле ввода кода и затем шлёт код на `/api/login/2fa` с тем же
+/// `challenge`. Если у аккаунта Telegram не привязан — сервер возвращает
+/// `ok` сразу (2FA неприменима).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum LoginResult {
+    /// Вход завершён, выдана сессия.
+    Ok(AuthResponse),
+    /// Нужен код из Telegram. `challenge` предъявляется на шаге подтверждения.
+    TwoFactorRequired {
+        challenge: String,
+        /// Подсказка, куда отправлен код (напр. «отправлен в Telegram»).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        hint: Option<String>,
+        /// Можно ли подтвердить вход кнопкой в Telegram (без ввода кода).
+        /// Лаунчер тогда опрашивает `/api/login/2fa/status`.
+        #[serde(rename = "buttonApproval", default)]
+        button_approval: bool,
+    },
+}
+
+/// Запрос подтверждения второго фактора: `challenge` из `LoginResult` и код.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TwoFactorRequest {
+    pub challenge: String,
+    pub code: String,
+}
+
+/// Запрос статуса challenge (для подтверждения кнопкой). Лаунчер периодически
+/// опрашивает сервер, пока пользователь не нажмёт кнопку в Telegram.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChallengeStatusRequest {
+    pub challenge: String,
+}
+
+/// Статус challenge при опросе кнопочного подтверждения.
+///
+/// Тегирован полем `status`. `approved` несёт готовую сессию (для входа) —
+/// при сбросе пароля поле `auth` отсутствует и нужно вызвать reset-эндпоинт.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum ChallengeStatus {
+    /// Пользователь ещё не ответил — продолжать опрос.
+    Pending,
+    /// Подтверждено кнопкой «Это я».
+    Approved {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        auth: Option<AuthResponse>,
+    },
+    /// Отклонено кнопкой «Это не я».
+    Denied,
+    /// Истёк срок или challenge не найден — начать заново.
+    Expired,
+}
+
+/// Запрос входа без пароля: только ник. Подтверждается кнопкой в Telegram.
+/// Возвращает `LoginResult::TwoFactorRequired { button_approval: true }`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordlessLoginRequest {
+    pub username: String,
+}
+
+/// Запрос на сброс пароля: ник аккаунта с привязанным Telegram. Возвращает
+/// `challenge`, который подтверждается кнопкой в Telegram.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordResetRequest {
+    pub username: String,
+}
+
+/// Запрос установки нового пароля после подтверждения сброса в Telegram.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PasswordResetConfirm {
+    pub challenge: String,
+    #[serde(rename = "newPassword")]
+    pub new_password: String,
+}
+
+/// Ответ на запрос кода привязки Telegram (лаунчер/админка).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramLinkResponse {
+    /// Код для команды `/start <code>` боту.
+    pub code: String,
+    /// Username бота (`@name` без `@`), если известен.
+    #[serde(rename = "botUsername", default, skip_serializing_if = "Option::is_none")]
+    pub bot_username: Option<String>,
+    /// Готовая deep-link `https://t.me/<bot>?start=<code>`, если известен бот.
+    #[serde(rename = "deepLink", default, skip_serializing_if = "Option::is_none")]
+    pub deep_link: Option<String>,
+}
+
 /// Ответ проверки текущей bearer-сессии.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionResponse {

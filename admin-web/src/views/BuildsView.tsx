@@ -66,7 +66,10 @@ export function BuildsView() {
           </button>
         </header>
         {loading ? (
-          <p className="muted pad">Загрузка…</p>
+          <p className="muted pad">
+            <span className="spinner" />
+            Загрузка…
+          </p>
         ) : builds.length === 0 ? (
           <p className="muted pad">Сборок пока нет. Создайте первую.</p>
         ) : (

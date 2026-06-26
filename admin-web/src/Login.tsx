@@ -24,7 +24,10 @@ export function Login({ onLoggedIn }: { onLoggedIn: (username: string) => void }
   return (
     <div className="login-wrap">
       <form className="panel login-card" onSubmit={submit}>
-        <h2>Вход в админку</h2>
+        <div className="login-brand">
+          <span className="brand-dot" />
+          <span>Вход в админку</span>
+        </div>
         {error && <div className="error">{error}</div>}
         <div className="field">
           <label htmlFor="u">Логин</label>
@@ -47,10 +50,9 @@ export function Login({ onLoggedIn }: { onLoggedIn: (username: string) => void }
           />
         </div>
         <button
-          className="primary"
+          className="primary block"
           type="submit"
           disabled={busy || !username.trim() || !password}
-          style={{ width: "100%" }}
         >
           {busy ? "Вход…" : "Войти"}
         </button>

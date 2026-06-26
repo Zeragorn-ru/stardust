@@ -50,7 +50,12 @@ function Root() {
   }
 
   if (checking) {
-    return <div className="login-wrap muted">Проверка сессии…</div>;
+    return (
+      <div className="login-wrap muted">
+        <span className="spinner" />
+        Проверка сессии…
+      </div>
+    );
   }
 
   if (!authed) {

@@ -6,8 +6,10 @@
 
 use base64::Engine;
 use protocol::{
-    AccountInfo, AuthResponse, ChangePasswordRequest, ChangeUsernameRequest, Credentials,
-    DeleteAccountRequest, PlayerProfile, SessionResponse, SkinImportRequest, SkinUploadRequest,
+    AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
+    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
+    PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
+    SessionResponse, SkinImportRequest, SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
 };
 use serde::Deserialize;
 
@@ -88,6 +90,39 @@ async fn parse_auth(resp: reqwest::Response) -> Result<AuthResponse, String> {
     }
 }
 
+/// Общая обработка ответа на опрос статуса challenge: 2xx → `ChallengeStatus`,
+/// иначе — текст ошибки сервера.
+async fn parse_challenge_status(resp: reqwest::Response) -> Result<ChallengeStatus, String> {
+    let status = resp.status();
+    if status.is_success() {
+        return resp
+            .json::<ChallengeStatus>()
+            .await
+            .map_err(|e| format!("Некорректный ответ сервера: {e}"));
+    }
+
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err(format!("Ошибка сервера ({})", status.as_u16())),
+    }
+}
+
+/// Общая обработка ответа, возвращающего `LoginResult` (вход / passwordless /
+/// старт сброса пароля).
+async fn parse_login_result(resp: reqwest::Response) -> Result<LoginResult, String> {
+    let status = resp.status();
+    if status.is_success() {
+        return resp
+            .json::<LoginResult>()
+            .await
+            .map_err(|e| format!("Некорректный ответ сервера: {e}"));
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err(format!("Ошибка сервера ({})", status.as_u16())),
+    }
+}
+
 /// Превращает сетевую ошибку reqwest в понятное пользователю сообщение.
 fn network_error(e: reqwest::Error) -> String {
     if e.is_connect() {
@@ -115,12 +150,12 @@ async fn parse_profile(resp: reqwest::Response) -> Result<PlayerProfile, String>
     }
 }
 
-/// POST `/api/login`.
+/// POST `/api/login`. Возвращает либо сессию, либо требование 2FA.
 pub async fn login(
     client: &reqwest::Client,
     username: &str,
     password: &str,
-) -> Result<AuthResponse, String> {
+) -> Result<LoginResult, String> {
     let creds = Credentials {
         username: username.to_string(),
         password: password.to_string(),
@@ -131,7 +166,140 @@ pub async fn login(
         .send()
         .await
         .map_err(network_error)?;
+    parse_login_result(resp).await
+}
+
+/// POST `/api/login/2fa`. Подтверждение кода из Telegram, выдаёт сессию.
+pub async fn login_2fa(
+    client: &reqwest::Client,
+    challenge: &str,
+    code: &str,
+) -> Result<AuthResponse, String> {
+    let req = TwoFactorRequest {
+        challenge: challenge.to_string(),
+        code: code.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/login/2fa", base_url()))
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
     parse_auth(resp).await
+}
+
+/// POST `/api/login/2fa/status`. Опрос подтверждения входа кнопкой в Telegram.
+pub async fn login_2fa_status(
+    client: &reqwest::Client,
+    challenge: &str,
+) -> Result<ChallengeStatus, String> {
+    let req = ChallengeStatusRequest {
+        challenge: challenge.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/login/2fa/status", base_url()))
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    parse_challenge_status(resp).await
+}
+
+/// POST `/api/login/passwordless`. Вход без пароля: по нику. Возвращает
+/// требование подтверждения кнопкой в Telegram.
+pub async fn passwordless_login(
+    client: &reqwest::Client,
+    username: &str,
+) -> Result<LoginResult, String> {
+    let req = PasswordlessLoginRequest {
+        username: username.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/login/passwordless", base_url()))
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    parse_login_result(resp).await
+}
+
+/// POST `/api/login/passwordless/status`. Опрос подтверждения входа без пароля.
+pub async fn passwordless_status(
+    client: &reqwest::Client,
+    challenge: &str,
+) -> Result<ChallengeStatus, String> {
+    let req = ChallengeStatusRequest {
+        challenge: challenge.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/login/passwordless/status", base_url()))
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    parse_challenge_status(resp).await
+}
+
+/// POST `/api/password/reset`. Запуск сброса пароля: по нику. Возвращает
+/// challenge для подтверждения кнопкой в Telegram.
+pub async fn password_reset_start(
+    client: &reqwest::Client,
+    username: &str,
+) -> Result<LoginResult, String> {
+    let req = PasswordResetRequest {
+        username: username.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/password/reset", base_url()))
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    parse_login_result(resp).await
+}
+
+/// POST `/api/password/reset/status`. Опрос подтверждения сброса пароля. При
+/// подтверждении возвращает `Approved` без сессии — нужно вызвать `confirm`.
+pub async fn password_reset_status(
+    client: &reqwest::Client,
+    challenge: &str,
+) -> Result<ChallengeStatus, String> {
+    let req = ChallengeStatusRequest {
+        challenge: challenge.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/password/reset/status", base_url()))
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    parse_challenge_status(resp).await
+}
+
+/// POST `/api/password/reset/confirm`. Установка нового пароля после
+/// подтверждения сброса кнопкой в Telegram.
+pub async fn password_reset_confirm(
+    client: &reqwest::Client,
+    challenge: &str,
+    new_password: &str,
+) -> Result<(), String> {
+    let req = PasswordResetConfirm {
+        challenge: challenge.to_string(),
+        new_password: new_password.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/password/reset/confirm", base_url()))
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return Ok(());
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось установить новый пароль".to_string()),
+    }
 }
 
 /// POST `/api/register`.
@@ -408,5 +576,45 @@ pub async fn delete_account(
     match resp.json::<ErrorBody>().await {
         Ok(body) => Err(body.error),
         Err(_) => Err("Не удалось удалить аккаунт".to_string()),
+    }
+}
+
+/// POST `/api/account/telegram/start`. Запрашивает код привязки Telegram.
+pub async fn telegram_link_start(
+    client: &reqwest::Client,
+    token: &str,
+) -> Result<TelegramLinkResponse, String> {
+    let resp = client
+        .post(format!("{}/api/account/telegram/start", base_url()))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return resp
+            .json::<TelegramLinkResponse>()
+            .await
+            .map_err(|e| format!("Некорректный ответ сервера: {e}"));
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось начать привязку Telegram".to_string()),
+    }
+}
+
+/// POST `/api/account/telegram/unlink`. Отвязывает Telegram (отключает 2FA).
+pub async fn telegram_unlink(client: &reqwest::Client, token: &str) -> Result<(), String> {
+    let resp = client
+        .post(format!("{}/api/account/telegram/unlink", base_url()))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return Ok(());
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось отвязать Telegram".to_string()),
     }
 }

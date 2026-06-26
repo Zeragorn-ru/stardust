@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
+import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { SkinHead } from "../ui/SkinHead";
 import {
   IconBan,
@@ -209,7 +210,10 @@ export function AccountsView() {
 
       <div className="panel">
         {loading ? (
-          <p className="muted">Загрузка…</p>
+          <p className="muted">
+            <span className="spinner" />
+            Загрузка…
+          </p>
         ) : filtered.length === 0 ? (
           <p className="muted">
             {accounts.length === 0
@@ -246,8 +250,10 @@ export function AccountsView() {
                         )}
                       </div>
                     </td>
-                    <td className="mono muted">{a.uuid}</td>
-                    <td>
+                    <td className="mono muted" data-label="UUID">
+                      {a.uuid}
+                    </td>
+                    <td data-label="Роль">
                       {a.isAdmin ? (
                         <span className="badge admin">
                           <IconStar size={12} /> админ
@@ -353,6 +359,7 @@ function RenameDialog({
 }) {
   const [value, setValue] = useState(account.username);
   const inputRef = useRef<HTMLInputElement>(null);
+  useBodyScrollLock();
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -423,6 +430,7 @@ function BanDialog({
 }) {
   const [durationIdx, setDurationIdx] = useState(BAN_DURATIONS.length - 1);
   const [reason, setReason] = useState("");
+  useBodyScrollLock();
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {

@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
-import type { AccountInfo, PlayerProfile } from "../types";
+import type { AccountInfo, PlayerProfile, TelegramLinkResponse } from "../types";
 import {
   accountInfo,
   changePassword,
   changeUsername,
   deleteAccount,
+  telegramLinkStart,
+  telegramUnlink,
 } from "../api";
 
 interface Props {
@@ -40,6 +42,11 @@ export default function AccountSection({
   const [deleteStatus, setDeleteStatus] = useState<"idle" | "saving">("idle");
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  // Telegram 2FA: привязка/отвязка.
+  const [tgStatus, setTgStatus] = useState<"idle" | "saving">("idle");
+  const [tgErr, setTgErr] = useState<string | null>(null);
+  const [tgLink, setTgLink] = useState<TelegramLinkResponse | null>(null);
 
   useEffect(() => {
     accountInfo()
@@ -117,6 +124,33 @@ export default function AccountSection({
     } catch (e) {
       setDeleteErr(e instanceof Error ? e.message : String(e));
       setDeleteStatus("idle");
+    }
+  }
+
+  async function handleLinkTelegram() {
+    setTgErr(null);
+    setTgStatus("saving");
+    try {
+      const link = await telegramLinkStart();
+      setTgLink(link);
+    } catch (e) {
+      setTgErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTgStatus("idle");
+    }
+  }
+
+  async function handleUnlinkTelegram() {
+    setTgErr(null);
+    setTgStatus("saving");
+    try {
+      await telegramUnlink();
+      setTgLink(null);
+      setInfo((prev) => (prev ? { ...prev, telegramLinked: false } : prev));
+    } catch (e) {
+      setTgErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTgStatus("idle");
     }
   }
 
@@ -211,6 +245,60 @@ export default function AccountSection({
           {pwStatus === "saving" ? "Сохранение…" : "Изменить пароль"}
         </button>
       </form>
+
+      <div className="account-form">
+        <span className="toggle-row__title">Telegram 2FA</span>
+        {info?.telegramLinked ? (
+          <>
+            <p className="muted">
+              Двухфакторная защита включена: при входе нужен код из Telegram.
+            </p>
+            {tgErr && <p className="form-msg form-msg--error">{tgErr}</p>}
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={tgStatus === "saving"}
+              onClick={handleUnlinkTelegram}
+            >
+              {tgStatus === "saving" ? "Отключение…" : "Отключить 2FA"}
+            </button>
+          </>
+        ) : tgLink ? (
+          <>
+            <p className="muted">
+              Откройте бота в Telegram и отправьте команду, чтобы завершить
+              привязку. После подтверждения обновите страницу аккаунта.
+            </p>
+            {tgLink.deepLink ? (
+              <a
+                className="btn btn--primary"
+                href={tgLink.deepLink}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Открыть Telegram
+              </a>
+            ) : null}
+            <code className="info-card__path">/start {tgLink.code}</code>
+            {tgErr && <p className="form-msg form-msg--error">{tgErr}</p>}
+          </>
+        ) : (
+          <>
+            <p className="muted">
+              Привяжите Telegram, чтобы включить вход по коду подтверждения.
+            </p>
+            {tgErr && <p className="form-msg form-msg--error">{tgErr}</p>}
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={tgStatus === "saving"}
+              onClick={handleLinkTelegram}
+            >
+              {tgStatus === "saving" ? "Подготовка…" : "Привязать Telegram"}
+            </button>
+          </>
+        )}
+      </div>
 
       <form
         className="account-form account-form--danger"

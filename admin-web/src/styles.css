@@ -1,16 +1,65 @@
 :root {
-    --bg: #14161a;
-    --panel: #1d2026;
-    --panel-2: #24282f;
+    /* Layered surfaces — deepest background up to raised panels. */
+    --bg: #0f1115;
+    --bg-elev: #14161a;
+    --panel: #1b1e24;
+    --panel-2: #23272f;
+    --panel-3: #2b303a;
     --border: #2e333c;
-    --text: #e6e8ec;
-    --muted: #9aa0aa;
+    --border-strong: #3a414c;
+
+    --text: #e8eaee;
+    --muted: #98a0ac;
+    --faint: #6b7280;
+
     --accent: #4c8bf5;
     --accent-2: #3b6fd4;
+    --accent-soft: rgba(76, 139, 245, 0.14);
     --danger: #e5534b;
+    --danger-soft: rgba(229, 83, 75, 0.13);
     --ok: #3fb950;
-    --radius: 8px;
+    --ok-soft: rgba(63, 185, 80, 0.16);
+    --warn: #d8a23a;
+
+    /* Spacing scale (4px base). */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+
+    /* Radius scale. */
+    --radius-sm: 6px;
+    --radius: 9px;
+    --radius-lg: 14px;
+    --radius-pill: 999px;
+
+    /* Elevation. */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.5);
+
+    /* Focus ring (keyboard navigation). */
+    --ring: 0 0 0 3px rgba(76, 139, 245, 0.4);
+
+    --ease: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
     color-scheme: dark;
+}
+
+/* Visible, consistent focus ring for keyboard users across all controls. */
+:focus-visible {
+    outline: none;
+    box-shadow: var(--ring);
+    border-radius: var(--radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
 }
 
 * {
@@ -39,15 +88,22 @@ button {
     padding: 8px 14px;
     border-radius: var(--radius);
     transition:
-        background 0.15s,
-        border-color 0.15s;
+        background var(--ease),
+        border-color var(--ease),
+        box-shadow var(--ease),
+        transform var(--ease);
     display: inline-flex;
     align-items: center;
     gap: 6px;
 }
 
 button:hover:not(:disabled) {
-    border-color: var(--accent);
+    border-color: var(--border-strong);
+    background: var(--panel-3);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(1px);
 }
 
 button:disabled {
@@ -59,10 +115,12 @@ button.primary {
     background: var(--accent);
     border-color: var(--accent);
     color: #fff;
+    box-shadow: var(--shadow-sm);
 }
 
 button.primary:hover:not(:disabled) {
     background: var(--accent-2);
+    border-color: var(--accent-2);
 }
 
 button.danger {
@@ -107,18 +165,27 @@ button.link-btn:hover:not(:disabled) {
 input,
 select {
     font: inherit;
-    background: var(--bg);
+    background: var(--bg-elev);
     color: var(--text);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 8px 10px;
     width: 100%;
+    transition:
+        border-color var(--ease),
+        box-shadow var(--ease);
+}
+
+input:hover:not(:focus),
+select:hover:not(:focus) {
+    border-color: var(--border-strong);
 }
 
 input:focus,
 select:focus {
     outline: none;
     border-color: var(--accent);
+    box-shadow: var(--ring);
 }
 
 label {
@@ -184,6 +251,7 @@ label {
     gap: 10px;
     font-weight: 700;
     font-size: 16px;
+    letter-spacing: -0.01em;
     padding: 6px 8px 16px;
 }
 
@@ -208,6 +276,7 @@ label {
     border-color: transparent;
     color: var(--muted);
     padding: 9px 10px;
+    position: relative;
 }
 
 .nav-item:hover:not(:disabled) {
@@ -217,9 +286,21 @@ label {
 }
 
 .nav-item.active {
-    background: var(--panel-2);
+    background: var(--accent-soft);
     color: var(--text);
-    border-color: var(--border);
+    border-color: transparent;
+}
+
+/* Accent rail marks the active section. */
+.nav-item.active::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 7px;
+    bottom: 7px;
+    width: 3px;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
 }
 
 .sidebar-foot {
@@ -269,9 +350,10 @@ label {
 .panel {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     padding: 20px;
     margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
 }
 
 .panel h2 {
@@ -284,16 +366,20 @@ label {
     display: flex;
     align-items: center;
     gap: 8px;
-    background: var(--bg);
+    background: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0 10px;
     color: var(--muted);
     min-width: 220px;
+    transition:
+        border-color var(--ease),
+        box-shadow var(--ease);
 }
 
 .search:focus-within {
     border-color: var(--accent);
+    box-shadow: var(--ring);
 }
 
 .search input {
@@ -302,8 +388,10 @@ label {
     padding: 8px 0;
 }
 
-.search input:focus {
+.search input:focus,
+.search input:focus-visible {
     outline: none;
+    box-shadow: none;
 }
 
 /* --- Login --- */
@@ -317,6 +405,22 @@ label {
 .login-card {
     width: 100%;
     max-width: 360px;
+    box-shadow: var(--shadow-lg);
+}
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    margin-bottom: 18px;
+}
+
+.block {
+    width: 100%;
+    justify-content: center;
 }
 
 /* --- Builds master-detail --- */
@@ -393,8 +497,28 @@ label {
     display: grid;
     place-items: center;
     min-height: 300px;
-    border: 1px dashed var(--border);
-    border-radius: var(--radius);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--muted);
+    background: var(--bg-elev);
+}
+
+.spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* --- Build detail --- */
@@ -1047,20 +1171,69 @@ td.num {
     border: 1px solid var(--border);
     background: var(--panel-2);
     cursor: pointer;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-    animation: toast-in 0.18s ease-out;
+    box-shadow: var(--shadow-md);
+    animation: toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.toast-icon {
+    flex: none;
+    display: inline-flex;
+    margin-top: 1px;
+}
+
+.toast-text {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.4;
+}
+
+.toast-close {
+    flex: none;
+    margin: -4px -4px 0 0;
+    padding: 4px;
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    opacity: 0.7;
+}
+
+.toast-close:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: transparent;
+    color: var(--text);
+    opacity: 1;
 }
 
 .toast-success {
     border-color: var(--ok);
+    background: linear-gradient(var(--ok-soft), var(--ok-soft)), var(--panel-2);
+}
+
+.toast-success .toast-icon {
+    color: var(--ok);
 }
 
 .toast-error {
     border-color: var(--danger);
+    background: linear-gradient(var(--danger-soft), var(--danger-soft)),
+        var(--panel-2);
+}
+
+.toast-error .toast-icon {
+    color: var(--danger);
 }
 
 .toast-info {
     border-color: var(--accent);
+    background: linear-gradient(var(--accent-soft), var(--accent-soft)),
+        var(--panel-2);
+}
+
+.toast-info .toast-icon {
+    color: var(--accent);
 }
 
 @keyframes toast-in {
@@ -1079,20 +1252,43 @@ td.num {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
     display: grid;
     place-items: center;
     z-index: 900;
     padding: 24px;
+    animation: backdrop-in 0.18s ease-out;
+}
+
+@keyframes backdrop-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
 }
 
 .modal {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--radius-lg);
     padding: 24px;
     width: 100%;
     max-width: 420px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
+    animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modal-in {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .modal-wide {
@@ -1112,7 +1308,7 @@ td.num {
 }
 
 .error {
-    background: rgba(229, 83, 75, 0.12);
+    background: var(--danger-soft);
     border: 1px solid var(--danger);
     color: #f0a8a3;
     padding: 10px 12px;
@@ -1367,30 +1563,204 @@ td.num {
 }
 
 /* --- Responsive --- */
+
+/* Планшеты и узкие окна: сайдбар становится верхней панелью, мастер-детейл
+   сборок схлопывается в одну колонку, контент скроллит страницу целиком. */
 @media (max-width: 900px) {
     .app {
         grid-template-columns: 1fr;
     }
     .sidebar {
-        position: static;
+        position: sticky;
+        top: 0;
+        z-index: 30;
         height: auto;
         flex-direction: row;
         flex-wrap: wrap;
         align-items: center;
+        gap: 6px;
+        padding: 10px 12px;
+    }
+    .brand {
+        padding: 0 8px;
+        margin-right: auto;
+    }
+    .nav {
+        flex-direction: row;
+        flex-wrap: wrap;
     }
     .sidebar-foot {
         margin-top: 0;
         border-top: none;
         padding-top: 0;
         flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
     }
-    .nav {
-        flex-direction: row;
+    .who {
+        width: 100%;
+        order: -1;
+    }
+    /* Снимаем вложенный скролл — страница скроллится как единое целое. */
+    .content {
+        max-height: none;
+        padding: 18px 16px;
     }
     .builds-layout {
         grid-template-columns: 1fr;
     }
     .builds-aside {
         position: static;
+    }
+    .view-head {
+        flex-wrap: wrap;
+    }
+    .search {
+        min-width: 0;
+        flex: 1;
+    }
+}
+
+/* Телефоны: таблица аккаунтов превращается в карточки, тап-таргеты крупнее,
+   модалки занимают почти весь экран, тулбары переносятся по строкам. */
+@media (max-width: 640px) {
+    .content {
+        padding: 14px 12px;
+    }
+    .view-head h1 {
+        font-size: 18px;
+    }
+
+    /* Крупнее цели для пальца. */
+    button {
+        padding: 10px 14px;
+    }
+    button.icon-only,
+    button.danger.icon-only {
+        padding: 9px;
+    }
+    .nav-item {
+        padding: 10px 12px;
+    }
+
+    /* Поиск в шапке — на всю ширину отдельной строкой. */
+    .view-head .search {
+        flex-basis: 100%;
+    }
+
+    /* Таблица аккаунтов → карточки. */
+    table thead {
+        display: none;
+    }
+    table,
+    table tbody,
+    table tr,
+    table td {
+        display: block;
+        width: 100%;
+    }
+    table tr {
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--panel-2);
+        padding: 10px 12px;
+        margin-bottom: 12px;
+    }
+    table tr:last-child {
+        margin-bottom: 0;
+    }
+    table td {
+        border-bottom: none;
+        padding: 4px 0;
+    }
+    /* Подпись из data-label слева, значение справа. */
+    table td[data-label] {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+    table td[data-label]::before {
+        content: attr(data-label);
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        flex: none;
+    }
+    /* Длинный UUID переносим, чтобы не рвал вёрстку. */
+    table td.mono[data-label] {
+        font-size: 12px;
+        word-break: break-all;
+        text-align: right;
+    }
+    .row-actions {
+        text-align: left;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding-top: 8px !important;
+        margin-top: 4px;
+        border-top: 1px solid var(--border) !important;
+    }
+    .cell-main {
+        flex-wrap: wrap;
+    }
+
+    /* Модалки почти на весь экран. */
+    .modal-backdrop {
+        padding: 12px;
+        place-items: end center;
+    }
+    .modal {
+        max-width: 100%;
+    }
+    .modal-actions {
+        flex-direction: column-reverse;
+    }
+    .modal-actions button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    /* Тулбар файлового менеджера переносится построчно. */
+    .fm-toolbar .spacer {
+        display: none;
+    }
+    .fm-toolbar .search {
+        flex-basis: 100%;
+    }
+    .fm-bulk {
+        gap: 12px;
+    }
+    .fm-bulk-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    /* Строки файлов: разрешаем перенос, прячем малополезный на телефоне SHA,
+       размер отодвигаем вправо. Имя файла не должно вытесняться тегами. */
+    .fm-main {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+    .fm-name {
+        flex: 1 1 100%;
+    }
+    .fm-sha {
+        display: none;
+    }
+    .fm-disp {
+        flex-basis: 100%;
+    }
+
+    /* Тосты — на всю ширину снизу. */
+    .toast-stack {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+    }
+    .toast {
+        max-width: none;
     }
 }

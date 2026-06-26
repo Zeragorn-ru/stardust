@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "./api";
 import type { CreateBuildInput } from "./types";
 import { useToast } from "./ui/feedback";
+import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
 
@@ -13,6 +14,7 @@ export function CreateBuildForm({
   onClose: () => void;
 }) {
   const toast = useToast();
+  useBodyScrollLock();
   const [form, setForm] = useState<CreateBuildInput>({
     name: "",
     version: "",

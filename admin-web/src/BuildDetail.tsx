@@ -54,7 +54,13 @@ export function BuildDetail({
     [files],
   );
 
-  if (loading) return <div className="panel muted">Загрузка…</div>;
+  if (loading)
+    return (
+      <div className="panel muted">
+        <span className="spinner" />
+        Загрузка…
+      </div>
+    );
   if (!detail) return null;
 
   return (

@@ -17,6 +17,7 @@ import {
   shortSha,
 } from "./format";
 import { useConfirm, useToast } from "./ui/feedback";
+import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import {
   IconChevronRight,
   IconCornerUp,
@@ -730,6 +731,7 @@ function PromptDialog({
 }) {
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  useBodyScrollLock();
 
   useEffect(() => {
     inputRef.current?.focus();

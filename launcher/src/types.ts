@@ -17,6 +17,38 @@ export interface AccountInfo {
   isAdmin: boolean;
 }
 
+/** Результат входа: либо сессия (профиль), либо требование второго фактора. */
+export type LoginOutcome =
+  | { status: "ok"; profile: PlayerProfile }
+  | {
+      status: "twoFactorRequired";
+      challenge: string;
+      hint?: string;
+      /** Подтверждение кнопкой в Telegram: опрашивать статус вместо ввода кода. */
+      buttonApproval: boolean;
+    };
+
+/** Результат опроса кнопочного подтверждения (вход без пароля / 2FA / сброс).
+ *
+ * Для сценариев входа `approved` несёт профиль (сессия уже сохранена в
+ * бэкенде). Для сброса пароля `approved` приходит без профиля — нужно показать
+ * форму нового пароля и вызвать `passwordResetConfirm`. */
+export type ChallengeOutcome =
+  | { status: "pending" }
+  | { status: "approved"; profile?: PlayerProfile }
+  | { status: "denied" }
+  | { status: "expired" };
+
+/** Ответ на запрос кода привязки Telegram. */
+export interface TelegramLinkResponse {
+  /** Код для команды `/start <code>` боту. */
+  code: string;
+  /** Username бота (без `@`), если известен. */
+  botUsername?: string;
+  /** Готовая deep-link `https://t.me/<bot>?start=<code>`, если известен бот. */
+  deepLink?: string;
+}
+
 export interface Settings {
   /** Выделяемая память JVM, МБ. */
   memoryMb: number;

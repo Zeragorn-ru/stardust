@@ -18,7 +18,13 @@ use sqlx::{PgPool, Row};
 use time::OffsetDateTime;
 
 mod build;
+mod telegram;
 pub use build::{BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild};
+pub use telegram::{
+    ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_DENY,
+    CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET, SETTING_TELEGRAM_TOKEN,
+    SETTING_TELEGRAM_USERNAME,
+};
 
 /// Скин игрока, хранимый сервером.
 #[derive(Debug, Clone)]
@@ -166,6 +172,8 @@ pub enum StoreError {
     NotFound,
     #[error("неверный пароль")]
     BadPassword,
+    #[error("слишком часто, попробуйте позже")]
+    TooMany,
     #[error("сбой хранилища: {0}")]
     Backend(String),
 }
@@ -278,6 +286,22 @@ impl Store {
             .bind(&account.uuid)
             .execute(&self.pool)
             .await?;
+        Ok(())
+    }
+
+    /// Устанавливает новый пароль без проверки текущего. Вызывается только
+    /// после подтверждения личности через Telegram (сценарий сброса пароля).
+    pub async fn reset_password(&self, uuid: &str, new_password: &str) -> Result<(), StoreError> {
+        let uuid = normalize_uuid(uuid);
+        let changed = sqlx::query("UPDATE accounts SET password_hash = $1 WHERE uuid = $2")
+            .bind(hash_password(new_password))
+            .bind(&uuid)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if changed == 0 {
+            return Err(StoreError::NotFound);
+        }
         Ok(())
     }
 
@@ -545,6 +569,15 @@ impl Store {
     pub async fn destroy_session(&self, token: &str) -> Result<(), StoreError> {
         sqlx::query("DELETE FROM sessions WHERE token = $1")
             .bind(token)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Удаляет все сессии аккаунта (например, после смены пароля).
+    pub async fn destroy_sessions_for(&self, uuid: &str) -> Result<(), StoreError> {
+        sqlx::query("DELETE FROM sessions WHERE account_uuid = $1")
+            .bind(normalize_uuid(uuid))
             .execute(&self.pool)
             .await?;
         Ok(())

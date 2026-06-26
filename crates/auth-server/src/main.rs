@@ -38,13 +38,18 @@ use serde_json::json;
 use tower_http::cors::CorsLayer;
 
 use protocol::{
-    AccountInfo, AuthResponse, ChangePasswordRequest, ChangeUsernameRequest, Credentials,
-    DeleteAccountRequest, PlayerProfile, SessionResponse, SkinImportRequest, SkinModel,
-    SkinUploadRequest,
+    AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
+    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
+    PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
+    SessionResponse, SkinImportRequest, SkinModel, SkinUploadRequest, TelegramLinkResponse,
+    TwoFactorRequest,
 };
 
 use crate::yggdrasil::Keys;
-use store::{Account, Store, StoreError, StoredSkin};
+use store::{
+    Account, ChallengeOutcome, Store, StoreError, StoredSkin, CHALLENGE_LOGIN_2FA,
+    CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET, SETTING_TELEGRAM_USERNAME,
+};
 use time::format_description::well_known::Rfc3339;
 
 /// Общее состояние сервера.
@@ -110,13 +115,24 @@ async fn main() {
         .route("/health", get(health))
         .route("/api/register", post(register))
         .route("/api/login", post(login))
+        .route("/api/login/2fa", post(login_2fa))
+        .route("/api/login/2fa/status", post(login_2fa_status))
+        .route("/api/login/passwordless", post(login_passwordless))
+        .route(
+            "/api/login/passwordless/status",
+            post(login_passwordless_status),
+        )
+        .route("/api/password/reset", post(password_reset_start))
+        .route("/api/password/reset/status", post(password_reset_status))
+        .route("/api/password/reset/confirm", post(password_reset_confirm))
         .route("/api/logout", post(logout))
         .route("/api/session", get(session))
         .route("/api/account", get(account_me))
         .route("/api/account/username", post(change_username))
         .route("/api/account/password", post(change_password))
         .route("/api/account/delete", post(delete_account))
-        .route("/api/account/telegram/start", post(telegram_2fa_start))
+        .route("/api/account/telegram/start", post(telegram_link_start))
+        .route("/api/account/telegram/unlink", post(telegram_unlink))
         .route("/api/profile/:uuid", get(profile))
         .route("/api/skin/import", post(skin_import))
         .route("/api/skin/upload", post(skin_upload))
@@ -198,6 +214,10 @@ impl From<StoreError> for ApiError {
             StoreError::BadPassword => {
                 ApiError::new(StatusCode::UNAUTHORIZED, "Неверный логин или пароль")
             }
+            StoreError::TooMany => ApiError::new(
+                StatusCode::TOO_MANY_REQUESTS,
+                "Слишком часто. Подождите немного и попробуйте снова",
+            ),
             StoreError::Backend(msg) => {
                 tracing::error!("ошибка хранилища: {msg}");
                 ApiError::new(
@@ -232,6 +252,18 @@ async fn register(
     }
     let profile = state.store.register(username, &creds.password).await?;
     let token = state.store.create_session(&profile.id).await?;
+
+    // Уведомляем админов о новой регистрации (через outbox; если бот не
+    // настроен — сообщения просто полежат в очереди). Ошибка не должна
+    // ломать регистрацию, поэтому только логируем.
+    if let Err(e) = state
+        .store
+        .notify_admins(&format!("Новая регистрация: «{}»", profile.name))
+        .await
+    {
+        tracing::warn!(?e, "не удалось поставить уведомление о регистрации");
+    }
+
     Ok(Json(AuthResponse { profile, token }))
 }
 
@@ -267,14 +299,221 @@ async fn ensure_not_banned(state: &Shared, uuid: &str) -> Result<(), ApiError> {
 async fn login(
     State(state): State<Shared>,
     Json(creds): Json<Credentials>,
-) -> Result<Json<AuthResponse>, ApiError> {
+) -> Result<Json<LoginResult>, ApiError> {
     let profile = state
         .store
         .login(creds.username.trim(), &creds.password)
         .await?;
     ensure_not_banned(&state, &profile.id).await?;
-    let token = state.store.create_session(&profile.id).await?;
-    Ok(Json(AuthResponse { profile, token }))
+
+    // Если у аккаунта привязан Telegram — требуем второй фактор: генерируем
+    // код, кладём его в outbox на доставку ботом и возвращаем challenge.
+    // start_2fa возвращает None, если Telegram не привязан (2FA неприменима).
+    match state.store.start_2fa(&profile.id).await? {
+        Some(challenge) => Ok(Json(LoginResult::TwoFactorRequired {
+            challenge,
+            hint: Some("Подтвердите вход в Telegram или введите код".to_string()),
+            button_approval: true,
+        })),
+        None => {
+            let token = state.store.create_session(&profile.id).await?;
+            Ok(Json(LoginResult::Ok(AuthResponse { profile, token })))
+        }
+    }
+}
+
+/// Подтверждение второго фактора: проверяем код по `challenge` и выдаём сессию.
+async fn login_2fa(
+    State(state): State<Shared>,
+    Json(req): Json<TwoFactorRequest>,
+) -> Result<Json<AuthResponse>, ApiError> {
+    let uuid = state
+        .store
+        .verify_2fa(&req.challenge, &req.code)
+        .await
+        .map_err(|e| match e {
+            StoreError::BadPassword => ApiError::new(StatusCode::UNAUTHORIZED, "Неверный код"),
+            StoreError::NotFound => {
+                ApiError::new(StatusCode::UNAUTHORIZED, "Код истёк, войдите заново")
+            }
+            other => other.into(),
+        })?;
+    ensure_not_banned(&state, &uuid).await?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+    let token = state.store.create_session(&uuid).await?;
+    Ok(Json(AuthResponse {
+        profile: account.profile(),
+        token,
+    }))
+}
+
+/// Опрос статуса 2FA при подтверждении кнопкой «Это я» в Telegram. Лаунчер
+/// периодически опрашивает этот эндпоинт после `TwoFactorRequired`. При
+/// подтверждении выдаёт сессию; при отклонении/истечении просит начать заново.
+async fn login_2fa_status(
+    State(state): State<Shared>,
+    Json(req): Json<ChallengeStatusRequest>,
+) -> Result<Json<ChallengeStatus>, ApiError> {
+    Ok(Json(
+        challenge_login_status(&state, &req.challenge, CHALLENGE_LOGIN_2FA).await?,
+    ))
+}
+
+/// Опрос статуса входа без пароля. Аналогичен `login_2fa_status`, но проверяет
+/// назначение `passwordless`.
+async fn login_passwordless_status(
+    State(state): State<Shared>,
+    Json(req): Json<ChallengeStatusRequest>,
+) -> Result<Json<ChallengeStatus>, ApiError> {
+    Ok(Json(
+        challenge_login_status(&state, &req.challenge, CHALLENGE_PASSWORDLESS).await?,
+    ))
+}
+
+/// Вход без пароля: по нику. Если у аккаунта привязан Telegram — отправляет
+/// запрос с кнопкой подтверждения и возвращает `TwoFactorRequired`. Лаунчер
+/// затем опрашивает `/api/login/2fa/status`.
+///
+/// Намеренно не раскрываем, существует ли аккаунт и привязан ли у него
+/// Telegram: при отсутствии любого из условий возвращаем единый отказ.
+async fn login_passwordless(
+    State(state): State<Shared>,
+    Json(req): Json<PasswordlessLoginRequest>,
+) -> Result<Json<LoginResult>, ApiError> {
+    let unavailable = || {
+        ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "Вход без пароля недоступен для этого аккаунта",
+        )
+    };
+    let uuid = state
+        .store
+        .uuid_for_telegram_login(req.username.trim())
+        .await?
+        .ok_or_else(unavailable)?;
+    ensure_not_banned(&state, &uuid).await?;
+    let challenge = state
+        .store
+        .start_challenge(&uuid, CHALLENGE_PASSWORDLESS)
+        .await?
+        .ok_or_else(unavailable)?;
+    Ok(Json(LoginResult::TwoFactorRequired {
+        challenge,
+        hint: Some("Подтвердите вход в Telegram".to_string()),
+        button_approval: true,
+    }))
+}
+
+/// Начинает сброс пароля: по нику аккаунта с привязанным Telegram. Шлёт запрос
+/// с кнопкой подтверждения и возвращает challenge.
+async fn password_reset_start(
+    State(state): State<Shared>,
+    Json(req): Json<PasswordResetRequest>,
+) -> Result<Json<LoginResult>, ApiError> {
+    let unavailable = || {
+        ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "Сброс пароля недоступен для этого аккаунта",
+        )
+    };
+    let uuid = state
+        .store
+        .uuid_for_telegram_login(req.username.trim())
+        .await?
+        .ok_or_else(unavailable)?;
+    let challenge = state
+        .store
+        .start_challenge(&uuid, CHALLENGE_PASSWORD_RESET)
+        .await?
+        .ok_or_else(unavailable)?;
+    Ok(Json(LoginResult::TwoFactorRequired {
+        challenge,
+        hint: Some("Подтвердите сброс пароля в Telegram".to_string()),
+        button_approval: true,
+    }))
+}
+
+/// Опрос статуса сброса пароля. При подтверждении возвращает `Approved` БЕЗ
+/// сессии (`auth: None`) — пароль ещё не сменён, лаунчер должен вызвать
+/// `/api/password/reset/confirm` с новым паролем. Запись challenge при этом не
+/// удаляется (нужна для confirm), поэтому используем `peek_challenge`.
+async fn password_reset_status(
+    State(state): State<Shared>,
+    Json(req): Json<ChallengeStatusRequest>,
+) -> Result<Json<ChallengeStatus>, ApiError> {
+    let status = match state
+        .store
+        .peek_challenge(&req.challenge, Some(CHALLENGE_PASSWORD_RESET))
+        .await?
+    {
+        ChallengeOutcome::Pending => ChallengeStatus::Pending,
+        ChallengeOutcome::Approved(_) => ChallengeStatus::Approved { auth: None },
+        ChallengeOutcome::Denied => ChallengeStatus::Denied,
+        ChallengeOutcome::Expired | ChallengeOutcome::NotFound => ChallengeStatus::Expired,
+    };
+    Ok(Json(status))
+}
+
+/// Завершает сброс пароля: проверяет, что challenge подтверждён кнопкой, и
+/// устанавливает новый пароль. Challenge затем уничтожается (одноразовость),
+/// а все активные сессии аккаунта аннулируются.
+async fn password_reset_confirm(
+    State(state): State<Shared>,
+    Json(req): Json<PasswordResetConfirm>,
+) -> Result<StatusCode, ApiError> {
+    if req.new_password.len() < 6 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Пароль: минимум 6 символов",
+        ));
+    }
+    let uuid = state
+        .store
+        .consume_approved_challenge(&req.challenge, CHALLENGE_PASSWORD_RESET)
+        .await
+        .map_err(|e| match e {
+            StoreError::NotFound => ApiError::new(
+                StatusCode::UNAUTHORIZED,
+                "Запрос не подтверждён или истёк, начните заново",
+            ),
+            other => other.into(),
+        })?;
+    // set_password уже сбрасывает сессии аккаунта.
+    state.store.set_password(&uuid, &req.new_password).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Общая логика опроса для сценариев входа (2FA и passwordless): при
+/// подтверждении выдаёт сессию.
+async fn challenge_login_status(
+    state: &Shared,
+    challenge: &str,
+    purpose: &str,
+) -> Result<ChallengeStatus, ApiError> {
+    match state.store.poll_challenge(challenge, Some(purpose)).await? {
+        ChallengeOutcome::Pending => Ok(ChallengeStatus::Pending),
+        ChallengeOutcome::Approved(uuid) => {
+            ensure_not_banned(state, &uuid).await?;
+            let account = state
+                .store
+                .find_by_uuid(&uuid)
+                .await
+                .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+            let token = state.store.create_session(&uuid).await?;
+            Ok(ChallengeStatus::Approved {
+                auth: Some(AuthResponse {
+                    profile: account.profile(),
+                    token,
+                }),
+            })
+        }
+        ChallengeOutcome::Denied => Ok(ChallengeStatus::Denied),
+        ChallengeOutcome::Expired | ChallengeOutcome::NotFound => Ok(ChallengeStatus::Expired),
+    }
 }
 
 async fn logout(State(state): State<Shared>, headers: HeaderMap) -> Result<StatusCode, ApiError> {
@@ -395,19 +634,44 @@ async fn delete_account(
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// Заглушка 2FA через Telegram-бота.
+/// Начинает привязку Telegram: генерирует одноразовый код для `/start <code>`
+/// и возвращает его вместе с deep-link на бота (если username бота известен).
 ///
-/// Сейчас не выполняет реальной привязки: возвращает заготовленный ответ,
-/// чтобы UI мог показать поток. Реальная интеграция с ботом появится позже.
-async fn telegram_2fa_start(
+/// Сама привязка происходит на стороне бота, когда пользователь отправит
+/// `/start <code>`. После этого при следующем входе включится 2FA.
+async fn telegram_link_start(
     State(state): State<Shared>,
     headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    let _account = current_account(&state, &headers).await?;
-    Ok(Json(json!({
-        "status": "not_implemented",
-        "message": "Привязка Telegram пока недоступна"
-    })))
+) -> Result<Json<TelegramLinkResponse>, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let code = state.store.create_link_token(&account.uuid).await?;
+
+    let bot_username = state
+        .store
+        .get_setting(SETTING_TELEGRAM_USERNAME)
+        .await
+        .ok()
+        .flatten()
+        .filter(|s| !s.trim().is_empty());
+    let deep_link = bot_username
+        .as_deref()
+        .map(|bot| format!("https://t.me/{bot}?start={code}"));
+
+    Ok(Json(TelegramLinkResponse {
+        code,
+        bot_username,
+        deep_link,
+    }))
+}
+
+/// Отвязка Telegram от аккаунта владельца сессии (отключает 2FA).
+async fn telegram_unlink(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    state.store.set_telegram(&account.uuid, None).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn skin_import(

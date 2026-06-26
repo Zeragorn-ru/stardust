@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { BuildFile } from "./types";
 import { baseName, formatSize } from "./format";
-import { useToast } from "./ui/feedback";
+import { useConfirm, useToast } from "./ui/feedback";
+import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 
 // Расширения, которые мы считаем текстовыми и предлагаем редактировать.
 const TEXT_EXT = new Set([
@@ -55,6 +56,8 @@ export function FileEditor({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
+  useBodyScrollLock();
   const [text, setText] = useState("");
   const [original, setOriginal] = useState("");
   const [loading, setLoading] = useState(true);
@@ -63,6 +66,8 @@ export function FileEditor({
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   const dirty = text !== original;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
 
   useEffect(() => {
     let alive = true;
@@ -106,12 +111,34 @@ export function FileEditor({
     }
   }
 
-  function tryClose() {
-    if (dirty && !window.confirm("Есть несохранённые изменения. Закрыть?")) {
+  async function tryClose() {
+    if (
+      dirtyRef.current &&
+      !(await confirm({
+        title: "Есть несохранённые изменения",
+        body: "Закрыть редактор без сохранения?",
+        confirmText: "Закрыть без сохранения",
+        danger: true,
+      }))
+    ) {
       return;
     }
     onClose();
   }
+
+  // Escape закрывает редактор (с подтверждением, если есть изменения).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        void tryClose();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // tryClose стабилен по поведению (читает dirty через ref).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Tab вставляет отступ, а не уводит фокус.
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -149,7 +176,10 @@ export function FileEditor({
         </div>
 
         {loading ? (
-          <div className="editor-status muted">Загрузка…</div>
+          <div className="editor-status muted">
+            <span className="spinner" />
+            Загрузка…
+          </div>
         ) : error ? (
           <div className="error">{error}</div>
         ) : (

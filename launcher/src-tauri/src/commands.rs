@@ -74,6 +74,51 @@ struct SavedSession {
     token: String,
 }
 
+/// Результат входа, отдаваемый фронтенду.
+///
+/// Зеркалит `protocol::LoginResult`, но `Ok`-ветка несёт уже сам профиль
+/// (токен оседает в runtime/`session.json` и наружу не выходит). При
+/// `twoFactorRequired` UI показывает поле ввода кода и затем зовёт `login_2fa`
+/// с тем же `challenge`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+enum LoginOutcome {
+    Ok {
+        profile: PlayerProfile,
+    },
+    TwoFactorRequired {
+        challenge: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        hint: Option<String>,
+        /// Можно ли подтвердить вход кнопкой в Telegram (без ввода кода).
+        /// Тогда фронтенд опрашивает соответствующий `*_status`-эндпоинт.
+        #[serde(rename = "buttonApproval")]
+        button_approval: bool,
+    },
+}
+
+/// Результат опроса кнопочного подтверждения, отдаваемый фронтенду.
+///
+/// Зеркалит `protocol::ChallengeStatus`, но для сценариев входа `approved`
+/// несёт уже сам профиль (токен оседает в сессии и наружу не выходит). Для
+/// сброса пароля `approved` приходит без профиля (`profile: None`) — лаунчер
+/// должен показать форму нового пароля и вызвать `password_reset_confirm`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "camelCase")]
+enum ChallengeOutcome {
+    /// Пользователь ещё не ответил — продолжать опрос.
+    Pending,
+    /// Подтверждено кнопкой «Это я».
+    Approved {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        profile: Option<PlayerProfile>,
+    },
+    /// Отклонено кнопкой «Это не я».
+    Denied,
+    /// Истёк срок или challenge не найден — начать заново.
+    Expired,
+}
+
 /// Состояние приложения, разделяемое между командами.
 pub struct AppState {
     pub profile: Mutex<Option<PlayerProfile>>,
@@ -144,6 +189,24 @@ fn clear_runtime_session(state: &State<AppState>) {
     *state.profile.lock().unwrap() = None;
 }
 
+/// Сохраняет сессию и на диск (для автологина), и в runtime-состояние.
+fn persist_session(
+    state: &State<AppState>,
+    app: &AppHandle,
+    profile: PlayerProfile,
+    token: String,
+) -> Result<(), String> {
+    write_saved_session(
+        app,
+        &SavedSession {
+            profile: profile.clone(),
+            token: token.clone(),
+        },
+    )?;
+    set_runtime_session(state, profile, token);
+    Ok(())
+}
+
 /// Инициализация локальной папки данных при старте приложения.
 ///
 /// Создаёт `data/`/AppData-папку и дефолтный `settings.json`, чтобы режим
@@ -160,27 +223,186 @@ pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
 // ---------- Аутентификация (auth-сервер) ----------
 
 /// Вход по логину/паролю на auth-сервере.
+///
+/// Возвращает либо профиль (вход завершён), либо требование второго фактора.
+/// При 2FA сессия ещё не выдана: фронтенд собирает код и зовёт `login_2fa`.
 #[tauri::command]
 async fn login(
     username: String,
     password: String,
     state: State<'_, AppState>,
     app: AppHandle,
-) -> Result<PlayerProfile, String> {
+) -> Result<LoginOutcome, String> {
     if username.trim().is_empty() || password.is_empty() {
         return Err("Введите логин и пароль".into());
     }
 
-    let auth = backend::login(&state.http, username.trim(), &password).await?;
-    write_saved_session(
-        &app,
-        &SavedSession {
-            profile: auth.profile.clone(),
-            token: auth.token.clone(),
-        },
-    )?;
-    set_runtime_session(&state, auth.profile.clone(), auth.token);
+    match backend::login(&state.http, username.trim(), &password).await? {
+        protocol::LoginResult::Ok(auth) => {
+            persist_session(&state, &app, auth.profile.clone(), auth.token)?;
+            Ok(LoginOutcome::Ok {
+                profile: auth.profile,
+            })
+        }
+        protocol::LoginResult::TwoFactorRequired {
+            challenge,
+            hint,
+            button_approval,
+        } => Ok(LoginOutcome::TwoFactorRequired {
+            challenge,
+            hint,
+            button_approval,
+        }),
+    }
+}
+
+/// Подтверждение второго фактора: код из Telegram по `challenge` из `login`.
+/// При успехе выдаётся сессия и сохраняется так же, как при обычном входе.
+#[tauri::command]
+async fn login_2fa(
+    challenge: String,
+    code: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<PlayerProfile, String> {
+    if code.trim().is_empty() {
+        return Err("Введите код из Telegram".into());
+    }
+    let auth = backend::login_2fa(&state.http, &challenge, code.trim()).await?;
+    persist_session(&state, &app, auth.profile.clone(), auth.token)?;
     Ok(auth.profile)
+}
+
+/// Преобразует `ChallengeStatus` из бэкенда в `ChallengeOutcome` для фронтенда.
+/// Для сценариев входа (2FA, passwordless) при подтверждении сохраняет сессию
+/// и возвращает профиль. Используется командами опроса статуса.
+fn apply_login_challenge_status(
+    state: &State<AppState>,
+    app: &AppHandle,
+    status: protocol::ChallengeStatus,
+) -> Result<ChallengeOutcome, String> {
+    match status {
+        protocol::ChallengeStatus::Pending => Ok(ChallengeOutcome::Pending),
+        protocol::ChallengeStatus::Approved { auth } => {
+            // Для сценариев входа сервер всегда присылает сессию.
+            let auth = auth.ok_or("Сервер не выдал сессию при подтверждении")?;
+            persist_session(state, app, auth.profile.clone(), auth.token)?;
+            Ok(ChallengeOutcome::Approved {
+                profile: Some(auth.profile),
+            })
+        }
+        protocol::ChallengeStatus::Denied => Ok(ChallengeOutcome::Denied),
+        protocol::ChallengeStatus::Expired => Ok(ChallengeOutcome::Expired),
+    }
+}
+
+/// Опрос подтверждения входа кнопкой «Это я» в Telegram (обычная 2FA).
+/// При подтверждении сохраняет сессию и возвращает профиль.
+#[tauri::command]
+async fn login_2fa_status(
+    challenge: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<ChallengeOutcome, String> {
+    let status = backend::login_2fa_status(&state.http, &challenge).await?;
+    apply_login_challenge_status(&state, &app, status)
+}
+
+/// Вход без пароля: по нику. Возвращает требование подтверждения кнопкой в
+/// Telegram; фронтенд затем опрашивает `passwordless_status`.
+#[tauri::command]
+async fn passwordless_login(
+    username: String,
+    state: State<'_, AppState>,
+) -> Result<LoginOutcome, String> {
+    let trimmed = username.trim();
+    if trimmed.is_empty() {
+        return Err("Введите логин".into());
+    }
+    match backend::passwordless_login(&state.http, trimmed).await? {
+        protocol::LoginResult::Ok(auth) => Ok(LoginOutcome::Ok {
+            profile: auth.profile,
+        }),
+        protocol::LoginResult::TwoFactorRequired {
+            challenge,
+            hint,
+            button_approval,
+        } => Ok(LoginOutcome::TwoFactorRequired {
+            challenge,
+            hint,
+            button_approval,
+        }),
+    }
+}
+
+/// Опрос подтверждения входа без пароля. При подтверждении сохраняет сессию.
+#[tauri::command]
+async fn passwordless_status(
+    challenge: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<ChallengeOutcome, String> {
+    let status = backend::passwordless_status(&state.http, &challenge).await?;
+    apply_login_challenge_status(&state, &app, status)
+}
+
+/// Запуск сброса пароля: по нику. Возвращает challenge для подтверждения
+/// кнопкой в Telegram; фронтенд опрашивает `password_reset_status`.
+#[tauri::command]
+async fn password_reset_start(
+    username: String,
+    state: State<'_, AppState>,
+) -> Result<LoginOutcome, String> {
+    let trimmed = username.trim();
+    if trimmed.is_empty() {
+        return Err("Введите логин".into());
+    }
+    match backend::password_reset_start(&state.http, trimmed).await? {
+        protocol::LoginResult::Ok(auth) => Ok(LoginOutcome::Ok {
+            profile: auth.profile,
+        }),
+        protocol::LoginResult::TwoFactorRequired {
+            challenge,
+            hint,
+            button_approval,
+        } => Ok(LoginOutcome::TwoFactorRequired {
+            challenge,
+            hint,
+            button_approval,
+        }),
+    }
+}
+
+/// Опрос подтверждения сброса пароля. При подтверждении возвращает `Approved`
+/// БЕЗ профиля — сессия не выдаётся, пароль ещё не сменён. Лаунчер показывает
+/// форму нового пароля и вызывает `password_reset_confirm`.
+#[tauri::command]
+async fn password_reset_status(
+    challenge: String,
+    state: State<'_, AppState>,
+) -> Result<ChallengeOutcome, String> {
+    match backend::password_reset_status(&state.http, &challenge).await? {
+        protocol::ChallengeStatus::Pending => Ok(ChallengeOutcome::Pending),
+        protocol::ChallengeStatus::Approved { .. } => {
+            Ok(ChallengeOutcome::Approved { profile: None })
+        }
+        protocol::ChallengeStatus::Denied => Ok(ChallengeOutcome::Denied),
+        protocol::ChallengeStatus::Expired => Ok(ChallengeOutcome::Expired),
+    }
+}
+
+/// Установка нового пароля после подтверждения сброса в Telegram. Сессия не
+/// выдаётся: после успеха пользователь входит с новым паролем как обычно.
+#[tauri::command]
+async fn password_reset_confirm(
+    challenge: String,
+    new_password: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    if new_password.len() < 6 {
+        return Err("Пароль: минимум 6 символов".into());
+    }
+    backend::password_reset_confirm(&state.http, &challenge, &new_password).await
 }
 
 /// Регистрация нового аккаунта на auth-сервере.
@@ -203,14 +425,7 @@ async fn register(
     }
 
     let auth = backend::register(&state.http, trimmed, &password).await?;
-    write_saved_session(
-        &app,
-        &SavedSession {
-            profile: auth.profile.clone(),
-            token: auth.token.clone(),
-        },
-    )?;
-    set_runtime_session(&state, auth.profile.clone(), auth.token);
+    persist_session(&state, &app, auth.profile.clone(), auth.token)?;
     Ok(auth.profile)
 }
 
@@ -410,6 +625,22 @@ async fn account_info(state: State<'_, AppState>) -> Result<protocol::AccountInf
     backend::account_info(&state.http, &token).await
 }
 
+/// Запросить код привязки Telegram (для включения 2FA).
+#[tauri::command]
+async fn telegram_link_start(
+    state: State<'_, AppState>,
+) -> Result<protocol::TelegramLinkResponse, String> {
+    let (_uuid, token) = current_session(&state)?;
+    backend::telegram_link_start(&state.http, &token).await
+}
+
+/// Отвязать Telegram (отключить 2FA).
+#[tauri::command]
+async fn telegram_unlink(state: State<'_, AppState>) -> Result<(), String> {
+    let (_uuid, token) = current_session(&state)?;
+    backend::telegram_unlink(&state.http, &token).await
+}
+
 /// Смена ника. Обновляет runtime- и сохранённую сессию.
 #[tauri::command]
 async fn change_username(
@@ -571,6 +802,13 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
             login,
+            login_2fa,
+            login_2fa_status,
+            passwordless_login,
+            passwordless_status,
+            password_reset_start,
+            password_reset_status,
+            password_reset_confirm,
             register,
             logout,
             current_profile,
@@ -581,6 +819,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             set_skin,
             import_skin_from_license,
             account_info,
+            telegram_link_start,
+            telegram_unlink,
             change_username,
             change_password,
             delete_account,

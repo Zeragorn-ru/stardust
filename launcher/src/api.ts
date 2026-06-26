@@ -8,12 +8,15 @@
 import type {
   AccountInfo,
   AppInfo,
+  ChallengeOutcome,
+  LoginOutcome,
   OptionalMod,
   PlayerProfile,
   Progress,
   Settings,
   Skin,
   SkinModel,
+  TelegramLinkResponse,
   UpdateInfo,
 } from "./types";
 
@@ -74,18 +77,121 @@ export async function onLauncherProgress(
   }
 }
 
-/** Вход по логину/паролю на auth-сервере. */
+/** Вход по логину/паролю на auth-сервере.
+ *
+ * Возвращает либо сессию (профиль), либо требование второго фактора —
+ * тогда UI собирает код из Telegram и зовёт `login2fa` с тем же `challenge`. */
 export async function login(
   username: string,
   password: string,
-): Promise<PlayerProfile> {
+): Promise<LoginOutcome> {
   const invoke = await getInvoke();
   if (!invoke) {
     await delay(500);
     if (!username || !password) throw new Error("Введите логин и пароль");
-    return { id: "0".repeat(32), name: username };
+    return { status: "ok", profile: { id: "0".repeat(32), name: username } };
   }
-  return invoke<PlayerProfile>("login", { username, password });
+  return invoke<LoginOutcome>("login", { username, password });
+}
+
+/** Подтверждение второго фактора: код из Telegram по `challenge` из `login`. */
+export async function login2fa(
+  challenge: string,
+  code: string,
+): Promise<PlayerProfile> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(400);
+    if (!code.trim()) throw new Error("Введите код из Telegram");
+    return { id: "0".repeat(32), name: "dev" };
+  }
+  return invoke<PlayerProfile>("login_2fa", { challenge, code });
+}
+
+/** Опрос подтверждения входа кнопкой «Это я» в Telegram (обычная 2FA). */
+export async function login2faStatus(
+  challenge: string,
+): Promise<ChallengeOutcome> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(2000);
+    return { status: "approved", profile: { id: "0".repeat(32), name: "dev" } };
+  }
+  return invoke<ChallengeOutcome>("login_2fa_status", { challenge });
+}
+
+/** Вход без пароля по нику: подтверждается кнопкой в Telegram. */
+export async function passwordlessLogin(
+  username: string,
+): Promise<LoginOutcome> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(500);
+    if (!username.trim()) throw new Error("Введите логин");
+    return {
+      status: "twoFactorRequired",
+      challenge: "dev-challenge",
+      hint: "Подтвердите вход в Telegram",
+      buttonApproval: true,
+    };
+  }
+  return invoke<LoginOutcome>("passwordless_login", { username });
+}
+
+/** Опрос подтверждения входа без пароля. */
+export async function passwordlessStatus(
+  challenge: string,
+): Promise<ChallengeOutcome> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(2000);
+    return { status: "approved", profile: { id: "0".repeat(32), name: "dev" } };
+  }
+  return invoke<ChallengeOutcome>("passwordless_status", { challenge });
+}
+
+/** Запуск сброса пароля по нику: подтверждается кнопкой в Telegram. */
+export async function passwordResetStart(
+  username: string,
+): Promise<LoginOutcome> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(500);
+    if (!username.trim()) throw new Error("Введите логин");
+    return {
+      status: "twoFactorRequired",
+      challenge: "dev-challenge",
+      hint: "Подтвердите сброс пароля в Telegram",
+      buttonApproval: true,
+    };
+  }
+  return invoke<LoginOutcome>("password_reset_start", { username });
+}
+
+/** Опрос подтверждения сброса пароля. `approved` приходит без профиля. */
+export async function passwordResetStatus(
+  challenge: string,
+): Promise<ChallengeOutcome> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(2000);
+    return { status: "approved" };
+  }
+  return invoke<ChallengeOutcome>("password_reset_status", { challenge });
+}
+
+/** Установка нового пароля после подтверждения сброса в Telegram. */
+export async function passwordResetConfirm(
+  challenge: string,
+  newPassword: string,
+): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(400);
+    if (newPassword.length < 6) throw new Error("Пароль: минимум 6 символов");
+    return;
+  }
+  await invoke<void>("password_reset_confirm", { challenge, newPassword });
 }
 
 /** Регистрация нового аккаунта. */
@@ -130,6 +236,26 @@ export async function accountInfo(): Promise<AccountInfo> {
     };
   }
   return invoke<AccountInfo>("account_info");
+}
+
+/** Запросить код привязки Telegram (для включения 2FA). */
+export async function telegramLinkStart(): Promise<TelegramLinkResponse> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(300);
+    return { code: "DEV12345", botUsername: "stardust_bot" };
+  }
+  return invoke<TelegramLinkResponse>("telegram_link_start");
+}
+
+/** Отвязать Telegram (отключить 2FA). */
+export async function telegramUnlink(): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(300);
+    return;
+  }
+  await invoke<void>("telegram_unlink");
 }
 
 /** Сменить ник. Возвращает обновлённый профиль. */
