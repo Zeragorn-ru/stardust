@@ -70,11 +70,12 @@ function relPath(file: File): string {
 function makeItem(file: File, baseDir: string): QueueItem {
   const rel = relPath(file);
   const kind = guessKind(file.name);
-  // Если это файл из папки — сохраняем её структуру под целевым каталогом.
+  // Если это файл из папки — сохраняем её структуру как есть под текущим
+  // каталогом. Дефолтный каталог по типу НЕ подставляем: иначе путь
+  // дублируется (напр. перетащили папку `config` в корень → `config/config/…`).
   const hasDir = rel.includes("/");
-  const path = hasDir
-    ? targetDir(kind, baseDir) + rel
-    : targetDir(kind, baseDir) + file.name;
+  const prefix = baseDir ? baseDir.replace(/\/+$/, "") + "/" : "";
+  const path = hasDir ? prefix + rel : targetDir(kind, baseDir) + file.name;
   return {
     id: nextItemId++,
     file,

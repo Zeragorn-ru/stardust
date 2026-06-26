@@ -1128,23 +1128,131 @@ td.num {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 14px;
-    padding: 10px 14px;
+    gap: 18px;
+    padding: 12px 16px;
     margin-bottom: 12px;
     border: 1px solid var(--accent-2);
     border-radius: var(--radius);
     background: rgba(76, 139, 245, 0.08);
+    position: sticky;
+    top: 8px;
+    z-index: 20;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
 .fm-bulk-count {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.fm-bulk-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
     font-weight: 600;
     font-size: 13px;
 }
 
-.fm-bulk-group {
+.fm-bulk-controls {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.fm-bulk-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.fm-bulk-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+}
+
+.fm-bulk-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.fm-bulk-actions .ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+}
+
+.fm-bulk-actions .ghost:hover:not(:disabled) {
+    color: var(--text);
+    border-color: var(--border);
+}
+
+/* --- Меню «Создать» --- */
+.fm-newmenu {
+    position: relative;
+}
+
+.fm-newmenu-pop {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    min-width: 160px;
+    padding: 6px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.fm-newmenu-item {
+    justify-content: flex-start;
+    width: 100%;
+    background: transparent;
+    border-color: transparent;
+    color: var(--text);
+    padding: 8px 10px;
+}
+
+.fm-newmenu-item:hover:not(:disabled) {
+    background: var(--panel-2);
+    border-color: transparent;
+}
+
+.fm-newmenu-item .folder {
+    color: var(--accent);
+}
+
+/* --- Диалог ввода имени --- */
+.fm-prompt-field {
+    display: flex;
+    flex-direction: column;
     gap: 6px;
+    margin: 0;
+}
+
+.fm-prompt-field input {
+    width: 100%;
+}
+
+.fm-prompt-hint {
+    margin: 10px 0 0;
     font-size: 12px;
 }
 

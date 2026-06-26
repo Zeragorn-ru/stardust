@@ -480,10 +480,7 @@ async fn upload_file(
     }
 
     let meta = meta.ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Нет поля meta"))?;
-    let bytes = bytes.ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Нет поля file"))?;
-    if bytes.is_empty() {
-        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой файл"));
-    }
+    let bytes = bytes.unwrap_or_default();
     if meta.path.trim().is_empty() {
         return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой path"));
     }

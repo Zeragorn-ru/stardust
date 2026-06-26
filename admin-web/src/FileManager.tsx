@@ -4,7 +4,7 @@
 // (напр. `config/foo/bar.toml`). Дерево каталогов мы строим на лету из этих
 // путей: навигация по папкам, хлебные крошки, скачивание и удаление.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { BuildFile } from "./types";
 import { FileUpload } from "./FileUpload";
@@ -25,6 +25,7 @@ import {
   IconFolder,
   IconHome,
   IconPencil,
+  IconPlus,
   IconSearch,
   IconTrash,
 } from "./ui/icons";
@@ -33,6 +34,22 @@ const SIDES = ["both", "client", "server"];
 
 function sideLabel(s: string): string {
   return s === "both" ? "обе" : s === "client" ? "клиент" : "сервер";
+}
+
+// Угадываем тип файла по расширению/каталогу.
+function guessKind(path: string): string {
+  const n = path.toLowerCase();
+  if (n.endsWith(".jar")) return "mod";
+  if (n.endsWith(".zip")) return "resource";
+  if (
+    n.startsWith("config/") ||
+    n.endsWith(".toml") ||
+    n.endsWith(".json") ||
+    n.endsWith(".cfg") ||
+    n.endsWith(".properties")
+  )
+    return "config";
+  return "other";
 }
 
 // Подпапка текущего каталога с агрегатами по содержимому.
@@ -102,6 +119,8 @@ export function FileManager({
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [editing, setEditing] = useState<BuildFile | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Активный диалог создания: папка или файл.
+  const [creating, setCreating] = useState<"folder" | "file" | null>(null);
 
   const searching = query.trim().length > 0 || kindFilter !== "all";
 
@@ -273,6 +292,41 @@ export function FileManager({
 
   const empty = listing.folders.length === 0 && listing.files.length === 0;
 
+  // При «создать папку» просто переходим в неё: хранилище плоское, папка
+  // «материализуется», как только в неё попадёт файл.
+  function createFolder(name: string) {
+    const clean = normalizeDir(name);
+    if (!clean) return;
+    setQuery("");
+    setKindFilter("all");
+    setDir(dir ? `${dir}/${clean}` : clean);
+  }
+
+  // Создаёт пустой файл в текущем каталоге и открывает редактор.
+  async function createFile(name: string) {
+    const fileName = name.trim().replace(/^\/+/, "");
+    if (!fileName) return;
+    const path = dir ? `${dir}/${fileName}` : fileName;
+    if (files.some((f) => f.path === path)) {
+      toast.error("Файл с таким путём уже есть");
+      return;
+    }
+    try {
+      const created = await api.createFile(buildId, {
+        path,
+        kind: guessKind(path),
+        side: "both",
+      });
+      toast.success("Файл создан");
+      onChanged();
+      if (isEditable(created)) setEditing(created);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось создать файл",
+      );
+    }
+  }
+
   return (
     <div className="fm">
       <div className="fm-toolbar">
@@ -298,6 +352,10 @@ export function FileManager({
           ))}
         </nav>
         <div className="spacer" />
+        <NewMenu
+          onFolder={() => setCreating("folder")}
+          onFile={() => setCreating("file")}
+        />
         <div className="seg">
           {KIND_FILTERS.map((k) => (
             <button
@@ -449,6 +507,32 @@ export function FileManager({
           onSaved={onChanged}
         />
       )}
+
+      {creating && (
+        <PromptDialog
+          title={creating === "folder" ? "Новая папка" : "Новый файл"}
+          label={
+            creating === "folder"
+              ? `Имя папки в ${dir ? `.minecraft/${dir}/` : ".minecraft/"}`
+              : `Имя файла в ${dir ? `.minecraft/${dir}/` : ".minecraft/"}`
+          }
+          placeholder={
+            creating === "folder" ? "напр. mods" : "напр. options.txt"
+          }
+          confirmText="Создать"
+          hint={
+            creating === "folder"
+              ? "Папка сохранится после того, как в неё попадёт хотя бы один файл."
+              : undefined
+          }
+          onCancel={() => setCreating(null)}
+          onSubmit={(value) => {
+            if (creating === "folder") createFolder(value);
+            else createFile(value);
+            setCreating(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -474,85 +558,221 @@ function BulkBar({
 }) {
   return (
     <div className="fm-bulk">
-      <span className="fm-bulk-count">Выбрано: {count}</span>
+      <div className="fm-bulk-count">
+        <span className="fm-bulk-badge">{count}</span>
+        <span>выбрано</span>
+      </div>
 
-      <div className="fm-bulk-group">
-        <span className="muted">Сторона</span>
-        <div className="seg">
-          {SIDES.map((s) => (
+      <div className="fm-bulk-controls">
+        <div className="fm-bulk-group">
+          <span className="fm-bulk-label">Сторона</span>
+          <div className="seg">
+            {SIDES.map((s) => (
+              <button
+                key={s}
+                className="seg-btn"
+                disabled={busy}
+                onClick={() => onSide(s)}
+              >
+                {sideLabel(s)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fm-bulk-group">
+          <span className="fm-bulk-label">Опциональный</span>
+          <div className="seg">
             <button
-              key={s}
               className="seg-btn"
               disabled={busy}
-              onClick={() => onSide(s)}
+              onClick={() => onOptional(true)}
             >
-              {sideLabel(s)}
+              да
             </button>
-          ))}
+            <button
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onOptional(false)}
+            >
+              нет
+            </button>
+          </div>
+        </div>
+
+        <div className="fm-bulk-group">
+          <span className="fm-bulk-label">По умолч.</span>
+          <div className="seg">
+            <button
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onEnabled(true)}
+            >
+              вкл
+            </button>
+            <button
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onEnabled(false)}
+            >
+              выкл
+            </button>
+          </div>
+        </div>
+
+        <div className="fm-bulk-group">
+          <span className="fm-bulk-label">Перезапись</span>
+          <div className="seg">
+            <button
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onOverwrite(true)}
+            >
+              да
+            </button>
+            <button
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onOverwrite(false)}
+            >
+              нет
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="fm-bulk-group">
-        <span className="muted">Опц.</span>
-        <button
-          className="seg-btn"
-          disabled={busy}
-          onClick={() => onOptional(true)}
-        >
-          да
+      <div className="fm-bulk-actions">
+        <button className="danger" disabled={busy} onClick={onDelete}>
+          <IconTrash size={15} />
+          Удалить
         </button>
-        <button
-          className="seg-btn"
-          disabled={busy}
-          onClick={() => onOptional(false)}
-        >
-          нет
+        <button className="ghost" disabled={busy} onClick={onClear}>
+          Снять
         </button>
       </div>
+    </div>
+  );
+}
 
-      <div className="fm-bulk-group">
-        <span className="muted">По умолч.</span>
-        <button
-          className="seg-btn"
-          disabled={busy}
-          onClick={() => onEnabled(true)}
-        >
-          вкл
-        </button>
-        <button
-          className="seg-btn"
-          disabled={busy}
-          onClick={() => onEnabled(false)}
-        >
-          выкл
-        </button>
-      </div>
+// Выпадающее меню «Создать»: папка или файл в текущем каталоге.
+function NewMenu({
+  onFolder,
+  onFile,
+}: {
+  onFolder: () => void;
+  onFile: () => void;
+}) {
+  const [open, setOpen] = useState(false);
 
-      <div className="fm-bulk-group">
-        <span className="muted">Перезапись</span>
-        <button
-          className="seg-btn"
-          disabled={busy}
-          onClick={() => onOverwrite(true)}
-        >
-          да
-        </button>
-        <button
-          className="seg-btn"
-          disabled={busy}
-          onClick={() => onOverwrite(false)}
-        >
-          нет
-        </button>
-      </div>
+  useEffect(() => {
+    if (!open) return;
+    function onDoc() {
+      setOpen(false);
+    }
+    window.addEventListener("click", onDoc);
+    return () => window.removeEventListener("click", onDoc);
+  }, [open]);
 
-      <div className="spacer" />
-      <button className="danger" disabled={busy} onClick={onDelete}>
-        Удалить
+  return (
+    <div className="fm-newmenu" onClick={(e) => e.stopPropagation()}>
+      <button
+        className={`primary${open ? " active" : ""}`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <IconPlus size={15} />
+        Создать
       </button>
-      <button disabled={busy} onClick={onClear}>
-        Отмена
-      </button>
+      {open && (
+        <div className="fm-newmenu-pop">
+          <button
+            className="fm-newmenu-item"
+            onClick={() => {
+              setOpen(false);
+              onFolder();
+            }}
+          >
+            <IconFolder size={15} className="folder" />
+            Папку
+          </button>
+          <button
+            className="fm-newmenu-item"
+            onClick={() => {
+              setOpen(false);
+              onFile();
+            }}
+          >
+            <IconFile size={15} />
+            Файл
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Модальный ввод строки (имя папки/файла).
+function PromptDialog({
+  title,
+  label,
+  placeholder,
+  confirmText,
+  hint,
+  onCancel,
+  onSubmit,
+}: {
+  title: string;
+  label: string;
+  placeholder?: string;
+  confirmText: string;
+  hint?: string;
+  onCancel: () => void;
+  onSubmit: (value: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  function submit() {
+    if (value.trim()) onSubmit(value.trim());
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>{title}</h3>
+        <label className="fm-prompt-field">
+          <span className="muted">{label}</span>
+          <input
+            ref={inputRef}
+            value={value}
+            placeholder={placeholder}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+            }}
+          />
+        </label>
+        {hint && <p className="muted fm-prompt-hint">{hint}</p>}
+        <div className="modal-actions">
+          <button onClick={onCancel}>Отмена</button>
+          <button className="primary" onClick={submit} disabled={!value.trim()}>
+            {confirmText}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

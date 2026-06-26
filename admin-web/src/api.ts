@@ -67,6 +67,12 @@ async function request<T>(
   return data as T;
 }
 
+// Имя файла из пути (без зависимости от format.ts).
+function baseNameOf(path: string): string {
+  const i = path.lastIndexOf("/");
+  return i >= 0 ? path.slice(i + 1) : path;
+}
+
 function safeJson(text: string): unknown {
   try {
     return JSON.parse(text);
@@ -160,6 +166,19 @@ export const api = {
         reject(new ApiError(0, "Сетевая ошибка при загрузке"));
       xhr.send(form);
     });
+  },
+
+  // Создаёт новый (по умолчанию пустой) файл по пути. Содержимое
+  // редактируется отдельно через редактор. Реализовано поверх загрузки.
+  createFile(
+    buildId: number,
+    meta: UploadMeta,
+    content = "",
+  ): Promise<BuildFile> {
+    const file = new File([content], baseNameOf(meta.path), {
+      type: "text/plain",
+    });
+    return this.uploadFileProgress(buildId, file, meta);
   },
 
   deleteFile(fileId: number): Promise<void> {
