@@ -695,8 +695,8 @@ body {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 18px;
-    padding: 24px 32px;
+    gap: 14px;
+    padding: 16px 32px;
 }
 
 .login__brand {
@@ -707,8 +707,8 @@ body {
 }
 
 .login__logo {
-    font-size: 48px;
-    margin-bottom: 4px;
+    font-size: 36px;
+    margin-bottom: 0;
 }
 
 .login__brand h1 {
@@ -723,11 +723,11 @@ body {
 .login__form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     background: var(--glass);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
-    padding: 24px;
+    padding: 20px;
     backdrop-filter: blur(20px) saturate(140%);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
@@ -765,6 +765,28 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+.account--link {
+    border: none;
+    background: transparent;
+    padding: 6px 10px 6px 6px;
+    margin: -6px;
+    border-radius: 14px;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    transition:
+        background var(--t-fast),
+        transform var(--t-fast);
+}
+
+.account--link:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.account--link:active {
+    transform: scale(0.98);
 }
 
 .account__avatar {
@@ -1009,6 +1031,10 @@ body {
     font-size: 18px;
 }
 
+.settings__header-save {
+    margin-left: auto;
+}
+
 .settings__layout {
     flex: 1;
     min-height: 0;
@@ -1113,17 +1139,6 @@ body {
     color: #8affb0;
 }
 
-.settings__footer {
-    padding: 16px 22px;
-    border-top: 1px solid var(--glass-border);
-    background: rgba(10, 11, 20, 0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    display: flex;
-    justify-content: flex-end;
-    flex-shrink: 0;
-}
-
 /* Строка с переключателем */
 .toggle-row {
     display: flex;
@@ -1204,7 +1219,7 @@ body {
     display: flex;
     gap: 4px;
     padding: 4px;
-    margin-bottom: 18px;
+    margin-bottom: 8px;
     background: rgba(0, 0, 0, 0.28);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-sm);

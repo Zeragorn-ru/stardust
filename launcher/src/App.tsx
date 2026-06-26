@@ -11,10 +11,13 @@ import SettingsScreen from "./components/SettingsScreen";
 import TitleBar from "./components/TitleBar";
 
 type View = "onboarding" | "login" | "main" | "settings";
+type SettingsSection = "general" | "account";
 
 export default function App() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [view, setView] = useState<View>("login");
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection>("general");
   const [ready, setReady] = useState(false);
   const { reload: reloadSkin } = useSkin();
 
@@ -78,7 +81,10 @@ export default function App() {
             {view === "main" && profile && (
               <MainScreen
                 profile={profile}
-                onOpenSettings={() => setView("settings")}
+                onOpenSettings={(section) => {
+                  setSettingsSection(section ?? "general");
+                  setView("settings");
+                }}
                 onLogout={handleLogout}
               />
             )}
@@ -86,6 +92,7 @@ export default function App() {
               <SettingsScreen
                 profile={profile}
                 onProfileChange={setProfile}
+                initialSection={settingsSection}
                 onClose={() => setView("main")}
               />
             )}

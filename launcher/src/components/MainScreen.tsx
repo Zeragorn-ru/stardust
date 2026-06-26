@@ -8,7 +8,7 @@ import SkinModal from "./SkinModal";
 
 interface Props {
   profile: PlayerProfile;
-  onOpenSettings: () => void;
+  onOpenSettings: (section?: "general" | "account") => void;
   onLogout: () => void;
 }
 
@@ -85,7 +85,12 @@ export default function MainScreen({
   return (
     <div className="main">
       <header className="main__header">
-        <div className="account">
+        <button
+          type="button"
+          className="account account--link"
+          onClick={() => onOpenSettings("account")}
+          title="Настройки аккаунта"
+        >
           <div className="account__avatar account__avatar--skin">
             <FaceAvatar dataUrl={skin.dataUrl} size={44} />
           </div>
@@ -93,9 +98,9 @@ export default function MainScreen({
             <div className="account__name">{profile.name}</div>
             <div className="account__id muted">{shortId(profile.id)}</div>
           </div>
-        </div>
+        </button>
         <div className="main__actions">
-          <button className="btn btn--ghost" onClick={onOpenSettings}>
+          <button className="btn btn--ghost" onClick={() => onOpenSettings()}>
             Настройки
           </button>
           <button className="btn btn--ghost" onClick={onLogout}>

@@ -16,6 +16,7 @@ type Section = "general" | "account";
 interface Props {
   profile: PlayerProfile | null;
   onProfileChange: (profile: PlayerProfile) => void;
+  initialSection?: Section;
   onClose: () => void;
 }
 
@@ -27,10 +28,11 @@ const MEM_STEP = 512;
 export default function SettingsScreen({
   profile,
   onProfileChange,
+  initialSection = "general",
   onClose,
 }: Props) {
   const { animations, setAnimations } = useMotion();
-  const [section, setSection] = useState<Section>("general");
+  const [section, setSection] = useState<Section>(initialSection);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [saving, setSaving] = useState(false);
@@ -103,6 +105,15 @@ export default function SettingsScreen({
           ← Назад
         </button>
         <h2>Настройки</h2>
+        {section === "general" && (
+          <button
+            className="btn btn--primary settings__header-save"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "Сохранение…" : "Сохранить"}
+          </button>
+        )}
       </header>
 
       <div className="settings__layout">
@@ -278,18 +289,6 @@ export default function SettingsScreen({
           </div>
         )}
       </div>
-
-      {section === "general" && (
-        <footer className="settings__footer">
-          <button
-            className="btn btn--primary"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "Сохранение…" : "Сохранить"}
-          </button>
-        </footer>
-      )}
     </div>
   );
 }
