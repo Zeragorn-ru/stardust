@@ -164,13 +164,9 @@ export function FileUpload({
   return (
     <div className="fm-upload">
       <h2>
-        \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430
-        \u0444\u0430\u0439\u043b\u043e\u0432
-        {target && (
-          <span className="fm-upload-target muted"> \u2192 {target}</span>
-        )}
+        Загрузка файлов
+        {target && <span className="fm-upload-target muted"> → {target}</span>}
       </h2>
-      <h2>Загрузка файлов</h2>
 
       <div
         className={`dropzone${dragging ? " over" : ""}`}

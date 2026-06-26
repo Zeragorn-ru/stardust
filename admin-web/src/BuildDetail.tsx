@@ -22,9 +22,7 @@ export function BuildDetail({
       setDetail(await api.getBuild(buildId));
     } catch (err) {
       toast.error(
-        err instanceof ApiError
-          ? err.message
-          : "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u0431\u043e\u0440\u043a\u0443",
+        err instanceof ApiError ? err.message : "Не удалось загрузить сборку",
       );
     } finally {
       setLoading(false);
@@ -39,16 +37,12 @@ export function BuildDetail({
   async function activate() {
     try {
       await api.activateBuild(buildId);
-      toast.success(
-        "\u0421\u0431\u043e\u0440\u043a\u0430 \u0430\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u043d\u0430",
-      );
+      toast.success("Сборка активирована");
       await load();
       onChanged();
     } catch (err) {
       toast.error(
-        err instanceof ApiError
-          ? err.message
-          : "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0430\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c",
+        err instanceof ApiError ? err.message : "Не удалось активировать",
       );
     }
   }
@@ -60,12 +54,7 @@ export function BuildDetail({
     [files],
   );
 
-  if (loading)
-    return (
-      <div className="panel muted">
-        \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430\u2026
-      </div>
-    );
+  if (loading) return <div className="panel muted">Загрузка…</div>;
   if (!detail) return null;
 
   return (
@@ -77,34 +66,20 @@ export function BuildDetail({
           </h1>
           {detail.isActive ? (
             <span className="badge active">
-              <IconStar size={12} />{" "}
-              \u0430\u043a\u0442\u0438\u0432\u043d\u0430\u044f
+              <IconStar size={12} /> активная
             </span>
           ) : (
             <button className="primary" onClick={activate}>
-              \u0421\u0434\u0435\u043b\u0430\u0442\u044c
-              \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0439
+              Сделать активной
             </button>
           )}
         </div>
         <div className="detail-stats">
-          <Stat
-            label="\u0417\u0430\u0433\u0440\u0443\u0437\u0447\u0438\u043a"
-            value={detail.loaderKind}
-          />
+          <Stat label="Загрузчик" value={detail.loaderKind} />
           <Stat label="Minecraft" value={detail.mcVersion} />
-          <Stat
-            label="\u0412\u0435\u0440\u0441\u0438\u044f \u0437\u0430\u0433\u0440\u0443\u0437\u0447\u0438\u043a\u0430"
-            value={detail.loaderVersion || "\u2014"}
-          />
-          <Stat
-            label="\u0424\u0430\u0439\u043b\u043e\u0432"
-            value={String(files.length)}
-          />
-          <Stat
-            label="\u041e\u0431\u0449\u0438\u0439 \u0440\u0430\u0437\u043c\u0435\u0440"
-            value={formatSize(totalSize)}
-          />
+          <Stat label="Версия загрузчика" value={detail.loaderVersion || "—"} />
+          <Stat label="Файлов" value={String(files.length)} />
+          <Stat label="Общий размер" value={formatSize(totalSize)} />
         </div>
       </div>
 
