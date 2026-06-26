@@ -4,20 +4,11 @@
 # кладёт их в Release. Установленные лаунчеры сами опрашивают GitHub Releases
 # API и при наличии новой версии скачивают и запускают установщик (см.
 # update.rs). Подпись апдейтов не используется.
-#
-# Push в master (по путям launcher/**) запускает ту же сборку БЕЗ публикации
-# релиза — только чтобы прогреть кэши Rust/npm. Кэш Actions привязан к git-ref:
-# тег-ран может восстановить кэш лишь из своего ref или из дефолтной ветки.
-# Поэтому без прогрева на master каждый тег компилировал зависимости с нуля.
 
 name: launcher-release
 
 on:
   push:
-    branches: [master]
-    paths:
-      - "launcher/**"
-      - ".github/workflows/launcher-release.yml"
     tags:
       - "v*"
   workflow_dispatch:
@@ -55,16 +46,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "launcher/src-tauri -> target"
-          # Сохранять кэш и на master (дефолтная ветка), чтобы тег-раны могли
-          # его восстановить. На прочих ветках кэш не пишем.
-          save-if: ${{ github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/') }}
 
       - name: Install frontend deps
         working-directory: launcher
         run: npm ci
 
       # На тегах — собрать установщики и опубликовать Release.
-      # На master — та же сборка для прогрева кэша, без публикации (нет tagName).
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
