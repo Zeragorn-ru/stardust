@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { PlayerProfile } from "./types";
-import { currentProfile, logout } from "./api";
+import type { PlayerProfile, UpdateInfo } from "./types";
+import { checkUpdate, currentProfile, logout } from "./api";
 import { isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
 import Aurora from "./components/Aurora";
@@ -9,6 +9,7 @@ import LoginScreen from "./components/LoginScreen";
 import MainScreen from "./components/MainScreen";
 import SettingsScreen from "./components/SettingsScreen";
 import TitleBar from "./components/TitleBar";
+import UpdateModal from "./components/UpdateModal";
 
 type View = "onboarding" | "login" | "main" | "settings";
 type SettingsSection = "general" | "account";
@@ -20,6 +21,9 @@ export default function App() {
     useState<SettingsSection>("general");
   const [ready, setReady] = useState(false);
   const { reload: reloadSkin } = useSkin();
+
+  // Обновление, обнаруженное при старте (показываем всплывашкой).
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
 
   // Стартовый экран + попытка автологина из сохранённой сессии.
   useEffect(() => {
@@ -38,6 +42,17 @@ export default function App() {
         }
       })
       .finally(() => setReady(true));
+  }, []);
+
+  // Проверка обновлений при запуске: если есть новая версия — сразу
+  // предлагаем обновиться. Ошибки (нет сети, GitHub недоступен)
+  // глотаем молча — это не должно мешать запуску лаунчера.
+  useEffect(() => {
+    checkUpdate()
+      .then((info) => {
+        if (info.available) setUpdate(info);
+      })
+      .catch(() => undefined);
   }, []);
 
   function finishOnboarding() {
@@ -99,6 +114,9 @@ export default function App() {
           </div>
         )}
       </div>
+      {update && (
+        <UpdateModal update={update} onDismiss={() => setUpdate(null)} />
+      )}
     </div>
   );
 }
