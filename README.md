@@ -108,6 +108,31 @@ LAUNCHER_UPDATE_URL=https://api.github.com/repos/OWNER/REPO/releases/latest npm 
 
 Проверка и установка доступны в настройках лаунчера (раздел «Обновления»).
 
+### Релиз новой версии лаунчера
+
+Сборка лаунчера запускается **только по git-тегу вида `vX.Y.Z`**
+(`.github/workflows/launcher-release.yml`). Просто запушить код в `master`
+недостаточно — без тега установщики не соберутся и в Release ничего не
+попадёт. Тег и версия должны совпадать.
+
+Порядок:
+
+1. Поднять версию **в трёх местах** (значения должны быть одинаковыми):
+   - `launcher/package.json` → `version`
+   - `launcher/src-tauri/Cargo.toml` → `[package] version`
+   - `launcher/src-tauri/tauri.conf.json` → `version`
+   (после этого `Cargo.lock` обновит запись пакета `launcher` — закоммить и его)
+2. Закоммитить бамп версии и запушить в `master`.
+3. Поставить тег с той же версией и запушить его:
+   ```sh
+   git tag v0.2.8
+   git push origin v0.2.8
+   ```
+4. Workflow `launcher-release` создаст GitHub Release `v0.2.8`, соберёт
+   NSIS-установщик и приложит ассеты. Установленные лаунчеры подхватят
+   обновление через GitHub Releases API.
+
+
 Сборка не требует ключей подписи — релизный workflow просто собирает установщик
 и прикладывает его к GitHub Release:
 
