@@ -15,6 +15,7 @@ use protocol::{PlayerProfile, SkinModel};
 use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
+use time::OffsetDateTime;
 
 mod build;
 pub use build::{BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild};
@@ -87,6 +88,24 @@ pub struct Account {
     pub telegram_chat_id: Option<String>,
     /// Роль аккаунта. `admin` имеет доступ к веб-админке.
     pub role: Role,
+    /// Состояние блокировки аккаунта.
+    pub ban: Option<Ban>,
+}
+
+/// Активная блокировка аккаунта.
+#[derive(Debug, Clone)]
+pub struct Ban {
+    /// Момент окончания временного бана. `None` — бан навсегда.
+    pub until: Option<OffsetDateTime>,
+    /// Причина блокировки (показывается игроку и админу).
+    pub reason: Option<String>,
+}
+
+impl Ban {
+    /// Истёк ли временный бан к моменту `now`.
+    pub fn is_expired(&self, now: OffsetDateTime) -> bool {
+        matches!(self.until, Some(until) if until <= now)
+    }
 }
 
 /// Роль аккаунта.
@@ -128,6 +147,14 @@ impl Account {
     pub fn has_telegram(&self) -> bool {
         self.telegram_chat_id.is_some()
     }
+
+    /// Действует ли блокировка прямо сейчас (с учётом истечения временного бана).
+    pub fn is_banned(&self) -> bool {
+        match &self.ban {
+            Some(ban) => !ban.is_expired(OffsetDateTime::now_utc()),
+            None => false,
+        }
+    }
 }
 
 /// Ошибки работы с хранилищем.
@@ -151,7 +178,8 @@ impl From<sqlx::Error> for StoreError {
 
 /// Колонки аккаунта, которые мы всегда выбираем.
 const ACCOUNT_COLUMNS: &str = "uuid, username, password_hash, telegram_chat_id, role, \
-     skin_png, skin_model, skin_sha256, cape_png, cape_sha256, sync_source";
+     skin_png, skin_model, skin_sha256, cape_png, cape_sha256, sync_source, \
+     banned, banned_until, ban_reason";
 
 /// Фасад хранилища.
 pub struct Store {
@@ -325,6 +353,66 @@ impl Store {
             .execute(&self.pool)
             .await?
             .rows_affected();
+        if changed == 0 {
+            return Err(StoreError::NotFound);
+        }
+        Ok(())
+    }
+
+    /// Удаляет аккаунт владельцем после проверки пароля (само-удаление
+    /// из лаунчера). Каскадно удаляет сессии аккаунта.
+    pub async fn delete_account_with_password(
+        &self,
+        uuid: &str,
+        password: &str,
+    ) -> Result<(), StoreError> {
+        let account = self.find_by_uuid(uuid).await.ok_or(StoreError::NotFound)?;
+        if !verify_password(password, &account.password_hash) {
+            return Err(StoreError::BadPassword);
+        }
+        self.delete_account(&account.uuid).await
+    }
+
+    /// Блокирует аккаунт. `until = None` — бан навсегда; иначе временный бан
+    /// до указанного момента. Сессии аккаунта удаляются, чтобы выкинуть его.
+    pub async fn ban_account(
+        &self,
+        uuid: &str,
+        until: Option<OffsetDateTime>,
+        reason: Option<&str>,
+    ) -> Result<(), StoreError> {
+        let uuid = normalize_uuid(uuid);
+        let changed = sqlx::query(
+            "UPDATE accounts SET banned = TRUE, banned_until = $1, ban_reason = $2 WHERE uuid = $3",
+        )
+        .bind(until)
+        .bind(reason)
+        .bind(&uuid)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        if changed == 0 {
+            return Err(StoreError::NotFound);
+        }
+        // Активные сессии забаненного больше не должны работать.
+        sqlx::query("DELETE FROM sessions WHERE account_uuid = $1")
+            .bind(&uuid)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Снимает блокировку с аккаунта.
+    pub async fn unban_account(&self, uuid: &str) -> Result<(), StoreError> {
+        let uuid = normalize_uuid(uuid);
+        let changed = sqlx::query(
+            "UPDATE accounts SET banned = FALSE, banned_until = NULL, ban_reason = NULL \
+             WHERE uuid = $1",
+        )
+        .bind(&uuid)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
@@ -521,6 +609,14 @@ fn row_to_account(row: &PgRow) -> Account {
         telegram_chat_id: row.get("telegram_chat_id"),
         role: Role::from_str(&row.get::<String, _>("role")),
         skin,
+        ban: if row.get::<bool, _>("banned") {
+            Some(Ban {
+                until: row.get("banned_until"),
+                reason: row.get("ban_reason"),
+            })
+        } else {
+            None
+        },
     }
 }
 

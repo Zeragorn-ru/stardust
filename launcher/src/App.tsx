@@ -92,6 +92,13 @@ export default function App() {
     reloadSkin();
   }
 
+  function handleAccountDeleted() {
+    // Сессия уже удалена бэкендом — просто возвращаемся на экран входа.
+    setProfile(null);
+    setView("login");
+    reloadSkin();
+  }
+
   return (
     <div className="app">
       <Aurora />
@@ -124,6 +131,7 @@ export default function App() {
               <SettingsScreen
                 profile={profile}
                 onProfileChange={setProfile}
+                onAccountDeleted={handleAccountDeleted}
                 initialSection={settingsSection}
                 onClose={() => setView("main")}
               />

@@ -33,6 +33,9 @@ export interface Account {
   uuid: string;
   username: string;
   isAdmin: boolean;
+  banned: boolean;
+  bannedUntil?: string;
+  banReason?: string;
 }
 
 export interface CreateBuildInput {

@@ -19,5 +19,6 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 uuid = { version = "1", features = ["v4"] }
 base64 = "0.22"
 rand = "0.8"
+time = { version = "0.3", features = ["formatting", "parsing"] }
 rsa = { version = "0.9", features = ["sha1", "pem"] }
 sha1 = { version = "0.10", features = ["oid"] }

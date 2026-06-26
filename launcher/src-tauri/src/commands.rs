@@ -449,6 +449,20 @@ async fn change_password(
     backend::change_password(&state.http, &token, &current_password, &new_password).await
 }
 
+/// Само-удаление аккаунта (требует пароль). После успеха локально выходит.
+#[tauri::command]
+async fn delete_account(
+    password: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let (_uuid, token) = current_session(&state)?;
+    backend::delete_account(&state.http, &token, &password).await?;
+    clear_runtime_session(&state);
+    remove_saved_session(&app);
+    Ok(())
+}
+
 // ---------- Запуск игры ----------
 
 /// Запустить игру: подготовить vanilla Minecraft и стартовать JVM.
@@ -569,6 +583,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             account_info,
             change_username,
             change_password,
+            delete_account,
             play_game,
             game_running,
             list_optional_mods,

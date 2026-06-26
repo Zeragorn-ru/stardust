@@ -129,3 +129,18 @@ export const IconPencil = svg(
     <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
   </>,
 );
+
+export const IconBan = svg(
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+  </>,
+);
+
+export const IconShieldOff = svg(
+  <>
+    <path d="M19.7 14a2 2 0 0 0 .3-1V5l-8-3-3.2 1.2" />
+    <path d="M4.7 4.7 4 5v8c0 6 8 9 8 9a16 16 0 0 0 4.3-2.6" />
+    <line x1="2" y1="2" x2="22" y2="22" />
+  </>,
+);

@@ -17,6 +17,7 @@ type Section = "general" | "account" | "mods";
 interface Props {
   profile: PlayerProfile | null;
   onProfileChange: (profile: PlayerProfile) => void;
+  onAccountDeleted: () => void;
   initialSection?: Section;
   onClose: () => void;
 }
@@ -29,6 +30,7 @@ const MEM_STEP = 512;
 export default function SettingsScreen({
   profile,
   onProfileChange,
+  onAccountDeleted,
   initialSection = "general",
   onClose,
 }: Props) {
@@ -156,6 +158,7 @@ export default function SettingsScreen({
             <AccountSection
               profile={profile}
               onProfileChange={onProfileChange}
+              onAccountDeleted={onAccountDeleted}
             />
           </div>
         ) : section === "mods" ? (

@@ -206,4 +206,23 @@ export const api = {
   listAccounts(): Promise<Account[]> {
     return request("GET", "/api/accounts");
   },
+
+  renameAccount(uuid: string, username: string): Promise<Account> {
+    return request("PATCH", `/api/accounts/${uuid}`, { username });
+  },
+
+  deleteAccount(uuid: string): Promise<void> {
+    return request("DELETE", `/api/accounts/${uuid}`);
+  },
+
+  banAccount(
+    uuid: string,
+    opts: { durationSecs?: number; reason?: string } = {},
+  ): Promise<Account> {
+    return request("POST", `/api/accounts/${uuid}/ban`, opts);
+  },
+
+  unbanAccount(uuid: string): Promise<Account> {
+    return request("POST", `/api/accounts/${uuid}/unban`);
+  },
 };

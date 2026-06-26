@@ -7,7 +7,7 @@
 use base64::Engine;
 use protocol::{
     AccountInfo, AuthResponse, ChangePasswordRequest, ChangeUsernameRequest, Credentials,
-    PlayerProfile, SessionResponse, SkinImportRequest, SkinUploadRequest,
+    DeleteAccountRequest, PlayerProfile, SessionResponse, SkinImportRequest, SkinUploadRequest,
 };
 use serde::Deserialize;
 
@@ -383,5 +383,30 @@ pub async fn change_password(
     match resp.json::<ErrorBody>().await {
         Ok(body) => Err(body.error),
         Err(_) => Err("Не удалось сменить пароль".to_string()),
+    }
+}
+
+/// POST `/api/account/delete`. Само-удаление аккаунта (требует пароль).
+pub async fn delete_account(
+    client: &reqwest::Client,
+    token: &str,
+    password: &str,
+) -> Result<(), String> {
+    let req = DeleteAccountRequest {
+        password: password.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/account/delete", base_url()))
+        .bearer_auth(token)
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return Ok(());
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось удалить аккаунт".to_string()),
     }
 }

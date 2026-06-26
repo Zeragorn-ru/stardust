@@ -196,6 +196,12 @@ pub struct ChangePasswordRequest {
     pub new_password: String,
 }
 
+/// Запрос само-удаления аккаунта (требует пароль для подтверждения).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteAccountRequest {
+    pub password: String,
+}
+
 /// Модель скина: `classic` (4px руки) или `slim` (3px руки).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

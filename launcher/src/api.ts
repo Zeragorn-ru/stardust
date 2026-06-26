@@ -160,6 +160,16 @@ export async function changePassword(
   await invoke<void>("change_password", { currentPassword, newPassword });
 }
 
+/** Удалить собственный аккаунт (требует пароль). После успеха сессия сброшена. */
+export async function deleteAccount(password: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(400);
+    return;
+  }
+  await invoke<void>("delete_account", { password });
+}
+
 /** Прочитать настройки. */
 export async function getSettings(): Promise<Settings> {
   const invoke = await getInvoke();

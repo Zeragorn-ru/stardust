@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
 import type { AccountInfo, PlayerProfile } from "../types";
-import { accountInfo, changePassword, changeUsername } from "../api";
+import {
+  accountInfo,
+  changePassword,
+  changeUsername,
+  deleteAccount,
+} from "../api";
 
 interface Props {
   profile: PlayerProfile | null;
   onProfileChange: (profile: PlayerProfile) => void;
+  onAccountDeleted: () => void;
 }
 
-export default function AccountSection({ profile, onProfileChange }: Props) {
+export default function AccountSection({
+  profile,
+  onProfileChange,
+  onAccountDeleted,
+}: Props) {
   const [info, setInfo] = useState<AccountInfo | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -25,15 +35,19 @@ export default function AccountSection({ profile, onProfileChange }: Props) {
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [pwErr, setPwErr] = useState<string | null>(null);
 
+  // Удаление аккаунта.
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteStatus, setDeleteStatus] = useState<"idle" | "saving">("idle");
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   useEffect(() => {
     accountInfo()
       .then((data) => {
         setInfo(data);
         setUsername(data.profile.name);
       })
-      .catch((e) =>
-        setLoadError(e instanceof Error ? e.message : String(e)),
-      );
+      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
   }, []);
 
   async function handleRename(e: React.FormEvent) {
@@ -86,6 +100,23 @@ export default function AccountSection({ profile, onProfileChange }: Props) {
       setPwErr(e instanceof Error ? e.message : String(e));
     } finally {
       setPwStatus("idle");
+    }
+  }
+
+  async function handleDeleteAccount(e: React.FormEvent) {
+    e.preventDefault();
+    setDeleteErr(null);
+    if (!deletePassword) {
+      setDeleteErr("Введите пароль для подтверждения");
+      return;
+    }
+    setDeleteStatus("saving");
+    try {
+      await deleteAccount(deletePassword);
+      onAccountDeleted();
+    } catch (e) {
+      setDeleteErr(e instanceof Error ? e.message : String(e));
+      setDeleteStatus("idle");
     }
   }
 
@@ -179,6 +210,60 @@ export default function AccountSection({ profile, onProfileChange }: Props) {
         >
           {pwStatus === "saving" ? "Сохранение…" : "Изменить пароль"}
         </button>
+      </form>
+
+      <form
+        className="account-form account-form--danger"
+        onSubmit={handleDeleteAccount}
+      >
+        <span className="toggle-row__title">Удалить аккаунт</span>
+        <p className="muted">
+          Аккаунт и все связанные данные будут удалены безвозвратно.
+        </p>
+        {confirmingDelete ? (
+          <>
+            <input
+              type="password"
+              className="input"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="Пароль для подтверждения"
+              autoComplete="current-password"
+            />
+            {deleteErr && (
+              <p className="form-msg form-msg--error">{deleteErr}</p>
+            )}
+            <div className="account-form__row">
+              <button
+                type="button"
+                className="btn btn--ghost"
+                disabled={deleteStatus === "saving"}
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  setDeletePassword("");
+                  setDeleteErr(null);
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                type="submit"
+                className="btn btn--danger"
+                disabled={deleteStatus === "saving"}
+              >
+                {deleteStatus === "saving" ? "Удаление…" : "Удалить навсегда"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="btn btn--danger"
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Удалить аккаунт
+          </button>
+        )}
       </form>
     </div>
   );

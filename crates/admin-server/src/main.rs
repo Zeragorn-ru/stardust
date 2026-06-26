@@ -23,6 +23,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{NewBuild, Role, Store};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
@@ -123,6 +125,12 @@ async fn main() {
             axum::routing::put(update_file_content),
         )
         .route("/api/accounts", get(list_accounts))
+        .route(
+            "/api/accounts/:uuid",
+            axum::routing::patch(update_account).delete(delete_account_admin),
+        )
+        .route("/api/accounts/:uuid/ban", post(ban_account))
+        .route("/api/accounts/:uuid/unban", post(unban_account))
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
         .route("/authlib-injector.jar", get(authlib_injector))
@@ -684,6 +692,34 @@ struct AccountDto {
     username: String,
     #[serde(rename = "isAdmin")]
     is_admin: bool,
+    banned: bool,
+    #[serde(rename = "bannedUntil", skip_serializing_if = "Option::is_none")]
+    banned_until: Option<String>,
+    #[serde(rename = "banReason", skip_serializing_if = "Option::is_none")]
+    ban_reason: Option<String>,
+}
+
+impl From<store::Account> for AccountDto {
+    fn from(a: store::Account) -> Self {
+        let is_admin = a.is_admin();
+        let (banned, banned_until, ban_reason) = match a.ban {
+            Some(ban) => (
+                true,
+                ban.until
+                    .map(|u| u.format(&Rfc3339).unwrap_or_else(|_| u.to_string())),
+                ban.reason,
+            ),
+            None => (false, None, None),
+        };
+        AccountDto {
+            uuid: a.uuid,
+            username: a.username,
+            is_admin,
+            banned,
+            banned_until,
+            ban_reason,
+        }
+    }
 }
 
 async fn list_accounts(
@@ -692,16 +728,128 @@ async fn list_accounts(
 ) -> Result<Json<Vec<AccountDto>>, ApiError> {
     require_admin(&state, &headers).await?;
     let accounts = state.store.all_accounts().await.map_err(internal)?;
-    Ok(Json(
-        accounts
-            .into_iter()
-            .map(|a| AccountDto {
-                is_admin: a.is_admin(),
-                uuid: a.uuid,
-                username: a.username,
-            })
-            .collect(),
-    ))
+    Ok(Json(accounts.into_iter().map(AccountDto::from).collect()))
+}
+
+#[derive(Deserialize)]
+struct UpdateAccountRequest {
+    /// Новый ник (опционально).
+    username: Option<String>,
+}
+
+/// Редактирование аккаунта админом (пока — переименование).
+async fn update_account(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(req): Json<UpdateAccountRequest>,
+) -> Result<Json<AccountDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    if let Some(username) = req
+        .username
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        state
+            .store
+            .rename(&uuid, username)
+            .await
+            .map_err(map_store)?;
+    }
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    Ok(Json(AccountDto::from(account)))
+}
+
+/// Удаление аккаунта админом.
+async fn delete_account_admin(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+) -> Result<StatusCode, ApiError> {
+    let admin = require_admin(&state, &headers).await?;
+    if normalize_for_compare(&admin.uuid) == normalize_for_compare(&uuid) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Нельзя удалить свой собственный аккаунт",
+        ));
+    }
+    state.store.delete_account(&uuid).await.map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct BanRequest {
+    /// Длительность бана в секундах. `None`/0 — бан навсегда.
+    #[serde(rename = "durationSecs")]
+    duration_secs: Option<i64>,
+    reason: Option<String>,
+}
+
+/// Блокировка аккаунта админом.
+async fn ban_account(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(req): Json<BanRequest>,
+) -> Result<Json<AccountDto>, ApiError> {
+    let admin = require_admin(&state, &headers).await?;
+    if normalize_for_compare(&admin.uuid) == normalize_for_compare(&uuid) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Нельзя забанить свой собственный аккаунт",
+        ));
+    }
+    let until = match req.duration_secs {
+        Some(secs) if secs > 0 => {
+            Some(OffsetDateTime::now_utc() + Duration::from_secs(secs as u64))
+        }
+        _ => None,
+    };
+    let reason = req
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    state
+        .store
+        .ban_account(&uuid, until, reason)
+        .await
+        .map_err(map_store)?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    Ok(Json(AccountDto::from(account)))
+}
+
+/// Снятие блокировки админом.
+async fn unban_account(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+) -> Result<Json<AccountDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.unban_account(&uuid).await.map_err(map_store)?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    Ok(Json(AccountDto::from(account)))
+}
+
+/// Нормализует UUID для сравнения (убирает дефисы, нижний регистр).
+fn normalize_for_compare(uuid: &str) -> String {
+    uuid.chars()
+        .filter(|c| *c != '-')
+        .flat_map(char::to_lowercase)
+        .collect()
 }
 
 // ───────────────────────── Манифест (для лаунчера) ─────────────────────────

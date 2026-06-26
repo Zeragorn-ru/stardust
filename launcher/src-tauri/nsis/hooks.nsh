@@ -15,7 +15,11 @@
 
   launch_app:
     IfFileExists "$INSTDIR\StarDust.exe" 0 launch_done
-    Exec '"$INSTDIR\StarDust.exe"'
+    ; Запускаем через explorer.exe, чтобы новый процесс не был дочерним для
+    ; установщика (иначе он наследует его контекст/токен и завершается
+    ; вместе с выходящим setup.exe). explorer становится родителем
+    ; и запускает лаунчер с обычными правами пользователя.
+    Exec '"$WINDIR\explorer.exe" "$INSTDIR\StarDust.exe"'
 
   launch_done:
 !macroend

@@ -39,11 +39,13 @@ use tower_http::cors::CorsLayer;
 
 use protocol::{
     AccountInfo, AuthResponse, ChangePasswordRequest, ChangeUsernameRequest, Credentials,
-    PlayerProfile, SessionResponse, SkinImportRequest, SkinModel, SkinUploadRequest,
+    DeleteAccountRequest, PlayerProfile, SessionResponse, SkinImportRequest, SkinModel,
+    SkinUploadRequest,
 };
 
 use crate::yggdrasil::Keys;
 use store::{Account, Store, StoreError, StoredSkin};
+use time::format_description::well_known::Rfc3339;
 
 /// Общее состояние сервера.
 struct AppState {
@@ -113,6 +115,7 @@ async fn main() {
         .route("/api/account", get(account_me))
         .route("/api/account/username", post(change_username))
         .route("/api/account/password", post(change_password))
+        .route("/api/account/delete", post(delete_account))
         .route("/api/account/telegram/start", post(telegram_2fa_start))
         .route("/api/profile/:uuid", get(profile))
         .route("/api/skin/import", post(skin_import))
@@ -232,6 +235,35 @@ async fn register(
     Ok(Json(AuthResponse { profile, token }))
 }
 
+/// Человекочитаемое сообщение о блокировке аккаунта.
+fn ban_message(account: &Account) -> String {
+    let Some(ban) = account.ban.as_ref() else {
+        return "Аккаунт заблокирован".to_string();
+    };
+    let mut msg = match ban.until {
+        Some(until) => {
+            let when = until.format(&Rfc3339).unwrap_or_else(|_| until.to_string());
+            format!("Аккаунт заблокирован до {when}")
+        }
+        None => "Аккаунт заблокирован навсегда".to_string(),
+    };
+    if let Some(reason) = ban.reason.as_deref().filter(|r| !r.trim().is_empty()) {
+        msg.push_str(": ");
+        msg.push_str(reason);
+    }
+    msg
+}
+
+/// Отклоняет вход, если аккаунт под активной блокировкой.
+async fn ensure_not_banned(state: &Shared, uuid: &str) -> Result<(), ApiError> {
+    if let Some(account) = state.store.find_by_uuid(uuid).await {
+        if account.is_banned() {
+            return Err(ApiError::new(StatusCode::FORBIDDEN, ban_message(&account)));
+        }
+    }
+    Ok(())
+}
+
 async fn login(
     State(state): State<Shared>,
     Json(creds): Json<Credentials>,
@@ -240,6 +272,7 @@ async fn login(
         .store
         .login(creds.username.trim(), &creds.password)
         .await?;
+    ensure_not_banned(&state, &profile.id).await?;
     let token = state.store.create_session(&profile.id).await?;
     Ok(Json(AuthResponse { profile, token }))
 }
@@ -344,6 +377,20 @@ async fn change_password(
     state
         .store
         .change_password(&account.uuid, &req.current_password, &req.new_password)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Само-удаление аккаунта владельцем сессии (с подтверждением пароля).
+async fn delete_account(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<DeleteAccountRequest>,
+) -> Result<StatusCode, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    state
+        .store
+        .delete_account_with_password(&account.uuid, &req.password)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -623,6 +670,15 @@ async fn ygg_authenticate(
             )
         }
     };
+    if let Some(account) = state.store.find_by_uuid(&profile.id).await {
+        if account.is_banned() {
+            return ygg_error(
+                StatusCode::FORBIDDEN,
+                "ForbiddenOperationException",
+                &ban_message(&account),
+            );
+        }
+    }
     let access_token = match state.store.create_session(&profile.id).await {
         Ok(t) => t,
         Err(_) => {
@@ -811,6 +867,15 @@ async fn ygg_has_joined(State(state): State<Shared>, Query(q): Query<HasJoinedQu
             account = %account.username,
             server_id = %short_id(&q.server_id),
             "yggdrasil hasJoined missed: username mismatch"
+        );
+        return StatusCode::NO_CONTENT.into_response();
+    }
+    if account.is_banned() {
+        tracing::warn!(
+            username = %q.username,
+            uuid = %uuid,
+            server_id = %short_id(&q.server_id),
+            "yggdrasil hasJoined rejected: account banned"
         );
         return StatusCode::NO_CONTENT.into_response();
     }

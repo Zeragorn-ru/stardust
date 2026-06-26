@@ -1142,6 +1142,30 @@ body {
     align-self: flex-start;
 }
 
+.account-form__row {
+    display: flex;
+    gap: 10px;
+}
+
+.account-form--danger {
+    border-top: 1px solid var(--glass-border);
+    padding-top: 16px;
+    margin-top: 4px;
+}
+
+.btn--danger {
+    background: rgba(255, 107, 107, 0.12);
+    border-color: rgba(255, 107, 107, 0.3);
+    color: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+    transform: none;
+}
+
 .form-msg {
     font-size: 13px;
     margin: 0;
