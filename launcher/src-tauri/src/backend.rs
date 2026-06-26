@@ -15,6 +15,10 @@ use serde::Deserialize;
 /// перекрывается переменной окружения `LAUNCHER_AUTH_URL`.
 const DEFAULT_AUTH_URL: &str = "https://auth.zeragorn.xyz";
 
+/// URL admin-сервиса (раздаёт манифест активной сборки и файлы модпака).
+/// Перекрывается переменной окружения `LAUNCHER_ADMIN_URL`.
+const DEFAULT_ADMIN_URL: &str = "https://admin.zeragorn.xyz";
+
 /// Базовый URL auth-сервера без завершающего слэша.
 pub fn base_url() -> String {
     std::env::var("LAUNCHER_AUTH_URL")
@@ -22,6 +26,43 @@ pub fn base_url() -> String {
         .map(|s| s.trim().trim_end_matches('/').to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| DEFAULT_AUTH_URL.to_string())
+}
+
+/// Базовый URL admin-сервиса без завершающего слэша.
+pub fn admin_base_url() -> String {
+    std::env::var("LAUNCHER_ADMIN_URL")
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| DEFAULT_ADMIN_URL.to_string())
+}
+
+/// GET `/manifest`. Манифест активной сборки.
+///
+/// `Ok(None)` — активной сборки нет (404): это не ошибка, лаунчер просто
+/// запускает игру без модпака. `Err` — реальная сетевая/серверная проблема.
+pub async fn fetch_manifest(
+    client: &reqwest::Client,
+) -> Result<Option<protocol::Manifest>, String> {
+    let resp = client
+        .get(format!("{}/manifest", admin_base_url()))
+        .send()
+        .await
+        .map_err(network_error)?;
+
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !resp.status().is_success() {
+        return Err(format!(
+            "Ошибка сервера сборок ({})",
+            resp.status().as_u16()
+        ));
+    }
+    resp.json::<protocol::Manifest>()
+        .await
+        .map(Some)
+        .map_err(|e| format!("Некорректный манифест сборки: {e}"))
 }
 
 /// Тело ошибки, которое отдаёт auth-сервер: `{ "error": "..." }`.

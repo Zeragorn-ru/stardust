@@ -72,6 +72,10 @@ pub async fn launch(
     let game_dir = root.join("game");
     fs::create_dir_all(&game_dir).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
 
+    // Синхронизируем активную сборку (моды/конфиги) в игровой каталог.
+    // Если активной сборки нет — функция тихо вернётся, запустим без модпака.
+    crate::modpack::sync(&app, http, &game_dir).await?;
+
     let classpath = build_modloader_classpath(&root, &version, &loader);
     let natives_dir = natives_dir(&root, &version.id);
 
@@ -138,7 +142,12 @@ struct ProgressPayload {
     eta_seconds: Option<f64>,
 }
 
-fn emit_step(app: &AppHandle, phase: &str, label: impl Into<String>, fraction: Option<f64>) {
+pub(crate) fn emit_step(
+    app: &AppHandle,
+    phase: &str,
+    label: impl Into<String>,
+    fraction: Option<f64>,
+) {
     let _ = app.emit(
         "launcher://progress",
         ProgressPayload {
@@ -891,7 +900,7 @@ async fn prefetch_yggdrasil_meta(http: &reqwest::Client, auth_url: &str) -> Opti
     Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
-async fn download_to(
+pub(crate) async fn download_to(
     app: &AppHandle,
     http: &reqwest::Client,
     url: &str,

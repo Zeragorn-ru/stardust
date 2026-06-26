@@ -233,7 +233,7 @@ export async function importSkinFromLicense(
   await invoke<void>("import_skin_from_license", { source, keepSynced });
 }
 
-/** Запустить игру (обновление сборки + старт). Логика появится позже. */
+/** Запустить игру: синхронизация активной сборки (модпака) + старт. */
 export async function playGame(): Promise<void> {
   const invoke = await getInvoke();
   if (!invoke) {

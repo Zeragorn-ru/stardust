@@ -4,6 +4,7 @@
 mod backend;
 mod commands;
 mod minecraft;
+mod modpack;
 mod paths;
 mod update;
 
