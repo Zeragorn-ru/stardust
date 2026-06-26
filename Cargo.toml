@@ -4,6 +4,7 @@ members = [
     "crates/protocol",
     "crates/store",
     "crates/auth-server",
+    "crates/admin-server",
     "launcher/src-tauri",
 ]
 

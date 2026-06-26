@@ -17,7 +17,7 @@ use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
 
 mod build;
-pub use build::{BuildFileInput, BuildHeader, BuildRecord, NewBuild};
+pub use build::{BuildFileInput, BuildFileRow, BuildHeader, BuildRecord, NewBuild};
 
 /// Скин игрока, хранимый сервером.
 #[derive(Debug, Clone)]
@@ -223,7 +223,10 @@ impl Store {
 
     /// Проверяет логин/пароль, возвращает профиль.
     pub async fn login(&self, username: &str, password: &str) -> Result<PlayerProfile, StoreError> {
-        let account = self.find_by_name(username).await.ok_or(StoreError::NotFound)?;
+        let account = self
+            .find_by_name(username)
+            .await
+            .ok_or(StoreError::NotFound)?;
         if verify_password(password, &account.password_hash) {
             Ok(account.profile())
         } else {
@@ -251,7 +254,11 @@ impl Store {
     }
 
     /// Переименовывает аккаунт (с проверкой занятости нового ника).
-    pub async fn rename(&self, uuid: &str, new_username: &str) -> Result<PlayerProfile, StoreError> {
+    pub async fn rename(
+        &self,
+        uuid: &str,
+        new_username: &str,
+    ) -> Result<PlayerProfile, StoreError> {
         let uuid = normalize_uuid(uuid);
         let new_key = new_username.to_lowercase();
         let taken: Option<i32> =
@@ -263,15 +270,14 @@ impl Store {
         if taken.is_some() {
             return Err(StoreError::NameTaken);
         }
-        let changed = sqlx::query(
-            "UPDATE accounts SET username = $1, username_lower = $2 WHERE uuid = $3",
-        )
-        .bind(new_username)
-        .bind(&new_key)
-        .bind(&uuid)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+        let changed =
+            sqlx::query("UPDATE accounts SET username = $1, username_lower = $2 WHERE uuid = $3")
+                .bind(new_username)
+                .bind(&new_key)
+                .bind(&uuid)
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
@@ -282,11 +288,7 @@ impl Store {
     }
 
     /// Привязывает/отвязывает Telegram chat_id (точка интеграции с ботом 2FA).
-    pub async fn set_telegram(
-        &self,
-        uuid: &str,
-        chat_id: Option<&str>,
-    ) -> Result<(), StoreError> {
+    pub async fn set_telegram(&self, uuid: &str, chat_id: Option<&str>) -> Result<(), StoreError> {
         let uuid = normalize_uuid(uuid);
         let changed = sqlx::query("UPDATE accounts SET telegram_chat_id = $1 WHERE uuid = $2")
             .bind(chat_id)

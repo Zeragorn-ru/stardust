@@ -1,0 +1,664 @@
+//! Admin REST API.
+//!
+//! Веб-админка (`admin-web`) ходит сюда с bearer-токеном админа. Сервер
+//! управляет сборкой (модпаком): создаёт сборки, принимает файлы (моды,
+//! конфиги), складывает их байты в каталог `modpack-data` под именем `sha1`,
+//! а метаданные — в общий `store`. Лаунчер тянет отсюда клиентский манифест
+//! (`GET /manifest`) и сами файлы (`GET /files/<sha1>`).
+//!
+//! Доступ к БД и сессиям переиспользуется из крейта `store` — те же аккаунты
+//! и токены, что и у auth-server. Админом считается аккаунт с ролью `admin`.
+
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use axum::{
+    extract::{DefaultBodyLimit, Multipart, Path, State},
+    http::{header, HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
+use sha1::{Digest, Sha1};
+use store::{NewBuild, Role, Store};
+use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
+
+/// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
+const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
+
+type Shared = Arc<AppState>;
+
+struct AppState {
+    store: Store,
+    /// Каталог с байтами файлов сборки (modpack-data).
+    modpack_dir: PathBuf,
+    /// Публичный префикс, под которым лаунчер качает файлы (напр.
+    /// `https://host/files`). Подставляется в URL манифеста.
+    files_base_url: String,
+}
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "admin_server=info,tower_http=warn".into()),
+        )
+        .init();
+
+    let database_url = std::env::var("DATABASE_URL")
+        .expect("переменная окружения DATABASE_URL обязательна (строка подключения PostgreSQL)");
+    let store = Store::connect(&database_url)
+        .await
+        .unwrap_or_else(|e| panic!("не удалось подключиться к БД: {e:?}"));
+    tracing::info!("хранилище: PostgreSQL");
+
+    // Выдача первого админа. Веб-админка пускает только роль `admin`, но
+    // регистрация всегда создаёт `user` — поэтому самого первого админа
+    // неоткуда взять. `ADMIN_BOOTSTRAP` со списком логинов (через запятую)
+    // повышает уже существующие аккаунты до `admin` при старте. Операция
+    // идемпотентна: можно держать переменную постоянно, повторный запуск
+    // ничего не ломает.
+    bootstrap_admins(&store).await;
+
+    let modpack_dir =
+        PathBuf::from(std::env::var("MODPACK_DIR").unwrap_or_else(|_| "modpack-data".to_string()));
+    std::fs::create_dir_all(&modpack_dir)
+        .unwrap_or_else(|e| panic!("не удалось создать каталог сборки {modpack_dir:?}: {e}"));
+
+    // Публичный URL раздачи файлов. По умолчанию — наш же `/files`.
+    let files_base_url = std::env::var("FILES_BASE_URL")
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "http://127.0.0.1:8081/files".to_string());
+
+    let state = Arc::new(AppState {
+        store,
+        modpack_dir: modpack_dir.clone(),
+        files_base_url,
+    });
+
+    let app = Router::new()
+        .route("/health", get(health))
+        // --- Админка (нужен токен админа) ---
+        .route("/api/login", post(login))
+        .route("/api/logout", post(logout))
+        .route("/api/me", get(me))
+        .route("/api/builds", get(list_builds).post(create_build))
+        .route("/api/builds/:id", get(get_build).delete(delete_build))
+        .route("/api/builds/:id/activate", post(activate_build))
+        .route("/api/builds/:id/files", post(upload_file))
+        .route(
+            "/api/builds/files/:file_id",
+            axum::routing::delete(delete_file),
+        )
+        .route("/api/accounts", get(list_accounts))
+        // --- Публичное для лаунчера ---
+        .route("/manifest", get(manifest))
+        .nest_service("/files", ServeDir::new(modpack_dir))
+        .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
+        .with_state(state)
+        .layer(CorsLayer::permissive());
+
+    let addr = std::env::var("ADMIN_BIND").unwrap_or_else(|_| "127.0.0.1:8081".into());
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .unwrap_or_else(|e| panic!("не удалось привязаться к {addr}: {e}"));
+    tracing::info!("admin-server слушает на http://{addr}");
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .expect("ошибка сервера");
+}
+
+async fn shutdown_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+    tracing::info!("получен сигнал остановки, завершаюсь");
+}
+
+/// Повышает до роли `admin` аккаунты, перечисленные в `ADMIN_BOOTSTRAP`
+/// (логины через запятую). Нужно, чтобы выдать самого первого админа: иначе
+/// зайти в веб-админку и назначить роли некому. Идемпотентно — уже admin'ы
+/// пропускаются, отсутствующие аккаунты логируются как предупреждение.
+async fn bootstrap_admins(store: &Store) {
+    let raw = match std::env::var("ADMIN_BOOTSTRAP") {
+        Ok(v) if !v.trim().is_empty() => v,
+        _ => return,
+    };
+
+    for username in raw.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        match store.find_by_name(username).await {
+            Some(account) if account.is_admin() => {
+                tracing::info!(username, "bootstrap: уже admin, пропускаю");
+            }
+            Some(account) => match store.set_role(&account.uuid, Role::Admin).await {
+                Ok(()) => tracing::info!(username, "bootstrap: роль повышена до admin"),
+                Err(e) => tracing::error!(username, ?e, "bootstrap: не удалось выдать admin"),
+            },
+            None => tracing::warn!(
+                username,
+                "bootstrap: аккаунт не найден — сначала зарегистрируйте его в лаунчере"
+            ),
+        }
+    }
+}
+
+// ───────────────────────── Ошибки ─────────────────────────
+
+/// Единый тип ошибки HTTP-слоя.
+struct ApiError {
+    status: StatusCode,
+    message: String,
+}
+
+impl ApiError {
+    fn new(status: StatusCode, message: impl Into<String>) -> Self {
+        Self {
+            status,
+            message: message.into(),
+        }
+    }
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        (
+            self.status,
+            Json(ErrorBody {
+                error: self.message,
+            }),
+        )
+            .into_response()
+    }
+}
+
+#[derive(Serialize)]
+struct ErrorBody {
+    error: String,
+}
+
+// ───────────────────────── Аутентификация ─────────────────────────
+
+#[derive(Deserialize)]
+struct LoginRequest {
+    username: String,
+    password: String,
+}
+
+#[derive(Serialize)]
+struct LoginResponse {
+    token: String,
+    username: String,
+    uuid: String,
+}
+
+async fn health() -> &'static str {
+    "ok"
+}
+
+/// Вход в админку: логин/пароль + обязательная роль `admin`.
+async fn login(
+    State(state): State<Shared>,
+    Json(req): Json<LoginRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let profile = state
+        .store
+        .login(&req.username, &req.password)
+        .await
+        .map_err(|_| ApiError::new(StatusCode::UNAUTHORIZED, "Неверный логин или пароль"))?;
+
+    let account = state
+        .store
+        .find_by_uuid(&profile.id)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+    if !account.is_admin() {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Недостаточно прав"));
+    }
+
+    let token = state
+        .store
+        .create_session(&profile.id)
+        .await
+        .map_err(internal)?;
+    Ok(Json(LoginResponse {
+        token,
+        username: profile.name,
+        uuid: profile.id,
+    }))
+}
+
+async fn logout(State(state): State<Shared>, headers: HeaderMap) -> Result<StatusCode, ApiError> {
+    let token = bearer_token(&headers)?;
+    let _ = state.store.destroy_session(&token).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize)]
+struct MeResponse {
+    username: String,
+    uuid: String,
+}
+
+async fn me(State(state): State<Shared>, headers: HeaderMap) -> Result<Json<MeResponse>, ApiError> {
+    let account = require_admin(&state, &headers).await?;
+    Ok(Json(MeResponse {
+        username: account.username,
+        uuid: account.uuid,
+    }))
+}
+
+// ───────────────────────── Сборки ─────────────────────────
+
+#[derive(Serialize)]
+struct BuildHeaderDto {
+    id: i64,
+    name: String,
+    version: String,
+    #[serde(rename = "loaderKind")]
+    loader_kind: String,
+    #[serde(rename = "mcVersion")]
+    mc_version: String,
+    #[serde(rename = "loaderVersion")]
+    loader_version: String,
+    #[serde(rename = "isActive")]
+    is_active: bool,
+}
+
+impl From<store::BuildHeader> for BuildHeaderDto {
+    fn from(h: store::BuildHeader) -> Self {
+        Self {
+            id: h.id,
+            name: h.name,
+            version: h.version,
+            loader_kind: h.loader_kind,
+            mc_version: h.mc_version,
+            loader_version: h.loader_version,
+            is_active: h.is_active,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct BuildFileDto {
+    id: i64,
+    path: String,
+    sha1: String,
+    #[serde(rename = "sizeBytes")]
+    size_bytes: i64,
+    side: String,
+    kind: String,
+    overwrite: bool,
+    optional: bool,
+    #[serde(rename = "enabledByDefault")]
+    enabled_by_default: bool,
+    #[serde(rename = "modId")]
+    mod_id: Option<String>,
+    #[serde(rename = "displayName")]
+    display_name: Option<String>,
+    description: Option<String>,
+}
+
+impl From<store::BuildFileRow> for BuildFileDto {
+    fn from(f: store::BuildFileRow) -> Self {
+        Self {
+            id: f.id,
+            path: f.path,
+            sha1: f.sha1,
+            size_bytes: f.size_bytes,
+            side: f.side,
+            kind: f.kind,
+            overwrite: f.overwrite,
+            optional: f.optional,
+            enabled_by_default: f.enabled_by_default,
+            mod_id: f.mod_id,
+            display_name: f.display_name,
+            description: f.description,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct BuildDetailDto {
+    #[serde(flatten)]
+    header: BuildHeaderDto,
+    files: Vec<BuildFileDto>,
+}
+
+async fn list_builds(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<BuildHeaderDto>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let builds = state.store.list_builds().await.map_err(internal)?;
+    Ok(Json(builds.into_iter().map(Into::into).collect()))
+}
+
+#[derive(Deserialize)]
+struct CreateBuildRequest {
+    name: String,
+    version: String,
+    #[serde(rename = "loaderKind", default = "default_loader")]
+    loader_kind: String,
+    #[serde(rename = "mcVersion")]
+    mc_version: String,
+    #[serde(rename = "loaderVersion", default)]
+    loader_version: String,
+}
+
+fn default_loader() -> String {
+    "neoforge".to_string()
+}
+
+#[derive(Serialize)]
+struct CreatedBuild {
+    id: i64,
+}
+
+async fn create_build(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<CreateBuildRequest>,
+) -> Result<Json<CreatedBuild>, ApiError> {
+    require_admin(&state, &headers).await?;
+    if req.name.trim().is_empty() || req.version.trim().is_empty() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Имя и версия обязательны",
+        ));
+    }
+    let id = state
+        .store
+        .create_build(NewBuild {
+            name: req.name,
+            version: req.version,
+            loader_kind: req.loader_kind,
+            mc_version: req.mc_version,
+            loader_version: req.loader_version,
+        })
+        .await
+        .map_err(internal)?;
+    Ok(Json(CreatedBuild { id }))
+}
+
+async fn get_build(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<BuildDetailDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let record = state
+        .store
+        .get_build(id)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Сборка не найдена"))?;
+    Ok(Json(BuildDetailDto {
+        header: record.header.into(),
+        files: record.files.into_iter().map(Into::into).collect(),
+    }))
+}
+
+async fn delete_build(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.delete_build(id).await.map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn activate_build(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.set_active_build(id).await.map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ───────────────────────── Загрузка файлов ─────────────────────────
+
+/// Принимает multipart: поле `meta` (JSON с метаданными) и поле `file`
+/// (содержимое). SHA-1 считаем сами, имя в хранилище = sha1.
+async fn upload_file(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(build_id): Path<i64>,
+    mut multipart: Multipart,
+) -> Result<Json<BuildFileDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Убедимся, что сборка существует.
+    if state
+        .store
+        .get_build(build_id)
+        .await
+        .map_err(internal)?
+        .is_none()
+    {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "Сборка не найдена"));
+    }
+
+    let mut meta: Option<UploadMeta> = None;
+    let mut bytes: Option<Vec<u8>> = None;
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, format!("multipart: {e}")))?
+    {
+        match field.name() {
+            Some("meta") => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, format!("meta: {e}")))?;
+                meta = Some(serde_json::from_str(&text).map_err(|e| {
+                    ApiError::new(StatusCode::BAD_REQUEST, format!("meta JSON: {e}"))
+                })?);
+            }
+            Some("file") => {
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, format!("file: {e}")))?;
+                bytes = Some(data.to_vec());
+            }
+            _ => {}
+        }
+    }
+
+    let meta = meta.ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Нет поля meta"))?;
+    let bytes = bytes.ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Нет поля file"))?;
+    if bytes.is_empty() {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой файл"));
+    }
+    if meta.path.trim().is_empty() {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой path"));
+    }
+
+    let sha1 = sha1_hex(&bytes);
+    let size_bytes = bytes.len() as i64;
+
+    // Пишем байты на диск под именем sha1 (контент-адресное хранилище:
+    // одинаковые файлы не дублируются). Если уже есть — не перезаписываем.
+    let dest = state.modpack_dir.join(&sha1);
+    if !dest.exists() {
+        tokio::fs::write(&dest, &bytes)
+            .await
+            .map_err(|e| internal(format!("запись файла: {e}")))?;
+    }
+
+    let file = store::BuildFileInput {
+        path: meta.path.trim().to_string(),
+        sha1: sha1.clone(),
+        size_bytes,
+        side: meta.side.unwrap_or_else(|| "both".to_string()),
+        kind: meta.kind.unwrap_or_else(|| "mod".to_string()),
+        overwrite: meta.overwrite.unwrap_or(true),
+        optional: meta.optional.unwrap_or(false),
+        enabled_by_default: meta.enabled_by_default.unwrap_or(true),
+        mod_id: meta.mod_id,
+        display_name: meta.display_name,
+        description: meta.description,
+        storage_key: sha1,
+    };
+
+    let id = state
+        .store
+        .upsert_build_file(build_id, file.clone())
+        .await
+        .map_err(map_store)?;
+
+    Ok(Json(BuildFileDto {
+        id,
+        path: file.path,
+        sha1: file.sha1,
+        size_bytes: file.size_bytes,
+        side: file.side,
+        kind: file.kind,
+        overwrite: file.overwrite,
+        optional: file.optional,
+        enabled_by_default: file.enabled_by_default,
+        mod_id: file.mod_id,
+        display_name: file.display_name,
+        description: file.description,
+    }))
+}
+
+#[derive(Deserialize)]
+struct UploadMeta {
+    /// Путь относительно `.minecraft` (напр. `mods/sodium.jar`).
+    path: String,
+    side: Option<String>,
+    kind: Option<String>,
+    overwrite: Option<bool>,
+    optional: Option<bool>,
+    #[serde(rename = "enabledByDefault")]
+    enabled_by_default: Option<bool>,
+    #[serde(rename = "modId")]
+    mod_id: Option<String>,
+    #[serde(rename = "displayName")]
+    display_name: Option<String>,
+    description: Option<String>,
+}
+
+async fn delete_file(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(file_id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    state
+        .store
+        .delete_build_file(file_id)
+        .await
+        .map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ───────────────────────── Аккаунты ─────────────────────────
+
+#[derive(Serialize)]
+struct AccountDto {
+    uuid: String,
+    username: String,
+    #[serde(rename = "isAdmin")]
+    is_admin: bool,
+}
+
+async fn list_accounts(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<AccountDto>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let accounts = state.store.all_accounts().await.map_err(internal)?;
+    Ok(Json(
+        accounts
+            .into_iter()
+            .map(|a| AccountDto {
+                is_admin: a.is_admin(),
+                uuid: a.uuid,
+                username: a.username,
+            })
+            .collect(),
+    ))
+}
+
+// ───────────────────────── Манифест (для лаунчера) ─────────────────────────
+
+/// Клиентский манифест активной сборки. Публичный (без авторизации).
+async fn manifest(State(state): State<Shared>) -> Result<Json<protocol::Manifest>, ApiError> {
+    let record = state
+        .store
+        .active_build()
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
+    Ok(Json(record.client_manifest(&state.files_base_url)))
+}
+
+// ───────────────────────── Хелперы ─────────────────────────
+
+/// Проверяет bearer-токен и роль `admin`.
+async fn require_admin(state: &Shared, headers: &HeaderMap) -> Result<store::Account, ApiError> {
+    let token = bearer_token(headers)?;
+    let uuid = state
+        .store
+        .validate_session(&token)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Сессия недействительна"))?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+    if !account.is_admin() {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Недостаточно прав"));
+    }
+    Ok(account)
+}
+
+fn bearer_token(headers: &HeaderMap) -> Result<String, ApiError> {
+    let value = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Нужна авторизация"))?;
+    let token = value
+        .strip_prefix("Bearer ")
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Нужен Bearer-токен"))?
+        .trim();
+    if token.is_empty() {
+        return Err(ApiError::new(StatusCode::UNAUTHORIZED, "Пустой токен"));
+    }
+    Ok(token.to_string())
+}
+
+fn sha1_hex(bytes: &[u8]) -> String {
+    let mut hasher = Sha1::new();
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let mut out = String::with_capacity(40);
+    for b in digest {
+        out.push_str(&format!("{b:02x}"));
+    }
+    out
+}
+
+fn internal(e: impl std::fmt::Display) -> ApiError {
+    ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+}
+
+fn map_store(e: store::StoreError) -> ApiError {
+    match e {
+        store::StoreError::NotFound => ApiError::new(StatusCode::NOT_FOUND, "Не найдено"),
+        other => ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+    }
+}

@@ -1,15 +1,16 @@
 # Docker Compose для бекенда лаунчера.
 #
-# Образ auth-server собирается CI (.github/workflows/backend.yml) и публикуется
-# в ghcr.io. На сервере ничего не собирается — только скачивается готовый
-# образ. Достаточно скопировать на сервер только docker-compose.yml и .env.
+# Образы auth-server, admin-server и admin-web собираются CI
+# (.github/workflows/backend.yml) и публикуются в ghcr.io. На сервере ничего
+# не собирается — только скачиваются готовые образы. Достаточно скопировать на
+# сервер docker-compose.yml и .env.
 #
 # Запуск (из каталога с этими файлами):
-#   cp .env.example .env       # и отредактируй пароли/адрес
-#   docker compose pull        # скачать образ auth-server из ghcr.io
+#   cp .env.example .env       # и отредактируй пароли/адреса
+#   docker compose pull        # скачать образы из ghcr.io
 #   docker compose up -d       # поднять (сборки не будет)
 #
-# Обновление бекенда после нового пуша образа CI:
+# Обновление бекенда после нового пуша образов CI:
 #   docker compose pull && docker compose up -d
 
 services:
@@ -60,6 +61,50 @@ services:
       - ./data/keys:/data
     ports:
       - "${AUTH_PORT:-8080}:8080"
+    networks:
+      - launcher-net
+
+  admin-server:
+    # REST API админки сборок. Использует ту же БД (аккаунты/сессии общие с
+    # auth-server). Наружу напрямую не публикуется — доступ только через
+    # admin-web (nginx). Образ из ghcr.io, переопределяется через ADMIN_IMAGE.
+    image: ${ADMIN_IMAGE:-ghcr.io/zeragorn-ru/stardust/admin-server:latest}
+    pull_policy: always
+    container_name: launcher-admin-server
+    restart: unless-stopped
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    environment:
+      ADMIN_BIND: 0.0.0.0:8081
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
+      # Каталог с байтами файлов сборок (content-addressable storage).
+      MODPACK_DIR: /data/modpack
+      # Публичный URL раздачи файлов — попадает в манифест, который качает
+      # лаунчер. Должен указывать на публичный admin-web (/files).
+      FILES_BASE_URL: ${FILES_BASE_URL:-http://127.0.0.1:8082/files}
+      # Логины (через запятую), которым при старте выдаётся роль admin.
+      # Нужно для самого первого админа: регистрация всегда создаёт user.
+      # Идемпотентно — можно оставить переменную навсегда.
+      ADMIN_BOOTSTRAP: ${ADMIN_BOOTSTRAP:-}
+      RUST_LOG: ${ADMIN_RUST_LOG:-admin_server=info,tower_http=warn}
+    volumes:
+      # Файлы сборок рядом с остальными данными (./data/modpack).
+      - ./data/modpack:/data/modpack
+    networks:
+      - launcher-net
+
+  admin-web:
+    # Статика SPA + reverse-proxy на admin-server. Единственная публичная
+    # точка входа для админки и для раздачи манифеста/файлов лаунчеру.
+    image: ${ADMIN_WEB_IMAGE:-ghcr.io/zeragorn-ru/stardust/admin-web:latest}
+    pull_policy: always
+    container_name: launcher-admin-web
+    restart: unless-stopped
+    depends_on:
+      - admin-server
+    ports:
+      - "${ADMIN_WEB_PORT:-8082}:80"
     networks:
       - launcher-net
 

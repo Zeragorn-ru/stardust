@@ -1,0 +1,18 @@
+[package]
+name = "admin-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Admin REST API: build (modpack) management, uploads and client manifest."
+
+[dependencies]
+protocol = { path = "../protocol" }
+store = { path = "../store" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = { version = "0.7", features = ["multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "signal", "fs"] }
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha1 = "0.10"

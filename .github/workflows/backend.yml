@@ -1,8 +1,11 @@
-# Сборка и публикация Docker-образа auth-server в ghcr.io.
+# Сборка и публикация Docker-образов бекенда в ghcr.io.
 #
-# Деплой ручной: после успешного пуша образа зайди на сервер и выполни
+# Публикуются три образа: auth-server, admin-server (оба из deploy/Dockerfile,
+# разные target-стейджи) и admin-web (SPA + nginx, deploy/admin-web.Dockerfile).
+#
+# Деплой ручной: после успешного пуша образов зайди на сервер и выполни
 #   cd deploy && docker compose pull && docker compose up -d
-# (Образ не изменился по digest — compose ничего не перезапустит.)
+# (Образы не изменились по digest — compose ничего не перезапустит.)
 
 name: backend
 
@@ -11,14 +14,14 @@ on:
     branches: [master]
     paths:
       - "Cargo.toml"
+      - "Cargo.lock"
       - "crates/**"
+      - "admin-web/**"
       - "deploy/Dockerfile"
+      - "deploy/admin-web.Dockerfile"
+      - "deploy/admin-web.nginx.conf"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
-
-env:
-  # ghcr.io/<owner>/<repo>/auth-server — owner/repo берутся из контекста.
-  IMAGE: ghcr.io/${{ github.repository }}/auth-server
 
 jobs:
   build-test:
@@ -27,8 +30,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build + test (auth-server, store, protocol)
-        run: cargo test -p auth-server -p store -p protocol
+      - name: Build + test (auth-server, admin-server, store, protocol)
+        run: cargo test -p auth-server -p admin-server -p store -p protocol
 
   image:
     needs: build-test
@@ -36,6 +39,18 @@ jobs:
     permissions:
       contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - name: auth-server
+            dockerfile: deploy/Dockerfile
+            target: auth-server
+          - name: admin-server
+            dockerfile: deploy/Dockerfile
+            target: admin-server
+          - name: admin-web
+            dockerfile: deploy/admin-web.Dockerfile
+            target: admin-web
     steps:
       - uses: actions/checkout@v4
 
@@ -50,7 +65,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE }}
+          # ghcr.io/<owner>/<repo>/<service> — owner/repo берутся из контекста.
+          images: ghcr.io/${{ github.repository }}/${{ matrix.name }}
           # latest для ветки + неизменяемый тег по sha коммита.
           tags: |
             type=raw,value=latest
@@ -63,9 +79,10 @@ jobs:
         with:
           # Контекст — корень воркспейса; Dockerfile в deploy/.
           context: .
-          file: deploy/Dockerfile
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
