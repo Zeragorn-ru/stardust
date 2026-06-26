@@ -22,7 +22,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const { reload: reloadSkin } = useSkin();
 
-  // Обновление, обнаруженное при старте (показываем всплывашкой).
+  // Обновление, обнаруженное авто-проверкой (показываем всплывашкой).
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
 
   // Стартовый экран + попытка автологина из сохранённой сессии.
@@ -44,15 +44,32 @@ export default function App() {
       .finally(() => setReady(true));
   }, []);
 
-  // Проверка обновлений при запуске: если есть новая версия — сразу
-  // предлагаем обновиться. Ошибки (нет сети, GitHub недоступен)
-  // глотаем молча — это не должно мешать запуску лаунчера.
+  // Проверка обновлений при запуске и затем раз в 30 минут. Ошибки
+  // (нет сети, GitHub недоступен) глотаем молча — это не должно мешать
+  // запуску и работе лаунчера.
   useEffect(() => {
-    checkUpdate()
-      .then((info) => {
-        if (info.available) setUpdate(info);
-      })
-      .catch(() => undefined);
+    let cancelled = false;
+    let checking = false;
+
+    async function runCheck() {
+      if (checking) return;
+      checking = true;
+      try {
+        const info = await checkUpdate();
+        if (!cancelled && info.available) setUpdate(info);
+      } catch {
+        // ignore
+      } finally {
+        checking = false;
+      }
+    }
+
+    runCheck();
+    const timer = window.setInterval(runCheck, 30 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, []);
 
   function finishOnboarding() {
