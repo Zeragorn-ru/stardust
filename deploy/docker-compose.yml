@@ -22,7 +22,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - auth-db-data:/var/lib/postgresql/data
+      # Данные БД лежат рядом с docker-compose.yml (./data/db).
+      # Чтобы перенести бэкенд — достаточно заархивировать каталог deploy.
+      - ./data/db:/var/lib/postgresql/data
     networks:
       - launcher-net
     healthcheck:
@@ -54,15 +56,12 @@ services:
       AUTH_KEY_PATH: /data/yggdrasil_key.pem
       RUST_LOG: ${RUST_LOG:-auth_server=info}
     volumes:
-      - auth-keys:/data
+      # Ключ подписи Yggdrasil тоже рядом (./data/keys).
+      - ./data/keys:/data
     ports:
       - "${AUTH_PORT:-8080}:8080"
     networks:
       - launcher-net
-
-volumes:
-  auth-db-data:
-  auth-keys:
 
 networks:
   launcher-net:
