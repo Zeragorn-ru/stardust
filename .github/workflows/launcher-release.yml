@@ -89,6 +89,19 @@ jobs:
           echo "::error::Could not create release $tag after 3 attempts."
           exit 1
 
+      - name: Upload authlib-injector
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          curl -fsSL https://authlib-injector.yushi.moe/artifact/latest.json -o authlib-injector-latest.json
+          node -e "const fs = require('fs'); const meta = JSON.parse(fs.readFileSync('authlib-injector-latest.json', 'utf8')); if (!meta.download_url) throw new Error('download_url is missing'); console.log(meta.download_url);" > authlib-injector-url.txt
+          url="$(cat authlib-injector-url.txt)"
+          echo "Downloading authlib-injector from $url"
+          curl -fL "$url" -o authlib-injector.jar
+          gh release upload "$GITHUB_REF_NAME" authlib-injector.jar --clobber
+
       # На тегах — собрать установщики и залить ассеты в уже созданный Release.
       - uses: tauri-apps/tauri-action@v0
         env:
