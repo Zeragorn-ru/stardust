@@ -51,10 +51,34 @@ jobs:
         working-directory: launcher
         run: npm ci
 
-      # На тегах — собрать установщики и опубликовать Release.
+      # Создаём релиз заранее, с ретраем. GITHUB_TOKEN иногда отдаётся
+      # на свежий тег ещё с read-доступом (транзиентный 403 на create-release
+      # у tauri-action) — повторная попытка через паузу это лечит. Дальше
+      # tauri-action находит готовый релиз и только заливает ассеты.
+      - name: Ensure release exists
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          for attempt in 1 2 3; do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "Release $tag already exists."; exit 0
+            fi
+            if gh release create "$tag" --title "Launcher $tag" --notes ""; then
+              echo "Created release $tag."; exit 0
+            fi
+            echo "Attempt $attempt to create release failed, retrying in 15s..."
+            sleep 15
+          done
+          echo "::error::Could not create release $tag after 3 attempts."
+          exit 1
+
+      # На тегах — собрать установщики и залить ассеты в уже созданный Release.
       - uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
           projectPath: launcher
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
