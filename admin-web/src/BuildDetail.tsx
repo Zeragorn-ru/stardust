@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "./api";
-import type { BuildDetail as BuildDetailData, BuildFile } from "./types";
-import { FileUpload } from "./FileUpload";
-import { formatSize, shortSha } from "./format";
-import { useConfirm, useToast } from "./ui/feedback";
-import { IconSearch, IconStar, IconTrash } from "./ui/icons";
-
-const KIND_FILTERS = ["all", "mod", "config", "resource", "other"];
+import type { BuildDetail as BuildDetailData } from "./types";
+import { FileManager } from "./FileManager";
+import { formatSize } from "./format";
+import { useToast } from "./ui/feedback";
+import { IconStar } from "./ui/icons";
 
 export function BuildDetail({
   buildId,
@@ -16,18 +14,17 @@ export function BuildDetail({
   onChanged: () => void;
 }) {
   const toast = useToast();
-  const confirm = useConfirm();
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState("all");
 
   const load = useCallback(async () => {
     try {
       setDetail(await api.getBuild(buildId));
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Не удалось загрузить сборку",
+        err instanceof ApiError
+          ? err.message
+          : "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u0431\u043e\u0440\u043a\u0443",
       );
     } finally {
       setLoading(false);
@@ -36,64 +33,39 @@ export function BuildDetail({
 
   useEffect(() => {
     setLoading(true);
-    setQuery("");
-    setKindFilter("all");
     load();
   }, [load]);
 
   async function activate() {
     try {
       await api.activateBuild(buildId);
-      toast.success("Сборка активирована");
+      toast.success(
+        "\u0421\u0431\u043e\u0440\u043a\u0430 \u0430\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u043d\u0430",
+      );
       await load();
       onChanged();
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Не удалось активировать",
-      );
-    }
-  }
-
-  async function removeFile(f: BuildFile) {
-    const ok = await confirm({
-      title: "Удалить файл?",
-      body: f.path,
-      confirmText: "Удалить",
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await api.deleteFile(f.id);
-      toast.success("Файл удалён");
-      await load();
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось удалить файл",
+        err instanceof ApiError
+          ? err.message
+          : "\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0430\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c",
       );
     }
   }
 
   const files = detail?.files ?? [];
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return files.filter((f) => {
-      if (kindFilter !== "all" && f.kind !== kindFilter) return false;
-      if (!q) return true;
-      return (
-        f.path.toLowerCase().includes(q) ||
-        (f.displayName?.toLowerCase().includes(q) ?? false) ||
-        (f.modId?.toLowerCase().includes(q) ?? false)
-      );
-    });
-  }, [files, query, kindFilter]);
-
   const totalSize = useMemo(
     () => files.reduce((s, f) => s + f.sizeBytes, 0),
     [files],
   );
 
-  if (loading) return <div className="panel muted">Загрузка…</div>;
+  if (loading)
+    return (
+      <div className="panel muted">
+        \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430\u2026
+      </div>
+    );
   if (!detail) return null;
 
   return (
@@ -105,118 +77,40 @@ export function BuildDetail({
           </h1>
           {detail.isActive ? (
             <span className="badge active">
-              <IconStar size={12} /> активная
+              <IconStar size={12} />{" "}
+              \u0430\u043a\u0442\u0438\u0432\u043d\u0430\u044f
             </span>
           ) : (
             <button className="primary" onClick={activate}>
-              Сделать активной
+              \u0421\u0434\u0435\u043b\u0430\u0442\u044c
+              \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0439
             </button>
           )}
         </div>
         <div className="detail-stats">
-          <Stat label="Загрузчик" value={detail.loaderKind} />
+          <Stat
+            label="\u0417\u0430\u0433\u0440\u0443\u0437\u0447\u0438\u043a"
+            value={detail.loaderKind}
+          />
           <Stat label="Minecraft" value={detail.mcVersion} />
-          <Stat label="Версия загрузчика" value={detail.loaderVersion || "—"} />
-          <Stat label="Файлов" value={String(files.length)} />
-          <Stat label="Общий размер" value={formatSize(totalSize)} />
+          <Stat
+            label="\u0412\u0435\u0440\u0441\u0438\u044f \u0437\u0430\u0433\u0440\u0443\u0437\u0447\u0438\u043a\u0430"
+            value={detail.loaderVersion || "\u2014"}
+          />
+          <Stat
+            label="\u0424\u0430\u0439\u043b\u043e\u0432"
+            value={String(files.length)}
+          />
+          <Stat
+            label="\u041e\u0431\u0449\u0438\u0439 \u0440\u0430\u0437\u043c\u0435\u0440"
+            value={formatSize(totalSize)}
+          />
         </div>
       </div>
 
       <div className="panel">
-        <div className="files-toolbar">
-          <h2>Файлы</h2>
-          <div className="spacer" />
-          <div className="seg">
-            {KIND_FILTERS.map((k) => (
-              <button
-                key={k}
-                className={`seg-btn${kindFilter === k ? " active" : ""}`}
-                onClick={() => setKindFilter(k)}
-              >
-                {k === "all" ? "все" : k}
-              </button>
-            ))}
-          </div>
-          <div className="search">
-            <IconSearch />
-            <input
-              placeholder="Поиск по пути или имени"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {files.length === 0 ? (
-          <p className="muted">В сборке пока нет файлов. Загрузите их ниже.</p>
-        ) : filtered.length === 0 ? (
-          <p className="muted">Ничего не найдено.</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Путь</th>
-                <th>Тип</th>
-                <th>Сторона</th>
-                <th>sha1</th>
-                <th className="num">Размер</th>
-                <th>Флаги</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((f) => (
-                <tr key={f.id}>
-                  <td>
-                    <div className="path">{f.path}</div>
-                    {(f.displayName || f.description) && (
-                      <div className="muted sub">
-                        {f.displayName}
-                        {f.displayName && f.description ? " — " : ""}
-                        {f.description}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`tag kind-${f.kind}`}>{f.kind}</span>
-                  </td>
-                  <td className="muted">{f.side}</td>
-                  <td className="mono muted" title={f.sha1}>
-                    {shortSha(f.sha1)}
-                  </td>
-                  <td className="num">{formatSize(f.sizeBytes)}</td>
-                  <td>
-                    <div className="flags">
-                      {f.optional && (
-                        <span className="tag">
-                          опц.{f.enabledByDefault ? "✓" : "✗"}
-                        </span>
-                      )}
-                      {!f.overwrite && <span className="tag">no-ow</span>}
-                      {f.modId && (
-                        <span className="tag mono" title="mod id">
-                          {f.modId}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="row-actions">
-                    <button
-                      className="danger icon-only"
-                      title="Удалить файл"
-                      onClick={() => removeFile(f)}
-                    >
-                      <IconTrash size={15} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <FileManager buildId={buildId} files={files} onChanged={load} />
       </div>
-
-      <FileUpload buildId={buildId} onUploaded={load} />
     </div>
   );
 }

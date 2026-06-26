@@ -93,7 +93,7 @@ async fn main() {
         .route("/api/builds/:id/files", post(upload_file))
         .route(
             "/api/builds/files/:file_id",
-            axum::routing::delete(delete_file),
+            axum::routing::patch(update_file).delete(delete_file),
         )
         .route("/api/accounts", get(list_accounts))
         // --- Публичное для лаунчера ---
@@ -548,6 +548,56 @@ struct UploadMeta {
     #[serde(rename = "displayName")]
     display_name: Option<String>,
     description: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct UpdateFileMeta {
+    side: Option<String>,
+    kind: Option<String>,
+    overwrite: Option<bool>,
+    optional: Option<bool>,
+    #[serde(rename = "enabledByDefault")]
+    enabled_by_default: Option<bool>,
+    #[serde(rename = "modId")]
+    mod_id: Option<String>,
+    #[serde(rename = "displayName")]
+    display_name: Option<String>,
+    description: Option<String>,
+}
+
+/// Частичное обновление метаданных файла (сторона, опциональность и т.д.).
+/// Содержимое и путь файла не меняются.
+async fn update_file(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(file_id): Path<i64>,
+    Json(patch): Json<UpdateFileMeta>,
+) -> Result<Json<BuildFileDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Берём текущую строку, чтобы неуказанные поля остались прежними.
+    let current = state.store.build_file(file_id).await.map_err(map_store)?;
+
+    let meta = store::BuildFileMeta {
+        side: patch.side.unwrap_or(current.side),
+        kind: patch.kind.unwrap_or(current.kind),
+        overwrite: patch.overwrite.unwrap_or(current.overwrite),
+        optional: patch.optional.unwrap_or(current.optional),
+        enabled_by_default: patch
+            .enabled_by_default
+            .unwrap_or(current.enabled_by_default),
+        mod_id: patch.mod_id.or(current.mod_id),
+        display_name: patch.display_name.or(current.display_name),
+        description: patch.description.or(current.description),
+    };
+
+    let row = state
+        .store
+        .update_build_file_meta(file_id, meta)
+        .await
+        .map_err(map_store)?;
+
+    Ok(Json(BuildFileDto::from(row)))
 }
 
 async fn delete_file(

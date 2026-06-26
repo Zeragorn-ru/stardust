@@ -22,6 +22,13 @@ function defaultDir(kind: string): string {
   }
 }
 
+// Каталог, куда складывать загружаемый файл: если открыта папка в файловом
+// менеджере — кладём туда, иначе подбираем по типу.
+function targetDir(kind: string, baseDir: string): string {
+  if (baseDir) return baseDir.replace(/\/+$/, "") + "/";
+  return defaultDir(kind);
+}
+
 // Угадываем тип по расширению/имени файла.
 function guessKind(name: string): string {
   const n = name.toLowerCase();
@@ -52,14 +59,14 @@ interface QueueItem {
 
 let nextItemId = 1;
 
-function makeItem(file: File): QueueItem {
+function makeItem(file: File, baseDir: string): QueueItem {
   const kind = guessKind(file.name);
   return {
     id: nextItemId++,
     file,
     kind,
     side: "both",
-    path: defaultDir(kind) + file.name,
+    path: targetDir(kind, baseDir) + file.name,
     overwrite: true,
     optional: false,
     enabledByDefault: true,
@@ -73,9 +80,11 @@ function makeItem(file: File): QueueItem {
 export function FileUpload({
   buildId,
   onUploaded,
+  baseDir = "",
 }: {
   buildId: number;
   onUploaded: () => void;
+  baseDir?: string;
 }) {
   const toast = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
@@ -84,7 +93,7 @@ export function FileUpload({
   const inputRef = useRef<HTMLInputElement>(null);
 
   function addFiles(files: FileList | File[]) {
-    const arr = Array.from(files).map(makeItem);
+    const arr = Array.from(files).map((f) => makeItem(f, baseDir));
     if (arr.length) setItems((cur) => [...cur, ...arr]);
   }
 
@@ -150,9 +159,17 @@ export function FileUpload({
   }
 
   const pending = items.filter((it) => it.status !== "done").length;
+  const target = baseDir ? `.minecraft/${baseDir.replace(/\/+$/, "")}/` : "";
 
   return (
-    <div className="panel">
+    <div className="fm-upload">
+      <h2>
+        \u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430
+        \u0444\u0430\u0439\u043b\u043e\u0432
+        {target && (
+          <span className="fm-upload-target muted"> \u2192 {target}</span>
+        )}
+      </h2>
       <h2>Загрузка файлов</h2>
 
       <div
@@ -189,6 +206,7 @@ export function FileUpload({
                 key={it.id}
                 item={it}
                 disabled={busy}
+                baseDir={baseDir}
                 onPatch={(p) => patch(it.id, p)}
                 onRemove={() => remove(it.id)}
               />
@@ -215,11 +233,13 @@ export function FileUpload({
 function QueueRow({
   item,
   disabled,
+  baseDir,
   onPatch,
   onRemove,
 }: {
   item: QueueItem;
   disabled: boolean;
+  baseDir: string;
   onPatch: (p: Partial<QueueItem>) => void;
   onRemove: () => void;
 }) {
@@ -227,9 +247,12 @@ function QueueRow({
 
   function changeKind(kind: string) {
     // Подстраиваем путь под новый тип, если пользователь его не правил вручную.
-    const auto = defaultDir(item.kind) + baseName(item.path);
+    // Когда открыта папка, путь к ней не трогаем — меняем только тип.
+    const auto = targetDir(item.kind, baseDir) + baseName(item.path);
     const patch: Partial<QueueItem> = { kind };
-    if (item.path === auto) patch.path = defaultDir(kind) + baseName(item.path);
+    if (!baseDir && item.path === auto) {
+      patch.path = targetDir(kind, baseDir) + baseName(item.path);
+    }
     onPatch(patch);
   }
 

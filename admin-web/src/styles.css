@@ -706,6 +706,268 @@ td.num {
     margin-top: 14px;
 }
 
+/* --- File manager --- */
+.fm {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.fm-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.breadcrumbs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 2px;
+    min-width: 0;
+}
+
+.crumb-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    padding: 5px 9px;
+}
+
+.crumb:hover:not(:disabled) {
+    background: var(--panel-2);
+    border-color: transparent;
+    color: var(--text);
+}
+
+.crumb.current {
+    color: var(--text);
+    font-weight: 600;
+}
+
+.crumb-sep {
+    color: var(--muted);
+    opacity: 0.6;
+}
+
+.fm-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.fm-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px 0 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+}
+
+.fm-row:last-child {
+    border-bottom: none;
+}
+
+.fm-row:hover {
+    background: var(--panel-2);
+}
+
+.fm-row.up {
+    background: transparent;
+    border-radius: 0;
+    justify-content: flex-start;
+    color: var(--muted);
+    padding: 0;
+}
+
+.fm-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border-color: transparent;
+    border-radius: 0;
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text);
+}
+
+.fm-main:hover:not(:disabled) {
+    border-color: transparent;
+}
+
+.fm-main.static {
+    cursor: default;
+}
+
+.fm-row.up:hover {
+    background: var(--panel-2);
+}
+
+.fm-icon {
+    flex-shrink: 0;
+    color: var(--muted);
+}
+
+.fm-icon.folder {
+    color: var(--accent);
+}
+
+.fm-icon.file {
+    color: var(--muted);
+}
+
+.fm-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fm-row.folder .fm-name {
+    font-weight: 600;
+}
+
+.fm-disp {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.fm-meta {
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.fm-sha {
+    font-size: 12px;
+}
+
+.fm-size {
+    margin-left: auto;
+    font-size: 12px;
+    white-space: nowrap;
+    color: var(--muted);
+}
+
+.fm-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.fm-actions a.icon-only {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px;
+    border-radius: var(--radius);
+    color: var(--muted);
+    border: 1px solid transparent;
+}
+
+.fm-actions a.icon-only:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+
+.fm-row.file.editing {
+    flex-wrap: wrap;
+}
+
+.fm-edit {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+    background: var(--bg);
+}
+
+.fm-edit-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.fm-edit-label {
+    font-size: 12px;
+}
+
+.fm-edit-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fm-edit-check input {
+    cursor: pointer;
+}
+
+.fm-edit-check.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.fm-edit-check.disabled input {
+    cursor: not-allowed;
+}
+
+.fm-path-link {
+    background: transparent;
+    border-color: transparent;
+    padding: 2px 6px;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.fm-path-link:hover:not(:disabled) {
+    color: var(--accent);
+    border-color: transparent;
+}
+
+.fm-empty {
+    padding: 24px 12px;
+    text-align: center;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.fm-upload {
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+}
+
+.fm-upload h2 {
+    margin: 0 0 12px;
+    font-size: 15px;
+}
+
+.fm-upload-target {
+    font-weight: 400;
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 /* --- Toasts --- */
 .toast-stack {
     position: fixed;

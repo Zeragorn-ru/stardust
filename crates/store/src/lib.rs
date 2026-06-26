@@ -17,7 +17,7 @@ use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
 
 mod build;
-pub use build::{BuildFileInput, BuildFileRow, BuildHeader, BuildRecord, NewBuild};
+pub use build::{BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild};
 
 /// Скин игрока, хранимый сервером.
 #[derive(Debug, Clone)]

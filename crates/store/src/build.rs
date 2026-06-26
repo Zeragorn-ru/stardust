@@ -31,6 +31,19 @@ pub struct NewBuild {
     pub loader_version: String,
 }
 
+/// Изменяемые метаданные файла (без контента/пути).
+#[derive(Debug, Clone)]
+pub struct BuildFileMeta {
+    pub side: String,
+    pub kind: String,
+    pub overwrite: bool,
+    pub optional: bool,
+    pub enabled_by_default: bool,
+    pub mod_id: Option<String>,
+    pub display_name: Option<String>,
+    pub description: Option<String>,
+}
+
 /// Файл сборки для вставки/обновления (метаданные; байты уже на диске).
 #[derive(Debug, Clone)]
 pub struct BuildFileInput {
@@ -73,8 +86,7 @@ pub struct BuildFileRow {
     pub storage_key: String,
 }
 
-const BUILD_COLUMNS: &str =
-    "id, name, version, loader_kind, mc_version, loader_version, is_active";
+const BUILD_COLUMNS: &str = "id, name, version, loader_kind, mc_version, loader_version, is_active";
 
 const FILE_COLUMNS: &str = "id, path, sha1, size_bytes, side, kind, overwrite, optional, \
      enabled_by_default, mod_id, display_name, description, storage_key";
@@ -137,11 +149,12 @@ impl Store {
         sqlx::query("UPDATE builds SET is_active = FALSE WHERE is_active = TRUE")
             .execute(&mut *tx)
             .await?;
-        let changed = sqlx::query("UPDATE builds SET is_active = TRUE, updated_at = now() WHERE id = $1")
-            .bind(build_id)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
+        let changed =
+            sqlx::query("UPDATE builds SET is_active = TRUE, updated_at = now() WHERE id = $1")
+                .bind(build_id)
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
@@ -162,9 +175,21 @@ impl Store {
         Ok(())
     }
 
+    /// Один файл сборки по id.
+    pub async fn build_file(&self, file_id: i64) -> Result<BuildFileRow, StoreError> {
+        let sql = format!("SELECT {FILE_COLUMNS} FROM build_files WHERE id = $1");
+        let row = sqlx::query(&sql)
+            .bind(file_id)
+            .fetch_optional(self.pool())
+            .await?
+            .ok_or(StoreError::NotFound)?;
+        Ok(row_to_file(&row))
+    }
+
     /// Файлы сборки.
     pub async fn build_files(&self, build_id: i64) -> Result<Vec<BuildFileRow>, StoreError> {
-        let sql = format!("SELECT {FILE_COLUMNS} FROM build_files WHERE build_id = $1 ORDER BY path");
+        let sql =
+            format!("SELECT {FILE_COLUMNS} FROM build_files WHERE build_id = $1 ORDER BY path");
         let rows = sqlx::query(&sql)
             .bind(build_id)
             .fetch_all(self.pool())
@@ -212,6 +237,42 @@ impl Store {
             .execute(self.pool())
             .await?;
         Ok(id)
+    }
+
+    /// Обновляет только метаданные файла (sha1/контент/путь не трогаем).
+    /// Возвращает обновлённую строку.
+    pub async fn update_build_file_meta(
+        &self,
+        file_id: i64,
+        meta: BuildFileMeta,
+    ) -> Result<BuildFileRow, StoreError> {
+        let sql = format!(
+            "UPDATE build_files SET
+                side = $2, kind = $3, overwrite = $4, optional = $5,
+                enabled_by_default = $6, mod_id = $7, display_name = $8, description = $9
+             WHERE id = $1
+             RETURNING {FILE_COLUMNS}"
+        );
+        let row = sqlx::query(&sql)
+            .bind(file_id)
+            .bind(&meta.side)
+            .bind(&meta.kind)
+            .bind(meta.overwrite)
+            .bind(meta.optional)
+            .bind(meta.enabled_by_default)
+            .bind(&meta.mod_id)
+            .bind(&meta.display_name)
+            .bind(&meta.description)
+            .fetch_optional(self.pool())
+            .await?
+            .ok_or(StoreError::NotFound)?;
+        let file = row_to_file(&row);
+        // Сборка изменилась — обновим отметку.
+        sqlx::query("UPDATE builds SET updated_at = now() WHERE id = (SELECT build_id FROM build_files WHERE id = $1)")
+            .bind(file_id)
+            .execute(self.pool())
+            .await?;
+        Ok(file)
     }
 
     /// Удаляет файл сборки по id.

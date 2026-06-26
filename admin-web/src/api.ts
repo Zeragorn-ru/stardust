@@ -166,6 +166,10 @@ export const api = {
     return request("DELETE", `/api/builds/files/${fileId}`);
   },
 
+  updateFile(fileId: number, patch: Partial<UploadMeta>): Promise<BuildFile> {
+    return request("PATCH", `/api/builds/files/${fileId}`, patch);
+  },
+
   listAccounts(): Promise<Account[]> {
     return request("GET", "/api/accounts");
   },

@@ -23,3 +23,19 @@ export function baseName(path: string): string {
   const i = path.lastIndexOf("/");
   return i >= 0 ? path.slice(i + 1) : path;
 }
+
+/// Нормализует путь каталога: убирает ведущие/повторные/висячие слэши.
+/// "/mods//" → "mods", "" → "".
+export function normalizeDir(dir: string): string {
+  return dir
+    .split("/")
+    .filter((s) => s.length > 0)
+    .join("/");
+}
+
+/// Родительский каталог: "config/foo/bar" → "config/foo", "mods" → "".
+export function parentDir(dir: string): string {
+  const norm = normalizeDir(dir);
+  const i = norm.lastIndexOf("/");
+  return i >= 0 ? norm.slice(0, i) : "";
+}
