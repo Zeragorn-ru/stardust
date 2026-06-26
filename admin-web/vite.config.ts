@@ -12,6 +12,7 @@ export default defineConfig({
       "/api": "http://127.0.0.1:8081",
       "/manifest": "http://127.0.0.1:8081",
       "/files": "http://127.0.0.1:8081",
+      "/authlib-injector.jar": "http://127.0.0.1:8081",
     },
   },
   build: {

@@ -4,7 +4,7 @@ import { Login } from "./Login";
 import { BuildsView } from "./views/BuildsView";
 import { AccountsView } from "./views/AccountsView";
 import { FeedbackProvider } from "./ui/feedback";
-import { IconBox, IconLogout, IconUsers } from "./ui/icons";
+import { IconBox, IconDownload, IconLogout, IconUsers } from "./ui/icons";
 
 type Tab = "builds" | "accounts";
 
@@ -99,6 +99,13 @@ function Shell({
         </nav>
         <div className="sidebar-foot">
           {username && <div className="who">{username}</div>}
+          <a
+            className="nav-item"
+            href="/authlib-injector.jar"
+            download="authlib-injector.jar"
+          >
+            <IconDownload /> authlib-injector
+          </a>
           <button className="nav-item" onClick={onLogout}>
             <IconLogout /> Выйти
           </button>

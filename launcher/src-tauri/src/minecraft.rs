@@ -851,10 +851,14 @@ async fn latest_neoforge_21_1(http: &reqwest::Client) -> Result<String, String> 
         .ok_or_else(|| "Не удалось найти NeoForge для Minecraft 1.21.1".to_string())
 }
 
-/// API с метаданными последней сборки authlib-injector.
+/// API с метаданными последней сборки authlib-injector (апстрим, fallback).
 const AUTHLIB_INJECTOR_LATEST: &str = "https://authlib-injector.yushi.moe/artifact/latest.json";
 
 /// Скачивает (и кэширует) authlib-injector.jar в папку данных лаунчера.
+///
+/// Источник по умолчанию — наш admin-server (`/authlib-injector.jar`): он
+/// проксирует и кэширует апстрим, поэтому клиенту не нужен прямой доступ к
+/// `yushi.moe`. Если admin-server недоступен — падаем на апстрим напрямую.
 async fn ensure_authlib_injector(
     app: &AppHandle,
     http: &reqwest::Client,
@@ -865,6 +869,18 @@ async fn ensure_authlib_injector(
         return Ok(jar);
     }
     emit_step(app, "checking", "Загружаем authlib-injector…", None);
+
+    let admin_url = format!("{}/authlib-injector.jar", crate::backend::admin_base_url());
+    if let Err(e) = download_to(app, http, &admin_url, &jar, "authlib-injector").await {
+        eprintln!("admin-server не отдал authlib-injector ({e}), пробую апстрим");
+        let url = upstream_injector_url(http).await?;
+        download_to(app, http, &url, &jar, "authlib-injector").await?;
+    }
+    Ok(jar)
+}
+
+/// Узнаёт прямой URL свежего authlib-injector.jar у апстрима (`latest.json`).
+async fn upstream_injector_url(http: &reqwest::Client) -> Result<String, String> {
     let meta: Value = http
         .get(AUTHLIB_INJECTOR_LATEST)
         .send()
@@ -875,12 +891,10 @@ async fn ensure_authlib_injector(
         .json()
         .await
         .map_err(network_error)?;
-    let url = meta
-        .get("download_url")
+    meta.get("download_url")
         .and_then(|v| v.as_str())
-        .ok_or("В ответе authlib-injector отсутствует download_url")?;
-    download_to(app, http, url, &jar, "authlib-injector").await?;
-    Ok(jar)
+        .map(|s| s.to_string())
+        .ok_or_else(|| "В ответе authlib-injector отсутствует download_url".to_string())
 }
 
 /// Префетч метаданных Yggdrasil-API (base64), чтобы authlib-injector не ходил

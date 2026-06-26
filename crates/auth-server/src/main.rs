@@ -427,6 +427,15 @@ async fn skin_upload(
     Ok(Json(account.profile()))
 }
 
+fn short_id(value: &str) -> String {
+    const MAX: usize = 12;
+    if value.chars().count() <= MAX {
+        value.to_string()
+    } else {
+        format!("{}…", value.chars().take(MAX).collect::<String>())
+    }
+}
+
 fn bearer_token(headers: &HeaderMap) -> Result<String, ApiError> {
     let value = headers
         .get(header::AUTHORIZATION)
@@ -725,19 +734,36 @@ struct JoinReq {
 /// `POST /sessionserver/session/minecraft/join` — клиент входит на сервер.
 async fn ygg_join(State(state): State<Shared>, Json(req): Json<JoinReq>) -> Response {
     let Some(uuid) = state.store.validate_session(&req.access_token).await else {
+        tracing::warn!(
+            server_id = %short_id(&req.server_id),
+            profile = %req.selected_profile,
+            "yggdrasil join rejected: invalid access token"
+        );
         return ygg_error(
             StatusCode::FORBIDDEN,
             "ForbiddenOperationException",
             "Invalid token.",
         );
     };
-    if uuid != req.selected_profile.replace('-', "").to_lowercase() {
+    let selected_profile = req.selected_profile.replace('-', "").to_lowercase();
+    if uuid != selected_profile {
+        tracing::warn!(
+            server_id = %short_id(&req.server_id),
+            session_uuid = %uuid,
+            selected_profile = %selected_profile,
+            "yggdrasil join rejected: selected profile does not match token"
+        );
         return ygg_error(
             StatusCode::FORBIDDEN,
             "ForbiddenOperationException",
             "Invalid token.",
         );
     }
+    tracing::info!(
+        server_id = %short_id(&req.server_id),
+        uuid = %uuid,
+        "yggdrasil join recorded"
+    );
     state.store.record_join(&req.server_id, &req.access_token);
     StatusCode::NO_CONTENT.into_response()
 }
@@ -755,17 +781,45 @@ struct HasJoinedQuery {
 /// `GET /sessionserver/session/minecraft/hasJoined` — сервер проверяет клиента.
 async fn ygg_has_joined(State(state): State<Shared>, Query(q): Query<HasJoinedQuery>) -> Response {
     let Some(access_token) = state.store.join_access_token(&q.server_id) else {
+        tracing::warn!(
+            username = %q.username,
+            server_id = %short_id(&q.server_id),
+            "yggdrasil hasJoined missed: join not found"
+        );
         return StatusCode::NO_CONTENT.into_response();
     };
     let Some(uuid) = state.store.validate_session(&access_token).await else {
+        tracing::warn!(
+            username = %q.username,
+            server_id = %short_id(&q.server_id),
+            "yggdrasil hasJoined missed: stored token is invalid"
+        );
         return StatusCode::NO_CONTENT.into_response();
     };
     let Some(account) = state.store.find_by_uuid(&uuid).await else {
+        tracing::warn!(
+            username = %q.username,
+            server_id = %short_id(&q.server_id),
+            uuid = %uuid,
+            "yggdrasil hasJoined missed: account not found"
+        );
         return StatusCode::NO_CONTENT.into_response();
     };
     if !account.username.eq_ignore_ascii_case(&q.username) {
+        tracing::warn!(
+            username = %q.username,
+            account = %account.username,
+            server_id = %short_id(&q.server_id),
+            "yggdrasil hasJoined missed: username mismatch"
+        );
         return StatusCode::NO_CONTENT.into_response();
     }
+    tracing::info!(
+        username = %q.username,
+        uuid = %uuid,
+        server_id = %short_id(&q.server_id),
+        "yggdrasil hasJoined accepted"
+    );
     Json(account_profile_json(&state, &account, true, true)).into_response()
 }
 

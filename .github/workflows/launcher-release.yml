@@ -100,23 +100,3 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
-
-      - name: Upload authlib-injector
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name' > release-assets.txt
-          if ! grep -Eiq -- '-setup\.exe$' release-assets.txt; then
-            echo "::error::Launcher setup asset is missing; refusing to upload authlib-injector.jar."
-            cat release-assets.txt
-            exit 1
-          fi
-
-          curl -fsSL https://authlib-injector.yushi.moe/artifact/latest.json -o authlib-injector-latest.json
-          node -e "const fs = require('fs'); const meta = JSON.parse(fs.readFileSync('authlib-injector-latest.json', 'utf8')); if (!meta.download_url) throw new Error('download_url is missing'); console.log(meta.download_url);" > authlib-injector-url.txt
-          url="$(cat authlib-injector-url.txt)"
-          echo "Downloading authlib-injector from $url"
-          curl -fL "$url" -o authlib-injector.jar
-          gh release upload "$GITHUB_REF_NAME" authlib-injector.jar --clobber

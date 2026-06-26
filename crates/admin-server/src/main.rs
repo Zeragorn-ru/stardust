@@ -11,6 +11,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
@@ -22,11 +23,18 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{NewBuild, Role, Store};
+use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
 const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
+
+/// Метаданные последней сборки authlib-injector у апстрима.
+const AUTHLIB_INJECTOR_LATEST: &str = "https://authlib-injector.yushi.moe/artifact/latest.json";
+
+/// Как часто перепроверять апстрим на новую версию инжектора.
+const INJECTOR_TTL: Duration = Duration::from_secs(6 * 60 * 60); // 6 часов
 
 type Shared = Arc<AppState>;
 
@@ -37,6 +45,16 @@ struct AppState {
     /// Публичный префикс, под которым лаунчер качает файлы (напр.
     /// `https://host/files`). Подставляется в URL манифеста.
     files_base_url: String,
+    /// HTTP-клиент к апстриму authlib-injector.
+    http: reqwest::Client,
+    /// Кэш jar-файла authlib-injector (см. `INJECTOR_TTL`).
+    injector: Mutex<Option<InjectorCache>>,
+}
+
+/// Закэшированный authlib-injector.jar с временем загрузки.
+struct InjectorCache {
+    bytes: Vec<u8>,
+    fetched: Instant,
 }
 
 #[tokio::main]
@@ -79,6 +97,11 @@ async fn main() {
         store,
         modpack_dir: modpack_dir.clone(),
         files_base_url,
+        http: reqwest::Client::builder()
+            .user_agent(concat!("admin-server/", env!("CARGO_PKG_VERSION")))
+            .build()
+            .expect("не удалось собрать HTTP-клиент"),
+        injector: Mutex::new(None),
     });
 
     let app = Router::new()
@@ -102,6 +125,7 @@ async fn main() {
         .route("/api/accounts", get(list_accounts))
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
+        .route("/authlib-injector.jar", get(authlib_injector))
         .nest_service("/files", ServeDir::new(modpack_dir))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
         .with_state(state)
@@ -693,6 +717,111 @@ async fn manifest(State(state): State<Shared>) -> Result<Json<protocol::Manifest
     Ok(Json(record.client_manifest(&state.files_base_url)))
 }
 
+// ───────────────────── authlib-injector ─────────────────────
+
+/// `GET /authlib-injector.jar` — отдаёт актуальный authlib-injector.jar.
+///
+/// Публичный (без авторизации): лаунчер тянет инжектор отсюда, чтобы не
+/// зависеть от доступности апстрима у каждого клиента. Сервер кэширует
+/// jar в памяти (см. `INJECTOR_TTL`) и проверяет sha256 из `latest.json`.
+async fn authlib_injector(State(state): State<Shared>) -> Result<Response, ApiError> {
+    let mut guard = state.injector.lock().await;
+
+    let fresh = guard
+        .as_ref()
+        .map(|c| c.fetched.elapsed() < INJECTOR_TTL)
+        .unwrap_or(false);
+
+    if !fresh {
+        match fetch_injector(&state.http).await {
+            Ok(bytes) => {
+                *guard = Some(InjectorCache {
+                    bytes,
+                    fetched: Instant::now(),
+                });
+            }
+            Err(e) => {
+                // Апстрим недоступен — отдаём устаревший кэш, если он есть.
+                if guard.is_none() {
+                    return Err(ApiError::new(
+                        StatusCode::BAD_GATEWAY,
+                        format!("Не удалось получить authlib-injector: {e}"),
+                    ));
+                }
+                tracing::warn!("обновление authlib-injector не удалось, отдаю кэш: {e}");
+            }
+        }
+    }
+
+    let bytes = guard
+        .as_ref()
+        .expect("кэш инжектора должен быть заполнен")
+        .bytes
+        .clone();
+
+    Ok((
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/java-archive"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+            (
+                header::CONTENT_DISPOSITION,
+                "attachment; filename=\"authlib-injector.jar\"",
+            ),
+        ],
+        bytes,
+    )
+        .into_response())
+}
+
+/// Метаданные `latest.json` authlib-injector (нужны URL и sha256).
+#[derive(Deserialize)]
+struct InjectorMeta {
+    download_url: String,
+    checksums: Option<InjectorChecksums>,
+}
+
+#[derive(Deserialize)]
+struct InjectorChecksums {
+    sha256: Option<String>,
+}
+
+/// Скачивает актуальный authlib-injector.jar с апстрима и сверяет sha256.
+async fn fetch_injector(http: &reqwest::Client) -> Result<Vec<u8>, String> {
+    let meta: InjectorMeta = http
+        .get(AUTHLIB_INJECTOR_LATEST)
+        .send()
+        .await
+        .map_err(|e| format!("запрос latest.json: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("latest.json: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("разбор latest.json: {e}"))?;
+
+    let bytes = http
+        .get(&meta.download_url)
+        .send()
+        .await
+        .map_err(|e| format!("загрузка jar: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("загрузка jar: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("чтение jar: {e}"))?
+        .to_vec();
+
+    if let Some(expected) = meta.checksums.and_then(|c| c.sha256) {
+        let actual = sha256_hex(&bytes);
+        if !actual.eq_ignore_ascii_case(expected.trim()) {
+            return Err(format!(
+                "sha256 не совпадает (ожидали {expected}, получили {actual})"
+            ));
+        }
+    }
+    Ok(bytes)
+}
+
 // ───────────────────────── Хелперы ─────────────────────────
 
 /// Проверяет bearer-токен и роль `admin`.
@@ -734,6 +863,18 @@ fn sha1_hex(bytes: &[u8]) -> String {
     hasher.update(bytes);
     let digest = hasher.finalize();
     let mut out = String::with_capacity(40);
+    for b in digest {
+        out.push_str(&format!("{b:02x}"));
+    }
+    out
+}
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest as _, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    let digest = hasher.finalize();
+    let mut out = String::with_capacity(64);
     for b in digest {
         out.push_str(&format!("{b:02x}"));
     }
