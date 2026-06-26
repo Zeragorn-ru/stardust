@@ -225,4 +225,21 @@ export const api = {
   unbanAccount(uuid: string): Promise<Account> {
     return request("POST", `/api/accounts/${uuid}/unban`);
   },
+
+  setRole(uuid: string, role: "admin" | "user"): Promise<Account> {
+    return request("POST", `/api/accounts/${uuid}/role`, { role });
+  },
+
+  // Скин аккаунта тянем PNG-ом с bearer-токеном и отдаём как object URL
+  // (для рисования головы на canvas). 404 — скина нет, вернём null.
+  async getAccountSkinUrl(uuid: string): Promise<string | null> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const resp = await fetch(`/api/accounts/${uuid}/skin`, { headers });
+    if (resp.status === 404) return null;
+    if (!resp.ok) throw new ApiError(resp.status, `Ошибка ${resp.status}`);
+    const blob = await resp.blob();
+    return URL.createObjectURL(blob);
+  },
 };

@@ -131,6 +131,8 @@ async fn main() {
         )
         .route("/api/accounts/:uuid/ban", post(ban_account))
         .route("/api/accounts/:uuid/unban", post(unban_account))
+        .route("/api/accounts/:uuid/role", post(set_account_role))
+        .route("/api/accounts/:uuid/skin", get(account_skin))
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
         .route("/authlib-injector.jar", get(authlib_injector))
@@ -842,6 +844,87 @@ async fn unban_account(
         .await
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
     Ok(Json(AccountDto::from(account)))
+}
+
+#[derive(Deserialize)]
+struct SetRoleRequest {
+    /// Целевая роль: `admin` или `user`.
+    role: String,
+}
+
+/// Смена роли аккаунта админом (выдать/снять права администратора).
+///
+/// Закрывает функциональный пробел: до этого первого админа можно было выдать
+/// только через `ADMIN_BOOTSTRAP`. Запрещает снимать права с самого себя,
+/// чтобы админ случайно не заблокировал себе доступ в панель.
+async fn set_account_role(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(req): Json<SetRoleRequest>,
+) -> Result<Json<AccountDto>, ApiError> {
+    let admin = require_admin(&state, &headers).await?;
+    let role = match req.role.trim().to_lowercase().as_str() {
+        "admin" => Role::Admin,
+        "user" => Role::User,
+        other => {
+            return Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                format!("Неизвестная роль: {other}"),
+            ))
+        }
+    };
+    if role == Role::User
+        && normalize_for_compare(&admin.uuid) == normalize_for_compare(&uuid)
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Нельзя снять права администратора с самого себя",
+        ));
+    }
+    state.store.set_role(&uuid, role).await.map_err(map_store)?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    Ok(Json(AccountDto::from(account)))
+}
+
+/// `GET /api/accounts/:uuid/skin` — PNG-скин аккаунта для аватарки в админке.
+///
+/// Скины хранятся в общем `store` (та же БД, что у auth-server), поэтому
+/// отдаём их прямо отсюда — отдельный поход в auth-server не нужен. Модель
+/// (`classic`/`slim`) кладём в заголовок `X-Skin-Model`. Если скина нет — 404,
+/// фронт показывает буквенный плейсхолдер.
+async fn account_skin(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+) -> Result<Response, ApiError> {
+    require_admin(&state, &headers).await?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    let skin = account
+        .skin
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Скин не задан"))?;
+    let model = match skin.model {
+        protocol::SkinModel::Slim => "slim",
+        protocol::SkinModel::Classic => "classic",
+    };
+    Ok((
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, "no-cache"),
+            (header::HeaderName::from_static("x-skin-model"), model),
+        ],
+        skin.png,
+    )
+        .into_response())
 }
 
 /// Нормализует UUID для сравнения (убирает дефисы, нижний регистр).

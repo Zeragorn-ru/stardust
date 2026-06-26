@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
+import { SkinHead } from "../ui/SkinHead";
 import {
   IconBan,
+  IconCheck,
   IconPencil,
   IconSearch,
+  IconShield,
   IconShieldOff,
   IconStar,
   IconTrash,
@@ -18,6 +21,10 @@ function formatBanUntil(iso?: string): string {
   return `до ${d.toLocaleString()}`;
 }
 
+function normalizeUuid(uuid: string): string {
+  return uuid.replace(/-/g, "").toLowerCase();
+}
+
 export function AccountsView() {
   const toast = useToast();
   const confirm = useConfirm();
@@ -27,6 +34,7 @@ export function AccountsView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<Account | null>(null);
   const [banning, setBanning] = useState<Account | null>(null);
+  const [selfUuid, setSelfUuid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -43,6 +51,14 @@ export function AccountsView() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Свой UUID — чтобы не предлагать снять с себя права/забанить себя.
+  useEffect(() => {
+    api
+      .me()
+      .then((me) => setSelfUuid(normalizeUuid(me.uuid)))
+      .catch(() => {});
+  }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -100,6 +116,29 @@ export function AccountsView() {
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Не удалось забанить",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function doSetRole(account: Account, makeAdmin: boolean) {
+    const ok = await confirm({
+      title: makeAdmin ? "Выдать права админа?" : "Снять права админа?",
+      body: makeAdmin
+        ? `${account.username} получит полный доступ к админке.`
+        : `${account.username} потеряет доступ к админке.`,
+      confirmText: makeAdmin ? "Сделать админом" : "Снять админа",
+      danger: !makeAdmin,
+    });
+    if (!ok) return;
+    setBusy(account.uuid);
+    try {
+      replace(await api.setRole(account.uuid, makeAdmin ? "admin" : "user"));
+      toast.success(makeAdmin ? "Права админа выданы" : "Права админа сняты");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось изменить роль",
       );
     } finally {
       setBusy(null);
@@ -188,73 +227,94 @@ export function AccountsView() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((a) => (
-                <tr key={a.uuid}>
-                  <td>
-                    <div className="cell-main">
-                      <span className="avatar" aria-hidden="true">
-                        {a.username.slice(0, 1).toUpperCase()}
-                      </span>
-                      <strong>{a.username}</strong>
-                      {a.banned && (
-                        <span
-                          className="badge banned"
-                          title={a.banReason || undefined}
-                        >
-                          бан · {formatBanUntil(a.bannedUntil)}
+              {filtered.map((a) => {
+                const isSelf = selfUuid === normalizeUuid(a.uuid);
+                return (
+                  <tr key={a.uuid}>
+                    <td>
+                      <div className="cell-main">
+                        <SkinHead uuid={a.uuid} username={a.username} size={32} />
+                        <strong>{a.username}</strong>
+                        {isSelf && <span className="badge">вы</span>}
+                        {a.banned && (
+                          <span
+                            className="badge banned"
+                            title={a.banReason || undefined}
+                          >
+                            бан · {formatBanUntil(a.bannedUntil)}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="mono muted">{a.uuid}</td>
+                    <td>
+                      {a.isAdmin ? (
+                        <span className="badge admin">
+                          <IconStar size={12} /> админ
                         </span>
+                      ) : (
+                        <span className="badge">игрок</span>
                       )}
-                    </div>
-                  </td>
-                  <td className="mono muted">{a.uuid}</td>
-                  <td>
-                    {a.isAdmin ? (
-                      <span className="badge admin">
-                        <IconStar size={12} /> админ
-                      </span>
-                    ) : (
-                      <span className="badge">игрок</span>
-                    )}
-                  </td>
-                  <td className="row-actions">
-                    <button
-                      className="icon-only"
-                      title="Переименовать"
-                      disabled={busy === a.uuid}
-                      onClick={() => setRenaming(a)}
-                    >
-                      <IconPencil size={15} />
-                    </button>
-                    {a.banned ? (
+                    </td>
+                    <td className="row-actions">
                       <button
                         className="icon-only"
-                        title="Снять бан"
+                        title="Переименовать"
                         disabled={busy === a.uuid}
-                        onClick={() => doUnban(a)}
+                        onClick={() => setRenaming(a)}
                       >
-                        <IconShieldOff size={15} />
+                        <IconPencil size={15} />
                       </button>
-                    ) : (
+                      {a.isAdmin ? (
+                        <button
+                          className="icon-only"
+                          title="Снять права админа"
+                          disabled={busy === a.uuid || isSelf}
+                          onClick={() => doSetRole(a, false)}
+                        >
+                          <IconShieldOff size={15} />
+                        </button>
+                      ) : (
+                        <button
+                          className="icon-only"
+                          title="Сделать админом"
+                          disabled={busy === a.uuid}
+                          onClick={() => doSetRole(a, true)}
+                        >
+                          <IconShield size={15} />
+                        </button>
+                      )}
+                      {a.banned ? (
+                        <button
+                          className="icon-only"
+                          title="Снять бан"
+                          disabled={busy === a.uuid}
+                          onClick={() => doUnban(a)}
+                        >
+                          <IconCheck size={15} />
+                        </button>
+                      ) : (
+                        <button
+                          className="icon-only"
+                          title="Забанить"
+                          disabled={busy === a.uuid || a.isAdmin}
+                          onClick={() => setBanning(a)}
+                        >
+                          <IconBan size={15} />
+                        </button>
+                      )}
                       <button
-                        className="icon-only"
-                        title="Забанить"
+                        className="danger icon-only"
+                        title="Удалить аккаунт"
                         disabled={busy === a.uuid || a.isAdmin}
-                        onClick={() => setBanning(a)}
+                        onClick={() => doDelete(a)}
                       >
-                        <IconBan size={15} />
+                        <IconTrash size={15} />
                       </button>
-                    )}
-                    <button
-                      className="danger icon-only"
-                      title="Удалить аккаунт"
-                      disabled={busy === a.uuid || a.isAdmin}
-                      onClick={() => doDelete(a)}
-                    >
-                      <IconTrash size={15} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

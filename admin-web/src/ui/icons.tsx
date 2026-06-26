@@ -144,3 +144,21 @@ export const IconShieldOff = svg(
     <line x1="2" y1="2" x2="22" y2="22" />
   </>,
 );
+
+export const IconShield = svg(
+  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
+);
+
+export const IconCopy = svg(
+  <>
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </>,
+);
+
+export const IconClose = svg(
+  <>
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </>,
+);
