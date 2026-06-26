@@ -113,24 +113,36 @@ LAUNCHER_UPDATE_URL=https://api.github.com/repos/OWNER/REPO/releases/latest npm 
 Сборка лаунчера запускается **только по git-тегу вида `vX.Y.Z`**
 (`.github/workflows/launcher-release.yml`). Просто запушить код в `master`
 недостаточно — без тега установщики не соберутся и в Release ничего не
-попадёт. Тег и версия должны совпадать.
+попадёт.
 
-Порядок:
+**Источник правды версии — git-тег.** В исходниках версия хранится как
+плейсхолдер `0.0.0` (в `launcher/package.json`,
+`launcher/src-tauri/Cargo.toml`, `launcher/src-tauri/tauri.conf.json` и
+`Cargo.lock`). На пуш тега workflow сам подставляет реальную версию (тег без
+префикса `v`) во все эти файлы перед сборкой. Руками версию править не нужно.
 
-1. Поднять версию **в трёх местах** (значения должны быть одинаковыми):
-   - `launcher/package.json` → `version`
-   - `launcher/src-tauri/Cargo.toml` → `[package] version`
-   - `launcher/src-tauri/tauri.conf.json` → `version`
-   (после этого `Cargo.lock` обновит запись пакета `launcher` — закоммить и его)
-2. Закоммитить бамп версии и запушить в `master`.
-3. Поставить тег с той же версией и запушить его:
-   ```sh
-   git tag v0.2.8
-   git push origin v0.2.8
-   ```
-4. Workflow `launcher-release` создаст GitHub Release `v0.2.8`, соберёт
-   NSIS-установщик и приложит ассеты. Установленные лаунчеры подхватят
-   обновление через GitHub Releases API.
+Проще всего выпускать релиз скриптом — он берёт последний тег, считает
+следующий и пушит новый:
+
+```sh
+sh scripts/release.sh            # патч-бамп:  v0.2.9 -> v0.2.10
+sh scripts/release.sh minor      # минор:      v0.2.9 -> v0.3.0
+sh scripts/release.sh major      # мажор:      v0.2.9 -> v1.0.0
+sh scripts/release.sh 0.3.0      # явная версия -> тег v0.3.0
+sh scripts/release.sh --dry-run  # показать вычисленный тег, ничего не делая
+sh scripts/release.sh --no-push  # создать тег локально, без пуша
+```
+
+Либо вручную — достаточно поставить и запушить тег (файлы трогать не надо):
+
+```sh
+git tag v0.2.10
+git push origin v0.2.10
+```
+
+Дальше workflow `launcher-release` создаст GitHub Release `v0.2.10`, соберёт
+NSIS-установщик и приложит ассеты. Установленные лаунчеры подхватят обновление
+через GitHub Releases API.
 
 
 Сборка не требует ключей подписи — релизный workflow просто собирает установщик
