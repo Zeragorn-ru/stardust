@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { UploadMeta } from "./types";
+import { formatSize, baseName } from "./format";
+import { useToast } from "./ui/feedback";
+import { IconUpload } from "./ui/icons";
 
 const KINDS = ["mod", "config", "resource", "other"];
 const SIDES = ["both", "client", "server"];
@@ -19,6 +22,54 @@ function defaultDir(kind: string): string {
   }
 }
 
+// Угадываем тип по расширению/имени файла.
+function guessKind(name: string): string {
+  const n = name.toLowerCase();
+  if (n.endsWith(".jar")) return "mod";
+  if (n.endsWith(".zip")) return "resource";
+  if (n.endsWith(".toml") || n.endsWith(".json") || n.endsWith(".cfg"))
+    return "config";
+  return "other";
+}
+
+type Status = "queued" | "uploading" | "done" | "error";
+
+interface QueueItem {
+  id: number;
+  file: File;
+  kind: string;
+  side: string;
+  path: string;
+  overwrite: boolean;
+  optional: boolean;
+  enabledByDefault: boolean;
+  modId: string;
+  displayName: string;
+  status: Status;
+  progress: number;
+  error?: string;
+}
+
+let nextItemId = 1;
+
+function makeItem(file: File): QueueItem {
+  const kind = guessKind(file.name);
+  return {
+    id: nextItemId++,
+    file,
+    kind,
+    side: "both",
+    path: defaultDir(kind) + file.name,
+    overwrite: true,
+    optional: false,
+    enabledByDefault: true,
+    modId: "",
+    displayName: "",
+    status: "queued",
+    progress: 0,
+  };
+}
+
 export function FileUpload({
   buildId,
   onUploaded,
@@ -26,160 +77,292 @@ export function FileUpload({
   buildId: number;
   onUploaded: () => void;
 }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [kind, setKind] = useState("mod");
-  const [side, setSide] = useState("both");
-  const [path, setPath] = useState("");
-  const [pathEdited, setPathEdited] = useState(false);
-  const [overwrite, setOverwrite] = useState(true);
-  const [optional, setOptional] = useState(false);
-  const [enabledByDefault, setEnabledByDefault] = useState(true);
-  const [modId, setModId] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
+  const [items, setItems] = useState<QueueItem[]>([]);
+  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  function pickFile(f: File | null) {
-    setFile(f);
-    if (f && !pathEdited) {
-      setPath(defaultDir(kind) + f.name);
-    }
+  function addFiles(files: FileList | File[]) {
+    const arr = Array.from(files).map(makeItem);
+    if (arr.length) setItems((cur) => [...cur, ...arr]);
   }
 
-  function changeKind(k: string) {
-    setKind(k);
-    if (file && !pathEdited) {
-      setPath(defaultDir(k) + file.name);
-    }
+  function patch(id: number, p: Partial<QueueItem>) {
+    setItems((cur) => cur.map((it) => (it.id === id ? { ...it, ...p } : it)));
   }
 
-  async function submit(e: React.FormEvent) {
+  function remove(id: number) {
+    setItems((cur) => cur.filter((it) => it.id !== id));
+  }
+
+  function onDrop(e: React.DragEvent) {
     e.preventDefault();
-    if (!file) return;
-    setError(null);
+    setDragging(false);
+    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+  }
+
+  async function uploadAll() {
     setBusy(true);
-    try {
+    let ok = 0;
+    let failed = 0;
+    // Грузим последовательно: меньше нагрузка и предсказуемый прогресс.
+    for (const it of items) {
+      if (it.status === "done") continue;
+      if (!it.path.trim()) {
+        patch(it.id, { status: "error", error: "Пустой путь" });
+        failed++;
+        continue;
+      }
+      patch(it.id, { status: "uploading", progress: 0, error: undefined });
       const meta: UploadMeta = {
-        path: path.trim(),
-        kind,
-        side,
-        overwrite,
-        optional,
-        enabledByDefault,
-        modId: optional && modId.trim() ? modId.trim() : undefined,
-        displayName: displayName.trim() || undefined,
+        path: it.path.trim(),
+        kind: it.kind,
+        side: it.side,
+        overwrite: it.overwrite,
+        optional: it.optional,
+        enabledByDefault: it.enabledByDefault,
+        modId: it.optional && it.modId.trim() ? it.modId.trim() : undefined,
+        displayName: it.displayName.trim() || undefined,
       };
-      await api.uploadFile(buildId, file, meta);
-      setFile(null);
-      setPath("");
-      setPathEdited(false);
-      setModId("");
-      setDisplayName("");
-      onUploaded();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Не удалось загрузить файл");
-    } finally {
-      setBusy(false);
+      try {
+        await api.uploadFileProgress(buildId, it.file, meta, (frac) =>
+          patch(it.id, { progress: frac }),
+        );
+        patch(it.id, { status: "done", progress: 1 });
+        ok++;
+      } catch (err) {
+        patch(it.id, {
+          status: "error",
+          error: err instanceof ApiError ? err.message : "Ошибка загрузки",
+        });
+        failed++;
+      }
     }
+    setBusy(false);
+    if (ok) {
+      toast.success(`Загружено файлов: ${ok}`);
+      // Убираем успешно загруженные из очереди.
+      setItems((cur) => cur.filter((it) => it.status !== "done"));
+      onUploaded();
+    }
+    if (failed) toast.error(`Не удалось загрузить: ${failed}`);
+  }
+
+  const pending = items.filter((it) => it.status !== "done").length;
+
+  return (
+    <div className="panel">
+      <h2>Загрузка файлов</h2>
+
+      <div
+        className={`dropzone${dragging ? " over" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        onClick={() => inputRef.current?.click()}
+      >
+        <IconUpload size={28} />
+        <p>
+          Перетащите файлы сюда или <span className="link">выберите</span>
+        </p>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={(e) => {
+            if (e.target.files) addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      </div>
+
+      {items.length > 0 && (
+        <>
+          <div className="queue">
+            {items.map((it) => (
+              <QueueRow
+                key={it.id}
+                item={it}
+                disabled={busy}
+                onPatch={(p) => patch(it.id, p)}
+                onRemove={() => remove(it.id)}
+              />
+            ))}
+          </div>
+          <div className="queue-actions">
+            <button type="button" onClick={() => setItems([])} disabled={busy}>
+              Очистить
+            </button>
+            <button
+              className="primary"
+              onClick={uploadAll}
+              disabled={busy || pending === 0}
+            >
+              {busy ? "Загрузка…" : `Загрузить (${pending})`}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function QueueRow({
+  item,
+  disabled,
+  onPatch,
+  onRemove,
+}: {
+  item: QueueItem;
+  disabled: boolean;
+  onPatch: (p: Partial<QueueItem>) => void;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  function changeKind(kind: string) {
+    // Подстраиваем путь под новый тип, если пользователь его не правил вручную.
+    const auto = defaultDir(item.kind) + baseName(item.path);
+    const patch: Partial<QueueItem> = { kind };
+    if (item.path === auto) patch.path = defaultDir(kind) + baseName(item.path);
+    onPatch(patch);
   }
 
   return (
-    <form className="panel" onSubmit={submit}>
-      <h2>Загрузить файл</h2>
-      {error && <div className="error">{error}</div>}
-      <div className="field">
-        <label>Файл</label>
-        <input
-          type="file"
-          onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
-        />
-      </div>
-      <div className="row">
-        <div className="field">
-          <label>Тип</label>
-          <select value={kind} onChange={(e) => changeKind(e.target.value)}>
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
+    <div className={`q-item status-${item.status}`}>
+      <div className="q-head">
+        <div className="q-name">
+          <strong>{item.file.name}</strong>
+          <span className="muted">{formatSize(item.file.size)}</span>
         </div>
-        <div className="field">
-          <label>Сторона</label>
-          <select value={side} onChange={(e) => setSide(e.target.value)}>
-            {SIDES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+        <div className="q-right">
+          {item.status === "error" && (
+            <span className="q-err" title={item.error}>
+              {item.error}
+            </span>
+          )}
+          {item.status === "done" && <span className="q-ok">готово</span>}
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => setOpen((v) => !v)}
+            disabled={disabled}
+          >
+            {open ? "скрыть" : "настроить"}
+          </button>
+          <button
+            type="button"
+            className="danger icon-only"
+            onClick={onRemove}
+            disabled={disabled}
+          >
+            ✕
+          </button>
         </div>
       </div>
-      <div className="field">
-        <label>Путь в .minecraft</label>
-        <input
-          value={path}
-          onChange={(e) => {
-            setPath(e.target.value);
-            setPathEdited(true);
-          }}
-          placeholder="mods/sodium.jar"
-        />
-      </div>
-      <div className="row">
-        <div className="field checkbox-row">
-          <input
-            id="ow"
-            type="checkbox"
-            checked={overwrite}
-            onChange={(e) => setOverwrite(e.target.checked)}
+
+      {(item.status === "uploading" || item.status === "done") && (
+        <div className="progress">
+          <div
+            className="progress-bar"
+            style={{ width: `${Math.round(item.progress * 100)}%` }}
           />
-          <label htmlFor="ow">Перезаписывать</label>
-        </div>
-        <div className="field checkbox-row">
-          <input
-            id="opt"
-            type="checkbox"
-            checked={optional}
-            onChange={(e) => setOptional(e.target.checked)}
-          />
-          <label htmlFor="opt">Опциональный</label>
-        </div>
-        {optional && (
-          <div className="field checkbox-row">
-            <input
-              id="ebd"
-              type="checkbox"
-              checked={enabledByDefault}
-              onChange={(e) => setEnabledByDefault(e.target.checked)}
-            />
-            <label htmlFor="ebd">Включён по умолчанию</label>
-          </div>
-        )}
-      </div>
-      {optional && (
-        <div className="row">
-          <div className="field">
-            <label>mod id (для запоминания выбора игрока)</label>
-            <input value={modId} onChange={(e) => setModId(e.target.value)} />
-          </div>
-          <div className="field">
-            <label>Отображаемое имя</label>
-            <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </div>
         </div>
       )}
-      <button
-        className="primary"
-        type="submit"
-        disabled={busy || !file || !path.trim()}
-      >
-        {busy ? "Загрузка…" : "Загрузить"}
-      </button>
-    </form>
+
+      {open && (
+        <div className="q-body">
+          <div className="row">
+            <div className="field">
+              <label>Тип</label>
+              <select
+                value={item.kind}
+                onChange={(e) => changeKind(e.target.value)}
+              >
+                {KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Сторона</label>
+              <select
+                value={item.side}
+                onChange={(e) => onPatch({ side: e.target.value })}
+              >
+                {SIDES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <label>Путь в .minecraft</label>
+            <input
+              value={item.path}
+              onChange={(e) => onPatch({ path: e.target.value })}
+              placeholder="mods/sodium.jar"
+            />
+          </div>
+          <div className="row">
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={item.overwrite}
+                onChange={(e) => onPatch({ overwrite: e.target.checked })}
+              />
+              Перезаписывать
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={item.optional}
+                onChange={(e) => onPatch({ optional: e.target.checked })}
+              />
+              Опциональный
+            </label>
+            {item.optional && (
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={item.enabledByDefault}
+                  onChange={(e) =>
+                    onPatch({ enabledByDefault: e.target.checked })
+                  }
+                />
+                Включён по умолчанию
+              </label>
+            )}
+          </div>
+          {item.optional && (
+            <div className="row">
+              <div className="field">
+                <label>mod id (для запоминания выбора игрока)</label>
+                <input
+                  value={item.modId}
+                  onChange={(e) => onPatch({ modId: e.target.value })}
+                />
+              </div>
+              <div className="field">
+                <label>Отображаемое имя</label>
+                <input
+                  value={item.displayName}
+                  onChange={(e) => onPatch({ displayName: e.target.value })}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

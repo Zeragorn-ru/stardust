@@ -123,15 +123,43 @@ export const api = {
     return request("POST", `/api/builds/${id}/activate`);
   },
 
-  uploadFile(
+  // Загрузка с прогрессом через XHR (fetch не даёт upload-progress).
+  uploadFileProgress(
     buildId: number,
     file: File,
     meta: UploadMeta,
+    onProgress?: (fraction: number) => void,
   ): Promise<BuildFile> {
-    const form = new FormData();
-    form.append("meta", JSON.stringify(meta));
-    form.append("file", file, file.name);
-    return request("POST", `/api/builds/${buildId}/files`, form);
+    return new Promise<BuildFile>((resolve, reject) => {
+      const form = new FormData();
+      form.append("meta", JSON.stringify(meta));
+      form.append("file", file, file.name);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `/api/builds/${buildId}/files`);
+      const token = getToken();
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        const text = xhr.responseText;
+        const data = text ? safeJson(text) : undefined;
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data as BuildFile);
+        } else {
+          const message =
+            data && typeof data === "object" && "error" in data
+              ? String((data as { error: unknown }).error)
+              : `Ошибка ${xhr.status}`;
+          reject(new ApiError(xhr.status, message));
+        }
+      };
+      xhr.onerror = () =>
+        reject(new ApiError(0, "Сетевая ошибка при загрузке"));
+      xhr.send(form);
+    });
   },
 
   deleteFile(fileId: number): Promise<void> {
