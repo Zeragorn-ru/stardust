@@ -49,6 +49,11 @@ export default function SkinViewer3D({
     viewer.controls.enablePan = false;
     viewer.fov = 40;
     viewer.zoom = 0.9;
+    // Сглаживание граней модели. У skinview3d есть встроенный FXAA-пасс, но на
+    // резком силуэте он слабоват — добавляем супер-сэмплинг: рендерим в 2×
+    // плотности пикселей и даунскейлим. Кап в 3, чтобы не сажать FPS на HiDPI/4K.
+    // Текстуру скина это не «мылит» — она по-прежнему сэмплится nearest-фильтром.
+    viewer.pixelRatio = Math.min((window.devicePixelRatio || 1) * 2, 3);
     viewerRef.current = viewer;
 
     return () => {

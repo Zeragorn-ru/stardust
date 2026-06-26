@@ -23,6 +23,10 @@ jobs:
         include:
           - platform: windows-latest
             args: ""
+          # Linux: webkit2gtk 4.1 стабильно работает на 22.04; на 24.04 у Tauri
+          # известны проблемы с пустым/белым окном webview, поэтому держим 22.04.
+          - platform: ubuntu-22.04
+            args: ""
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4

@@ -134,3 +134,48 @@ npm run tauri build
   положите рядом `portable.txt`)
 - `bundle/msi/StarDust_<версия>_x64_en-US.msi` — MSI-установщик
 - `bundle/nsis/StarDust_<версия>_x64-setup.exe` — NSIS-установщик
+
+## Linux
+
+CI собирает Linux-артефакты на `ubuntu-22.04` (webkit2gtk 4.1 стабилен именно
+там; на 24.04 у Tauri бывает пустое окно webview). На выходе три формата:
+
+- `bundle/deb/StarDust_<версия>_amd64.deb` — для **Debian / Ubuntu / Mint** и
+  прочих apt-дистрибутивов.
+- `bundle/rpm/StarDust-<версия>.x86_64.rpm` — для **Fedora / openSUSE / RHEL**.
+- `bundle/appimage/StarDust_<версия>_amd64.AppImage` — универсальный бинарник,
+  работает без установки на большинстве дистрибутивов, включая **Arch / Manjaro**
+  (нативного `pacman`-пакета Tauri не делает, AppImage — штатный путь для Arch).
+
+### Системные зависимости для сборки из исходников
+
+Имена пакетов различаются по дистрибутивам:
+
+```sh
+# Debian / Ubuntu
+sudo apt-get install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev
+
+# Arch / Manjaro
+sudo pacman -S webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg patchelf
+```
+
+### NixOS
+
+AppImage на NixOS из коробки не запускается (нет FHS-путей к загрузчику и
+`/lib`), поэтому для Nix в корне репозитория есть `flake.nix` — сборка идёт
+герметично из исходников.
+
+```sh
+# среда разработки (все нативные либы webkit2gtk и пр. подтягиваются автоматически)
+nix develop
+cd launcher && npm install && npm run tauri dev
+
+# сборка/запуск пакета
+nix build .#launcher
+nix run  .#launcher
+```
+
+Примечание: при первой сборке пакета (`nix build`) Nix сообщит ожидаемый хэш
+npm-зависимостей — его нужно один раз подставить в `flake.nix` вместо
+`pkgs.lib.fakeHash` (поле `npmDeps.hash`). Dev-shell (`nix develop`) работает
+без этого шага.
