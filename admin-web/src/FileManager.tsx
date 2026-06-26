@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { api, ApiError } from "./api";
 import type { BuildFile } from "./types";
 import { FileUpload } from "./FileUpload";
+import { FileEditor, isEditable } from "./FileEditor";
 import {
   baseName,
   formatSize,
@@ -29,6 +30,10 @@ import {
 } from "./ui/icons";
 
 const SIDES = ["both", "client", "server"];
+
+function sideLabel(s: string): string {
+  return s === "both" ? "обе" : s === "client" ? "клиент" : "сервер";
+}
 
 // Подпапка текущего каталога с агрегатами по содержимому.
 interface FolderEntry {
@@ -94,6 +99,9 @@ export function FileManager({
   const [dir, setDir] = useState("");
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState("all");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [editing, setEditing] = useState<BuildFile | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const searching = query.trim().length > 0 || kindFilter !== "all";
 
@@ -126,6 +134,36 @@ export function FileManager({
     }));
   }, [dir]);
 
+  // Файлы, видимые в текущем представлении (для «выбрать всё»).
+  const visibleFiles = searching ? searchResults : listing.files;
+  const allVisibleSelected =
+    visibleFiles.length > 0 && visibleFiles.every((f) => selected.has(f.id));
+
+  function toggleOne(id: number) {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (allVisibleSelected) {
+        for (const f of visibleFiles) next.delete(f.id);
+      } else {
+        for (const f of visibleFiles) next.add(f.id);
+      }
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
   async function removeFile(f: BuildFile) {
     const ok = await confirm({
       title: "Удалить файл?",
@@ -151,8 +189,59 @@ export function FileManager({
       optional: patch.optional,
       enabledByDefault: patch.enabledByDefault,
       overwrite: patch.overwrite,
+      modId: patch.modId ?? undefined,
     });
     toast.success("Файл обновлён");
+    onChanged();
+  }
+
+  // Применяет один и тот же патч ко всем выбранным файлам.
+  async function bulkPatch(patch: Partial<BuildFile>, label: string) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await api.updateFile(id, {
+          side: patch.side,
+          optional: patch.optional,
+          enabledByDefault: patch.enabledByDefault,
+          overwrite: patch.overwrite,
+        });
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    if (failed) toast.error(`Не удалось обновить файлов: ${failed}`);
+    else toast.success(`${label}: ${ids.length} файл(ов)`);
+    onChanged();
+  }
+
+  async function bulkDelete() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title: "Удалить выбранные файлы?",
+      body: `Будет удалено файлов: ${ids.length}`,
+      confirmText: "Удалить всё",
+      danger: true,
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        await api.deleteFile(id);
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    clearSelection();
+    if (failed) toast.error(`Не удалось удалить файлов: ${failed}`);
+    else toast.success(`Удалено файлов: ${ids.length}`);
     onChanged();
   }
 
@@ -230,17 +319,62 @@ export function FileManager({
         </div>
       </div>
 
-      {searching ? (
-        <SearchTable
-          results={searchResults}
-          onOpenDir={(d) => {
-            setQuery("");
-            setKindFilter("all");
-            setDir(d);
-          }}
-          onDelete={removeFile}
-          onSave={saveFile}
+      {selected.size > 0 && (
+        <BulkBar
+          count={selected.size}
+          busy={bulkBusy}
+          onSide={(s) => bulkPatch({ side: s }, `Сторона → ${sideLabel(s)}`)}
+          onOptional={(v) =>
+            bulkPatch(
+              { optional: v },
+              v ? "Помечены опциональными" : "Сняты опциональные",
+            )
+          }
+          onEnabled={(v) =>
+            bulkPatch(
+              { enabledByDefault: v },
+              v ? "Вкл. по умолчанию" : "Выкл. по умолчанию",
+            )
+          }
+          onOverwrite={(v) =>
+            bulkPatch(
+              { overwrite: v },
+              v ? "Перезаписывать" : "Не перезаписывать",
+            )
+          }
+          onDelete={bulkDelete}
+          onClear={clearSelection}
         />
+      )}
+
+      {searching ? (
+        searchResults.length === 0 ? (
+          <p className="muted fm-empty">Ничего не найдено.</p>
+        ) : (
+          <div className="fm-list">
+            <SelectAllRow
+              checked={allVisibleSelected}
+              count={visibleFiles.length}
+              onToggle={toggleAllVisible}
+            />
+            {searchResults.map((f) => (
+              <FileRow
+                key={f.id}
+                file={f}
+                selected={selected.has(f.id)}
+                onToggle={() => toggleOne(f.id)}
+                onDelete={() => removeFile(f)}
+                onSave={(patch) => saveFile(f, patch)}
+                onEdit={() => setEditing(f)}
+                onOpenDir={(d) => {
+                  setQuery("");
+                  setKindFilter("all");
+                  setDir(d);
+                }}
+              />
+            ))}
+          </div>
+        )
       ) : (
         <div className="fm-list">
           {dir !== "" && (
@@ -257,6 +391,14 @@ export function FileManager({
             <p className="muted fm-empty">
               Папка пуста. Перетащите файлы ниже, чтобы загрузить их сюда.
             </p>
+          )}
+
+          {visibleFiles.length > 0 && (
+            <SelectAllRow
+              checked={allVisibleSelected}
+              count={visibleFiles.length}
+              onToggle={toggleAllVisible}
+            />
           )}
 
           {listing.folders.map((folder) => (
@@ -284,8 +426,11 @@ export function FileManager({
             <FileRow
               key={f.id}
               file={f}
+              selected={selected.has(f.id)}
+              onToggle={() => toggleOne(f.id)}
               onDelete={() => removeFile(f)}
               onSave={(patch) => saveFile(f, patch)}
+              onEdit={() => setEditing(f)}
             />
           ))}
         </div>
@@ -296,19 +441,156 @@ export function FileManager({
         onUploaded={onChanged}
         baseDir={searching ? "" : dir}
       />
+
+      {editing && (
+        <FileEditor
+          file={editing}
+          onClose={() => setEditing(null)}
+          onSaved={onChanged}
+        />
+      )}
     </div>
+  );
+}
+
+function BulkBar({
+  count,
+  busy,
+  onSide,
+  onOptional,
+  onEnabled,
+  onOverwrite,
+  onDelete,
+  onClear,
+}: {
+  count: number;
+  busy: boolean;
+  onSide: (s: string) => void;
+  onOptional: (v: boolean) => void;
+  onEnabled: (v: boolean) => void;
+  onOverwrite: (v: boolean) => void;
+  onDelete: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="fm-bulk">
+      <span className="fm-bulk-count">Выбрано: {count}</span>
+
+      <div className="fm-bulk-group">
+        <span className="muted">Сторона</span>
+        <div className="seg">
+          {SIDES.map((s) => (
+            <button
+              key={s}
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onSide(s)}
+            >
+              {sideLabel(s)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="fm-bulk-group">
+        <span className="muted">Опц.</span>
+        <button
+          className="seg-btn"
+          disabled={busy}
+          onClick={() => onOptional(true)}
+        >
+          да
+        </button>
+        <button
+          className="seg-btn"
+          disabled={busy}
+          onClick={() => onOptional(false)}
+        >
+          нет
+        </button>
+      </div>
+
+      <div className="fm-bulk-group">
+        <span className="muted">По умолч.</span>
+        <button
+          className="seg-btn"
+          disabled={busy}
+          onClick={() => onEnabled(true)}
+        >
+          вкл
+        </button>
+        <button
+          className="seg-btn"
+          disabled={busy}
+          onClick={() => onEnabled(false)}
+        >
+          выкл
+        </button>
+      </div>
+
+      <div className="fm-bulk-group">
+        <span className="muted">Перезапись</span>
+        <button
+          className="seg-btn"
+          disabled={busy}
+          onClick={() => onOverwrite(true)}
+        >
+          да
+        </button>
+        <button
+          className="seg-btn"
+          disabled={busy}
+          onClick={() => onOverwrite(false)}
+        >
+          нет
+        </button>
+      </div>
+
+      <div className="spacer" />
+      <button className="danger" disabled={busy} onClick={onDelete}>
+        Удалить
+      </button>
+      <button disabled={busy} onClick={onClear}>
+        Отмена
+      </button>
+    </div>
+  );
+}
+
+function SelectAllRow({
+  checked,
+  count,
+  onToggle,
+}: {
+  checked: boolean;
+  count: number;
+  onToggle: () => void;
+}) {
+  return (
+    <label className="fm-selectall">
+      <input type="checkbox" checked={checked} onChange={onToggle} />
+      <span className="muted">
+        {checked ? "Снять выделение" : `Выбрать все (${count})`}
+      </span>
+    </label>
   );
 }
 
 function FileRow({
   file,
+  selected,
+  onToggle,
   onDelete,
   onSave,
+  onEdit,
   onOpenDir,
 }: {
   file: BuildFile;
+  selected: boolean;
+  onToggle: () => void;
   onDelete: () => void;
   onSave: (patch: Partial<BuildFile>) => Promise<void>;
+  onEdit: () => void;
   onOpenDir?: (dir: string) => void;
 }) {
   const toast = useToast();
@@ -319,20 +601,29 @@ function FileRow({
     file.enabledByDefault,
   );
   const [overwrite, setOverwrite] = useState(file.overwrite);
+  const [modId, setModId] = useState(file.modId ?? "");
   const [saving, setSaving] = useState(false);
+  const editable = isEditable(file);
 
   function open() {
     setSide(file.side);
     setOptional(file.optional);
     setEnabledByDefault(file.enabledByDefault);
     setOverwrite(file.overwrite);
+    setModId(file.modId ?? "");
     setEditing(true);
   }
 
   async function save() {
     setSaving(true);
     try {
-      await onSave({ side, optional, enabledByDefault, overwrite });
+      await onSave({
+        side,
+        optional,
+        enabledByDefault,
+        overwrite,
+        modId: optional ? modId.trim() || null : null,
+      });
       setEditing(false);
     } catch (err) {
       toast.error(
@@ -344,7 +635,14 @@ function FileRow({
   }
 
   return (
-    <div className={`fm-row file${editing ? " editing" : ""}`}>
+    <div
+      className={`fm-row file${editing ? " editing" : ""}${
+        selected ? " selected" : ""
+      }`}
+    >
+      <label className="fm-check">
+        <input type="checkbox" checked={selected} onChange={onToggle} />
+      </label>
       <div className="fm-main static">
         <IconFile size={16} className="fm-icon file" />
         <span className="fm-name">{baseName(file.path)}</span>
@@ -372,12 +670,21 @@ function FileRow({
         <span className="fm-size num">{formatSize(file.sizeBytes)}</span>
       </div>
       <div className="fm-actions">
+        {editable && (
+          <button
+            className="icon-only"
+            title="Редактировать текст"
+            onClick={onEdit}
+          >
+            <IconPencil size={15} />
+          </button>
+        )}
         <button
-          className={`icon-only${editing ? " active" : ""}`}
-          title="Редактировать"
+          className={`link-btn${editing ? " active" : ""}`}
+          title="Свойства файла"
           onClick={() => (editing ? setEditing(false) : open())}
         >
-          <IconPencil size={15} />
+          {editing ? "скрыть" : "свойства"}
         </button>
         <a
           className="icon-only"
@@ -407,7 +714,7 @@ function FileRow({
                   className={`seg-btn${side === s ? " active" : ""}`}
                   onClick={() => setSide(s)}
                 >
-                  {s === "both" ? "обе" : s === "client" ? "клиент" : "сервер"}
+                  {sideLabel(s)}
                 </button>
               ))}
             </div>
@@ -435,6 +742,23 @@ function FileRow({
             <span>Вкл. по умолчанию</span>
           </label>
 
+          {optional && (
+            <div className="fm-edit-field">
+              <span
+                className="fm-edit-label muted"
+                title="Стабильный идентификатор мода. По нему лаунчер запоминает выбор игрока — выбор не сбросится при обновлении/переименовании файла. Обычно modid или slug."
+              >
+                modId
+              </span>
+              <input
+                className="fm-edit-input"
+                placeholder="напр. sodium"
+                value={modId}
+                onChange={(e) => setModId(e.target.value)}
+              />
+            </div>
+          )}
+
           <label className="fm-edit-check">
             <input
               type="checkbox"
@@ -453,35 +777,6 @@ function FileRow({
           </button>
         </div>
       )}
-    </div>
-  );
-}
-
-function SearchTable({
-  results,
-  onOpenDir,
-  onDelete,
-  onSave,
-}: {
-  results: BuildFile[];
-  onOpenDir: (dir: string) => void;
-  onDelete: (f: BuildFile) => void;
-  onSave: (f: BuildFile, patch: Partial<BuildFile>) => Promise<void>;
-}) {
-  if (results.length === 0) {
-    return <p className="muted fm-empty">Ничего не найдено.</p>;
-  }
-  return (
-    <div className="fm-list">
-      {results.map((f) => (
-        <FileRow
-          key={f.id}
-          file={f}
-          onDelete={() => onDelete(f)}
-          onSave={(patch) => onSave(f, patch)}
-          onOpenDir={onOpenDir}
-        />
-      ))}
     </div>
   );
 }

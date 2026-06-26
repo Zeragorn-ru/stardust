@@ -95,6 +95,10 @@ async fn main() {
             "/api/builds/files/:file_id",
             axum::routing::patch(update_file).delete(delete_file),
         )
+        .route(
+            "/api/builds/files/:file_id/content",
+            axum::routing::put(update_file_content),
+        )
         .route("/api/accounts", get(list_accounts))
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
@@ -594,6 +598,43 @@ async fn update_file(
     let row = state
         .store
         .update_build_file_meta(file_id, meta)
+        .await
+        .map_err(map_store)?;
+
+    Ok(Json(BuildFileDto::from(row)))
+}
+
+#[derive(Deserialize)]
+struct UpdateContent {
+    content: String,
+}
+
+/// Заменяет содержимое текстового файла. Пересчитывает sha1, пишет новые
+/// байты в контент-адресное хранилище и обновляет строку. Путь не меняется.
+async fn update_file_content(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(file_id): Path<i64>,
+    Json(body): Json<UpdateContent>,
+) -> Result<Json<BuildFileDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    state.store.build_file(file_id).await.map_err(map_store)?;
+
+    let bytes = body.content.into_bytes();
+    let sha1 = sha1_hex(&bytes);
+    let size_bytes = bytes.len() as i64;
+
+    let dest = state.modpack_dir.join(&sha1);
+    if !dest.exists() {
+        tokio::fs::write(&dest, &bytes)
+            .await
+            .map_err(|e| internal(format!("запись файла: {e}")))?;
+    }
+
+    let row = state
+        .store
+        .update_build_file_content(file_id, sha1.clone(), size_bytes, sha1)
         .await
         .map_err(map_store)?;
 

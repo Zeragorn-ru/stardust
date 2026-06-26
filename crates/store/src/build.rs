@@ -275,6 +275,36 @@ impl Store {
         Ok(file)
     }
 
+    /// Обновляет содержимое файла (sha1/размер/storage_key). Метаданные и путь
+    /// не трогаем. Возвращает обновлённую строку.
+    pub async fn update_build_file_content(
+        &self,
+        file_id: i64,
+        sha1: String,
+        size_bytes: i64,
+        storage_key: String,
+    ) -> Result<BuildFileRow, StoreError> {
+        let sql = format!(
+            "UPDATE build_files SET sha1 = $2, size_bytes = $3, storage_key = $4
+             WHERE id = $1
+             RETURNING {FILE_COLUMNS}"
+        );
+        let row = sqlx::query(&sql)
+            .bind(file_id)
+            .bind(&sha1)
+            .bind(size_bytes)
+            .bind(&storage_key)
+            .fetch_optional(self.pool())
+            .await?
+            .ok_or(StoreError::NotFound)?;
+        let file = row_to_file(&row);
+        sqlx::query("UPDATE builds SET updated_at = now() WHERE id = (SELECT build_id FROM build_files WHERE id = $1)")
+            .bind(file_id)
+            .execute(self.pool())
+            .await?;
+        Ok(file)
+    }
+
     /// Удаляет файл сборки по id.
     pub async fn delete_build_file(&self, file_id: i64) -> Result<(), StoreError> {
         let changed = sqlx::query("DELETE FROM build_files WHERE id = $1")

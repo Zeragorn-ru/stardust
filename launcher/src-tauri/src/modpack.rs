@@ -58,6 +58,16 @@ pub struct OptionalMod {
     pub size: u64,
 }
 
+/// Стабильный ключ опционального мода для хранения выбора игрока.
+///
+/// Предпочитаем `mod_id` из манифеста, но если он не задан (файл просто
+/// помечен опциональным без идентификатора) — используем путь файла. Путь
+/// уникален в пределах сборки и стабилен, поэтому годится как ключ выбора и
+/// гарантирует, что мод не пропадёт из списка в лаунчере.
+fn mod_choice_key(entry: &protocol::FileEntry) -> String {
+    entry.mod_id.clone().unwrap_or_else(|| entry.path.clone())
+}
+
 /// Синхронизирует клиентские файлы активной сборки в `game_dir`.
 ///
 /// Если активной сборки нет (404) — тихо выходит: игра запустится без модпака.
@@ -99,10 +109,9 @@ pub async fn sync(
 
         // Включён ли мод. Обязательные файлы (ядро, конфиги) — всегда «включены».
         let enabled = if entry.optional {
-            entry
-                .mod_id
-                .as_ref()
-                .and_then(|id| choices.get(id).copied())
+            choices
+                .get(&mod_choice_key(entry))
+                .copied()
                 .unwrap_or(entry.enabled_by_default)
         } else {
             true
@@ -204,10 +213,10 @@ pub async fn list_optional_mods(
 
     let mods = manifest
         .optional_client_mods()
-        .filter_map(|entry| {
-            // Без стабильного mod_id переключать нечего — такие моды следуют
-            // значению по умолчанию и в списке не показываются.
-            let mod_id = entry.mod_id.clone()?;
+        .map(|entry| {
+            // Стабильный ключ: `mod_id`, а если его нет — путь файла. Так моды,
+            // помеченные опциональными без явного modId, всё равно попадают в список.
+            let mod_id = mod_choice_key(entry);
             let enabled = choices
                 .get(&mod_id)
                 .copied()
@@ -216,13 +225,13 @@ pub async fn list_optional_mods(
                 .display_name
                 .clone()
                 .unwrap_or_else(|| file_name_of(&entry.path));
-            Some(OptionalMod {
+            OptionalMod {
                 mod_id,
                 name,
                 description: entry.description.clone(),
                 enabled,
                 size: entry.size,
-            })
+            }
         })
         .collect();
     Ok(mods)
@@ -249,7 +258,7 @@ pub async fn set_mod_enabled(
     if let Ok(Some(manifest)) = crate::backend::fetch_manifest(http).await {
         let entry = manifest
             .optional_client_mods()
-            .find(|m| m.mod_id.as_deref() == Some(mod_id.as_str()));
+            .find(|m| mod_choice_key(m) == mod_id);
         if let Some(entry) = entry {
             if let Some(rel) = sanitize_rel_path(&entry.path) {
                 apply_enabled_state(game_dir, &rel, enabled);

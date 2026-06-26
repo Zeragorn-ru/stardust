@@ -59,14 +59,28 @@ interface QueueItem {
 
 let nextItemId = 1;
 
+// Имя файла с учётом относительного пути при загрузке папки.
+// Браузер кладёт путь в `webkitRelativePath` (напр. `mods/sub/a.jar`).
+function relPath(file: File): string {
+  const rel = (file as File & { webkitRelativePath?: string })
+    .webkitRelativePath;
+  return rel && rel.length > 0 ? rel : file.name;
+}
+
 function makeItem(file: File, baseDir: string): QueueItem {
+  const rel = relPath(file);
   const kind = guessKind(file.name);
+  // Если это файл из папки — сохраняем её структуру под целевым каталогом.
+  const hasDir = rel.includes("/");
+  const path = hasDir
+    ? targetDir(kind, baseDir) + rel
+    : targetDir(kind, baseDir) + file.name;
   return {
     id: nextItemId++,
     file,
     kind,
     side: "both",
-    path: targetDir(kind, baseDir) + file.name,
+    path,
     overwrite: true,
     optional: false,
     enabledByDefault: true,
@@ -91,10 +105,39 @@ export function FileUpload({
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dirInputRef = useRef<HTMLInputElement>(null);
 
   function addFiles(files: FileList | File[]) {
     const arr = Array.from(files).map((f) => makeItem(f, baseDir));
     if (arr.length) setItems((cur) => [...cur, ...arr]);
+  }
+
+  // Рекурсивный обход перетащенной папки через webkitGetAsEntry: собираем
+  // файлы с относительными путями, чтобы сохранить структуру каталогов.
+  async function collectEntry(
+    entry: FileSystemEntry,
+    prefix: string,
+    out: File[],
+  ): Promise<void> {
+    if (entry.isFile) {
+      const fileEntry = entry as FileSystemFileEntry;
+      const file = await new Promise<File>((resolve, reject) =>
+        fileEntry.file(resolve, reject),
+      );
+      // Пробрасываем относительный путь, как это делает webkitdirectory.
+      Object.defineProperty(file, "webkitRelativePath", {
+        value: prefix + file.name,
+      });
+      out.push(file);
+    } else if (entry.isDirectory) {
+      const reader = (entry as FileSystemDirectoryEntry).createReader();
+      const entries = await new Promise<FileSystemEntry[]>((resolve, reject) =>
+        reader.readEntries(resolve, reject),
+      );
+      for (const child of entries) {
+        await collectEntry(child, prefix + entry.name + "/", out);
+      }
+    }
   }
 
   function patch(id: number, p: Partial<QueueItem>) {
@@ -108,7 +151,22 @@ export function FileUpload({
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragging(false);
-    if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
+    // Если браузер даёт файловые entry — обходим папки рекурсивно.
+    const items = e.dataTransfer.items;
+    const entries: FileSystemEntry[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry?.();
+      if (entry) entries.push(entry);
+    }
+    if (entries.length) {
+      (async () => {
+        const out: File[] = [];
+        for (const entry of entries) await collectEntry(entry, "", out);
+        addFiles(out);
+      })();
+    } else if (e.dataTransfer.files.length) {
+      addFiles(e.dataTransfer.files);
+    }
   }
 
   async function uploadAll() {
@@ -180,13 +238,36 @@ export function FileUpload({
       >
         <IconUpload size={28} />
         <p>
-          Перетащите файлы сюда или <span className="link">выберите</span>
+          Перетащите файлы сюда или <span className="link">выберите файлы</span>
+          {" • "}
+          <span
+            className="link"
+            onClick={(e) => {
+              e.stopPropagation();
+              dirInputRef.current?.click();
+            }}
+          >
+            загрузить папку
+          </span>
         </p>
         <input
           ref={inputRef}
           type="file"
           multiple
           hidden
+          onChange={(e) => {
+            if (e.target.files) addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={dirInputRef}
+          type="file"
+          hidden
+          // @ts-expect-error — нестандартные атрибуты выбора каталога.
+          webkitdirectory=""
+          directory=""
+          multiple
           onChange={(e) => {
             if (e.target.files) addFiles(e.target.files);
             e.target.value = "";

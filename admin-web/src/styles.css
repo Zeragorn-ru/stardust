@@ -910,6 +910,21 @@ td.num {
     font-size: 12px;
 }
 
+.fm-edit-input {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-2);
+    color: inherit;
+    padding: 5px 8px;
+    font-size: 13px;
+    min-width: 160px;
+}
+
+.fm-edit-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
 .fm-edit-check {
     display: inline-flex;
     align-items: center;
@@ -1072,6 +1087,130 @@ td.num {
 
 .checkbox-row label {
     margin: 0;
+}
+
+/* --- Выбор файлов / массовые действия --- */
+.fm-check {
+    display: flex;
+    align-items: center;
+    padding: 0 4px 0 10px;
+}
+
+.fm-check input {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+}
+
+.fm-row.file.selected {
+    background: rgba(76, 139, 245, 0.1);
+    border-color: var(--accent-2);
+}
+
+.fm-selectall {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fm-selectall input {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+}
+
+.fm-bulk {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--accent-2);
+    border-radius: var(--radius);
+    background: rgba(76, 139, 245, 0.08);
+}
+
+.fm-bulk-count {
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.fm-bulk-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+}
+
+/* --- Редактор текстовых файлов --- */
+.modal-editor {
+    max-width: 860px;
+    display: flex;
+    flex-direction: column;
+    max-height: 85vh;
+}
+
+.editor-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.editor-title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.editor-title strong {
+    font-size: 15px;
+}
+
+.editor-title .mono {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.editor-area {
+    width: 100%;
+    min-height: 360px;
+    flex: 1;
+    resize: vertical;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    tab-size: 2;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    white-space: pre;
+    overflow: auto;
+}
+
+.editor-area:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.editor-status {
+    padding: 40px;
+    text-align: center;
+}
+
+.editor-hint {
+    font-size: 12px;
 }
 
 /* --- Responsive --- */

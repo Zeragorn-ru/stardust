@@ -170,6 +170,20 @@ export const api = {
     return request("PATCH", `/api/builds/files/${fileId}`, patch);
   },
 
+  // Содержимое файла читаем напрямую из контент-адресного хранилища по sha1.
+  async getFileContent(sha1: string): Promise<string> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const resp = await fetch(`/files/${sha1}`, { headers });
+    if (!resp.ok) throw new ApiError(resp.status, `Ошибка ${resp.status}`);
+    return resp.text();
+  },
+
+  updateFileContent(fileId: number, content: string): Promise<BuildFile> {
+    return request("PUT", `/api/builds/files/${fileId}/content`, { content });
+  },
+
   listAccounts(): Promise<Account[]> {
     return request("GET", "/api/accounts");
   },
