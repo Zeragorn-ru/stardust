@@ -8,6 +8,18 @@
 ; Идентификатор приложения берётся из `identifier` в tauri.conf.json:
 ;   com.project.launcher  ->  %APPDATA%\com.project.launcher
 
+!macro NSIS_HOOK_POSTINSTALL
+  ; Автообновление запускает NSIS с /S. После успешной тихой установки
+  ; открываем уже обновлённый лаунчер обратно.
+  IfSilent launch_app launch_done
+
+  launch_app:
+    IfFileExists "$INSTDIR\StarDust.exe" 0 launch_done
+    Exec '"$INSTDIR\StarDust.exe"'
+
+  launch_done:
+!macroend
+
 !macro NSIS_HOOK_POSTUNINSTALL
   ; Спрашиваем пользователя: по умолчанию (кнопка No) данные сохраняются,
   ; чтобы случайно не потерять миры/настройки. Yes — полное удаление.
