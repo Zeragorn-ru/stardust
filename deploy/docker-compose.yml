@@ -94,6 +94,25 @@ services:
     networks:
       - launcher-net
 
+  telegram-bot:
+    # Тонкий сервис доставки 2FA-кодов и админских уведомлений. Логики нет —
+    # всё через общую БД (outbox + settings). Токен бота задаётся в веб-админке
+    # и хранится в settings, поэтому из окружения нужен только DATABASE_URL.
+    # Наружу ничего не публикует. Образ из ghcr.io, переопределяется через
+    # TELEGRAM_BOT_IMAGE.
+    image: ${TELEGRAM_BOT_IMAGE:-ghcr.io/zeragorn-ru/stardust/telegram-bot:latest}
+    pull_policy: always
+    container_name: launcher-telegram-bot
+    restart: unless-stopped
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
+      RUST_LOG: ${TELEGRAM_BOT_RUST_LOG:-telegram_bot=info}
+    networks:
+      - launcher-net
+
   admin-web:
     # Статика SPA + reverse-proxy на admin-server. Единственная публичная
     # точка входа для админки и для раздачи манифеста/файлов лаунчеру.

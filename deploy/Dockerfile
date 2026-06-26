@@ -12,7 +12,7 @@ COPY crates ./crates
 COPY launcher/src-tauri/Cargo.toml ./launcher/src-tauri/Cargo.toml
 RUN mkdir -p launcher/src-tauri/src && echo '' > launcher/src-tauri/src/lib.rs
 
-RUN cargo build --release -p auth-server -p admin-server
+RUN cargo build --release -p auth-server -p admin-server -p telegram-bot
 
 # --- Общая база рантайма ---
 FROM debian:bookworm-slim AS runtime-base
@@ -36,3 +36,10 @@ ENV ADMIN_BIND=0.0.0.0:8081
 ENV MODPACK_DIR=/data/modpack
 EXPOSE 8081
 ENTRYPOINT ["/usr/local/bin/admin-server"]
+
+# --- telegram-bot ---
+# Тонкий сервис: только DATABASE_URL из окружения, токен берётся из БД.
+# Портов и volume не требует, наружу ничего не публикует.
+FROM runtime-base AS telegram-bot
+COPY --from=builder /build/target/release/telegram-bot /usr/local/bin/telegram-bot
+ENTRYPOINT ["/usr/local/bin/telegram-bot"]

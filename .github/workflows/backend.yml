@@ -30,8 +30,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build + test (auth-server, admin-server, store, protocol)
-        run: cargo test -p auth-server -p admin-server -p store -p protocol
+      - name: Build + test (auth-server, admin-server, telegram-bot, store, protocol)
+        run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
 
   image:
     needs: build-test
@@ -48,6 +48,9 @@ jobs:
           - name: admin-server
             dockerfile: deploy/Dockerfile
             target: admin-server
+          - name: telegram-bot
+            dockerfile: deploy/Dockerfile
+            target: telegram-bot
           - name: admin-web
             dockerfile: deploy/admin-web.Dockerfile
             target: admin-web
