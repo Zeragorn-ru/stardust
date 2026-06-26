@@ -139,11 +139,14 @@ fn pick_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
     }
 }
 
-/// Запускает скачанный установщик. На прочих платформах не поддержано.
+/// Запускает скачанный установщик в тихом режиме. На прочих платформах не поддержано.
 fn launch_installer(path: &std::path::Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new(path)
+            // NSIS: полностью тихая установка без мастера и выбора удаления данных.
+            // В hooks.nsh для silent-деинсталляции задан /SD IDNO, поэтому AppData сохраняется.
+            .arg("/S")
             .spawn()
             .map_err(|e| format!("Не удалось запустить установщик: {e}"))?;
         Ok(())
@@ -224,7 +227,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     file.flush().map_err(|e| e.to_string())?;
     drop(file);
 
-    // Запускаем установщик и закрываем лаунчер, чтобы он мог заменить файлы.
+    // Запускаем установщик в тихом режиме и закрываем лаунчер, чтобы он мог заменить файлы.
     launch_installer(&path)?;
     app.exit(0);
     Ok(())
