@@ -32,6 +32,7 @@ import {
 } from "./ui/icons";
 
 const SIDES = ["both", "client", "server"];
+const KINDS = ["mod", "config", "resource", "other"];
 
 function sideLabel(s: string): string {
   return s === "both" ? "обе" : s === "client" ? "клиент" : "сервер";
@@ -206,10 +207,13 @@ export function FileManager({
   async function saveFile(f: BuildFile, patch: Partial<BuildFile>) {
     await api.updateFile(f.id, {
       side: patch.side,
+      kind: patch.kind,
       optional: patch.optional,
       enabledByDefault: patch.enabledByDefault,
       overwrite: patch.overwrite,
       modId: patch.modId ?? undefined,
+      displayName: patch.displayName ?? undefined,
+      description: patch.description ?? undefined,
     });
     toast.success("Файл обновлён");
     onChanged();
@@ -225,6 +229,7 @@ export function FileManager({
       try {
         await api.updateFile(id, {
           side: patch.side,
+          kind: patch.kind,
           optional: patch.optional,
           enabledByDefault: patch.enabledByDefault,
           overwrite: patch.overwrite,
@@ -383,6 +388,7 @@ export function FileManager({
           count={selected.size}
           busy={bulkBusy}
           onSide={(s) => bulkPatch({ side: s }, `Сторона → ${sideLabel(s)}`)}
+          onKind={(k) => bulkPatch({ kind: k }, `Тип → ${k}`)}
           onOptional={(v) =>
             bulkPatch(
               { optional: v },
@@ -437,13 +443,13 @@ export function FileManager({
       ) : (
         <div className="fm-list">
           {dir !== "" && (
-            <button
-              className="fm-row up"
-              onClick={() => setDir(parentDir(dir))}
-            >
-              <IconCornerUp size={16} className="fm-icon" />
-              <span className="fm-name">..</span>
-            </button>
+            <div className="fm-row up">
+              <button className="fm-main" onClick={() => setDir(parentDir(dir))}>
+                <IconCornerUp size={17} className="fm-icon" />
+                <span className="fm-name">..</span>
+                <span className="fm-meta muted">наверх</span>
+              </button>
+            </div>
           )}
 
           {empty && (
@@ -542,6 +548,7 @@ function BulkBar({
   count,
   busy,
   onSide,
+  onKind,
   onOptional,
   onEnabled,
   onOverwrite,
@@ -551,6 +558,7 @@ function BulkBar({
   count: number;
   busy: boolean;
   onSide: (s: string) => void;
+  onKind: (k: string) => void;
   onOptional: (v: boolean) => void;
   onEnabled: (v: boolean) => void;
   onOverwrite: (v: boolean) => void;
@@ -576,6 +584,22 @@ function BulkBar({
                 onClick={() => onSide(s)}
               >
                 {sideLabel(s)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="fm-bulk-group">
+          <span className="fm-bulk-label">Тип</span>
+          <div className="seg">
+            {KINDS.map((k) => (
+              <button
+                key={k}
+                className="seg-btn"
+                disabled={busy}
+                onClick={() => onKind(k)}
+              >
+                {k}
               </button>
             ))}
           </div>
@@ -818,21 +842,27 @@ function FileRow({
   const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [side, setSide] = useState(file.side);
+  const [kind, setKind] = useState(file.kind);
   const [optional, setOptional] = useState(file.optional);
   const [enabledByDefault, setEnabledByDefault] = useState(
     file.enabledByDefault,
   );
   const [overwrite, setOverwrite] = useState(file.overwrite);
   const [modId, setModId] = useState(file.modId ?? "");
+  const [displayName, setDisplayName] = useState(file.displayName ?? "");
+  const [description, setDescription] = useState(file.description ?? "");
   const [saving, setSaving] = useState(false);
   const editable = isEditable(file);
 
   function open() {
     setSide(file.side);
+    setKind(file.kind);
     setOptional(file.optional);
     setEnabledByDefault(file.enabledByDefault);
     setOverwrite(file.overwrite);
     setModId(file.modId ?? "");
+    setDisplayName(file.displayName ?? "");
+    setDescription(file.description ?? "");
     setEditing(true);
   }
 
@@ -841,10 +871,13 @@ function FileRow({
     try {
       await onSave({
         side,
+        kind,
         optional,
         enabledByDefault,
         overwrite,
         modId: optional ? modId.trim() || null : null,
+        displayName: displayName.trim() || null,
+        description: description.trim() || null,
       });
       setEditing(false);
     } catch (err) {
@@ -884,6 +917,11 @@ function FileRow({
         {!file.overwrite && <span className="tag">no-ow</span>}
         {file.displayName && (
           <span className="fm-disp muted">{file.displayName}</span>
+        )}
+        {file.description && (
+          <span className="fm-disp muted" title={file.description}>
+            — {file.description}
+          </span>
         )}
         <span className="fm-meta muted">{file.side}</span>
         <span className="mono muted fm-sha" title={file.sha1}>
@@ -942,6 +980,21 @@ function FileRow({
             </div>
           </div>
 
+          <div className="fm-edit-field">
+            <span className="fm-edit-label muted">Тип</span>
+            <div className="seg">
+              {KINDS.map((k) => (
+                <button
+                  key={k}
+                  className={`seg-btn${kind === k ? " active" : ""}`}
+                  onClick={() => setKind(k)}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <label className="fm-edit-check">
             <input
               type="checkbox"
@@ -989,6 +1042,26 @@ function FileRow({
             />
             <span>Перезаписывать</span>
           </label>
+
+          <div className="fm-edit-field fm-edit-grow">
+            <span className="fm-edit-label muted">Имя</span>
+            <input
+              className="fm-edit-input"
+              placeholder="Отображаемое имя"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+            />
+          </div>
+
+          <div className="fm-edit-field fm-edit-grow">
+            <span className="fm-edit-label muted">Описание</span>
+            <input
+              className="fm-edit-input"
+              placeholder="Короткое описание"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
 
           <div className="spacer" />
           <button className="ghost" onClick={() => setEditing(false)}>

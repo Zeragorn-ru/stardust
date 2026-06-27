@@ -955,11 +955,15 @@ td.num {
 }
 
 .fm-row.up {
-    background: transparent;
-    border-radius: 0;
-    justify-content: flex-start;
     color: var(--muted);
-    padding: 0;
+}
+
+.fm-row.up .fm-main {
+    font-weight: 600;
+}
+
+.fm-row.up .fm-name {
+    color: var(--text);
 }
 
 .fm-main {
@@ -982,10 +986,6 @@ td.num {
 
 .fm-main.static {
     cursor: default;
-}
-
-.fm-row.up:hover {
-    background: var(--panel-2);
 }
 
 .fm-icon {

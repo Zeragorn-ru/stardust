@@ -52,6 +52,7 @@ interface QueueItem {
   enabledByDefault: boolean;
   modId: string;
   displayName: string;
+  description: string;
   status: Status;
   progress: number;
   error?: string;
@@ -87,6 +88,7 @@ function makeItem(file: File, baseDir: string): QueueItem {
     enabledByDefault: true,
     modId: "",
     displayName: "",
+    description: "",
     status: "queued",
     progress: 0,
   };
@@ -192,6 +194,7 @@ export function FileUpload({
         enabledByDefault: it.enabledByDefault,
         modId: it.optional && it.modId.trim() ? it.modId.trim() : undefined,
         displayName: it.displayName.trim() || undefined,
+        description: it.description.trim() || undefined,
       };
       try {
         await api.uploadFileProgress(buildId, it.file, meta, (frac) =>
@@ -444,8 +447,16 @@ function QueueRow({
               </label>
             )}
           </div>
-          {item.optional && (
-            <div className="row">
+          <div className="row">
+            <div className="field">
+              <label>Отображаемое имя</label>
+              <input
+                value={item.displayName}
+                onChange={(e) => onPatch({ displayName: e.target.value })}
+                placeholder="напр. Sodium"
+              />
+            </div>
+            {item.optional && (
               <div className="field">
                 <label>mod id (для запоминания выбора игрока)</label>
                 <input
@@ -453,15 +464,16 @@ function QueueRow({
                   onChange={(e) => onPatch({ modId: e.target.value })}
                 />
               </div>
-              <div className="field">
-                <label>Отображаемое имя</label>
-                <input
-                  value={item.displayName}
-                  onChange={(e) => onPatch({ displayName: e.target.value })}
-                />
-              </div>
-            </div>
-          )}
+            )}
+          </div>
+          <div className="field">
+            <label>Описание</label>
+            <input
+              value={item.description}
+              onChange={(e) => onPatch({ description: e.target.value })}
+              placeholder="Короткое описание (необязательно)"
+            />
+          </div>
         </div>
       )}
     </div>
