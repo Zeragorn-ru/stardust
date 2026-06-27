@@ -36,7 +36,9 @@ jobs:
     # что и рантайм-образ (debian:bookworm-slim). Иначе бинарь линкуется против
     # более новой glibc раннера (ubuntu-latest = 24.04, glibc 2.39) и падает в
     # рантайме с `version GLIBC_2.38 not found` — glibc только вперёд-совместима.
-    container: rust:bookworm
+    # Минор Rust зафиксирован (а не плавающий rust:bookworm), чтобы ключ
+    # rust-cache не дрейфовал при выходе новой версии Rust — обновляем осознанно.
+    container: rust:1.96-bookworm
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
