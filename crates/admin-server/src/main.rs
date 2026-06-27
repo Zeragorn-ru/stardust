@@ -1023,10 +1023,17 @@ async fn sync_to_panel(
             )
             .await
             .map_err(|e| internal(format!("открытие {target} на сервере: {e}")))?;
-        remote
-            .write_all(&bytes)
-            .await
-            .map_err(|e| internal(format!("запись {target}: {e}")))?;
+        // SFTP-серверы ограничивают размер одного WRITE-пакета (обычно 32 КБ
+        // полезной нагрузки). AsyncWrite отправляет каждый срез как отдельный
+        // пакет, поэтому пишем кусками заведомо ниже лимита, иначе сервер
+        // ответит «packet exceeds server limit».
+        const SFTP_CHUNK: usize = 30 * 1024;
+        for chunk in bytes.chunks(SFTP_CHUNK) {
+            remote
+                .write_all(chunk)
+                .await
+                .map_err(|e| internal(format!("запись {target}: {e}")))?;
+        }
         remote
             .shutdown()
             .await
