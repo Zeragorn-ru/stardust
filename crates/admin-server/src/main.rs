@@ -124,6 +124,7 @@ async fn main() {
             "/api/builds/files/:file_id",
             axum::routing::patch(update_file).delete(delete_file),
         )
+        .route("/api/builds/:id/sync-to-panel", post(sync_to_panel))
         .route(
             "/api/builds/files/:file_id/content",
             axum::routing::put(update_file_content),
@@ -904,6 +905,146 @@ async fn delete_file(
         .await
         .map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ───────────────────────── Синхронизация с панелью ─────────────────────────
+
+#[derive(Serialize)]
+struct SyncResult {
+    uploaded: usize,
+    skipped: usize,
+}
+
+async fn sync_to_panel(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(build_id): Path<i64>,
+) -> Result<Json<SyncResult>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    let panel_url = state
+        .store
+        .get_setting(SETTING_PANEL_URL)
+        .await
+        .map_err(internal)?
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "panelUrl не задан"))?;
+    let api_key = state
+        .store
+        .get_setting(SETTING_PANEL_API_KEY)
+        .await
+        .map_err(internal)?
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "panelApiKey не задан"))?;
+    let server_id = state
+        .store
+        .get_setting(SETTING_PANEL_SERVER_ID)
+        .await
+        .map_err(internal)?
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "panelServerId не задан"))?;
+
+    let build = state
+        .store
+        .get_build(build_id)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "сборка не найдена"))?;
+
+    let panel_url = panel_url.trim_end_matches('/').to_string();
+    let auth = format!("Bearer {api_key}");
+
+    let mut uploaded = 0usize;
+    let mut skipped = 0usize;
+
+    for file in &build.files {
+        // Только серверные файлы (side = server | both)
+        if file.side != "server" && file.side != "both" {
+            skipped += 1;
+            continue;
+        }
+
+        // Получаем одноразовый upload URL для нужной директории.
+        // path = "mods/sodium.jar" → directory = "/mods"
+        let directory = std::path::Path::new(&file.path)
+            .parent()
+            .and_then(|p| p.to_str())
+            .map(|s| format!("/{s}"))
+            .unwrap_or_else(|| "/".to_string());
+
+        let upload_url_resp = state
+            .http
+            .get(format!(
+                "{panel_url}/api/client/servers/{server_id}/files/upload"
+            ))
+            .query(&[("directory", &directory)])
+            .header("Authorization", &auth)
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|e| internal(format!("запрос upload URL: {e}")))?;
+
+        if !upload_url_resp.status().is_success() {
+            let status = upload_url_resp.status();
+            let body = upload_url_resp.text().await.unwrap_or_default();
+            return Err(internal(format!(
+                "панель вернула {status} при получении upload URL: {body}"
+            )));
+        }
+
+        #[derive(Deserialize)]
+        struct UploadUrlResponse {
+            attributes: UploadUrlAttrs,
+        }
+        #[derive(Deserialize)]
+        struct UploadUrlAttrs {
+            url: String,
+        }
+
+        let upload_url: UploadUrlResponse = upload_url_resp
+            .json()
+            .await
+            .map_err(|e| internal(format!("парсинг upload URL: {e}")))?;
+
+        // Читаем файл с диска.
+        let file_path = state.modpack_dir.join(&file.storage_key);
+        let bytes = tokio::fs::read(&file_path)
+            .await
+            .map_err(|e| internal(format!("чтение файла {}: {e}", file.path)))?;
+
+        let filename = std::path::Path::new(&file.path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("file")
+            .to_string();
+
+        let part = reqwest::multipart::Part::bytes(bytes)
+            .file_name(filename)
+            .mime_str("application/octet-stream")
+            .map_err(|e| internal(format!("mime: {e}")))?;
+        let form = reqwest::multipart::Form::new().part("files[]", part);
+
+        let resp = state
+            .http
+            .post(&upload_url.attributes.url)
+            .multipart(form)
+            .send()
+            .await
+            .map_err(|e| internal(format!("загрузка {}: {e}", file.path)))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(internal(format!(
+                "ошибка загрузки {}: {status} {body}",
+                file.path
+            )));
+        }
+
+        uploaded += 1;
+    }
+
+    Ok(Json(SyncResult { uploaded, skipped }))
 }
 
 // ───────────────────────── Аккаунты ─────────────────────────

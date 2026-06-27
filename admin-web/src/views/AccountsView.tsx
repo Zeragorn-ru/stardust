@@ -373,7 +373,11 @@ export function AccountsView() {
                       ) : (
                         <button
                           className="icon-only"
-                          title="Забанить"
+                          title={
+                            a.isAdmin
+                              ? "Сначала снимите права администратора"
+                              : "Забанить"
+                          }
                           disabled={busy === a.uuid || a.isAdmin}
                           onClick={() => setBanning(a)}
                         >
@@ -382,7 +386,11 @@ export function AccountsView() {
                       )}
                       <button
                         className="danger icon-only"
-                        title="Удалить аккаунт"
+                        title={
+                          a.isAdmin
+                            ? "Сначала снимите права администратора"
+                            : "Удалить аккаунт"
+                        }
                         disabled={busy === a.uuid || a.isAdmin}
                         onClick={() => doDelete(a)}
                       >
@@ -642,8 +650,10 @@ function PasswordDialog({
             }}
           />
         </label>
-        {tooShort && <p className="muted">Минимум {MIN_PASSWORD} символов.</p>}
-        {mismatch && <p className="muted">Пароли не совпадают.</p>}
+        {tooShort && (
+          <p className="input-error">Минимум {MIN_PASSWORD} символов.</p>
+        )}
+        {mismatch && <p className="input-error">Пароли не совпадают.</p>}
         <div className="modal-actions">
           <button onClick={onCancel}>Отмена</button>
           <button

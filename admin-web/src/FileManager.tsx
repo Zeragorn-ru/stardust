@@ -32,27 +32,10 @@ import {
   IconTrash,
 } from "./ui/icons";
 
-const SIDES = ["both", "client", "server"];
-const KINDS = ["mod", "config", "resource", "other"];
+import { KINDS, SIDES, guessKind } from "./fileUtils";
 
 function sideLabel(s: string): string {
   return s === "both" ? "обе" : s === "client" ? "клиент" : "сервер";
-}
-
-// Угадываем тип файла по расширению/каталогу.
-function guessKind(path: string): string {
-  const n = path.toLowerCase();
-  if (n.endsWith(".jar")) return "mod";
-  if (n.endsWith(".zip")) return "resource";
-  if (
-    n.startsWith("config/") ||
-    n.endsWith(".toml") ||
-    n.endsWith(".json") ||
-    n.endsWith(".cfg") ||
-    n.endsWith(".properties")
-  )
-    return "config";
-  return "other";
 }
 
 // Подпапка текущего каталога с агрегатами по содержимому.
@@ -281,6 +264,7 @@ export function FileManager({
       danger: true,
     });
     if (!ok) return;
+    setBulkBusy(true);
     let failed = 0;
     for (const f of victims) {
       try {
@@ -289,6 +273,7 @@ export function FileManager({
         failed++;
       }
     }
+    setBulkBusy(false);
     if (failed) {
       toast.error(`Не удалось удалить файлов: ${failed}`);
     } else {
@@ -445,7 +430,10 @@ export function FileManager({
         <div className="fm-list">
           {dir !== "" && (
             <div className="fm-row up">
-              <button className="fm-main" onClick={() => setDir(parentDir(dir))}>
+              <button
+                className="fm-main"
+                onClick={() => setDir(parentDir(dir))}
+              >
                 <IconCornerUp size={17} className="fm-icon" />
                 <span className="fm-name">..</span>
                 <span className="fm-meta muted">наверх</span>
@@ -502,11 +490,7 @@ export function FileManager({
         </div>
       )}
 
-      <FileUpload
-        buildId={buildId}
-        onUploaded={onChanged}
-        baseDir={searching ? "" : dir}
-      />
+      <FileUpload buildId={buildId} onUploaded={onChanged} baseDir={dir} />
 
       {editing && (
         <FileEditor
@@ -534,10 +518,14 @@ export function FileManager({
               : undefined
           }
           onCancel={() => setCreating(null)}
-          onSubmit={(value) => {
-            if (creating === "folder") createFolder(value);
-            else createFile(value);
-            setCreating(null);
+          onSubmit={async (value) => {
+            if (creating === "folder") {
+              createFolder(value);
+              setCreating(null);
+            } else {
+              await createFile(value);
+              setCreating(null);
+            }
           }}
         />
       )}

@@ -194,7 +194,14 @@ export const IconKey = svg(
   </>,
 );
 
+export const IconSync = svg(
+  <>
+    <polyline points="1 4 1 10 7 10" />
+    <polyline points="23 20 23 14 17 14" />
+    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" />
+  </>,
+);
+
 export const IconTelegram = svg(
   <path d="M21.5 4.5 2.5 12l5.5 1.8L19 6.5l-8 8.2v4l2.8-3 4 3z" />,
 );
-

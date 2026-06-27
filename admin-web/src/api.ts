@@ -12,6 +12,7 @@ import type {
   Settings,
   UploadMeta,
 } from "./types";
+import { baseName } from "./format";
 
 const TOKEN_KEY = "admin_token";
 
@@ -66,12 +67,6 @@ async function request<T>(
     throw new ApiError(resp.status, message);
   }
   return data as T;
-}
-
-// Имя файла из пути (без зависимости от format.ts).
-function baseNameOf(path: string): string {
-  const i = path.lastIndexOf("/");
-  return i >= 0 ? path.slice(i + 1) : path;
 }
 
 function safeJson(text: string): unknown {
@@ -176,7 +171,7 @@ export const api = {
     meta: UploadMeta,
     content = "",
   ): Promise<BuildFile> {
-    const file = new File([content], baseNameOf(meta.path), {
+    const file = new File([content], baseName(meta.path), {
       type: "text/plain",
     });
     return this.uploadFileProgress(buildId, file, meta);
@@ -252,9 +247,8 @@ export const api = {
     return request("GET", "/api/settings");
   },
 
-  // Сохранить токен бота. Пустая строка отключает бота.
-  setTelegramToken(telegramToken: string): Promise<Settings> {
-    return request("PUT", "/api/settings", { telegramToken });
+  syncToPanel(buildId: number): Promise<{ uploaded: number; skipped: number }> {
+    return request("POST", `/api/builds/${buildId}/sync-to-panel`);
   },
 
   saveSettings(patch: {

@@ -2,11 +2,9 @@ import { useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { UploadMeta } from "./types";
 import { formatSize, baseName, slugifyModId } from "./format";
+import { KINDS, SIDES, guessKind } from "./fileUtils";
 import { useToast } from "./ui/feedback";
 import { IconUpload } from "./ui/icons";
-
-const KINDS = ["mod", "config", "resource", "other"];
-const SIDES = ["both", "client", "server"];
 
 // Куда по умолчанию кладётся файл в зависимости от типа.
 function defaultDir(kind: string): string {
@@ -27,16 +25,6 @@ function defaultDir(kind: string): string {
 function targetDir(kind: string, baseDir: string): string {
   if (baseDir) return baseDir.replace(/\/+$/, "") + "/";
   return defaultDir(kind);
-}
-
-// Угадываем тип по расширению/имени файла.
-function guessKind(name: string): string {
-  const n = name.toLowerCase();
-  if (n.endsWith(".jar")) return "mod";
-  if (n.endsWith(".zip")) return "resource";
-  if (n.endsWith(".toml") || n.endsWith(".json") || n.endsWith(".cfg"))
-    return "config";
-  return "other";
 }
 
 type Status = "queued" | "uploading" | "done" | "error";

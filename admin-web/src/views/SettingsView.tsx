@@ -44,7 +44,7 @@ export function SettingsView() {
     if (!trimmed) return;
     setSaving(true);
     try {
-      const next = await api.setTelegramToken(trimmed);
+      const next = await api.saveSettings({ telegramToken: trimmed });
       setSettings(next);
       setTokenValue("");
       toast.success("Токен бота сохранён");
@@ -67,7 +67,7 @@ export function SettingsView() {
     if (!ok) return;
     setSaving(true);
     try {
-      const next = await api.setTelegramToken("");
+      const next = await api.saveSettings({ telegramToken: "" });
       setSettings(next);
       setTokenValue("");
       toast.success("Бот отключён");

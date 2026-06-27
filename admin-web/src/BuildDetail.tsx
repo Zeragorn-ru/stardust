@@ -4,7 +4,7 @@ import type { BuildDetail as BuildDetailData } from "./types";
 import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
 import { useToast } from "./ui/feedback";
-import { IconStar } from "./ui/icons";
+import { IconStar, IconSync } from "./ui/icons";
 
 export function BuildDetail({
   buildId,
@@ -34,6 +34,8 @@ export function BuildDetail({
     load();
   }, [load]);
 
+  const [syncing, setSyncing] = useState(false);
+
   async function activate() {
     try {
       await api.activateBuild(buildId);
@@ -44,6 +46,22 @@ export function BuildDetail({
       toast.error(
         err instanceof ApiError ? err.message : "Не удалось активировать",
       );
+    }
+  }
+
+  async function syncToPanel() {
+    setSyncing(true);
+    try {
+      const res = await api.syncToPanel(buildId);
+      toast.success(
+        `Синхронизировано: ${res.uploaded} файлов (пропущено: ${res.skipped})`,
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Ошибка синхронизации",
+      );
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -70,15 +88,27 @@ export function BuildDetail({
           <h1>
             {detail.name} <span className="muted">v{detail.version}</span>
           </h1>
-          {detail.isActive ? (
-            <span className="badge active">
-              <IconStar size={12} /> активная
-            </span>
-          ) : (
-            <button className="primary" onClick={activate}>
-              Сделать активной
+          <div className="detail-actions">
+            {!detail.isActive && (
+              <button className="primary" onClick={activate}>
+                Сделать активной
+              </button>
+            )}
+            {detail.isActive && (
+              <span className="badge active">
+                <IconStar size={12} /> активная
+              </span>
+            )}
+            <button
+              className="secondary icon-btn"
+              disabled={syncing}
+              onClick={syncToPanel}
+              title="Загрузить серверные файлы сборки на панель"
+            >
+              <IconSync size={15} />
+              {syncing ? "Синхронизация…" : "Синхр. с панелью"}
             </button>
-          )}
+          </div>
         </div>
         <div className="detail-stats">
           <Stat label="Загрузчик" value={detail.loaderKind} />
