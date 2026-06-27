@@ -19,11 +19,14 @@ use time::OffsetDateTime;
 
 mod build;
 mod telegram;
-pub use build::{BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild};
+pub use build::{
+    BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild, UpdateBuild,
+};
 pub use telegram::{
     ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_DENY,
     CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET, SETTING_SFTP_HOST,
-    SETTING_SFTP_PASSWORD, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
+    SETTING_SFTP_PASSWORD, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
+    SETTING_TELEGRAM_USERNAME,
 };
 
 /// Скин игрока, хранимый сервером.

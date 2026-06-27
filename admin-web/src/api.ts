@@ -247,6 +247,10 @@ export const api = {
     return request("GET", "/api/settings");
   },
 
+  updateBuild(id: number, input: CreateBuildInput): Promise<void> {
+    return request("PATCH", `/api/builds/${id}`, input);
+  },
+
   syncToPanel(
     buildId: number,
   ): Promise<{ uploaded: number; skipped: number; deleted: number }> {

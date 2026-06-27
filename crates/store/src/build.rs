@@ -21,6 +21,16 @@ pub struct BuildHeader {
     pub is_active: bool,
 }
 
+/// Изменяемые метаданные сборки.
+#[derive(Debug, Clone)]
+pub struct UpdateBuild {
+    pub name: String,
+    pub version: String,
+    pub loader_kind: String,
+    pub mc_version: String,
+    pub loader_version: String,
+}
+
 /// Параметры создания сборки.
 #[derive(Debug, Clone)]
 pub struct NewBuild {
@@ -159,6 +169,27 @@ impl Store {
             return Err(StoreError::NotFound);
         }
         tx.commit().await?;
+        Ok(())
+    }
+
+    /// Обновляет метаданные сборки.
+    pub async fn update_build(&self, build_id: i64, upd: UpdateBuild) -> Result<(), StoreError> {
+        let changed = sqlx::query(
+            "UPDATE builds SET name = $2, version = $3, loader_kind = $4, mc_version = $5, \
+             loader_version = $6, updated_at = now() WHERE id = $1",
+        )
+        .bind(build_id)
+        .bind(&upd.name)
+        .bind(&upd.version)
+        .bind(&upd.loader_kind)
+        .bind(&upd.mc_version)
+        .bind(&upd.loader_version)
+        .execute(self.pool())
+        .await?
+        .rows_affected();
+        if changed == 0 {
+            return Err(StoreError::NotFound);
+        }
         Ok(())
     }
 

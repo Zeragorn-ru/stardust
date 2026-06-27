@@ -23,8 +23,8 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
-    NewBuild, Role, Store, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_USERNAME,
-    SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
+    NewBuild, Role, Store, UpdateBuild, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD,
+    SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -117,7 +117,10 @@ async fn main() {
         .route("/api/me", get(me))
         .route("/api/settings", get(get_settings).put(update_settings))
         .route("/api/builds", get(list_builds).post(create_build))
-        .route("/api/builds/:id", get(get_build).delete(delete_build))
+        .route(
+            "/api/builds/:id",
+            get(get_build).patch(update_build).delete(delete_build),
+        )
         .route("/api/builds/:id/activate", post(activate_build))
         .route("/api/builds/:id/files", post(upload_file))
         .route(
@@ -645,6 +648,48 @@ async fn delete_build(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Deserialize)]
+struct UpdateBuildRequest {
+    name: String,
+    version: String,
+    #[serde(rename = "loaderKind", default = "default_loader")]
+    loader_kind: String,
+    #[serde(rename = "mcVersion")]
+    mc_version: String,
+    #[serde(rename = "loaderVersion", default)]
+    loader_version: String,
+}
+
+async fn update_build(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateBuildRequest>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    if req.name.trim().is_empty() || req.version.trim().is_empty() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Имя и версия обязательны",
+        ));
+    }
+    state
+        .store
+        .update_build(
+            id,
+            store::UpdateBuild {
+                name: req.name,
+                version: req.version,
+                loader_kind: req.loader_kind,
+                mc_version: req.mc_version,
+                loader_version: req.loader_version,
+            },
+        )
+        .await
+        .map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 async fn activate_build(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -1000,8 +1045,7 @@ async fn sync_to_panel(
     let mut skipped = 0usize;
     let mut deleted = 0usize;
     // Что должно лежать на сервере после этой синхронизации: { путь -> sha1 }.
-    let mut desired: std::collections::BTreeMap<String, String> =
-        std::collections::BTreeMap::new();
+    let mut desired: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
 
     for file in &build.files {
         // Грузим всё, что нужно серверу (side = server | both), независимо от
@@ -1082,8 +1126,8 @@ async fn sync_to_panel(
     }
 
     // Сохраняем новый манифест синхронизации на сервере.
-    let manifest_bytes =
-        serde_json::to_vec(&desired).map_err(|e| internal(format!("сериализация манифеста: {e}")))?;
+    let manifest_bytes = serde_json::to_vec(&desired)
+        .map_err(|e| internal(format!("сериализация манифеста: {e}")))?;
     {
         let mut remote = sftp
             .open_with_flags(

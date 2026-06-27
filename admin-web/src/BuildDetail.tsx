@@ -1,10 +1,122 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "./api";
-import type { BuildDetail as BuildDetailData } from "./types";
+import type { BuildDetail as BuildDetailData, CreateBuildInput } from "./types";
 import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
 import { useToast } from "./ui/feedback";
+import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import { IconStar, IconSync } from "./ui/icons";
+
+const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
+
+function EditBuildModal({
+  initial,
+  onSave,
+  onClose,
+}: {
+  initial: CreateBuildInput;
+  onSave: (input: CreateBuildInput) => Promise<void>;
+  onClose: () => void;
+}) {
+  useBodyScrollLock();
+  const [form, setForm] = useState(initial);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function set<K extends keyof CreateBuildInput>(k: K, v: CreateBuildInput[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await onSave(form);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const valid =
+    form.name.trim() && form.version.trim() && form.mcVersion.trim();
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <form
+        className="modal modal-wide"
+        onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Редактировать сборку</h3>
+        <div className="row">
+          <div className="field">
+            <label>Название</label>
+            <input
+              value={form.name}
+              onChange={(e) => set("name", e.target.value)}
+              autoFocus
+              placeholder="Моя сборка"
+            />
+          </div>
+          <div className="field">
+            <label>Версия сборки</label>
+            <input
+              value={form.version}
+              onChange={(e) => set("version", e.target.value)}
+              placeholder="1.0.0"
+            />
+          </div>
+        </div>
+        <div className="row">
+          <div className="field">
+            <label>Загрузчик</label>
+            <select
+              value={form.loaderKind}
+              onChange={(e) => set("loaderKind", e.target.value)}
+            >
+              {LOADERS.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label>Версия Minecraft</label>
+            <input
+              value={form.mcVersion}
+              onChange={(e) => set("mcVersion", e.target.value)}
+              placeholder="1.21.1"
+            />
+          </div>
+          <div className="field">
+            <label>Версия загрузчика</label>
+            <input
+              value={form.loaderVersion}
+              onChange={(e) => set("loaderVersion", e.target.value)}
+              placeholder="напр. 21.1.72"
+            />
+          </div>
+        </div>
+        <div className="modal-actions">
+          <button type="button" onClick={onClose}>
+            Отмена
+          </button>
+          <button className="primary" type="submit" disabled={busy || !valid}>
+            {busy ? "Сохранение…" : "Сохранить"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
 export function BuildDetail({
   buildId,
@@ -35,6 +147,21 @@ export function BuildDetail({
   }, [load]);
 
   const [syncing, setSyncing] = useState(false);
+  const [editing, setEditing] = useState(false);
+
+  async function saveEdit(input: CreateBuildInput) {
+    try {
+      await api.updateBuild(buildId, input);
+      toast.success("Сборка обновлена");
+      setEditing(false);
+      await load();
+      onChanged();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сохранить",
+      );
+    }
+  }
 
   async function activate() {
     try {
@@ -99,6 +226,9 @@ export function BuildDetail({
                 <IconStar size={12} /> активная
               </span>
             )}
+            <button className="secondary" onClick={() => setEditing(true)}>
+              Редактировать
+            </button>
             <button
               className="secondary icon-btn"
               disabled={syncing}
@@ -122,6 +252,20 @@ export function BuildDetail({
       <div className="panel">
         <FileManager buildId={buildId} files={files} onChanged={load} />
       </div>
+
+      {editing && (
+        <EditBuildModal
+          initial={{
+            name: detail.name,
+            version: detail.version,
+            loaderKind: detail.loaderKind,
+            mcVersion: detail.mcVersion,
+            loaderVersion: detail.loaderVersion,
+          }}
+          onSave={saveEdit}
+          onClose={() => setEditing(false)}
+        />
+      )}
     </div>
   );
 }
