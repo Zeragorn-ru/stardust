@@ -4,14 +4,12 @@
 set -euo pipefail
 
 REPO_DIR="/opt/stardust"
-DEPLOY_DIR="$REPO_DIR/deploy"
 
 echo "==> Pulling latest changes..."
 cd "$REPO_DIR"
 git pull --ff-only
 
 echo "==> Pulling Docker images..."
-cd "$DEPLOY_DIR"
 docker compose pull
 
 echo "==> Recreating containers..."

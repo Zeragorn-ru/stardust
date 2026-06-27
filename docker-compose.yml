@@ -2,16 +2,17 @@
 #
 # Образы auth-server, admin-server и admin-web собираются CI
 # (.github/workflows/backend.yml) и публикуются в ghcr.io. На сервере ничего
-# не собирается — только скачиваются готовые образы. Достаточно скопировать на
-# сервер docker-compose.yml и .env.
+# не собирается — только скачиваются готовые образы.
 #
-# Запуск (из каталога с этими файлами):
+# Файл лежит в корне репозитория (/opt/stardust/docker-compose.yml).
+#
+# Запуск (из корня репозитория):
 #   cp .env.example .env       # и отредактируй пароли/адреса
 #   docker compose pull        # скачать образы из ghcr.io
 #   docker compose up -d       # поднять (сборки не будет)
 #
 # Обновление бекенда после нового пуша образов CI:
-#   docker compose pull && docker compose up -d
+#   bash update.sh
 
 services:
   auth-db:
@@ -23,9 +24,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      # Данные БД лежат рядом с docker-compose.yml (./data/db).
-      # Чтобы перенести бэкенд — достаточно заархивировать каталог deploy.
-      - ./data/db:/var/lib/postgresql/data
+      # Данные БД лежат в deploy/data/db (рядом со старым расположением).
+      - ./deploy/data/db:/var/lib/postgresql/data
     networks:
       - launcher-net
     healthcheck:
@@ -57,8 +57,8 @@ services:
       AUTH_KEY_PATH: /data/yggdrasil_key.pem
       RUST_LOG: ${RUST_LOG:-auth_server=info}
     volumes:
-      # Ключ подписи Yggdrasil тоже рядом (./data/keys).
-      - ./data/keys:/data
+      # Ключ подписи Yggdrasil в deploy/data/keys.
+      - ./deploy/data/keys:/data
     ports:
       - "${AUTH_PORT:-8080}:8080"
     networks:
@@ -89,8 +89,8 @@ services:
       ADMIN_BOOTSTRAP: ${ADMIN_BOOTSTRAP:-}
       RUST_LOG: ${ADMIN_RUST_LOG:-admin_server=info,tower_http=warn}
     volumes:
-      # Файлы сборок рядом с остальными данными (./data/modpack).
-      - ./data/modpack:/data/modpack
+      # Файлы сборок в deploy/data/modpack.
+      - ./deploy/data/modpack:/data/modpack
     networks:
       - launcher-net
 
@@ -118,7 +118,7 @@ services:
     container_name: launcher-squid
     restart: unless-stopped
     volumes:
-      - ./squid.conf:/etc/squid/squid.conf:ro
+      - ./deploy/squid.conf:/etc/squid/squid.conf:ro
     ports:
       - "3128:3128"
     networks:
