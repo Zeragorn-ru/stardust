@@ -67,12 +67,17 @@ export default function LoginScreen({ onAuthenticated }: Props) {
   }
 
   /** Применяет ответ входа: либо завершает, либо переключает на 2FA-форму
-   *  (ввод кода) или ожидание кнопочного подтверждения. */
-  function handleLoginOutcome(result: Awaited<ReturnType<typeof login>>) {
+   *  (ввод кода) или ожидание кнопочного подтверждения. `kind` различает
+   *  обычный вход по паролю и вход без пароля — от него зависит эндпоинт
+   *  опроса кнопочного подтверждения. */
+  function handleLoginOutcome(
+    result: Awaited<ReturnType<typeof login>>,
+    kind: "login2fa" | "passwordless" = "login2fa",
+  ) {
     if (result.status === "twoFactorRequired") {
       if (result.buttonApproval) {
         setApproval({
-          kind: "login2fa",
+          kind,
           challenge: result.challenge,
           hint: result.hint,
         });
@@ -107,11 +112,15 @@ export default function LoginScreen({ onAuthenticated }: Props) {
 
   async function handleVerify(e: React.FormEvent) {
     e.preventDefault();
-    if (!twoFactor) return;
+    // Код можно вводить как с отдельного экрана 2FA, так и с экрана ожидания
+    // кнопочного подтверждения (login/passwordless), если пользователь
+    // предпочитает ввести код вручную вместо нажатия кнопки.
+    const challenge = twoFactor?.challenge ?? approval?.challenge;
+    if (!challenge) return;
     setBusy(true);
     setError(null);
     try {
-      const profile = await login2fa(twoFactor.challenge, code.trim());
+      const profile = await login2fa(challenge, code.trim());
       onAuthenticated(profile);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -136,7 +145,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     setError(null);
     try {
       const result = await passwordlessLogin(username.trim());
-      handleLoginOutcome(result);
+      handleLoginOutcome(result, "passwordless");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -170,6 +179,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
 
   function cancelApproval() {
     setApproval(null);
+    setCode("");
     setError(null);
   }
 
@@ -265,6 +275,10 @@ export default function LoginScreen({ onAuthenticated }: Props) {
       approval.kind === "passwordReset"
         ? "Подтвердите сброс пароля"
         : "Подтвердите вход";
+    // Для входа (2FA/без пароля) код подтверждения можно ввести вручную —
+    // это альтернатива кнопке «Это я». При сбросе пароля сессия не выдаётся,
+    // поэтому ручной ввод кода здесь не предлагаем.
+    const allowManualCode = approval.kind !== "passwordReset";
     return (
       <div className="login">
         <div className="login__brand">
@@ -277,6 +291,29 @@ export default function LoginScreen({ onAuthenticated }: Props) {
 
         <div className="login__form">
           <p className="muted">{title}: ожидаем ответ из Telegram…</p>
+          {allowManualCode && (
+            <form className="login__form" onSubmit={handleVerify}>
+              <label className="field">
+                <span>Или введите код из Telegram</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  placeholder="123456"
+                  disabled={busy}
+                />
+              </label>
+              <button
+                className="btn btn--primary"
+                type="submit"
+                disabled={busy || !code.trim()}
+              >
+                {busy ? "Проверка…" : "Подтвердить кодом"}
+              </button>
+            </form>
+          )}
           {error && <div className="alert alert--error">{error}</div>}
           <button
             className="btn btn--ghost"

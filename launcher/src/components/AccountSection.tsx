@@ -49,13 +49,50 @@ export default function AccountSection({
   const [tgLink, setTgLink] = useState<TelegramLinkResponse | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     accountInfo()
       .then((data) => {
+        if (cancelled) return;
         setInfo(data);
         setUsername(data.profile.name);
       })
-      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
+      .catch((e) =>
+        cancelled
+          ? undefined
+          : setLoadError(e instanceof Error ? e.message : String(e)),
+      );
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Пока показан код привязки, опрашиваем сведения об аккаунте: как только бот
+  // обработает `/start <code>` и проставит привязку, обновляем UI без ручной
+  // перезагрузки страницы.
+  useEffect(() => {
+    if (!tgLink) return;
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const data = await accountInfo();
+        if (cancelled) return;
+        setInfo(data);
+        if (data.telegramLinked) {
+          // Привязка завершена — убираем панель с кодом.
+          setTgLink(null);
+        }
+      } catch {
+        // Сетевые сбои при опросе игнорируем — повторим на следующем тике.
+      }
+    }
+
+    const timer = setInterval(poll, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [tgLink]);
 
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
@@ -182,7 +219,12 @@ export default function AccountSection({
         </div>
         <div className="info-card__row">
           <span className="muted">Telegram 2FA</span>
-          <span className="badge">
+          <span
+            className={
+              "badge " +
+              (info?.telegramLinked ? "badge--ok" : "badge--muted")
+            }
+          >
             {info?.telegramLinked ? "привязан" : "не привязан"}
           </span>
         </div>
@@ -267,7 +309,7 @@ export default function AccountSection({
           <>
             <p className="muted">
               Откройте бота в Telegram и отправьте команду, чтобы завершить
-              привязку. После подтверждения обновите страницу аккаунта.
+              привязку. Статус обновится автоматически после подтверждения.
             </p>
             {tgLink.deepLink ? (
               <a

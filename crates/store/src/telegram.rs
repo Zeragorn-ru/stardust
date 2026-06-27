@@ -236,11 +236,16 @@ impl Store {
 
         let now = OffsetDateTime::now_utc();
         // Анти-спам: не чаще одного запроса в CHALLENGE_COOLDOWN на аккаунт.
+        // Учитываем только ещё активные (pending) и непросроченные попытки — уже
+        // отвеченные («это я»/«это не я») или истёкшие challenge не должны
+        // блокировать новый вход.
         let recent: Option<OffsetDateTime> = sqlx::query_scalar(
             "SELECT created_at FROM telegram_2fa_codes
-             WHERE account_uuid = $1 ORDER BY created_at DESC LIMIT 1",
+             WHERE account_uuid = $1 AND status = 'pending' AND expires_at > $2
+             ORDER BY created_at DESC LIMIT 1",
         )
         .bind(&uuid)
+        .bind(now)
         .fetch_optional(&self.pool)
         .await?;
         if let Some(created) = recent {
@@ -288,21 +293,27 @@ impl Store {
         self.start_challenge(uuid, CHALLENGE_LOGIN_2FA).await
     }
 
-    /// Проверяет код challenge по `challenge`. При успехе возвращает UUID
-    /// аккаунта и удаляет запись. Неверный код увеличивает счётчик попыток; по
-    /// исчерпании лимита challenge уничтожается. Если challenge уже отклонён
-    /// кнопкой — возвращает `NotFound`.
+    /// Проверяет код challenge по `challenge` для входа (выдача сессии). При
+    /// успехе возвращает UUID аккаунта и удаляет запись. Принимает только
+    /// «входные» назначения (`login_2fa`, `passwordless`) — кодом сброса пароля
+    /// нельзя получить сессию в обход смены пароля. Неверный код увеличивает
+    /// счётчик попыток; по исчерпании лимита challenge уничтожается.
     pub async fn verify_2fa(&self, challenge: &str, code: &str) -> Result<String, StoreError> {
-        self.verify_challenge(challenge, code, None).await
+        self.verify_challenge(
+            challenge,
+            code,
+            &[CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS],
+        )
+        .await
     }
 
-    /// Как `verify_2fa`, но при `expected_purpose = Some(p)` дополнительно
-    /// проверяет, что challenge создавался именно для назначения `p`.
+    /// Как `verify_2fa`, но проверяет, что назначение challenge входит в
+    /// `allowed_purposes`. Пустой срез означает «любое назначение».
     pub async fn verify_challenge(
         &self,
         challenge: &str,
         code: &str,
-        expected_purpose: Option<&str>,
+        allowed_purposes: &[&str],
     ) -> Result<String, StoreError> {
         let now = OffsetDateTime::now_utc();
         let row = sqlx::query(
@@ -321,7 +332,8 @@ impl Store {
         let status: String = row.get("status");
         let purpose: String = row.get("purpose");
 
-        let purpose_ok = expected_purpose.map(|p| p == purpose).unwrap_or(true);
+        let purpose_ok =
+            allowed_purposes.is_empty() || allowed_purposes.iter().any(|p| *p == purpose);
         if expires_at <= now || attempts >= MAX_2FA_ATTEMPTS || status == "denied" || !purpose_ok {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)

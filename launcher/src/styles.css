@@ -1897,6 +1897,17 @@ body {
     color: #fff;
 }
 
+/* Привязка активна — зелёный акцент. */
+.badge--ok {
+    background: rgba(46, 160, 67, 0.9);
+}
+
+/* Привязка отсутствует — приглушённый нейтральный фон. */
+.badge--muted {
+    background: rgba(255, 255, 255, 0.16);
+    color: var(--text-muted, rgba(255, 255, 255, 0.7));
+}
+
 .update-card {
     display: flex;
     flex-direction: column;
