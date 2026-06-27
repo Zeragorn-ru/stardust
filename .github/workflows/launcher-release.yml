@@ -43,7 +43,11 @@ jobs:
           cache: npm
           cache-dependency-path: launcher/package-lock.json
 
-      - uses: dtolnay/rust-toolchain@stable
+      # Минор Rust зафиксирован (а не плавающий @stable), чтобы ключ rust-cache
+      # не дрейфовал при выходе новой версии Rust — обновляем осознанно. Версия
+      # совпадает с backend.yml. Раннер тут НЕ трогаем: установщик намеренно
+      # собирается на старой glibc (ubuntu-22.04) ради совместимости у юзеров.
+      - uses: dtolnay/rust-toolchain@1.96.0
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
