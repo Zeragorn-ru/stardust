@@ -21,11 +21,12 @@ use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
+use futures_util::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
-use tauri::AppHandle;
 
-use crate::minecraft::{download_to, emit_step};
+use crate::minecraft::download_to_counted;
+use crate::progress::Progress;
 
 /// Имя файла-реестра управляемых лаунчером файлов (лежит в game-dir).
 const STATE_FILE: &str = "managed-files.json";
@@ -73,18 +74,20 @@ fn mod_choice_key(entry: &protocol::FileEntry) -> String {
 /// Если активной сборки нет (404) — тихо выходит: игра запустится без модпака.
 /// Сетевые/серверные ошибки пробрасываются, чтобы пользователь увидел причину.
 pub async fn sync(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
     game_dir: &Path,
+    concurrency: usize,
 ) -> Result<(), String> {
-    emit_step(app, "checking", "Проверяем сборку…", None);
+    progress.set_label("checking", "Проверяем сборку…");
 
     let manifest = match crate::backend::fetch_manifest(http).await? {
         Some(m) => m,
         None => {
             // Активной сборки нет — это нормальный режим (например, на старте
             // проекта). Запускаем ванильный NeoForge без модов.
+            progress.set_total_items(0);
             return Ok(());
         }
     };
@@ -95,17 +98,26 @@ pub async fn sync(
 
     let entries: Vec<_> = manifest.client_files().collect();
     let total = entries.len();
-    for (idx, entry) in entries.iter().enumerate() {
+    progress.set_total_items(total);
+
+    // Файл, который нужно скачать: содержимое нет ни под активным, ни под
+    // неактивным именем. Резолвинг (sha-проверки, переименования) — быстрый и
+    // последовательный; сами загрузки потом гоняем параллельно.
+    struct DownloadJob {
+        url: String,
+        active: PathBuf,
+        inactive: PathBuf,
+        active_key: String,
+        sha1: String,
+        rel_key: String,
+        label: String,
+    }
+    let mut jobs: Vec<DownloadJob> = Vec::new();
+
+    for entry in entries.iter() {
         let rel = sanitize_rel_path(&entry.path)
             .ok_or_else(|| format!("Недопустимый путь в манифесте: {}", entry.path))?;
         let rel_key = rel.to_string_lossy().replace('\\', "/");
-
-        emit_step(
-            app,
-            "checking",
-            format!("Сборка {}: файл {}/{}", manifest.version, idx + 1, total),
-            Some((idx as f64) / (total.max(1) as f64)),
-        );
 
         // Включён ли мод. Обязательные файлы (ядро, конфиги) — всегда «включены».
         let enabled = if entry.optional {
@@ -143,6 +155,7 @@ pub async fn sync(
         if matches(&active) {
             remove_if_exists(&inactive);
             desired.insert(active_key, entry.sha1.clone());
+            progress.item_done(format!("Сборка {}: {rel_key}", manifest.version));
             continue;
         }
 
@@ -154,6 +167,7 @@ pub async fn sync(
             && state.files.contains_key(&active_key)
         {
             desired.insert(active_key, entry.sha1.clone());
+            progress.item_done(format!("Сборка {}: {rel_key}", manifest.version));
             continue;
         }
 
@@ -167,27 +181,57 @@ pub async fn sync(
             std::fs::rename(&inactive, &active)
                 .map_err(|e| format!("Не удалось переименовать {rel_key}: {e}"))?;
             desired.insert(active_key, entry.sha1.clone());
+            progress.item_done(format!("Сборка {}: {rel_key}", manifest.version));
             continue;
         }
 
-        // 4. Качаем.
+        // 4. Нужно качать — откладываем в параллельную очередь.
         let label = entry
             .display_name
             .clone()
             .unwrap_or_else(|| rel_key.clone());
-        download_to(app, http, &entry.url, &active, &label).await?;
-        match file_sha1(&active) {
-            Some(got) if got.eq_ignore_ascii_case(&entry.sha1) => {}
-            Some(got) => {
-                return Err(format!(
-                    "Контрольная сумма {rel_key} не совпала (ожидалась {}, получена {got})",
-                    entry.sha1
-                ));
+        jobs.push(DownloadJob {
+            url: entry.url.clone(),
+            active,
+            inactive,
+            active_key,
+            sha1: entry.sha1.clone(),
+            rel_key,
+            label,
+        });
+    }
+
+    // Параллельно качаем то, чего нет на диске. Каждая загрузка проверяет SHA-1
+    // и убирает неактивный дубль; первая ошибка прекращает обработку. Результаты
+    // (active_key -> sha1) собираем, чтобы дописать в реестр после завершения.
+    let version = manifest.version.clone();
+    let mut stream = stream::iter(jobs.into_iter().map(|job| {
+        let http = http.clone();
+        let version = version.clone();
+        async move {
+            download_to_counted(progress, &http, &job.url, &job.active, &job.label).await?;
+            match file_sha1(&job.active) {
+                Some(got) if got.eq_ignore_ascii_case(&job.sha1) => {}
+                Some(got) => {
+                    return Err(format!(
+                        "Контрольная сумма {} не совпала (ожидалась {}, получена {got})",
+                        job.rel_key, job.sha1
+                    ));
+                }
+                None => {
+                    return Err(format!("Не удалось прочитать скачанный файл {}", job.rel_key))
+                }
             }
-            None => return Err(format!("Не удалось прочитать скачанный файл {rel_key}")),
+            remove_if_exists(&job.inactive);
+            progress.item_done(format!("Сборка {version}: {}", job.rel_key));
+            Ok((job.active_key, job.sha1))
         }
-        remove_if_exists(&inactive);
-        desired.insert(active_key, entry.sha1.clone());
+    }))
+    .buffer_unordered(concurrency.max(1));
+
+    while let Some(res) = stream.next().await {
+        let (active_key, sha1) = res?;
+        desired.insert(active_key, sha1);
     }
 
     // Убираем файлы, которые лаунчер ставил раньше, но в новой сборке их больше
@@ -205,6 +249,7 @@ pub async fn sync(
 pub async fn list_optional_mods(
     http: &reqwest::Client,
     data_dir: &Path,
+    game_dir: &Path,
 ) -> Result<Vec<OptionalMod>, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http).await? else {
         return Ok(Vec::new());
@@ -221,14 +266,27 @@ pub async fn list_optional_mods(
                 .get(&mod_id)
                 .copied()
                 .unwrap_or(entry.enabled_by_default);
+            // Имя/описание: приоритет у манифеста. Если их там нет — пробуем
+            // достать из метаданных самого jar (он всегда скачан, пусть и как
+            // `.dis`). В последнюю очередь — имя файла.
+            let jar_meta = if entry.display_name.is_none() || entry.description.is_none() {
+                read_jar_mod_meta(game_dir, &entry.path)
+            } else {
+                None
+            };
             let name = entry
                 .display_name
                 .clone()
+                .or_else(|| jar_meta.as_ref().and_then(|m| m.name.clone()))
                 .unwrap_or_else(|| file_name_of(&entry.path));
+            let description = entry
+                .description
+                .clone()
+                .or_else(|| jar_meta.as_ref().and_then(|m| m.description.clone()));
             OptionalMod {
                 mod_id,
                 name,
-                description: entry.description.clone(),
+                description,
                 enabled,
                 size: entry.size,
             }
@@ -349,6 +407,77 @@ fn file_name_of(raw: &str) -> String {
         .next()
         .unwrap_or(raw)
         .to_string()
+}
+
+/// Имя и описание мода, вытащенные из метаданных jar.
+#[derive(Debug, Default)]
+struct JarModMeta {
+    name: Option<String>,
+    description: Option<String>,
+}
+
+/// Читает `displayName`/`description` первого мода из метаданных jar в game-dir.
+///
+/// Используется как запасной источник, когда в манифесте нет человекочитаемого
+/// имени. Файл всегда присутствует на диске (выключенные моды лежат с суффиксом
+/// `.dis`), поэтому проверяем оба варианта пути. NeoForge хранит метаданные в
+/// `META-INF/neoforge.mods.toml` (новые версии) или `META-INF/mods.toml`
+/// (legacy). Любая ошибка чтения/парсинга тихо даёт `None` — это лишь подсказка
+/// для UI, она не должна ронять список модов.
+fn read_jar_mod_meta(game_dir: &Path, manifest_path: &str) -> Option<JarModMeta> {
+    let rel = sanitize_rel_path(manifest_path)?;
+    let normal = game_dir.join(&rel);
+    let jar_path = if normal.exists() {
+        normal
+    } else {
+        let disabled = disabled_variant(&normal);
+        if disabled.exists() {
+            disabled
+        } else {
+            return None;
+        }
+    };
+
+    let file = std::fs::File::open(&jar_path).ok()?;
+    let mut zip = zip::ZipArchive::new(file).ok()?;
+
+    let raw = ["META-INF/neoforge.mods.toml", "META-INF/mods.toml"]
+        .iter()
+        .find_map(|name| {
+            use std::io::Read;
+            let mut entry = zip.by_name(name).ok()?;
+            let mut buf = String::new();
+            entry.read_to_string(&mut buf).ok()?;
+            Some(buf)
+        })?;
+
+    parse_mods_toml(&raw)
+}
+
+/// Достаёт имя/описание первого `[[mods]]` из текста `*.mods.toml`.
+///
+/// В файле часто встречаются плейсхолдеры вида `${file.jarVersion}` — их не
+/// трогаем, для имени/описания они роли не играют. Описание в TOML обычно
+/// многострочное (`'''…'''`), что `toml` парсит штатно.
+fn parse_mods_toml(raw: &str) -> Option<JarModMeta> {
+    let value: toml::Value = toml::from_str(raw).ok()?;
+    let first = value.get("mods")?.as_array()?.first()?;
+    let take = |key: &str| {
+        first
+            .get(key)
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    };
+    let meta = JarModMeta {
+        name: take("displayName"),
+        description: take("description"),
+    };
+    if meta.name.is_none() && meta.description.is_none() {
+        None
+    } else {
+        Some(meta)
+    }
 }
 
 /// SHA-1 файла в hex, либо `None`, если файла нет/не читается.

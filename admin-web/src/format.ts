@@ -39,3 +39,22 @@ export function parentDir(dir: string): string {
   const i = norm.lastIndexOf("/");
   return i >= 0 ? norm.slice(0, i) : "";
 }
+
+/// Делает стабильный modId из имени файла: убирает каталог, расширение и
+/// типичные суффиксы версии, приводит к нижнему регистру и slug-формату.
+/// "mods/Sodium-fabric-0.5.3+mc1.20.jar" → "sodium".
+export function slugifyModId(path: string): string {
+  let name = baseName(path);
+  // Убираем расширение (.jar/.zip/.disabled и т.п.).
+  name = name.replace(/\.[^.]+$/, "");
+  // Отрезаем всё начиная с первого «версионного» сегмента: цифры после
+  // дефиса/подчёркивания (напр. "-0.5.3", "_1.20", "-fabric-1.20").
+  name = name.replace(/[-_](v?\d.*)$/i, "");
+  // Известные суффиксы загрузчиков/сторон без версии.
+  name = name.replace(/[-_](fabric|forge|neoforge|quilt|client|server)$/i, "");
+  // Приводим к slug: латиница/цифры через дефис.
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}

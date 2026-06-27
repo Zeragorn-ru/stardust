@@ -6,6 +6,7 @@ mod commands;
 mod minecraft;
 mod modpack;
 mod paths;
+mod progress;
 mod update;
 
 /// Запускает Tauri-приложение лаунчера.

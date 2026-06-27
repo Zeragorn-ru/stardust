@@ -15,6 +15,7 @@ import {
   normalizeDir,
   parentDir,
   shortSha,
+  slugifyModId,
 } from "./format";
 import { useConfirm, useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
@@ -999,7 +1000,12 @@ function FileRow({
             <input
               type="checkbox"
               checked={optional}
-              onChange={(e) => setOptional(e.target.checked)}
+              onChange={(e) => {
+                const v = e.target.checked;
+                setOptional(v);
+                // Подставляем modId из имени файла при включении, если пусто.
+                if (v && !modId.trim()) setModId(slugifyModId(file.path));
+              }}
             />
             <span>Опциональный</span>
           </label>

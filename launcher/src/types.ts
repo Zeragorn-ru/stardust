@@ -52,6 +52,8 @@ export interface TelegramLinkResponse {
 export interface Settings {
   /** Выделяемая память JVM, МБ. */
   memoryMb: number;
+  /** Сколько файлов качать одновременно (библиотеки, ассеты, моды). */
+  downloadConcurrency: number;
 }
 
 /** Режим запуска лаунчера. */

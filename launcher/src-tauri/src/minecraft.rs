@@ -13,11 +13,14 @@ use std::process::{Child, Command};
 use std::os::windows::process::CommandExt;
 use std::time::Instant;
 
-use serde::{Deserialize, Serialize};
+use futures_util::stream::{self, StreamExt};
+use serde::Deserialize;
 use serde_json::Value;
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 use protocol::PlayerProfile;
+
+use crate::progress::{DownloadScope, Progress, Stage};
 
 const DEFAULT_VERSION: &str = "1.21.1";
 const DEFAULT_NEOFORGE_BRANCH: &str = "21.1.";
@@ -36,6 +39,7 @@ pub async fn launch(
     http: &reqwest::Client,
     data_dir: PathBuf,
     settings_memory_mb: u32,
+    download_concurrency: usize,
     profile: PlayerProfile,
     access_token: String,
 ) -> Result<Child, String> {
@@ -43,20 +47,19 @@ pub async fn launch(
     let version_id =
         std::env::var("LAUNCHER_MC_VERSION").unwrap_or_else(|_| DEFAULT_VERSION.into());
     fs::create_dir_all(&root).map_err(|e| format!("Не удалось создать папку Minecraft: {e}"))?;
-    let java = ensure_java(&app, http, &data_dir).await?;
 
-    emit_step(
-        &app,
-        "checking",
-        "Проверяем Minecraft 1.21.1 + NeoForge…",
-        None,
-    );
+    // Минимум один поток; верхнюю границу ограничиваем, чтобы не открыть
+    // слишком много соединений к серверам Mojang.
+    let concurrency = download_concurrency.clamp(1, 16);
 
-    let version = ensure_version(&app, http, &root, &version_id).await?;
-    ensure_client(&app, http, &root, &version).await?;
-    ensure_libraries(&app, http, &root, &version).await?;
-    ensure_assets(&app, http, &root, &version).await?;
-    let neoforge_id = ensure_neoforge(&app, http, &root, &java).await?;
+    let progress = Progress::new(app.clone());
+    let java = ensure_java(&progress, http, &data_dir).await?;
+
+    let version = ensure_version(&progress, http, &root, &version_id).await?;
+    ensure_client(&progress, http, &root, &version).await?;
+    ensure_libraries(&progress, http, &root, &version, concurrency).await?;
+    ensure_assets(&progress, http, &root, &version, concurrency).await?;
+    let neoforge_id = ensure_neoforge(&progress, http, &root, &java).await?;
     let loader = load_modloader_profile(&root, &neoforge_id)?;
     if loader.inherits_from != version.id {
         return Err(format!(
@@ -64,9 +67,17 @@ pub async fn launch(
             loader.inherits_from, version.id
         ));
     }
-    emit_step(&app, "checking", "Скачиваем библиотеки NeoForge…", None);
-    download_libraries(&app, http, &root, &loader.libraries).await?;
-    emit_step(&app, "extracting", "Распаковываем native-библиотеки…", None);
+    progress.begin(
+        Stage::NeoForgeLibraries,
+        "checking",
+        "Скачиваем библиотеки NeoForge…",
+    );
+    download_libraries(&progress, http, &root, &loader.libraries, concurrency).await?;
+    progress.begin(
+        Stage::Natives,
+        "extracting",
+        "Распаковываем native-библиотеки…",
+    );
     extract_natives(&root, &version)?;
 
     let game_dir = root.join("game");
@@ -74,7 +85,8 @@ pub async fn launch(
 
     // Синхронизируем активную сборку (моды/конфиги) в игровой каталог.
     // Если активной сборки нет — функция тихо вернётся, запустим без модпака.
-    crate::modpack::sync(&app, http, &data_dir, &game_dir).await?;
+    progress.begin(Stage::Modpack, "checking", "Проверяем сборку…");
+    crate::modpack::sync(&progress, http, &data_dir, &game_dir, concurrency).await?;
 
     let classpath = build_modloader_classpath(&root, &version, &loader);
     let natives_dir = natives_dir(&root, &version.id);
@@ -94,7 +106,7 @@ pub async fn launch(
     // идти среди JVM-аргументов (до main-класса). Если инжектор недоступен —
     // не валим запуск целиком: одиночная игра останется рабочей.
     let auth_url = crate::backend::base_url();
-    match ensure_authlib_injector(&app, http, &data_dir).await {
+    match ensure_authlib_injector(&progress, http, &data_dir).await {
         Ok(jar) => {
             args.push(format!("-javaagent:{}={}", jar.to_string_lossy(), auth_url));
             if let Some(meta) = prefetch_yggdrasil_meta(http, &auth_url).await {
@@ -117,7 +129,8 @@ pub async fn launch(
     ));
     args.extend(modloader_game_args(&loader));
 
-    emit_step(&app, "launching", "Запускаем Minecraft…", Some(1.0));
+    progress.begin(Stage::Launch, "launching", "Запускаем Minecraft…");
+    progress.set_stage_fraction(1.0);
 
     let mut command = Command::new(java);
     command.args(&args).current_dir(&game_dir);
@@ -130,71 +143,8 @@ pub async fn launch(
     Ok(child)
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ProgressPayload {
-    phase: String,
-    label: String,
-    fraction: Option<f64>,
-    downloaded_bytes: Option<u64>,
-    total_bytes: Option<u64>,
-    speed_bytes_per_sec: Option<f64>,
-    eta_seconds: Option<f64>,
-}
-
-pub(crate) fn emit_step(
-    app: &AppHandle,
-    phase: &str,
-    label: impl Into<String>,
-    fraction: Option<f64>,
-) {
-    let _ = app.emit(
-        "launcher://progress",
-        ProgressPayload {
-            phase: phase.to_string(),
-            label: label.into(),
-            fraction,
-            downloaded_bytes: None,
-            total_bytes: None,
-            speed_bytes_per_sec: None,
-            eta_seconds: None,
-        },
-    );
-}
-
-fn emit_download(
-    app: &AppHandle,
-    label: impl Into<String>,
-    downloaded: u64,
-    total: Option<u64>,
-    started: Instant,
-) {
-    let elapsed = started.elapsed().as_secs_f64().max(0.001);
-    let speed = downloaded as f64 / elapsed;
-    let fraction = total.map(|t| (downloaded as f64 / t.max(1) as f64).clamp(0.0, 1.0));
-    let eta = total.and_then(|t| {
-        if speed > 1.0 && t > downloaded {
-            Some((t - downloaded) as f64 / speed)
-        } else {
-            None
-        }
-    });
-    let _ = app.emit(
-        "launcher://progress",
-        ProgressPayload {
-            phase: "downloading".into(),
-            label: label.into(),
-            fraction,
-            downloaded_bytes: Some(downloaded),
-            total_bytes: total,
-            speed_bytes_per_sec: Some(speed),
-            eta_seconds: eta,
-        },
-    );
-}
-
 async fn ensure_java(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
 ) -> Result<PathBuf, String> {
@@ -210,12 +160,12 @@ async fn ensure_java(
         return Err("Автоскачивание Java пока реализовано только для Windows. Установи Java 21 или задай JAVA_HOME".into());
     }
 
-    emit_step(app, "downloading", "Скачиваем приватную Java 21…", None);
+    progress.begin(Stage::Java, "downloading", "Скачиваем приватную Java 21…");
     fs::create_dir_all(&runtime_dir)
         .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
     let archive = data_dir.join("runtime").join("java-21.zip");
-    download_to(app, http, TEMURIN_API_URL, &archive, "Java 21 runtime").await?;
-    emit_step(app, "extracting", "Распаковываем Java 21…", None);
+    download_to(progress, http, TEMURIN_API_URL, &archive, "Java 21 runtime").await?;
+    progress.set_label("extracting", "Распаковываем Java 21…");
     extract_java_zip(&archive, &runtime_dir)?;
     let _ = fs::remove_file(&archive);
 
@@ -320,11 +270,16 @@ fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
 }
 
 async fn ensure_version(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     root: &Path,
     version_id: &str,
 ) -> Result<VersionJson, String> {
+    progress.begin(
+        Stage::Version,
+        "checking",
+        "Проверяем Minecraft 1.21.1 + NeoForge…",
+    );
     let version_dir = root.join("versions").join(version_id);
     let version_path = version_dir.join(format!("{version_id}.json"));
     fs::create_dir_all(&version_dir).map_err(|e| e.to_string())?;
@@ -344,8 +299,9 @@ async fn ensure_version(
         let Some(entry) = manifest.versions.into_iter().find(|v| v.id == version_id) else {
             return Err(format!("Версия Minecraft {version_id} не найдена"));
         };
-        download_to(app, http, &entry.url, &version_path, "version json").await?;
+        download_to(progress, http, &entry.url, &version_path, "version json").await?;
     }
+    progress.set_stage_fraction(1.0);
 
     let json = fs::read_to_string(&version_path)
         .map_err(|e| format!("Не удалось прочитать version json: {e}"))?;
@@ -353,43 +309,57 @@ async fn ensure_version(
 }
 
 async fn ensure_client(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     root: &Path,
     version: &VersionJson,
 ) -> Result<(), String> {
+    progress.begin(Stage::Client, "downloading", "Скачиваем клиент Minecraft…");
     let path = client_jar(root, &version.id);
     if !path.exists() {
         let Some(client) = version.downloads.get("client") else {
             return Err("В version json нет client jar".into());
         };
-        download_to(app, http, &client.url, &path, "client jar").await?;
+        download_to(progress, http, &client.url, &path, "client jar").await?;
     }
+    progress.set_stage_fraction(1.0);
     Ok(())
 }
 
 async fn ensure_libraries(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     root: &Path,
     version: &VersionJson,
+    concurrency: usize,
 ) -> Result<(), String> {
-    download_libraries(app, http, root, &version.libraries).await
+    progress.begin(
+        Stage::VanillaLibraries,
+        "downloading",
+        "Скачиваем библиотеки Minecraft…",
+    );
+    download_libraries(progress, http, root, &version.libraries, concurrency).await
 }
 
 /// Скачивает произвольный список библиотек (vanilla или NeoForge),
-/// учитывая OS-rules и native-классификаторы.
+/// учитывая OS-rules и native-классификаторы. Загрузки идут параллельно с
+/// ограничением по числу одновременных соединений; прогресс этапа двигается по
+/// числу завершённых файлов.
 async fn download_libraries(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     root: &Path,
     libraries: &[Library],
+    concurrency: usize,
 ) -> Result<(), String> {
+    // Собираем плоский список (url, path, label) только тех артефактов,
+    // которых ещё нет на диске.
+    let mut jobs: Vec<(String, PathBuf, String)> = Vec::new();
     for lib in libraries.iter().filter(|lib| rules_allow(&lib.rules)) {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             let path = root.join("libraries").join(&artifact.path);
             if !path.exists() && !artifact.url.is_empty() {
-                download_to(app, http, &artifact.url, &path, &artifact.path).await?;
+                jobs.push((artifact.url.clone(), path, artifact.path.clone()));
             }
         }
         if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
@@ -397,27 +367,30 @@ async fn download_libraries(
                 if let Some(artifact) = classifiers.get(&native_key) {
                     let path = root.join("libraries").join(&artifact.path);
                     if !path.exists() && !artifact.url.is_empty() {
-                        download_to(app, http, &artifact.url, &path, &artifact.path).await?;
+                        jobs.push((artifact.url.clone(), path, artifact.path.clone()));
                     }
                 }
             }
         }
     }
-    Ok(())
+
+    download_jobs(progress, http, jobs, concurrency).await
 }
 
 async fn ensure_assets(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     root: &Path,
     version: &VersionJson,
+    concurrency: usize,
 ) -> Result<(), String> {
+    progress.begin(Stage::Assets, "downloading", "Скачиваем ресурсы игры…");
     let indexes = root.join("assets").join("indexes");
     fs::create_dir_all(&indexes).map_err(|e| e.to_string())?;
     let index_path = indexes.join(format!("{}.json", version.asset_index.id));
     if !index_path.exists() {
         download_to(
-            app,
+            progress,
             http,
             &version.asset_index.url,
             &index_path,
@@ -430,6 +403,8 @@ async fn ensure_assets(
         .map_err(|e| format!("Не удалось прочитать asset index: {e}"))?;
     let index: AssetIndex =
         serde_json::from_str(&json).map_err(|e| format!("Некорректный asset index: {e}"))?;
+
+    let mut jobs: Vec<(String, PathBuf, String)> = Vec::new();
     for object in index.objects.values() {
         let prefix = object.hash.get(0..2).ok_or("Некорректный hash asset")?;
         let path = root
@@ -442,8 +417,41 @@ async fn ensure_assets(
                 "https://resources.download.minecraft.net/{prefix}/{}",
                 object.hash
             );
-            download_to(app, http, &url, &path, "assets").await?;
+            jobs.push((url, path, "assets".to_string()));
         }
+    }
+
+    download_jobs(progress, http, jobs, concurrency).await
+}
+
+/// Параллельно скачивает набор файлов `(url, path, label)` с ограничением по
+/// числу одновременных загрузок. Каждый завершённый файл двигает долю текущего
+/// этапа; скачанные байты копятся для расчёта общей скорости. Первая ошибка
+/// прекращает обработку и пробрасывается наверх.
+async fn download_jobs(
+    progress: &Progress,
+    http: &reqwest::Client,
+    jobs: Vec<(String, PathBuf, String)>,
+    concurrency: usize,
+) -> Result<(), String> {
+    progress.set_total_items(jobs.len());
+    if jobs.is_empty() {
+        progress.set_stage_fraction(1.0);
+        return Ok(());
+    }
+
+    let mut stream = stream::iter(jobs.into_iter().map(|(url, path, label)| {
+        let http = http.clone();
+        async move {
+            let res = download_to_counted(progress, &http, &url, &path, &label).await;
+            (label, res)
+        }
+    }))
+    .buffer_unordered(concurrency);
+
+    while let Some((label, res)) = stream.next().await {
+        res?;
+        progress.item_done(format!("Скачано: {label}"));
     }
     Ok(())
 }
@@ -745,11 +753,16 @@ fn natives_dir(root: &Path, version_id: &str) -> PathBuf {
 /// Сам installer прогоняет все processors (binpatch, remap и т.д.) своим проверенным
 /// кодом, поэтому нам не нужно повторять эту логику вручную.
 async fn ensure_neoforge(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     root: &Path,
     java: &Path,
 ) -> Result<String, String> {
+    progress.begin(
+        Stage::NeoForgeInstall,
+        "checking",
+        "Проверяем NeoForge…",
+    );
     let requested = std::env::var("LAUNCHER_NEOFORGE_VERSION").ok();
     let neoforge_version = match requested {
         Some(v) if !v.trim().is_empty() => v,
@@ -766,7 +779,7 @@ async fn ensure_neoforge(
             "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar",
             neoforge_version
         );
-        download_to(app, http, &url, &installer, "NeoForge installer").await?;
+        download_to(progress, http, &url, &installer, "NeoForge installer").await?;
     }
 
     // NeoForge installer создаёт отдельный профиль в versions/. Если профиль уже
@@ -790,11 +803,9 @@ async fn ensure_neoforge(
         .map_err(|e| format!("Не удалось создать launcher_profiles.json: {e}"))?;
     }
 
-    emit_step(
-        app,
+    progress.set_label(
         "extracting",
         format!("Устанавливаем NeoForge {neoforge_version}…"),
-        None,
     );
     let mut command = Command::new(java);
     command
@@ -860,7 +871,7 @@ const AUTHLIB_INJECTOR_LATEST: &str = "https://authlib-injector.yushi.moe/artifa
 /// проксирует и кэширует апстрим, поэтому клиенту не нужен прямой доступ к
 /// `yushi.moe`. Если admin-server недоступен — падаем на апстрим напрямую.
 async fn ensure_authlib_injector(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
 ) -> Result<PathBuf, String> {
@@ -868,13 +879,13 @@ async fn ensure_authlib_injector(
     if jar.exists() {
         return Ok(jar);
     }
-    emit_step(app, "checking", "Загружаем authlib-injector…", None);
+    progress.set_label("checking", "Загружаем authlib-injector…");
 
     let admin_url = format!("{}/authlib-injector.jar", crate::backend::admin_base_url());
-    if let Err(e) = download_to(app, http, &admin_url, &jar, "authlib-injector").await {
+    if let Err(e) = download_to(progress, http, &admin_url, &jar, "authlib-injector").await {
         eprintln!("admin-server не отдал authlib-injector ({e}), пробую апстрим");
         let url = upstream_injector_url(http).await?;
-        download_to(app, http, &url, &jar, "authlib-injector").await?;
+        download_to(progress, http, &url, &jar, "authlib-injector").await?;
     }
     Ok(jar)
 }
@@ -914,12 +925,38 @@ async fn prefetch_yggdrasil_meta(http: &reqwest::Client, auth_url: &str) -> Opti
     Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
 }
 
+/// Скачивает один файл, занимающий весь текущий этап: прогресс этапа двигается
+/// по байтам, в UI идут скорость/ETA. Используется для крупных одиночных
+/// загрузок (Java, клиент, installer, version json).
 pub(crate) async fn download_to(
-    app: &AppHandle,
+    progress: &Progress,
     http: &reqwest::Client,
     url: &str,
     path: &Path,
     label: &str,
+) -> Result<(), String> {
+    download_inner(progress, http, url, path, label, DownloadScope::Stage).await
+}
+
+/// Скачивает один файл многофайлового этапа: долей этапа управляет счётчик
+/// файлов снаружи, здесь лишь копятся байты для общей скорости.
+pub(crate) async fn download_to_counted(
+    progress: &Progress,
+    http: &reqwest::Client,
+    url: &str,
+    path: &Path,
+    label: &str,
+) -> Result<(), String> {
+    download_inner(progress, http, url, path, label, DownloadScope::Item).await
+}
+
+async fn download_inner(
+    progress: &Progress,
+    http: &reqwest::Client,
+    url: &str,
+    path: &Path,
+    label: &str,
+    scope: DownloadScope,
 ) -> Result<(), String> {
     use std::io::Write;
 
@@ -939,24 +976,18 @@ pub(crate) async fn download_to(
         .map_err(|e| format!("Не удалось создать временный файл {}: {e}", tmp.display()))?;
     let mut downloaded = 0u64;
     let started = Instant::now();
-    emit_download(
-        app,
-        format!("Скачиваем {label}"),
-        downloaded,
-        total,
-        started,
-    );
+    if let DownloadScope::Stage = scope {
+        progress.set_label("downloading", format!("Скачиваем {label}"));
+        progress.download_tick(downloaded, total, started);
+    }
 
     while let Some(chunk) = resp.chunk().await.map_err(network_error)? {
         file.write_all(&chunk).map_err(|e| e.to_string())?;
         downloaded += chunk.len() as u64;
-        emit_download(
-            app,
-            format!("Скачиваем {label}"),
-            downloaded,
-            total,
-            started,
-        );
+        match scope {
+            DownloadScope::Stage => progress.download_tick(downloaded, total, started),
+            DownloadScope::Item => progress.add_bytes(chunk.len() as u64),
+        }
     }
     file.flush().map_err(|e| e.to_string())?;
     fs::rename(&tmp, path).map_err(|e| {

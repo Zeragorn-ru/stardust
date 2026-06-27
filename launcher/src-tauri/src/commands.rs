@@ -26,11 +26,27 @@ pub struct Settings {
     /// Выделяемая память JVM, МБ.
     #[serde(rename = "memoryMb")]
     pub memory_mb: u32,
+    /// Сколько файлов качать одновременно (библиотеки, ассеты, моды).
+    /// Значение ограничивается разумным диапазоном при запуске.
+    #[serde(rename = "downloadConcurrency", default = "default_concurrency")]
+    pub download_concurrency: u32,
+}
+
+/// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
+/// границах, чтобы не открыть слишком много соединений к серверам Mojang.
+fn default_concurrency() -> u32 {
+    std::thread::available_parallelism()
+        .map(|n| n.get() as u32)
+        .unwrap_or(4)
+        .clamp(1, 16)
 }
 
 impl Default for Settings {
     fn default() -> Self {
-        Self { memory_mb: 4096 }
+        Self {
+            memory_mb: 4096,
+            download_concurrency: default_concurrency(),
+        }
     }
 }
 
@@ -735,6 +751,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         &state.http,
         paths::data_dir(&app),
         settings.memory_mb,
+        settings.download_concurrency as usize,
         profile,
         token,
     )
@@ -757,7 +774,7 @@ async fn list_optional_mods(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Vec<crate::modpack::OptionalMod>, String> {
-    crate::modpack::list_optional_mods(&state.http, &paths::data_dir(&app)).await
+    crate::modpack::list_optional_mods(&state.http, &paths::data_dir(&app), &game_dir(&app)).await
 }
 
 /// Включить/выключить опциональный мод. Сохраняет выбор и, если файл уже

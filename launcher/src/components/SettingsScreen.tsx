@@ -27,6 +27,10 @@ const MEM_MIN = 1024;
 const MEM_MAX = 16384;
 const MEM_STEP = 512;
 
+// Границы параллельности загрузок (одновременных файлов).
+const DL_MIN = 1;
+const DL_MAX = 16;
+
 export default function SettingsScreen({
   profile,
   onProfileChange,
@@ -184,6 +188,30 @@ export default function SettingsScreen({
               <div className="range-bounds muted">
                 <span>{MEM_MIN} МБ</span>
                 <span>{MEM_MAX} МБ</span>
+              </div>
+            </div>
+
+            <div className="field stagger-item">
+              <span>
+                Одновременных загрузок:{" "}
+                <strong>{settings.downloadConcurrency}</strong>
+              </span>
+              <input
+                type="range"
+                min={DL_MIN}
+                max={DL_MAX}
+                step={1}
+                value={settings.downloadConcurrency}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    downloadConcurrency: Number(e.target.value),
+                  })
+                }
+              />
+              <div className="range-bounds muted">
+                <span>{DL_MIN}</span>
+                <span>{DL_MAX}</span>
               </div>
             </div>
 

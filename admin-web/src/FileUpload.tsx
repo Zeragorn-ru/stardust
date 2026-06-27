@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { UploadMeta } from "./types";
-import { formatSize, baseName } from "./format";
+import { formatSize, baseName, slugifyModId } from "./format";
 import { useToast } from "./ui/feedback";
 import { IconUpload } from "./ui/icons";
 
@@ -430,7 +430,16 @@ function QueueRow({
               <input
                 type="checkbox"
                 checked={item.optional}
-                onChange={(e) => onPatch({ optional: e.target.checked })}
+                onChange={(e) => {
+                  const optional = e.target.checked;
+                  // При включении опциональности подставляем modId из имени
+                  // файла, если поле ещё пустое — чтобы не заполнять вручную.
+                  const patch: Partial<QueueItem> = { optional };
+                  if (optional && !item.modId.trim()) {
+                    patch.modId = slugifyModId(item.path || item.file.name);
+                  }
+                  onPatch(patch);
+                }}
               />
               Опциональный
             </label>
