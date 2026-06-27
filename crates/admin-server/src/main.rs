@@ -22,7 +22,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
-use store::{NewBuild, Role, Store};
+use store::{NewBuild, Role, Store, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tokio::sync::Mutex;
@@ -112,6 +112,7 @@ async fn main() {
         .route("/api/login", post(login))
         .route("/api/logout", post(logout))
         .route("/api/me", get(me))
+        .route("/api/settings", get(get_settings).put(update_settings))
         .route("/api/builds", get(list_builds).post(create_build))
         .route("/api/builds/:id", get(get_build).delete(delete_build))
         .route("/api/builds/:id/activate", post(activate_build))
@@ -132,6 +133,11 @@ async fn main() {
         .route("/api/accounts/:uuid/ban", post(ban_account))
         .route("/api/accounts/:uuid/unban", post(unban_account))
         .route("/api/accounts/:uuid/role", post(set_account_role))
+        .route("/api/accounts/:uuid/password", post(set_account_password))
+        .route(
+            "/api/accounts/:uuid/telegram",
+            axum::routing::delete(unlink_account_telegram),
+        )
         .route("/api/accounts/:uuid/skin", get(account_skin))
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
@@ -287,6 +293,103 @@ async fn me(State(state): State<Shared>, headers: HeaderMap) -> Result<Json<MeRe
     Ok(Json(MeResponse {
         username: account.username,
         uuid: account.uuid,
+    }))
+}
+
+// ───────────────────────── Настройки ─────────────────────────
+
+#[derive(Serialize)]
+struct SettingsDto {
+    /// Привязан ли токен бота. Сам токен наружу не отдаём (секрет).
+    #[serde(rename = "telegramTokenSet")]
+    telegram_token_set: bool,
+    /// Закэшированный username бота (`@name`), если бот уже представился.
+    #[serde(rename = "telegramBotUsername", skip_serializing_if = "Option::is_none")]
+    telegram_bot_username: Option<String>,
+}
+
+async fn get_settings(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<SettingsDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let token = state
+        .store
+        .get_setting(SETTING_TELEGRAM_TOKEN)
+        .await
+        .map_err(internal)?;
+    let username = state
+        .store
+        .get_setting(SETTING_TELEGRAM_USERNAME)
+        .await
+        .map_err(internal)?;
+    Ok(Json(SettingsDto {
+        telegram_token_set: token.map(|t| !t.trim().is_empty()).unwrap_or(false),
+        telegram_bot_username: username.filter(|u| !u.trim().is_empty()),
+    }))
+}
+
+#[derive(Deserialize)]
+struct UpdateSettingsRequest {
+    /// Новый токен бота. `Some("")` — очистить (отключить бота), `None` —
+    /// не трогать. Любое непустое значение перезаписывает токен.
+    #[serde(rename = "telegramToken", default, skip_serializing_if = "Option::is_none")]
+    telegram_token: Option<String>,
+}
+
+/// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
+/// `settings`, откуда сервис `telegram-bot` подхватывает его без рестарта.
+/// При смене токена сбрасываем закэшированный username бота — он перечитает
+/// его сам через `getMe`.
+async fn update_settings(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<UpdateSettingsRequest>,
+) -> Result<Json<SettingsDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    if let Some(token) = req.telegram_token {
+        let token = token.trim();
+        if token.is_empty() {
+            // Пустая строка — отключить бота (убрать токен и username).
+            state
+                .store
+                .delete_setting(SETTING_TELEGRAM_TOKEN)
+                .await
+                .map_err(internal)?;
+            state
+                .store
+                .delete_setting(SETTING_TELEGRAM_USERNAME)
+                .await
+                .map_err(internal)?;
+        } else {
+            state
+                .store
+                .set_setting(SETTING_TELEGRAM_TOKEN, token)
+                .await
+                .map_err(internal)?;
+            // Username устарел — пусть бот перечитает его сам.
+            state
+                .store
+                .delete_setting(SETTING_TELEGRAM_USERNAME)
+                .await
+                .map_err(internal)?;
+        }
+    }
+
+    let token = state
+        .store
+        .get_setting(SETTING_TELEGRAM_TOKEN)
+        .await
+        .map_err(internal)?;
+    let username = state
+        .store
+        .get_setting(SETTING_TELEGRAM_USERNAME)
+        .await
+        .map_err(internal)?;
+    Ok(Json(SettingsDto {
+        telegram_token_set: token.map(|t| !t.trim().is_empty()).unwrap_or(false),
+        telegram_bot_username: username.filter(|u| !u.trim().is_empty()),
     }))
 }
 
@@ -699,11 +802,19 @@ struct AccountDto {
     banned_until: Option<String>,
     #[serde(rename = "banReason", skip_serializing_if = "Option::is_none")]
     ban_reason: Option<String>,
+    /// Привязан ли Telegram (для значка в таблице).
+    #[serde(rename = "telegramLinked")]
+    telegram_linked: bool,
+    /// Telegram chat_id, если привязан (виден только админу).
+    #[serde(rename = "telegramChatId", skip_serializing_if = "Option::is_none")]
+    telegram_chat_id: Option<String>,
 }
 
 impl From<store::Account> for AccountDto {
     fn from(a: store::Account) -> Self {
         let is_admin = a.is_admin();
+        let telegram_chat_id = a.telegram_chat_id.clone();
+        let telegram_linked = telegram_chat_id.is_some();
         let (banned, banned_until, ban_reason) = match a.ban {
             Some(ban) => (
                 true,
@@ -720,6 +831,8 @@ impl From<store::Account> for AccountDto {
             banned,
             banned_until,
             ban_reason,
+            telegram_linked,
+            telegram_chat_id,
         }
     }
 }
@@ -883,6 +996,57 @@ async fn set_account_role(
         ));
     }
     state.store.set_role(&uuid, role).await.map_err(map_store)?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    Ok(Json(AccountDto::from(account)))
+}
+
+#[derive(Deserialize)]
+struct SetPasswordRequest {
+    password: String,
+}
+
+/// Сброс пароля аккаунта админом. Старый пароль не требуется; активные сессии
+/// пользователя сбрасываются (старые токены протухают). Полезно, когда игрок
+/// забыл пароль и не может восстановить его через Telegram.
+async fn set_account_password(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(req): Json<SetPasswordRequest>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    let password = req.password;
+    if password.len() < 6 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Пароль должен быть не короче 6 символов",
+        ));
+    }
+    state
+        .store
+        .set_password(&uuid, &password)
+        .await
+        .map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Отвязывает Telegram от аккаунта (админ). Снимает 2FA/passwordless для
+/// пользователя — например, если он потерял доступ к своему Telegram.
+async fn unlink_account_telegram(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+) -> Result<Json<AccountDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    state
+        .store
+        .set_telegram(&uuid, None)
+        .await
+        .map_err(map_store)?;
     let account = state
         .store
         .find_by_uuid(&uuid)

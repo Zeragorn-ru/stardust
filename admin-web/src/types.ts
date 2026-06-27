@@ -36,6 +36,15 @@ export interface Account {
   banned: boolean;
   bannedUntil?: string;
   banReason?: string;
+  telegramLinked: boolean;
+  telegramChatId?: string;
+}
+
+// Настройки сервера (вкладка «Настройки»). Токен бота наружу не отдаётся —
+// только флаг, привязан он или нет.
+export interface Settings {
+  telegramTokenSet: boolean;
+  telegramBotUsername?: string;
 }
 
 export interface CreateBuildInput {

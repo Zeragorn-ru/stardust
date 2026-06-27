@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { api, getToken, setToken } from "./api";
 import { Login } from "./Login";
 import { BuildsView } from "./views/BuildsView";
 import { AccountsView } from "./views/AccountsView";
+import { SettingsView } from "./views/SettingsView";
 import { FeedbackProvider } from "./ui/feedback";
-import { IconBox, IconDownload, IconLogout, IconUsers } from "./ui/icons";
+import { IconBox, IconLogout, IconSettings, IconUsers } from "./ui/icons";
 
-type Tab = "builds" | "accounts";
+type Tab = "builds" | "accounts" | "settings";
 
 export function App() {
   return (
@@ -81,6 +83,12 @@ function Shell({
 }) {
   const [tab, setTab] = useState<Tab>("builds");
 
+  const navItems: { id: Tab; label: string; icon: ReactNode }[] = [
+    { id: "builds", label: "Сборки", icon: <IconBox /> },
+    { id: "accounts", label: "Аккаунты", icon: <IconUsers /> },
+    { id: "settings", label: "Настройки", icon: <IconSettings /> },
+  ];
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -89,35 +97,34 @@ function Shell({
           StarDust
         </div>
         <nav className="nav">
-          <button
-            className={`nav-item${tab === "builds" ? " active" : ""}`}
-            onClick={() => setTab("builds")}
-          >
-            <IconBox /> Сборки
-          </button>
-          <button
-            className={`nav-item${tab === "accounts" ? " active" : ""}`}
-            onClick={() => setTab("accounts")}
-          >
-            <IconUsers /> Аккаунты
-          </button>
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              className={`nav-item${tab === item.id ? " active" : ""}`}
+              onClick={() => setTab(item.id)}
+            >
+              {item.icon} {item.label}
+            </button>
+          ))}
         </nav>
         <div className="sidebar-foot">
-          {username && <div className="who">{username}</div>}
-          <a
-            className="nav-item"
-            href="/authlib-injector.jar"
-            download="authlib-injector.jar"
-          >
-            <IconDownload /> authlib-injector
-          </a>
+          {username && (
+            <div className="who" title={username}>
+              <span className="who-avatar">
+                {username.charAt(0).toUpperCase()}
+              </span>
+              <span className="who-name">{username}</span>
+            </div>
+          )}
           <button className="nav-item" onClick={onLogout}>
             <IconLogout /> Выйти
           </button>
         </div>
       </aside>
       <main className="content">
-        {tab === "builds" ? <BuildsView /> : <AccountsView />}
+        {tab === "builds" && <BuildsView />}
+        {tab === "accounts" && <AccountsView />}
+        {tab === "settings" && <SettingsView />}
       </main>
     </div>
   );

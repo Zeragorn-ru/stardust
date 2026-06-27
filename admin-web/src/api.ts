@@ -9,6 +9,7 @@ import type {
   BuildFile,
   BuildHeader,
   CreateBuildInput,
+  Settings,
   UploadMeta,
 } from "./types";
 
@@ -228,6 +229,25 @@ export const api = {
 
   setRole(uuid: string, role: "admin" | "user"): Promise<Account> {
     return request("POST", `/api/accounts/${uuid}/role`, { role });
+  },
+
+  // Сброс пароля аккаунта админом (старый пароль не нужен).
+  setPassword(uuid: string, password: string): Promise<void> {
+    return request("POST", `/api/accounts/${uuid}/password`, { password });
+  },
+
+  // Отвязать Telegram от аккаунта (например, игрок потерял доступ).
+  unlinkTelegram(uuid: string): Promise<Account> {
+    return request("DELETE", `/api/accounts/${uuid}/telegram`);
+  },
+
+  getSettings(): Promise<Settings> {
+    return request("GET", "/api/settings");
+  },
+
+  // Сохранить токен бота. Пустая строка отключает бота.
+  setTelegramToken(telegramToken: string): Promise<Settings> {
+    return request("PUT", "/api/settings", { telegramToken });
   },
 
   // Скин аккаунта тянем PNG-ом с bearer-токеном и отдаём как object URL

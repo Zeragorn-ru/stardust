@@ -7,11 +7,13 @@ import { SkinHead } from "../ui/SkinHead";
 import {
   IconBan,
   IconCheck,
+  IconKey,
   IconPencil,
   IconSearch,
   IconShield,
   IconShieldOff,
   IconStar,
+  IconTelegram,
   IconTrash,
 } from "../ui/icons";
 
@@ -35,6 +37,7 @@ export function AccountsView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<Account | null>(null);
   const [banning, setBanning] = useState<Account | null>(null);
+  const [resettingPw, setResettingPw] = useState<Account | null>(null);
   const [selfUuid, setSelfUuid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -188,6 +191,42 @@ export function AccountsView() {
     }
   }
 
+  async function doResetPassword(account: Account, password: string) {
+    setBusy(account.uuid);
+    try {
+      await api.setPassword(account.uuid, password);
+      toast.success("Пароль сброшен");
+      setResettingPw(null);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сбросить пароль",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function doUnlinkTelegram(account: Account) {
+    const ok = await confirm({
+      title: "Отвязать Telegram?",
+      body: `${account.username} потеряет привязку к Telegram. Привязать заново можно через бота.`,
+      confirmText: "Отвязать",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(account.uuid);
+    try {
+      replace(await api.unlinkTelegram(account.uuid));
+      toast.success("Telegram отвязан");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось отвязать Telegram",
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="view">
       <header className="view-head">
@@ -227,6 +266,7 @@ export function AccountsView() {
                 <th>Игрок</th>
                 <th>UUID</th>
                 <th>Роль</th>
+                <th>TG</th>
                 <th></th>
               </tr>
             </thead>
@@ -262,6 +302,22 @@ export function AccountsView() {
                         <span className="badge">игрок</span>
                       )}
                     </td>
+                    <td data-label="TG">
+                      {a.telegramLinked ? (
+                        <span
+                          className="badge admin"
+                          title={
+                            a.telegramChatId
+                              ? `chat id: ${a.telegramChatId}`
+                              : "Telegram привязан"
+                          }
+                        >
+                          <IconTelegram size={12} /> привязан
+                        </span>
+                      ) : (
+                        <span className="badge muted">нет</span>
+                      )}
+                    </td>
                     <td className="row-actions">
                       <button
                         className="icon-only"
@@ -271,6 +327,24 @@ export function AccountsView() {
                       >
                         <IconPencil size={15} />
                       </button>
+                      <button
+                        className="icon-only"
+                        title="Сбросить пароль"
+                        disabled={busy === a.uuid}
+                        onClick={() => setResettingPw(a)}
+                      >
+                        <IconKey size={15} />
+                      </button>
+                      {a.telegramLinked && (
+                        <button
+                          className="icon-only"
+                          title="Отвязать Telegram"
+                          disabled={busy === a.uuid}
+                          onClick={() => doUnlinkTelegram(a)}
+                        >
+                          <IconTelegram size={15} />
+                        </button>
+                      )}
                       {a.isAdmin ? (
                         <button
                           className="icon-only"
@@ -340,6 +414,14 @@ export function AccountsView() {
           busy={busy === banning.uuid}
           onCancel={() => setBanning(null)}
           onSubmit={(secs, reason) => doBan(banning, secs, reason)}
+        />
+      )}
+      {resettingPw && (
+        <PasswordDialog
+          account={resettingPw}
+          busy={busy === resettingPw.uuid}
+          onCancel={() => setResettingPw(null)}
+          onSubmit={(pw) => doResetPassword(resettingPw, pw)}
         />
       )}
     </div>
@@ -481,6 +563,92 @@ function BanDialog({
             }
           >
             Забанить
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MIN_PASSWORD = 6;
+
+function PasswordDialog({
+  account,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  account: Account;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (password: string) => void;
+}) {
+  const [value, setValue] = useState("");
+  const [confirmValue, setConfirmValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useBodyScrollLock();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  const tooShort = value.length > 0 && value.length < MIN_PASSWORD;
+  const mismatch = confirmValue.length > 0 && value !== confirmValue;
+  const canSubmit =
+    value.length >= MIN_PASSWORD && value === confirmValue && !busy;
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Сбросить пароль</h3>
+        <p className="muted">
+          Новый пароль для <strong>{account.username}</strong>. Старый пароль не
+          требуется.
+        </p>
+        <label className="fm-prompt-field">
+          <span className="muted">Новый пароль</span>
+          <input
+            ref={inputRef}
+            type="password"
+            autoComplete="new-password"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          />
+        </label>
+        <label className="fm-prompt-field">
+          <span className="muted">Повторите пароль</span>
+          <input
+            type="password"
+            autoComplete="new-password"
+            value={confirmValue}
+            onChange={(e) => setConfirmValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && canSubmit) onSubmit(value);
+            }}
+          />
+        </label>
+        {tooShort && (
+          <p className="muted">Минимум {MIN_PASSWORD} символов.</p>
+        )}
+        {mismatch && <p className="muted">Пароли не совпадают.</p>}
+        <div className="modal-actions">
+          <button onClick={onCancel}>Отмена</button>
+          <button
+            className="primary"
+            disabled={!canSubmit}
+            onClick={() => onSubmit(value)}
+          >
+            Сбросить пароль
           </button>
         </div>
       </div>
