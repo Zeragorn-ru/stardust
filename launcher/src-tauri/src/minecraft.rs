@@ -8,10 +8,10 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
+use std::time::Instant;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-use std::time::Instant;
 
 use futures_util::stream::{self, StreamExt};
 use serde::Deserialize;
@@ -758,11 +758,7 @@ async fn ensure_neoforge(
     root: &Path,
     java: &Path,
 ) -> Result<String, String> {
-    progress.begin(
-        Stage::NeoForgeInstall,
-        "checking",
-        "Проверяем NeoForge…",
-    );
+    progress.begin(Stage::NeoForgeInstall, "checking", "Проверяем NeoForge…");
     let requested = std::env::var("LAUNCHER_NEOFORGE_VERSION").ok();
     let neoforge_version = match requested {
         Some(v) if !v.trim().is_empty() => v,
@@ -807,17 +803,25 @@ async fn ensure_neoforge(
         "extracting",
         format!("Устанавливаем NeoForge {neoforge_version}…"),
     );
-    let mut command = Command::new(java);
-    command
-        .arg("-jar")
-        .arg(&installer)
-        .arg("--install-client")
-        .arg(root)
-        .current_dir(root);
-    hide_console(&mut command);
-    let status = command
-        .status()
-        .map_err(|e| format!("Не удалось запустить NeoForge installer: {e}"))?;
+    let java_clone = java.to_path_buf();
+    let installer_clone = installer.clone();
+    let root_clone = root.to_path_buf();
+    let status = tauri::async_runtime::spawn_blocking(move || {
+        let mut command = Command::new(&java_clone);
+        command
+            .arg("-jar")
+            .arg(&installer_clone)
+            .arg("--install-client")
+            .arg(&root_clone)
+            .current_dir(&root_clone);
+        hide_console(&mut command);
+        command
+            .status()
+            .map_err(|e| format!("Не удалось запустить NeoForge installer: {e}"))
+    })
+    .await
+    .map_err(|e| format!("Ошибка потока NeoForge installer: {e}"))?
+    .map_err(|e| e)?;
     if !status.success() {
         return Err(format!(
             "NeoForge installer завершился с ошибкой ({status}). Проверь Java 21+"
