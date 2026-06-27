@@ -388,16 +388,16 @@ export default function LoginScreen({ onAuthenticated }: Props) {
   }
 
   return (
-    <div className="login">
-      <div className="login__brand">
-        <div className="login__logo">⛏</div>
+    <div className="login stagger">
+      <div className="login__brand stagger-item">
+        <div className="login__logo float">⛏</div>
         <h1>StarDust</h1>
         <p className="muted">
           {isRegister ? "Создайте аккаунт" : "Войдите, чтобы продолжить"}
         </p>
       </div>
 
-      <div className="tabs">
+      <div className="tabs stagger-item">
         <button
           type="button"
           className={"tabs__tab" + (!isRegister ? " is-active" : "")}
@@ -414,7 +414,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         </button>
       </div>
 
-      <form className="login__form" onSubmit={handleSubmit}>
+      <form className="login__form stagger-item" onSubmit={handleSubmit}>
         <label className="field">
           <span>Логин</span>
           <input

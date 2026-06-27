@@ -154,7 +154,7 @@ export default function SettingsScreen({
         </nav>
 
         {section === "account" ? (
-          <div className="settings__body">
+          <div className="settings__body" key="account">
             <AccountSection
               profile={profile}
               onProfileChange={onProfileChange}
@@ -162,12 +162,12 @@ export default function SettingsScreen({
             />
           </div>
         ) : section === "mods" ? (
-          <div className="settings__body">
+          <div className="settings__body" key="mods">
             <ModsSection />
           </div>
         ) : (
-          <div className="settings__body">
-            <div className="field">
+          <div className="settings__body stagger" key="general">
+            <div className="field stagger-item">
               <span>
                 Память: <strong>{settings.memoryMb} МБ</strong>
               </span>
@@ -187,7 +187,7 @@ export default function SettingsScreen({
               </div>
             </div>
 
-            <div className="toggle-row">
+            <div className="toggle-row stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Анимации</span>
                 <span className="muted toggle-row__desc">
@@ -206,7 +206,7 @@ export default function SettingsScreen({
             </div>
 
             {info && (
-              <div className="info-card">
+              <div className="info-card stagger-item">
                 <div className="info-card__row">
                   <span className="muted">Режим</span>
                   <span className="badge">
@@ -238,7 +238,7 @@ export default function SettingsScreen({
               </div>
             )}
 
-            <div className="update-card">
+            <div className="update-card stagger-item">
               <div className="update-card__head">
                 <span className="toggle-row__title">Обновления</span>
                 <button

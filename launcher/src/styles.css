@@ -53,6 +53,8 @@
     animation-play-state: paused !important;
     animation-duration: 0s !important;
     animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+    scroll-behavior: auto !important;
 }
 
 * {
@@ -176,6 +178,19 @@ body {
     border-radius: 999px;
     background: var(--accent-grad);
     box-shadow: 0 0 18px rgba(124, 92, 255, 0.9);
+    animation: markPulse 2.8s ease-in-out infinite;
+}
+
+@keyframes markPulse {
+    0%,
+    100% {
+        box-shadow: 0 0 12px rgba(124, 92, 255, 0.7);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 22px rgba(124, 92, 255, 1);
+        transform: scale(1.15);
+    }
 }
 
 .titlebar__actions {
@@ -356,6 +371,62 @@ body {
     }
 }
 
+/* Каскадное появление: дочерние элементы всплывают по очереди. На контейнер
+   вешаем .stagger, на детей — .stagger-item. Задержки фиксированы по индексу,
+   чтобы не плодить инлайновые стили. */
+.stagger-item {
+    animation: fadeUp var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger .stagger-item:nth-child(1) {
+    animation-delay: 0.04s;
+}
+.stagger .stagger-item:nth-child(2) {
+    animation-delay: 0.1s;
+}
+.stagger .stagger-item:nth-child(3) {
+    animation-delay: 0.16s;
+}
+.stagger .stagger-item:nth-child(4) {
+    animation-delay: 0.22s;
+}
+.stagger .stagger-item:nth-child(5) {
+    animation-delay: 0.28s;
+}
+.stagger .stagger-item:nth-child(6) {
+    animation-delay: 0.34s;
+}
+.stagger .stagger-item:nth-child(7) {
+    animation-delay: 0.4s;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Лёгкое всплывание сбоку — для боковых панелей/навигации. */
+.slide-in-left {
+    animation: slideInLeft var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
 .float {
     animation: float 4s ease-in-out infinite;
 }
@@ -379,6 +450,22 @@ body {
     backdrop-filter: blur(20px) saturate(140%);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
+}
+
+/* Интерактивная карточка: мягко приподнимается и подсвечивается по наведению. */
+.lift {
+    transition:
+        transform var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow var(--t-mid),
+        border-color var(--t-mid);
+}
+
+.lift:hover {
+    transform: translateY(-3px);
+    border-color: var(--glass-border-strong);
+    box-shadow:
+        var(--shadow),
+        0 18px 50px -22px rgba(124, 92, 255, 0.55);
 }
 
 /* ============ Кнопки ============ */
@@ -416,9 +503,32 @@ body {
 .btn--primary {
     background: var(--accent-grad);
     border-color: transparent;
+    position: relative;
+    overflow: hidden;
 }
 .btn--primary:hover:not(:disabled) {
     box-shadow: var(--glow);
+}
+/* Световой блик пробегает по primary-кнопке при наведении. */
+.btn--primary::after {
+    pointer-events: none;
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -120%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(
+        100deg,
+        transparent,
+        rgba(255, 255, 255, 0.25),
+        transparent
+    );
+    transform: skewX(-20deg);
+    transition: left 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn--primary:hover:not(:disabled)::after {
+    left: 130%;
 }
 
 .btn--ghost {
@@ -484,6 +594,24 @@ body {
         0 16px 46px -18px rgba(16, 185, 129, 0.9),
         0 0 0 1px rgba(255, 255, 255, 0.12) inset;
     transform: translateY(-1px) scale(1.01);
+}
+/* Мягкое «дыхание» свечения, пока кнопка готова к запуску. */
+.btn--play:not(:disabled) {
+    animation: playPulse 3.2s ease-in-out infinite;
+}
+/* На наведении отдаём приоритет hover-тени, чтобы не было конфликта. */
+.btn--play:hover:not(:disabled) {
+    animation-play-state: paused;
+}
+
+@keyframes playPulse {
+    0%,
+    100% {
+        box-shadow: 0 12px 36px -20px rgba(16, 185, 129, 0.7);
+    }
+    50% {
+        box-shadow: 0 14px 44px -16px rgba(16, 185, 129, 0.95);
+    }
 }
 /* Световой блик пробегает по кнопке */
 .btn--play::after {
@@ -822,6 +950,14 @@ body {
     font-weight: 800;
     font-size: 18px;
     box-shadow: 0 6px 20px -6px rgba(124, 92, 255, 0.6);
+    transition:
+        transform var(--t-fast) cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow var(--t-mid);
+}
+
+.account--link:hover .account__avatar {
+    transform: scale(1.06) rotate(-2deg);
+    box-shadow: 0 8px 26px -6px rgba(124, 92, 255, 0.8);
 }
 
 .account__avatar--skin {
@@ -867,15 +1003,64 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 8px;
+    position: relative;
+}
+
+/* Светящаяся «платформа» под 3D-моделью — мягкое эллиптическое свечение,
+   которое чуть пульсирует, придавая модели ощущение, что она парит. */
+.hero__skin::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 44px;
+    width: 150px;
+    height: 34px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: radial-gradient(
+        ellipse at center,
+        rgba(124, 92, 255, 0.5) 0%,
+        transparent 70%
+    );
+    filter: blur(8px);
+    z-index: 0;
+    animation: platformGlow 4s ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes platformGlow {
+    0%,
+    100% {
+        opacity: 0.55;
+        transform: translateX(-50%) scale(1);
+    }
+    50% {
+        opacity: 0.85;
+        transform: translateX(-50%) scale(1.08);
+    }
 }
 
 .skin-viewer-3d {
     cursor: grab;
     filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.5));
+    position: relative;
+    z-index: 1;
+    animation: skinFloat 5s ease-in-out infinite;
+}
+
+@keyframes skinFloat {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-6px);
+    }
 }
 
 .skin-viewer-3d:active {
     cursor: grabbing;
+    animation-play-state: paused;
 }
 
 .hero__skin-btn {
@@ -914,6 +1099,37 @@ body {
     backdrop-filter: blur(20px) saturate(140%);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+    transition:
+        transform var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1),
+        box-shadow var(--t-mid),
+        border-color var(--t-mid);
+}
+
+/* Тонкая акцентная линия сверху карточки, проявляется на наведении. */
+.hero__card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-grad);
+    opacity: 0;
+    transition: opacity var(--t-mid);
+}
+
+.hero__card:hover {
+    transform: translateY(-3px);
+    border-color: var(--glass-border-strong);
+    box-shadow:
+        var(--shadow),
+        0 18px 50px -22px rgba(124, 92, 255, 0.55);
+}
+
+.hero__card:hover::before {
+    opacity: 1;
 }
 
 .hero__card h2 {
@@ -1076,6 +1292,7 @@ body {
 }
 
 .settings__nav-item {
+    position: relative;
     text-align: left;
     padding: 10px 14px;
     border-radius: var(--radius-sm);
@@ -1087,7 +1304,22 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        color var(--t-fast);
+        color var(--t-fast),
+        transform var(--t-fast);
+}
+
+/* Вертикальный акцентный «язычок» слева: вырастает у активного пункта. */
+.settings__nav-item::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    width: 3px;
+    height: 0;
+    border-radius: 99px;
+    background: var(--accent-grad);
+    transform: translateY(-50%);
+    transition: height var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .settings__nav-item:hover {
@@ -1095,9 +1327,17 @@ body {
     color: var(--text);
 }
 
+.settings__nav-item:active {
+    transform: scale(0.98);
+}
+
 .settings__nav-item--active {
     background: rgba(124, 92, 255, 0.16);
     color: var(--text);
+}
+
+.settings__nav-item--active::before {
+    height: 18px;
 }
 
 .settings__body {
@@ -1111,6 +1351,18 @@ body {
     max-width: 560px;
     width: 100%;
     margin: 0 auto;
+    animation: panelIn var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes panelIn {
+    from {
+        opacity: 0;
+        transform: translateX(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 /* Раздел «Аккаунт» в настройках. */
@@ -1310,6 +1562,10 @@ body {
     background: var(--accent-grad);
     color: #fff;
     box-shadow: 0 6px 18px -8px rgba(124, 92, 255, 0.7);
+}
+
+.tabs__tab:active {
+    transform: scale(0.97);
 }
 
 /* ============ Модальные окна ============ */

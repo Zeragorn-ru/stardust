@@ -65,7 +65,7 @@ export default function MainScreen({
   async function handlePlay() {
     setProgress({
       phase: "checking",
-      label: "Проверка сборки…",
+      label: "Готовим игру…",
       fraction: null,
     });
     try {
@@ -109,8 +109,8 @@ export default function MainScreen({
         </div>
       </header>
 
-      <section className="main__hero">
-        <div className="hero__skin">
+      <section className="main__hero stagger">
+        <div className="hero__skin stagger-item">
           <SkinViewer3D
             dataUrl={skin.dataUrl}
             model={skin.model}
@@ -125,12 +125,12 @@ export default function MainScreen({
             Сменить скин
           </button>
         </div>
-        <div className="hero__launch-card">
+        <div className="hero__launch-card stagger-item">
           <div className="hero__card">
-            <h2>Готов к игре</h2>
+            <h2>Всё готово к приключению</h2>
             <p className="muted">
-              Minecraft 1.21.1 + NeoForge. Лаунчер скачает недостающие файлы и
-              запустит клиент с твоим ником и UUID.
+              Нажми «Играть» — мы всё подготовим сами и запустим игру под твоим
+              именем. Ничего настраивать не нужно.
             </p>
           </div>
           <button
