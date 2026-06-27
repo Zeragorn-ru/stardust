@@ -38,6 +38,7 @@ export function AccountsView() {
   const [renaming, setRenaming] = useState<Account | null>(null);
   const [banning, setBanning] = useState<Account | null>(null);
   const [resettingPw, setResettingPw] = useState<Account | null>(null);
+  const [editingTg, setEditingTg] = useState<Account | null>(null);
   const [selfUuid, setSelfUuid] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -206,24 +207,18 @@ export function AccountsView() {
     }
   }
 
-  async function doUnlinkTelegram(account: Account) {
-    const ok = await confirm({
-      title: "Отвязать Telegram?",
-      body: `${account.username} потеряет привязку к Telegram. Привязать заново можно через бота.`,
-      confirmText: "Отвязать",
-      danger: true,
-    });
-    if (!ok) return;
+  async function doSetTelegram(account: Account, chatId: string | null) {
     setBusy(account.uuid);
     try {
-      replace(await api.unlinkTelegram(account.uuid));
-      toast.success("Telegram отвязан");
+      replace(await api.setTelegram(account.uuid, chatId));
+      toast.success(chatId ? "Telegram привязан" : "Telegram отвязан");
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Не удалось отвязать Telegram",
+        err instanceof ApiError ? err.message : "Не удалось изменить Telegram",
       );
     } finally {
       setBusy(null);
+      setEditingTg(null);
     }
   }
 
@@ -277,7 +272,11 @@ export function AccountsView() {
                   <tr key={a.uuid}>
                     <td>
                       <div className="cell-main">
-                        <SkinHead uuid={a.uuid} username={a.username} size={32} />
+                        <SkinHead
+                          uuid={a.uuid}
+                          username={a.username}
+                          size={32}
+                        />
                         <strong>{a.username}</strong>
                         {isSelf && <span className="badge">вы</span>}
                         {a.banned && (
@@ -335,16 +334,14 @@ export function AccountsView() {
                       >
                         <IconKey size={15} />
                       </button>
-                      {a.telegramLinked && (
-                        <button
-                          className="icon-only"
-                          title="Отвязать Telegram"
-                          disabled={busy === a.uuid}
-                          onClick={() => doUnlinkTelegram(a)}
-                        >
-                          <IconTelegram size={15} />
-                        </button>
-                      )}
+                      <button
+                        className="icon-only"
+                        title="Telegram"
+                        disabled={busy === a.uuid}
+                        onClick={() => setEditingTg(a)}
+                      >
+                        <IconTelegram size={15} />
+                      </button>
                       {a.isAdmin ? (
                         <button
                           className="icon-only"
@@ -422,6 +419,14 @@ export function AccountsView() {
           busy={busy === resettingPw.uuid}
           onCancel={() => setResettingPw(null)}
           onSubmit={(pw) => doResetPassword(resettingPw, pw)}
+        />
+      )}
+      {editingTg && (
+        <TelegramDialog
+          account={editingTg}
+          busy={busy === editingTg.uuid}
+          onCancel={() => setEditingTg(null)}
+          onSubmit={(chatId) => doSetTelegram(editingTg, chatId)}
         />
       )}
     </div>
@@ -637,9 +642,7 @@ function PasswordDialog({
             }}
           />
         </label>
-        {tooShort && (
-          <p className="muted">Минимум {MIN_PASSWORD} символов.</p>
-        )}
+        {tooShort && <p className="muted">Минимум {MIN_PASSWORD} символов.</p>}
         {mismatch && <p className="muted">Пароли не совпадают.</p>}
         <div className="modal-actions">
           <button onClick={onCancel}>Отмена</button>
@@ -649,6 +652,73 @@ function PasswordDialog({
             onClick={() => onSubmit(value)}
           >
             Сбросить пароль
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TelegramDialog({
+  account,
+  busy,
+  onCancel,
+  onSubmit,
+}: {
+  account: Account;
+  busy: boolean;
+  onCancel: () => void;
+  onSubmit: (chatId: string | null) => void;
+}) {
+  const [value, setValue] = useState(account.telegramChatId ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useBodyScrollLock();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  const trimmed = value.trim();
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Telegram</h3>
+        <p className="muted">
+          Chat ID для <strong>{account.username}</strong>. Оставьте пустым,
+          чтобы отвязать.
+        </p>
+        <label className="fm-prompt-field">
+          <span className="muted">Telegram chat ID</span>
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="например: 123456789"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !busy) onSubmit(trimmed || null);
+            }}
+          />
+        </label>
+        <div className="modal-actions">
+          <button onClick={onCancel}>Отмена</button>
+          <button
+            className={trimmed ? "primary" : "danger"}
+            disabled={busy}
+            onClick={() => onSubmit(trimmed || null)}
+          >
+            {trimmed ? "Сохранить" : "Отвязать"}
           </button>
         </div>
       </div>

@@ -22,7 +22,10 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
-use store::{NewBuild, Role, Store, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME};
+use store::{
+    NewBuild, Role, Store, SETTING_PANEL_API_KEY, SETTING_PANEL_SERVER_ID, SETTING_PANEL_URL,
+    SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
+};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tokio::sync::Mutex;
@@ -136,7 +139,7 @@ async fn main() {
         .route("/api/accounts/:uuid/password", post(set_account_password))
         .route(
             "/api/accounts/:uuid/telegram",
-            axum::routing::delete(unlink_account_telegram),
+            axum::routing::delete(unlink_account_telegram).put(set_account_telegram),
         )
         .route("/api/accounts/:uuid/skin", get(account_skin))
         // --- Публичное для лаунчера ---
@@ -304,8 +307,20 @@ struct SettingsDto {
     #[serde(rename = "telegramTokenSet")]
     telegram_token_set: bool,
     /// Закэшированный username бота (`@name`), если бот уже представился.
-    #[serde(rename = "telegramBotUsername", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "telegramBotUsername",
+        skip_serializing_if = "Option::is_none"
+    )]
     telegram_bot_username: Option<String>,
+    /// Базовый URL Calagopus Panel.
+    #[serde(rename = "panelUrl", skip_serializing_if = "Option::is_none")]
+    panel_url: Option<String>,
+    /// Установлен ли API-ключ панели (сам ключ наружу не отдаём).
+    #[serde(rename = "panelApiKeySet")]
+    panel_api_key_set: bool,
+    /// ID сервера на панели.
+    #[serde(rename = "panelServerId", skip_serializing_if = "Option::is_none")]
+    panel_server_id: Option<String>,
 }
 
 async fn get_settings(
@@ -323,18 +338,52 @@ async fn get_settings(
         .get_setting(SETTING_TELEGRAM_USERNAME)
         .await
         .map_err(internal)?;
+    let panel_url = state
+        .store
+        .get_setting(SETTING_PANEL_URL)
+        .await
+        .map_err(internal)?;
+    let panel_api_key = state
+        .store
+        .get_setting(SETTING_PANEL_API_KEY)
+        .await
+        .map_err(internal)?;
+    let panel_server_id = state
+        .store
+        .get_setting(SETTING_PANEL_SERVER_ID)
+        .await
+        .map_err(internal)?;
     Ok(Json(SettingsDto {
         telegram_token_set: token.map(|t| !t.trim().is_empty()).unwrap_or(false),
         telegram_bot_username: username.filter(|u| !u.trim().is_empty()),
+        panel_url: panel_url.filter(|s| !s.trim().is_empty()),
+        panel_api_key_set: panel_api_key.map(|k| !k.trim().is_empty()).unwrap_or(false),
+        panel_server_id: panel_server_id.filter(|s| !s.trim().is_empty()),
     }))
 }
 
 #[derive(Deserialize)]
 struct UpdateSettingsRequest {
-    /// Новый токен бота. `Some("")` — очистить (отключить бота), `None` —
-    /// не трогать. Любое непустое значение перезаписывает токен.
-    #[serde(rename = "telegramToken", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "telegramToken",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     telegram_token: Option<String>,
+    #[serde(rename = "panelUrl", default, skip_serializing_if = "Option::is_none")]
+    panel_url: Option<String>,
+    #[serde(
+        rename = "panelApiKey",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    panel_api_key: Option<String>,
+    #[serde(
+        rename = "panelServerId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    panel_server_id: Option<String>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -377,6 +426,56 @@ async fn update_settings(
         }
     }
 
+    // Панель: panelUrl, panelApiKey, panelServerId (пустая строка = удалить).
+    if let Some(v) = req.panel_url {
+        let v = v.trim();
+        if v.is_empty() {
+            state
+                .store
+                .delete_setting(SETTING_PANEL_URL)
+                .await
+                .map_err(internal)?;
+        } else {
+            state
+                .store
+                .set_setting(SETTING_PANEL_URL, v)
+                .await
+                .map_err(internal)?;
+        }
+    }
+    if let Some(v) = req.panel_api_key {
+        let v = v.trim();
+        if v.is_empty() {
+            state
+                .store
+                .delete_setting(SETTING_PANEL_API_KEY)
+                .await
+                .map_err(internal)?;
+        } else {
+            state
+                .store
+                .set_setting(SETTING_PANEL_API_KEY, v)
+                .await
+                .map_err(internal)?;
+        }
+    }
+    if let Some(v) = req.panel_server_id {
+        let v = v.trim();
+        if v.is_empty() {
+            state
+                .store
+                .delete_setting(SETTING_PANEL_SERVER_ID)
+                .await
+                .map_err(internal)?;
+        } else {
+            state
+                .store
+                .set_setting(SETTING_PANEL_SERVER_ID, v)
+                .await
+                .map_err(internal)?;
+        }
+    }
+
     let token = state
         .store
         .get_setting(SETTING_TELEGRAM_TOKEN)
@@ -387,9 +486,27 @@ async fn update_settings(
         .get_setting(SETTING_TELEGRAM_USERNAME)
         .await
         .map_err(internal)?;
+    let panel_url = state
+        .store
+        .get_setting(SETTING_PANEL_URL)
+        .await
+        .map_err(internal)?;
+    let panel_api_key = state
+        .store
+        .get_setting(SETTING_PANEL_API_KEY)
+        .await
+        .map_err(internal)?;
+    let panel_server_id = state
+        .store
+        .get_setting(SETTING_PANEL_SERVER_ID)
+        .await
+        .map_err(internal)?;
     Ok(Json(SettingsDto {
         telegram_token_set: token.map(|t| !t.trim().is_empty()).unwrap_or(false),
         telegram_bot_username: username.filter(|u| !u.trim().is_empty()),
+        panel_url: panel_url.filter(|s| !s.trim().is_empty()),
+        panel_api_key_set: panel_api_key.map(|k| !k.trim().is_empty()).unwrap_or(false),
+        panel_server_id: panel_server_id.filter(|s| !s.trim().is_empty()),
     }))
 }
 
@@ -987,9 +1104,7 @@ async fn set_account_role(
             ))
         }
     };
-    if role == Role::User
-        && normalize_for_compare(&admin.uuid) == normalize_for_compare(&uuid)
-    {
+    if role == Role::User && normalize_for_compare(&admin.uuid) == normalize_for_compare(&uuid) {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Нельзя снять права администратора с самого себя",
@@ -1045,6 +1160,31 @@ async fn unlink_account_telegram(
     state
         .store
         .set_telegram(&uuid, None)
+        .await
+        .map_err(map_store)?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    Ok(Json(AccountDto::from(account)))
+}
+
+#[derive(Deserialize)]
+struct SetTelegramRequest {
+    chat_id: Option<String>,
+}
+
+async fn set_account_telegram(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(req): Json<SetTelegramRequest>,
+) -> Result<Json<AccountDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    state
+        .store
+        .set_telegram(&uuid, req.chat_id.as_deref())
         .await
         .map_err(map_store)?;
     let account = state

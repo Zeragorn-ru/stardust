@@ -16,6 +16,13 @@ pub const SETTING_TELEGRAM_TOKEN: &str = "telegram_bot_token";
 /// Ключ настройки: закэшированный username бота (`@name`), для UI и deep-link.
 pub const SETTING_TELEGRAM_USERNAME: &str = "telegram_bot_username";
 
+/// Ключ настройки: базовый URL Calagopus Panel.
+pub const SETTING_PANEL_URL: &str = "panel_url";
+/// Ключ настройки: Application API key панели (секрет, наружу не отдаём).
+pub const SETTING_PANEL_API_KEY: &str = "panel_api_key";
+/// Ключ настройки: UUID/ID сервера на панели.
+pub const SETTING_PANEL_SERVER_ID: &str = "panel_server_id";
+
 /// Время жизни кода привязки Telegram.
 const LINK_TTL: Duration = Duration::minutes(15);
 /// Время жизни кода 2FA.
@@ -192,24 +199,22 @@ impl Store {
             .execute(&self.pool)
             .await?;
 
-        let username: String =
-            sqlx::query_scalar("SELECT username FROM accounts WHERE uuid = $1")
-                .bind(&account_uuid)
-                .fetch_one(&self.pool)
-                .await?;
+        let username: String = sqlx::query_scalar("SELECT username FROM accounts WHERE uuid = $1")
+            .bind(&account_uuid)
+            .fetch_one(&self.pool)
+            .await?;
         Ok(username)
     }
 
     /// Отвязывает Telegram от аккаунта по chat_id (команда `/unlink` в боте).
     /// Возвращает true, если что-то было отвязано.
     pub async fn unlink_telegram_by_chat(&self, chat_id: &str) -> Result<bool, StoreError> {
-        let changed = sqlx::query(
-            "UPDATE accounts SET telegram_chat_id = NULL WHERE telegram_chat_id = $1",
-        )
-        .bind(chat_id)
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+        let changed =
+            sqlx::query("UPDATE accounts SET telegram_chat_id = NULL WHERE telegram_chat_id = $1")
+                .bind(chat_id)
+                .execute(&self.pool)
+                .await?
+                .rows_affected();
         Ok(changed > 0)
     }
 
@@ -227,12 +232,11 @@ impl Store {
         purpose: &str,
     ) -> Result<Option<String>, StoreError> {
         let uuid = normalize_uuid(uuid);
-        let row: Option<(Option<String>, String)> = sqlx::query_as(
-            "SELECT telegram_chat_id, username FROM accounts WHERE uuid = $1",
-        )
-        .bind(&uuid)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(Option<String>, String)> =
+            sqlx::query_as("SELECT telegram_chat_id, username FROM accounts WHERE uuid = $1")
+                .bind(&uuid)
+                .fetch_optional(&self.pool)
+                .await?;
         let Some((Some(chat_id), username)) = row else {
             return Ok(None);
         };
@@ -350,10 +354,12 @@ impl Store {
         }
 
         if !crate::constant_time_eq(code.trim().as_bytes(), expected.as_bytes()) {
-            sqlx::query("UPDATE telegram_2fa_codes SET attempts = attempts + 1 WHERE challenge = $1")
-                .bind(challenge)
-                .execute(&self.pool)
-                .await?;
+            sqlx::query(
+                "UPDATE telegram_2fa_codes SET attempts = attempts + 1 WHERE challenge = $1",
+            )
+            .bind(challenge)
+            .execute(&self.pool)
+            .await?;
             return Err(StoreError::BadPassword);
         }
 
@@ -564,7 +570,10 @@ impl Store {
     /// Находит UUID аккаунта по нику, если у него привязан Telegram. Используется
     /// для входа без пароля и сброса пароля (по нику). `None` — нет такого
     /// аккаунта или у него не привязан Telegram (не раскрываем, что именно).
-    pub async fn uuid_for_telegram_login(&self, username: &str) -> Result<Option<String>, StoreError> {
+    pub async fn uuid_for_telegram_login(
+        &self,
+        username: &str,
+    ) -> Result<Option<String>, StoreError> {
         let key = username.trim().to_lowercase();
         let uuid: Option<String> = sqlx::query_scalar(
             "SELECT uuid FROM accounts
@@ -656,12 +665,10 @@ impl Store {
 
     /// Помечает сообщение как успешно отправленное.
     pub async fn mark_message_sent(&self, id: i64) -> Result<(), StoreError> {
-        sqlx::query(
-            "UPDATE telegram_outbox SET status = 'sent', sent_at = now() WHERE id = $1",
-        )
-        .bind(id)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("UPDATE telegram_outbox SET status = 'sent', sent_at = now() WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 

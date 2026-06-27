@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Settings } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
-import { IconDownload, IconKey, IconTelegram } from "../ui/icons";
+import { IconDownload, IconKey, IconSettings, IconTelegram } from "../ui/icons";
 
 export function SettingsView() {
   const toast = useToast();
@@ -12,12 +12,23 @@ export function SettingsView() {
   const [token, setTokenValue] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Panel fields
+  const [panelUrl, setPanelUrl] = useState("");
+  const [panelApiKey, setPanelApiKey] = useState("");
+  const [panelServerId, setPanelServerId] = useState("");
+  const [savingPanel, setSavingPanel] = useState(false);
+
   const load = useCallback(async () => {
     try {
-      setSettings(await api.getSettings());
+      const s = await api.getSettings();
+      setSettings(s);
+      setPanelUrl(s.panelUrl ?? "");
+      setPanelServerId(s.panelServerId ?? "");
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Не удалось загрузить настройки",
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось загрузить настройки",
       );
     } finally {
       setLoading(false);
@@ -66,6 +77,35 @@ export function SettingsView() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function savePanel() {
+    setSavingPanel(true);
+    try {
+      const patch: {
+        panelUrl?: string;
+        panelApiKey?: string;
+        panelServerId?: string;
+      } = {
+        panelUrl,
+        panelServerId,
+      };
+      if (panelApiKey.trim()) patch.panelApiKey = panelApiKey.trim();
+      const next = await api.saveSettings(patch);
+      setSettings(next);
+      setPanelUrl(next.panelUrl ?? "");
+      setPanelServerId(next.panelServerId ?? "");
+      setPanelApiKey("");
+      toast.success("Настройки панели сохранены");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось сохранить настройки панели",
+      );
+    } finally {
+      setSavingPanel(false);
     }
   }
 
@@ -124,7 +164,8 @@ export function SettingsView() {
                   value={token}
                   onChange={(e) => setTokenValue(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && token.trim() && !saving) saveToken();
+                    if (e.key === "Enter" && token.trim() && !saving)
+                      saveToken();
                   }}
                 />
               </label>
@@ -145,6 +186,80 @@ export function SettingsView() {
                   onClick={saveToken}
                 >
                   Сохранить токен
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+
+        <section className="panel settings-card">
+          <div className="settings-card-head">
+            <IconSettings />
+            <div>
+              <h2>Minecraft-сервер</h2>
+              <p className="muted">
+                Подключение к Calagopus Panel для управления сервером.
+              </p>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="muted">
+              <span className="spinner" />
+              Загрузка…
+            </p>
+          ) : (
+            <>
+              <div className="settings-status">
+                {settings?.panelApiKeySet ? (
+                  <span className="badge admin">API-ключ установлен</span>
+                ) : (
+                  <span className="badge">не настроено</span>
+                )}
+              </div>
+
+              <label className="fm-prompt-field">
+                <span className="muted">URL панели</span>
+                <input
+                  type="text"
+                  placeholder="https://panel.example.com"
+                  value={panelUrl}
+                  onChange={(e) => setPanelUrl(e.target.value)}
+                />
+              </label>
+
+              <label className="fm-prompt-field">
+                <span className="muted">
+                  {settings?.panelApiKeySet
+                    ? "API-ключ (оставьте пустым, чтобы не менять)"
+                    : "API-ключ"}
+                </span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  placeholder="ptla_…"
+                  value={panelApiKey}
+                  onChange={(e) => setPanelApiKey(e.target.value)}
+                />
+              </label>
+
+              <label className="fm-prompt-field">
+                <span className="muted">ID сервера</span>
+                <input
+                  type="text"
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                  value={panelServerId}
+                  onChange={(e) => setPanelServerId(e.target.value)}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button
+                  className="primary"
+                  disabled={savingPanel}
+                  onClick={savePanel}
+                >
+                  Сохранить
                 </button>
               </div>
             </>

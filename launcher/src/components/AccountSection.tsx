@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import type { AccountInfo, PlayerProfile, TelegramLinkResponse } from "../types";
+import type {
+  AccountInfo,
+  PlayerProfile,
+  TelegramLinkResponse,
+} from "../types";
 import {
   accountInfo,
   changePassword,
@@ -222,8 +226,7 @@ export default function AccountSection({
           <span className="muted">Telegram 2FA</span>
           <span
             className={
-              "badge " +
-              (info?.telegramLinked ? "badge--ok" : "badge--muted")
+              "badge " + (info?.telegramLinked ? "badge--ok" : "badge--muted")
             }
           >
             {info?.telegramLinked ? "привязан" : "не привязан"}
@@ -323,7 +326,6 @@ export default function AccountSection({
                 Открыть Telegram
               </button>
             ) : null}
-            <code className="info-card__path">/start {tgLink.code}</code>
             {tgErr && <p className="form-msg form-msg--error">{tgErr}</p>}
           </>
         ) : (

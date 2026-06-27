@@ -81,7 +81,18 @@ function Shell({
   username: string | null;
   onLogout: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("builds");
+  const [tab, setTab] = useState<Tab>(() => {
+    const saved = localStorage.getItem("admin.tab");
+    return saved === "builds" || saved === "accounts" || saved === "settings"
+      ? saved
+      : "builds";
+  });
+
+  // Сохраняем активную вкладку, чтобы при обновлении страницы не кидало
+  // обратно на «Сборки».
+  useEffect(() => {
+    localStorage.setItem("admin.tab", tab);
+  }, [tab]);
 
   const navItems: { id: Tab; label: string; icon: ReactNode }[] = [
     { id: "builds", label: "Сборки", icon: <IconBox /> },

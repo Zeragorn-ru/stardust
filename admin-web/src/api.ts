@@ -241,6 +241,13 @@ export const api = {
     return request("DELETE", `/api/accounts/${uuid}/telegram`);
   },
 
+  // Вручную задать или очистить Telegram chat_id у аккаунта.
+  setTelegram(uuid: string, chatId: string | null): Promise<Account> {
+    return request("PUT", `/api/accounts/${uuid}/telegram`, {
+      chat_id: chatId,
+    });
+  },
+
   getSettings(): Promise<Settings> {
     return request("GET", "/api/settings");
   },
@@ -248,6 +255,15 @@ export const api = {
   // Сохранить токен бота. Пустая строка отключает бота.
   setTelegramToken(telegramToken: string): Promise<Settings> {
     return request("PUT", "/api/settings", { telegramToken });
+  },
+
+  saveSettings(patch: {
+    telegramToken?: string;
+    panelUrl?: string;
+    panelApiKey?: string;
+    panelServerId?: string;
+  }): Promise<Settings> {
+    return request("PUT", "/api/settings", patch);
   },
 
   // Скин аккаунта тянем PNG-ом с bearer-токеном и отдаём как object URL
