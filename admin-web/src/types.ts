@@ -45,9 +45,9 @@ export interface Account {
 export interface Settings {
   telegramTokenSet: boolean;
   telegramBotUsername?: string;
-  panelUrl?: string;
-  panelApiKeySet: boolean;
-  panelServerId?: string;
+  sftpHost?: string;
+  sftpUsername?: string;
+  sftpPasswordSet: boolean;
 }
 
 export interface CreateBuildInput {

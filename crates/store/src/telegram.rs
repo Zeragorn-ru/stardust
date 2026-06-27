@@ -16,12 +16,12 @@ pub const SETTING_TELEGRAM_TOKEN: &str = "telegram_bot_token";
 /// Ключ настройки: закэшированный username бота (`@name`), для UI и deep-link.
 pub const SETTING_TELEGRAM_USERNAME: &str = "telegram_bot_username";
 
-/// Ключ настройки: базовый URL Calagopus Panel.
-pub const SETTING_PANEL_URL: &str = "panel_url";
-/// Ключ настройки: Application API key панели (секрет, наружу не отдаём).
-pub const SETTING_PANEL_API_KEY: &str = "panel_api_key";
-/// Ключ настройки: UUID/ID сервера на панели.
-pub const SETTING_PANEL_SERVER_ID: &str = "panel_server_id";
+/// Ключ настройки: SFTP-хост сервера (`host` или `host:port`).
+pub const SETTING_SFTP_HOST: &str = "sftp_host";
+/// Ключ настройки: SFTP-логин.
+pub const SETTING_SFTP_USERNAME: &str = "sftp_username";
+/// Ключ настройки: SFTP-пароль (секрет, наружу не отдаём).
+pub const SETTING_SFTP_PASSWORD: &str = "sftp_password";
 
 /// Время жизни кода привязки Telegram.
 const LINK_TTL: Duration = Duration::minutes(15);

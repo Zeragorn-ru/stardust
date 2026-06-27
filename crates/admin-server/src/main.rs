@@ -23,7 +23,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
-    NewBuild, Role, Store, SETTING_PANEL_API_KEY, SETTING_PANEL_SERVER_ID, SETTING_PANEL_URL,
+    NewBuild, Role, Store, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_USERNAME,
     SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;
@@ -313,22 +313,18 @@ struct SettingsDto {
         skip_serializing_if = "Option::is_none"
     )]
     telegram_bot_username: Option<String>,
-    /// Базовый URL Calagopus Panel.
-    #[serde(rename = "panelUrl", skip_serializing_if = "Option::is_none")]
-    panel_url: Option<String>,
-    /// Установлен ли API-ключ панели (сам ключ наружу не отдаём).
-    #[serde(rename = "panelApiKeySet")]
-    panel_api_key_set: bool,
-    /// ID сервера на панели.
-    #[serde(rename = "panelServerId", skip_serializing_if = "Option::is_none")]
-    panel_server_id: Option<String>,
+    /// SFTP-хост сервера (`host` или `host:port`).
+    #[serde(rename = "sftpHost", skip_serializing_if = "Option::is_none")]
+    sftp_host: Option<String>,
+    /// SFTP-логин.
+    #[serde(rename = "sftpUsername", skip_serializing_if = "Option::is_none")]
+    sftp_username: Option<String>,
+    /// Установлен ли SFTP-пароль (сам пароль наружу не отдаём).
+    #[serde(rename = "sftpPasswordSet")]
+    sftp_password_set: bool,
 }
 
-async fn get_settings(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-) -> Result<Json<SettingsDto>, ApiError> {
-    require_admin(&state, &headers).await?;
+async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
     let token = state
         .store
         .get_setting(SETTING_TELEGRAM_TOKEN)
@@ -339,28 +335,36 @@ async fn get_settings(
         .get_setting(SETTING_TELEGRAM_USERNAME)
         .await
         .map_err(internal)?;
-    let panel_url = state
+    let sftp_host = state
         .store
-        .get_setting(SETTING_PANEL_URL)
+        .get_setting(SETTING_SFTP_HOST)
         .await
         .map_err(internal)?;
-    let panel_api_key = state
+    let sftp_username = state
         .store
-        .get_setting(SETTING_PANEL_API_KEY)
+        .get_setting(SETTING_SFTP_USERNAME)
         .await
         .map_err(internal)?;
-    let panel_server_id = state
+    let sftp_password = state
         .store
-        .get_setting(SETTING_PANEL_SERVER_ID)
+        .get_setting(SETTING_SFTP_PASSWORD)
         .await
         .map_err(internal)?;
-    Ok(Json(SettingsDto {
+    Ok(SettingsDto {
         telegram_token_set: token.map(|t| !t.trim().is_empty()).unwrap_or(false),
         telegram_bot_username: username.filter(|u| !u.trim().is_empty()),
-        panel_url: panel_url.filter(|s| !s.trim().is_empty()),
-        panel_api_key_set: panel_api_key.map(|k| !k.trim().is_empty()).unwrap_or(false),
-        panel_server_id: panel_server_id.filter(|s| !s.trim().is_empty()),
-    }))
+        sftp_host: sftp_host.filter(|s| !s.trim().is_empty()),
+        sftp_username: sftp_username.filter(|s| !s.trim().is_empty()),
+        sftp_password_set: sftp_password.map(|p| !p.trim().is_empty()).unwrap_or(false),
+    })
+}
+
+async fn get_settings(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<SettingsDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    Ok(Json(load_settings_dto(&state).await?))
 }
 
 #[derive(Deserialize)]
@@ -371,20 +375,20 @@ struct UpdateSettingsRequest {
         skip_serializing_if = "Option::is_none"
     )]
     telegram_token: Option<String>,
-    #[serde(rename = "panelUrl", default, skip_serializing_if = "Option::is_none")]
-    panel_url: Option<String>,
+    #[serde(rename = "sftpHost", default, skip_serializing_if = "Option::is_none")]
+    sftp_host: Option<String>,
     #[serde(
-        rename = "panelApiKey",
+        rename = "sftpUsername",
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    panel_api_key: Option<String>,
+    sftp_username: Option<String>,
     #[serde(
-        rename = "panelServerId",
+        rename = "sftpPassword",
         default,
         skip_serializing_if = "Option::is_none"
     )]
-    panel_server_id: Option<String>,
+    sftp_password: Option<String>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -427,88 +431,57 @@ async fn update_settings(
         }
     }
 
-    // Панель: panelUrl, panelApiKey, panelServerId (пустая строка = удалить).
-    if let Some(v) = req.panel_url {
+    // SFTP: sftpHost, sftpUsername, sftpPassword (пустая строка = удалить).
+    if let Some(v) = req.sftp_host {
         let v = v.trim();
         if v.is_empty() {
             state
                 .store
-                .delete_setting(SETTING_PANEL_URL)
+                .delete_setting(SETTING_SFTP_HOST)
                 .await
                 .map_err(internal)?;
         } else {
             state
                 .store
-                .set_setting(SETTING_PANEL_URL, v)
+                .set_setting(SETTING_SFTP_HOST, v)
                 .await
                 .map_err(internal)?;
         }
     }
-    if let Some(v) = req.panel_api_key {
+    if let Some(v) = req.sftp_username {
         let v = v.trim();
         if v.is_empty() {
             state
                 .store
-                .delete_setting(SETTING_PANEL_API_KEY)
+                .delete_setting(SETTING_SFTP_USERNAME)
                 .await
                 .map_err(internal)?;
         } else {
             state
                 .store
-                .set_setting(SETTING_PANEL_API_KEY, v)
+                .set_setting(SETTING_SFTP_USERNAME, v)
                 .await
                 .map_err(internal)?;
         }
     }
-    if let Some(v) = req.panel_server_id {
+    if let Some(v) = req.sftp_password {
         let v = v.trim();
         if v.is_empty() {
             state
                 .store
-                .delete_setting(SETTING_PANEL_SERVER_ID)
+                .delete_setting(SETTING_SFTP_PASSWORD)
                 .await
                 .map_err(internal)?;
         } else {
             state
                 .store
-                .set_setting(SETTING_PANEL_SERVER_ID, v)
+                .set_setting(SETTING_SFTP_PASSWORD, v)
                 .await
                 .map_err(internal)?;
         }
     }
 
-    let token = state
-        .store
-        .get_setting(SETTING_TELEGRAM_TOKEN)
-        .await
-        .map_err(internal)?;
-    let username = state
-        .store
-        .get_setting(SETTING_TELEGRAM_USERNAME)
-        .await
-        .map_err(internal)?;
-    let panel_url = state
-        .store
-        .get_setting(SETTING_PANEL_URL)
-        .await
-        .map_err(internal)?;
-    let panel_api_key = state
-        .store
-        .get_setting(SETTING_PANEL_API_KEY)
-        .await
-        .map_err(internal)?;
-    let panel_server_id = state
-        .store
-        .get_setting(SETTING_PANEL_SERVER_ID)
-        .await
-        .map_err(internal)?;
-    Ok(Json(SettingsDto {
-        telegram_token_set: token.map(|t| !t.trim().is_empty()).unwrap_or(false),
-        telegram_bot_username: username.filter(|u| !u.trim().is_empty()),
-        panel_url: panel_url.filter(|s| !s.trim().is_empty()),
-        panel_api_key_set: panel_api_key.map(|k| !k.trim().is_empty()).unwrap_or(false),
-        panel_server_id: panel_server_id.filter(|s| !s.trim().is_empty()),
-    }))
+    Ok(Json(load_settings_dto(&state).await?))
 }
 
 // ───────────────────────── Сборки ─────────────────────────
@@ -907,7 +880,7 @@ async fn delete_file(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ───────────────────────── Синхронизация с панелью ─────────────────────────
+// ───────────────────────── Синхронизация по SFTP ─────────────────────────
 
 #[derive(Serialize)]
 struct SyncResult {
@@ -915,34 +888,53 @@ struct SyncResult {
     skipped: usize,
 }
 
+/// SSH client handler. Принимаем ключ хоста без проверки: панель/игровой сервер
+/// задаётся администратором вручную, доверенный канал тут — ответственность
+/// оператора (как и с паролем). TODO: вынести known_hosts в настройки.
+struct SftpHandler;
+
+impl russh::client::Handler for SftpHandler {
+    type Error = russh::Error;
+
+    async fn check_server_key(
+        &mut self,
+        _key: &russh::keys::ssh_key::PublicKey,
+    ) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+}
+
 async fn sync_to_panel(
     State(state): State<Shared>,
     headers: HeaderMap,
     Path(build_id): Path<i64>,
 ) -> Result<Json<SyncResult>, ApiError> {
+    use russh_sftp::protocol::OpenFlags;
+    use tokio::io::AsyncWriteExt;
+
     require_admin(&state, &headers).await?;
 
-    let panel_url = state
+    let host = state
         .store
-        .get_setting(SETTING_PANEL_URL)
+        .get_setting(SETTING_SFTP_HOST)
         .await
         .map_err(internal)?
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "panelUrl не задан"))?;
-    let api_key = state
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpHost не задан"))?;
+    let username = state
         .store
-        .get_setting(SETTING_PANEL_API_KEY)
+        .get_setting(SETTING_SFTP_USERNAME)
         .await
         .map_err(internal)?
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "panelApiKey не задан"))?;
-    let server_id = state
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpUsername не задан"))?;
+    let password = state
         .store
-        .get_setting(SETTING_PANEL_SERVER_ID)
+        .get_setting(SETTING_SFTP_PASSWORD)
         .await
         .map_err(internal)?
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "panelServerId не задан"))?;
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpPassword не задан"))?;
 
     let build = state
         .store
@@ -951,60 +943,72 @@ async fn sync_to_panel(
         .map_err(internal)?
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "сборка не найдена"))?;
 
-    let panel_url = panel_url.trim_end_matches('/').to_string();
-    let auth = format!("Bearer {api_key}");
+    // host или host:port → нормализуем в (host, port).
+    let (host_part, port) = match host.rsplit_once(':') {
+        Some((h, p)) => match p.parse::<u16>() {
+            Ok(port) => (h.to_string(), port),
+            // двоеточие без числа (например, IPv6 без порта) — берём как есть.
+            Err(_) => (host.clone(), 22),
+        },
+        None => (host.clone(), 22),
+    };
+
+    // Устанавливаем SSH-сессию и аутентифицируемся паролем.
+    let config = Arc::new(russh::client::Config::default());
+    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler)
+        .await
+        .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
+    let auth = session
+        .authenticate_password(&username, &password)
+        .await
+        .map_err(|e| internal(format!("SSH-аутентификация: {e}")))?;
+    if !auth.success() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "SFTP-аутентификация не прошла: проверьте логин/пароль",
+        ));
+    }
+
+    let channel = session
+        .channel_open_session()
+        .await
+        .map_err(|e| internal(format!("открытие канала: {e}")))?;
+    channel
+        .request_subsystem(true, "sftp")
+        .await
+        .map_err(|e| internal(format!("запуск sftp-подсистемы: {e}")))?;
+    let sftp = russh_sftp::client::SftpSession::new(channel.into_stream())
+        .await
+        .map_err(|e| internal(format!("инициализация SFTP: {e}")))?;
 
     let mut uploaded = 0usize;
     let mut skipped = 0usize;
 
     for file in &build.files {
-        // Только серверные файлы (side = server | both)
+        // Только серверные файлы (side = server | both).
         if file.side != "server" && file.side != "both" {
             skipped += 1;
             continue;
         }
 
-        // Получаем одноразовый upload URL для нужной директории.
-        // path = "mods/sodium.jar" → directory = "/mods"
-        let directory = std::path::Path::new(&file.path)
-            .parent()
-            .and_then(|p| p.to_str())
-            .map(|s| format!("/{s}"))
-            .unwrap_or_else(|| "/".to_string());
-
-        let upload_url_resp = state
-            .http
-            .get(format!(
-                "{panel_url}/api/client/servers/{server_id}/files/upload"
-            ))
-            .query(&[("directory", &directory)])
-            .header("Authorization", &auth)
-            .header("Accept", "application/json")
-            .send()
-            .await
-            .map_err(|e| internal(format!("запрос upload URL: {e}")))?;
-
-        if !upload_url_resp.status().is_success() {
-            let status = upload_url_resp.status();
-            let body = upload_url_resp.text().await.unwrap_or_default();
-            return Err(internal(format!(
-                "панель вернула {status} при получении upload URL: {body}"
-            )));
+        // Целевой путь на сервере = относительный путь файла из сборки.
+        // Создаём родительские директории по цепочке.
+        let target = file.path.trim_start_matches('/').to_string();
+        if let Some(parent) = std::path::Path::new(&target).parent() {
+            let mut acc = String::new();
+            for comp in parent.components() {
+                let comp = comp.as_os_str().to_string_lossy();
+                if comp.is_empty() {
+                    continue;
+                }
+                if !acc.is_empty() {
+                    acc.push('/');
+                }
+                acc.push_str(&comp);
+                // Игнорируем ошибку «уже существует».
+                let _ = sftp.create_dir(&acc).await;
+            }
         }
-
-        #[derive(Deserialize)]
-        struct UploadUrlResponse {
-            attributes: UploadUrlAttrs,
-        }
-        #[derive(Deserialize)]
-        struct UploadUrlAttrs {
-            url: String,
-        }
-
-        let upload_url: UploadUrlResponse = upload_url_resp
-            .json()
-            .await
-            .map_err(|e| internal(format!("парсинг upload URL: {e}")))?;
 
         // Читаем файл с диска.
         let file_path = state.modpack_dir.join(&file.storage_key);
@@ -1012,37 +1016,29 @@ async fn sync_to_panel(
             .await
             .map_err(|e| internal(format!("чтение файла {}: {e}", file.path)))?;
 
-        let filename = std::path::Path::new(&file.path)
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("file")
-            .to_string();
-
-        let part = reqwest::multipart::Part::bytes(bytes)
-            .file_name(filename)
-            .mime_str("application/octet-stream")
-            .map_err(|e| internal(format!("mime: {e}")))?;
-        let form = reqwest::multipart::Form::new().part("files[]", part);
-
-        let resp = state
-            .http
-            .post(&upload_url.attributes.url)
-            .multipart(form)
-            .send()
+        let mut remote = sftp
+            .open_with_flags(
+                &target,
+                OpenFlags::CREATE | OpenFlags::WRITE | OpenFlags::TRUNCATE,
+            )
             .await
-            .map_err(|e| internal(format!("загрузка {}: {e}", file.path)))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(internal(format!(
-                "ошибка загрузки {}: {status} {body}",
-                file.path
-            )));
-        }
+            .map_err(|e| internal(format!("открытие {target} на сервере: {e}")))?;
+        remote
+            .write_all(&bytes)
+            .await
+            .map_err(|e| internal(format!("запись {target}: {e}")))?;
+        remote
+            .shutdown()
+            .await
+            .map_err(|e| internal(format!("закрытие {target}: {e}")))?;
 
         uploaded += 1;
     }
+
+    // Корректно завершаем SSH-сессию.
+    let _ = session
+        .disconnect(russh::Disconnect::ByApplication, "", "en")
+        .await;
 
     Ok(Json(SyncResult { uploaded, skipped }))
 }

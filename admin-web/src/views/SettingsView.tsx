@@ -12,18 +12,18 @@ export function SettingsView() {
   const [token, setTokenValue] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Panel fields
-  const [panelUrl, setPanelUrl] = useState("");
-  const [panelApiKey, setPanelApiKey] = useState("");
-  const [panelServerId, setPanelServerId] = useState("");
+  // SFTP fields
+  const [sftpHost, setSftpHost] = useState("");
+  const [sftpUsername, setSftpUsername] = useState("");
+  const [sftpPassword, setSftpPassword] = useState("");
   const [savingPanel, setSavingPanel] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const s = await api.getSettings();
       setSettings(s);
-      setPanelUrl(s.panelUrl ?? "");
-      setPanelServerId(s.panelServerId ?? "");
+      setSftpHost(s.sftpHost ?? "");
+      setSftpUsername(s.sftpUsername ?? "");
     } catch (err) {
       toast.error(
         err instanceof ApiError
@@ -84,25 +84,25 @@ export function SettingsView() {
     setSavingPanel(true);
     try {
       const patch: {
-        panelUrl?: string;
-        panelApiKey?: string;
-        panelServerId?: string;
+        sftpHost?: string;
+        sftpUsername?: string;
+        sftpPassword?: string;
       } = {
-        panelUrl,
-        panelServerId,
+        sftpHost,
+        sftpUsername,
       };
-      if (panelApiKey.trim()) patch.panelApiKey = panelApiKey.trim();
+      if (sftpPassword.trim()) patch.sftpPassword = sftpPassword.trim();
       const next = await api.saveSettings(patch);
       setSettings(next);
-      setPanelUrl(next.panelUrl ?? "");
-      setPanelServerId(next.panelServerId ?? "");
-      setPanelApiKey("");
-      toast.success("Настройки панели сохранены");
+      setSftpHost(next.sftpHost ?? "");
+      setSftpUsername(next.sftpUsername ?? "");
+      setSftpPassword("");
+      toast.success("Настройки SFTP сохранены");
     } catch (err) {
       toast.error(
         err instanceof ApiError
           ? err.message
-          : "Не удалось сохранить настройки панели",
+          : "Не удалось сохранить настройки SFTP",
       );
     } finally {
       setSavingPanel(false);
@@ -198,7 +198,7 @@ export function SettingsView() {
             <div>
               <h2>Minecraft-сервер</h2>
               <p className="muted">
-                Подключение к Calagopus Panel для управления сервером.
+                Подключение по SFTP для загрузки файлов сборки на сервер.
               </p>
             </div>
           </div>
@@ -211,45 +211,46 @@ export function SettingsView() {
           ) : (
             <>
               <div className="settings-status">
-                {settings?.panelApiKeySet ? (
-                  <span className="badge admin">API-ключ установлен</span>
+                {settings?.sftpPasswordSet ? (
+                  <span className="badge admin">пароль установлен</span>
                 ) : (
                   <span className="badge">не настроено</span>
                 )}
               </div>
 
               <label className="fm-prompt-field">
-                <span className="muted">URL панели</span>
+                <span className="muted">Хост (host или host:port)</span>
                 <input
                   type="text"
-                  placeholder="https://panel.example.com"
-                  value={panelUrl}
-                  onChange={(e) => setPanelUrl(e.target.value)}
+                  placeholder="mc.example.com:2022"
+                  value={sftpHost}
+                  onChange={(e) => setSftpHost(e.target.value)}
+                />
+              </label>
+
+              <label className="fm-prompt-field">
+                <span className="muted">Логин</span>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  placeholder="user"
+                  value={sftpUsername}
+                  onChange={(e) => setSftpUsername(e.target.value)}
                 />
               </label>
 
               <label className="fm-prompt-field">
                 <span className="muted">
-                  {settings?.panelApiKeySet
-                    ? "API-ключ (оставьте пустым, чтобы не менять)"
-                    : "API-ключ"}
+                  {settings?.sftpPasswordSet
+                    ? "Пароль (оставьте пустым, чтобы не менять)"
+                    : "Пароль"}
                 </span>
                 <input
                   type="password"
                   autoComplete="off"
-                  placeholder="ptla_…"
-                  value={panelApiKey}
-                  onChange={(e) => setPanelApiKey(e.target.value)}
-                />
-              </label>
-
-              <label className="fm-prompt-field">
-                <span className="muted">ID сервера</span>
-                <input
-                  type="text"
-                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                  value={panelServerId}
-                  onChange={(e) => setPanelServerId(e.target.value)}
+                  placeholder="••••••••"
+                  value={sftpPassword}
+                  onChange={(e) => setSftpPassword(e.target.value)}
                 />
               </label>
 

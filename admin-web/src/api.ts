@@ -253,9 +253,9 @@ export const api = {
 
   saveSettings(patch: {
     telegramToken?: string;
-    panelUrl?: string;
-    panelApiKey?: string;
-    panelServerId?: string;
+    sftpHost?: string;
+    sftpUsername?: string;
+    sftpPassword?: string;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
   },

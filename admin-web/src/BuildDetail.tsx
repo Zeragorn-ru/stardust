@@ -103,10 +103,10 @@ export function BuildDetail({
               className="secondary icon-btn"
               disabled={syncing}
               onClick={syncToPanel}
-              title="Загрузить серверные файлы сборки на панель"
+              title="Загрузить серверные файлы сборки на сервер по SFTP"
             >
               <IconSync size={15} />
-              {syncing ? "Синхронизация…" : "Синхр. с панелью"}
+              {syncing ? "Синхронизация…" : "Синхр. по SFTP"}
             </button>
           </div>
         </div>
