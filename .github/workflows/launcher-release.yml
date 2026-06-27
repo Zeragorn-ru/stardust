@@ -69,11 +69,14 @@ jobs:
         working-directory: launcher
         run: npm ci
 
-      # Создаём релиз заранее, с ретраем. GITHUB_TOKEN иногда отдаётся
-      # на свежий тег ещё с read-доступом (транзиентный 403 на create-release
-      # у tauri-action) — повторная попытка через паузу это лечит. Дальше
-      # tauri-action находит готовый релиз и только заливает ассеты.
-      - name: Ensure release exists
+      # Создаём релиз заранее как ЧЕРНОВИК, с ретраем. GITHUB_TOKEN иногда
+      # отдаётся на свежий тег ещё с read-доступом (транзиентный 403 на
+      # create-release у tauri-action) — повторная попытка через паузу это
+      # лечит. Черновик не виден пользователям, поэтому пустой релиз не
+      # «висит» на странице релизов, пока идёт сборка. Дальше tauri-action
+      # находит готовый черновик, заливает ассеты и снимает черновик
+      # (releaseDraft: false), так что публикуется только готовый релиз.
+      - name: Ensure draft release exists
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         env:
@@ -84,8 +87,8 @@ jobs:
             if gh release view "$tag" >/dev/null 2>&1; then
               echo "Release $tag already exists."; exit 0
             fi
-            if gh release create "$tag" --title "Launcher $tag" --notes ""; then
-              echo "Created release $tag."; exit 0
+            if gh release create "$tag" --draft --title "Launcher $tag" --notes ""; then
+              echo "Created draft release $tag."; exit 0
             fi
             echo "Attempt $attempt to create release failed, retrying in 15s..."
             sleep 15
