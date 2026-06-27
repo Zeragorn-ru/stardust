@@ -23,7 +23,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
-    NewBuild, Role, Store, UpdateBuild, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD,
+    NewBuild, Role, Store, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD,
     SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;

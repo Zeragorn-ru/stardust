@@ -110,7 +110,7 @@ impl Store {
             map.insert(key.to_string(), None);
         }
         for (k, v) in rows {
-            map.insert(k, Some(v));
+            map.insert(k, v);
         }
         Ok(map)
     }
