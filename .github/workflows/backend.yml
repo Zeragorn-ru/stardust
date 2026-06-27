@@ -107,6 +107,23 @@ jobs:
           target: "/opt/stardust/"
           strip_components: 1
 
+      - name: Clean stale deploy files on server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/stardust/deploy
+            # Удаляем файлы, которых нет в репозитории (кроме .env и data/).
+            find . -maxdepth 1 -type f \
+              ! -name 'docker-compose.yml' \
+              ! -name 'squid.conf' \
+              ! -name '.env' \
+              ! -name '.env.example' \
+              -delete
+
       - name: Pull images and restart containers
         uses: appleboy/ssh-action@v1
         with:
