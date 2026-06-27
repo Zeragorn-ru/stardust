@@ -5,6 +5,7 @@ import {
   changePassword,
   changeUsername,
   deleteAccount,
+  openExternal,
   telegramLinkStart,
   telegramUnlink,
 } from "../api";
@@ -312,14 +313,15 @@ export default function AccountSection({
               привязку. Статус обновится автоматически после подтверждения.
             </p>
             {tgLink.deepLink ? (
-              <a
+              <button
+                type="button"
                 className="btn btn--primary"
-                href={tgLink.deepLink}
-                target="_blank"
-                rel="noreferrer"
+                onClick={() => {
+                  void openExternal(tgLink.deepLink!);
+                }}
               >
                 Открыть Telegram
-              </a>
+              </button>
             ) : null}
             <code className="info-card__path">/start {tgLink.code}</code>
             {tgErr && <p className="form-msg form-msg--error">{tgErr}</p>}

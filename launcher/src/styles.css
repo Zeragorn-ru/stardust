@@ -1101,13 +1101,9 @@ body {
     box-shadow: var(--shadow);
     position: relative;
     overflow: hidden;
-    transition:
-        transform var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1),
-        box-shadow var(--t-mid),
-        border-color var(--t-mid);
 }
 
-/* Тонкая акцентная линия сверху карточки, проявляется на наведении. */
+/* Тонкая акцентная линия сверху карточки (статичная декорация). */
 .hero__card::before {
     content: "";
     position: absolute;
@@ -1116,19 +1112,6 @@ body {
     right: 0;
     height: 2px;
     background: var(--accent-grad);
-    opacity: 0;
-    transition: opacity var(--t-mid);
-}
-
-.hero__card:hover {
-    transform: translateY(-3px);
-    border-color: var(--glass-border-strong);
-    box-shadow:
-        var(--shadow),
-        0 18px 50px -22px rgba(124, 92, 255, 0.55);
-}
-
-.hero__card:hover::before {
     opacity: 1;
 }
 

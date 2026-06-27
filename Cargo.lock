@@ -2172,6 +2172,7 @@ dependencies = [
  "base64 0.22.1",
  "flate2",
  "futures-util",
+ "libc",
  "protocol",
  "reqwest 0.12.28",
  "serde",
@@ -2182,6 +2183,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-single-instance",
  "toml 0.8.2",
+ "windows-sys 0.59.0",
  "zip",
 ]
 

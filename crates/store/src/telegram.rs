@@ -45,6 +45,9 @@ pub struct OutboxMessage {
     pub text: String,
     /// Inline-клавиатура (JSON `reply_markup`), если у сообщения есть кнопки.
     pub reply_markup: Option<String>,
+    /// Режим разметки Telegram (`HTML`), если текст содержит разметку.
+    /// `None` — обычный текст.
+    pub parse_mode: Option<String>,
 }
 
 /// Итог опроса challenge лаунчером (polling статуса подтверждения).
@@ -224,13 +227,13 @@ impl Store {
         purpose: &str,
     ) -> Result<Option<String>, StoreError> {
         let uuid = normalize_uuid(uuid);
-        let chat_id: Option<String> =
-            sqlx::query_scalar("SELECT telegram_chat_id FROM accounts WHERE uuid = $1")
-                .bind(&uuid)
-                .fetch_optional(&self.pool)
-                .await?
-                .flatten();
-        let Some(chat_id) = chat_id else {
+        let row: Option<(Option<String>, String)> = sqlx::query_as(
+            "SELECT telegram_chat_id, username FROM accounts WHERE uuid = $1",
+        )
+        .bind(&uuid)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some((Some(chat_id), username)) = row else {
             return Ok(None);
         };
 
@@ -279,11 +282,15 @@ impl Store {
             CHALLENGE_PASSWORD_RESET => "сброса пароля",
             _ => "входа",
         };
+        // Текст содержит HTML-разметку Telegram: ник и код обёрнуты в <code>
+        // (моноширинный, удобно копировать в один тап). Ник пользователя
+        // экранируем — он может содержать символы < > &.
         let text = format!(
-            "Запрос {action} в аккаунт.\nЕсли это вы — нажмите «✅ Это я».\nКод (если нужно ввести вручную): {code}\nДействует 5 минут. Если это не вы — нажмите «🚫 Это не я»."
+            "Запрос {action} в аккаунт <code>{nick}</code>.\nЕсли это вы — нажмите «✅ Это я».\nКод (если нужно ввести вручную): <code>{code}</code>\nДействует 5 минут. Если это не вы — нажмите «🚫 Это не я».",
+            nick = html_escape(&username),
         );
         let markup = approval_markup(&challenge);
-        self.enqueue_message_with_markup(&chat_id, &text, Some(&markup))
+        self.enqueue_message_full(&chat_id, &text, Some(&markup), Some("HTML"))
             .await?;
         Ok(Some(challenge))
     }
@@ -573,7 +580,7 @@ impl Store {
 
     /// Кладёт сообщение в очередь на отправку конкретному chat_id.
     pub async fn enqueue_message(&self, chat_id: &str, text: &str) -> Result<(), StoreError> {
-        self.enqueue_message_with_markup(chat_id, text, None).await
+        self.enqueue_message_full(chat_id, text, None, None).await
     }
 
     /// Кладёт сообщение в очередь с необязательной inline-клавиатурой
@@ -584,12 +591,30 @@ impl Store {
         text: &str,
         reply_markup: Option<&str>,
     ) -> Result<(), StoreError> {
-        sqlx::query("INSERT INTO telegram_outbox (chat_id, text, reply_markup) VALUES ($1, $2, $3)")
-            .bind(chat_id)
-            .bind(text)
-            .bind(reply_markup)
-            .execute(&self.pool)
-            .await?;
+        self.enqueue_message_full(chat_id, text, reply_markup, None)
+            .await
+    }
+
+    /// Кладёт сообщение в очередь с необязательными inline-клавиатурой и
+    /// режимом разметки (`parse_mode`, например `HTML`). Если текст содержит
+    /// HTML-разметку Telegram, вызывающий обязан передать `parse_mode = Some("HTML")`
+    /// и сам экранировать пользовательские данные в тексте.
+    pub async fn enqueue_message_full(
+        &self,
+        chat_id: &str,
+        text: &str,
+        reply_markup: Option<&str>,
+        parse_mode: Option<&str>,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO telegram_outbox (chat_id, text, reply_markup, parse_mode) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(chat_id)
+        .bind(text)
+        .bind(reply_markup)
+        .bind(parse_mode)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -611,7 +636,7 @@ impl Store {
     /// Забирает до `limit` ожидающих сообщений (для отправки ботом).
     pub async fn pending_messages(&self, limit: i64) -> Result<Vec<OutboxMessage>, StoreError> {
         let rows = sqlx::query(
-            "SELECT id, chat_id, text, reply_markup FROM telegram_outbox
+            "SELECT id, chat_id, text, reply_markup, parse_mode FROM telegram_outbox
              WHERE status = 'pending' ORDER BY created_at LIMIT $1",
         )
         .bind(limit)
@@ -624,6 +649,7 @@ impl Store {
                 chat_id: r.get("chat_id"),
                 text: r.get("text"),
                 reply_markup: r.get("reply_markup"),
+                parse_mode: r.get("parse_mode"),
             })
             .collect())
     }
@@ -678,6 +704,14 @@ fn random_numeric_code(len: usize) -> String {
     (0..len)
         .map(|_| char::from(b'0' + rng.gen_range(0..10)))
         .collect()
+}
+
+/// Экранирует спецсимволы для HTML-разметки Telegram (`parse_mode=HTML`).
+/// Telegram требует экранировать только `<`, `>` и `&`.
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 /// JSON inline-клавиатуры с кнопками «Это я»/«Это не я» для подтверждения

@@ -99,7 +99,16 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
         };
 
         for msg in messages {
-            match send_message(&http, &token, &msg.chat_id, &msg.text, msg.reply_markup.as_deref()).await {
+            match send_message(
+                &http,
+                &token,
+                &msg.chat_id,
+                &msg.text,
+                msg.reply_markup.as_deref(),
+                msg.parse_mode.as_deref(),
+            )
+            .await
+            {
                 Ok(()) => {
                     if let Err(e) = store.mark_message_sent(msg.id).await {
                         tracing::error!(?e, id = msg.id, "не удалось пометить сообщение отправленным");
@@ -120,16 +129,22 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
 }
 
 /// Отправляет одно сообщение через Telegram Bot API. При наличии
-/// `reply_markup` (JSON inline-клавиатуры) прикрепляет кнопки.
+/// `reply_markup` (JSON inline-клавиатуры) прикрепляет кнопки. При наличии
+/// `parse_mode` (например `HTML`) включает разметку — текст должен быть
+/// заранее корректно экранирован вызывающей стороной.
 async fn send_message(
     http: &reqwest::Client,
     token: &str,
     chat_id: &str,
     text: &str,
     reply_markup: Option<&str>,
+    parse_mode: Option<&str>,
 ) -> Result<(), String> {
     let url = format!("https://api.telegram.org/bot{token}/sendMessage");
     let mut payload = serde_json::json!({ "chat_id": chat_id, "text": text });
+    if let Some(mode) = parse_mode {
+        payload["parse_mode"] = serde_json::Value::String(mode.to_string());
+    }
     if let Some(markup) = reply_markup {
         // reply_markup хранится как JSON-строка — вставляем как объект.
         match serde_json::from_str::<serde_json::Value>(markup) {

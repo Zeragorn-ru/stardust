@@ -259,6 +259,16 @@ export async function telegramUnlink(): Promise<void> {
   await invoke<void>("telegram_unlink");
 }
 
+/** Открыть внешнюю ссылку в браузере/Telegram через системный обработчик. */
+export async function openExternal(url: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    window.open(url, "_blank", "noreferrer");
+    return;
+  }
+  await invoke<void>("open_external", { url });
+}
+
 /** Сменить ник. Возвращает обновлённый профиль. */
 export async function changeUsername(
   newUsername: string,

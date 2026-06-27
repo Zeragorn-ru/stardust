@@ -650,6 +650,37 @@ async fn telegram_link_start(
     backend::telegram_link_start(&state.http, &token).await
 }
 
+/// Открыть ссылку во внешнем приложении (браузер, Telegram).
+///
+/// Окно Tauri не открывает внешние ссылки само (нет navigation на http/https,
+/// а плагина opener в сборке нет). Поэтому передаём URL системному
+/// обработчику. Разрешаем только безопасные схемы, чтобы фронтенд не мог
+/// запустить произвольную программу (`file://`, `cmd` и т. п.).
+#[tauri::command]
+async fn open_external(url: String) -> Result<(), String> {
+    let allowed = url.starts_with("https://")
+        || url.starts_with("http://")
+        || url.starts_with("tg://");
+    if !allowed {
+        return Err("недопустимая схема ссылки".into());
+    }
+
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("cmd")
+        .args(["/C", "start", "", &url])
+        .spawn();
+
+    #[cfg(target_os = "macos")]
+    let result = std::process::Command::new("open").arg(&url).spawn();
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let result = std::process::Command::new("xdg-open").arg(&url).spawn();
+
+    result
+        .map(|_| ())
+        .map_err(|e| format!("не удалось открыть ссылку: {e}"))
+}
+
 /// Отвязать Telegram (отключить 2FA).
 #[tauri::command]
 async fn telegram_unlink(state: State<'_, AppState>) -> Result<(), String> {
@@ -715,6 +746,8 @@ async fn delete_account(
 /// Запустить игру: подготовить vanilla Minecraft и стартовать JVM.
 #[tauri::command]
 async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    let data_dir = paths::data_dir(&app);
+
     // Не даём запустить вторую копию, пока предыдущая жива.
     // try_wait() попутно собирает завершённый процесс (zombie reaping).
     {
@@ -724,12 +757,19 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                 // Прошлый запуск завершился — можно стартовать заново.
                 Ok(Some(_)) | Err(_) => {
                     *guard = None;
+                    crate::game_guard::clear(&data_dir);
                 }
                 Ok(None) => {
                     return Err("Игра уже запущена".into());
                 }
             }
         }
+    }
+
+    // Кросс-процессная проверка: лаунчер могли закрыть, пока игра работала, и
+    // открыть заново — тогда внутрипроцессный guard выше пуст, но игра ещё жива.
+    if crate::game_guard::is_running(&data_dir) {
+        return Err("Игра уже запущена".into());
     }
 
     let profile = state
@@ -757,6 +797,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     )
     .await?;
 
+    crate::game_guard::record(&data_dir, child.id());
     *state.game.lock().unwrap() = Some(child);
     Ok(())
 }
@@ -837,6 +878,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             import_skin_from_license,
             account_info,
             telegram_link_start,
+            open_external,
             telegram_unlink,
             change_username,
             change_password,
