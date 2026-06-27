@@ -102,9 +102,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -euo pipefail
-            cd /opt/stardust
-            git pull --ff-only
-            cd deploy
+            cd /opt/stardust/deploy
             docker compose pull
             docker compose up -d --remove-orphans
             docker image prune -f

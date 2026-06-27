@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
 # Обновление бекенда на сервере.
-# Используется CI (SSH) или вручную: curl -sSL https://raw.githubusercontent.com/.../update.sh | bash
+# Используется CI (SSH) или вручную: bash update.sh
 set -euo pipefail
 
-REPO_DIR="/opt/stardust"
-DEPLOY_DIR="$REPO_DIR/deploy"
-
-echo "==> Pulling latest changes..."
-cd "$REPO_DIR"
-git pull --ff-only
+cd "$(dirname "$0")"
 
 echo "==> Pulling Docker images..."
-cd "$DEPLOY_DIR"
 docker compose pull
 
 echo "==> Recreating containers..."
