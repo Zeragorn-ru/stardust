@@ -32,9 +32,13 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # КРИТИЧНО: компилируем внутри той же базы (Debian 12 bookworm, glibc 2.36),
+    # что и рантайм-образ (debian:bookworm-slim). Иначе бинарь линкуется против
+    # более новой glibc раннера (ubuntu-latest = 24.04, glibc 2.39) и падает в
+    # рантайме с `version GLIBC_2.38 not found` — glibc только вперёд-совместима.
+    container: rust:bookworm
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Test (auth-server, admin-server, telegram-bot, store, protocol)
         run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
