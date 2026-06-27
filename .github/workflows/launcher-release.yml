@@ -51,9 +51,15 @@ jobs:
         with:
           workspaces: "launcher/src-tauri -> target"
 
+      - name: Install frontend deps
+        working-directory: launcher
+        run: npm ci
+
       # Версия в файлах — плейсхолдер 0.0.0. Подставляем реальную из тега
       # (vX.Y.Z -> X.Y.Z) в package.json, Cargo.toml, tauri.conf.json и
       # Cargo.lock перед сборкой. Источник правды — git-тег.
+      # ВАЖНО: это делается ПОСЛЕ rust-cache, иначе правка Cargo.lock
+      # инвалидирует кэш и всё компилируется заново каждый релиз.
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -64,10 +70,6 @@ jobs:
           perl -0pi -e "s/(\"version\"\s*:\s*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/" launcher/src-tauri/tauri.conf.json
           perl -0pi -e "s/^(version\s*=\s*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/m" launcher/src-tauri/Cargo.toml
           perl -0pi -e "s/(name = \"launcher\"\nversion = \")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/" Cargo.lock
-
-      - name: Install frontend deps
-        working-directory: launcher
-        run: npm ci
 
       # Создаём релиз заранее как ЧЕРНОВИК, с ретраем. GITHUB_TOKEN иногда
       # отдаётся на свежий тег ещё с read-доступом (транзиентный 403 на
