@@ -886,7 +886,13 @@ async fn delete_file(
 struct SyncResult {
     uploaded: usize,
     skipped: usize,
+    deleted: usize,
 }
+
+/// Имя манифеста синхронизации на стороне сервера. По нему при следующей
+/// синхронизации мы понимаем, какие файлы заливали раньше, и удаляем те,
+/// что были убраны из сборки (как `managed-files.json` в лаунчере).
+const SYNC_MANIFEST: &str = ".stardust-sync.json";
 
 /// SSH client handler. Принимаем ключ хоста без проверки: панель/игровой сервер
 /// задаётся администратором вручную, доверенный канал тут — ответственность
@@ -981,11 +987,25 @@ async fn sync_to_panel(
         .await
         .map_err(|e| internal(format!("инициализация SFTP: {e}")))?;
 
+    // Манифест прошлой синхронизации: { путь -> sha1 } того, что мы заливали.
+    // По нему удаляем файлы, убранные из сборки. Если файла нет/он битый —
+    // считаем, что синхронизаций ещё не было.
+    let previous: std::collections::BTreeMap<String, String> = match sftp.read(SYNC_MANIFEST).await
+    {
+        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
+        Err(_) => std::collections::BTreeMap::new(),
+    };
+
     let mut uploaded = 0usize;
     let mut skipped = 0usize;
+    let mut deleted = 0usize;
+    // Что должно лежать на сервере после этой синхронизации: { путь -> sha1 }.
+    let mut desired: std::collections::BTreeMap<String, String> =
+        std::collections::BTreeMap::new();
 
     for file in &build.files {
-        // Только серверные файлы (side = server | both).
+        // Грузим всё, что нужно серверу (side = server | both), независимо от
+        // опциональности и «включён по умолчанию» — опц. моды тоже едут.
         if file.side != "server" && file.side != "both" {
             skipped += 1;
             continue;
@@ -1039,7 +1059,50 @@ async fn sync_to_panel(
             .await
             .map_err(|e| internal(format!("закрытие {target}: {e}")))?;
 
+        desired.insert(target, file.sha1.clone());
         uploaded += 1;
+    }
+
+    // Удаляем то, что заливали раньше, но в текущей сборке этого уже нет.
+    // Удаляем только если содержимое на сервере не менялось с момента нашей
+    // заливки (sha1 совпадает с записанным) — чтобы не затирать правки админа
+    // сервера. Сам манифест синхронизации не трогаем.
+    for (path, recorded_sha1) in &previous {
+        if desired.contains_key(path) || path == SYNC_MANIFEST {
+            continue;
+        }
+        let unchanged = match sftp.read(path).await {
+            Ok(bytes) => sha1_hex(&bytes).eq_ignore_ascii_case(recorded_sha1),
+            // Файла уже нет на сервере — удалять нечего.
+            Err(_) => false,
+        };
+        if unchanged && sftp.remove_file(path).await.is_ok() {
+            deleted += 1;
+        }
+    }
+
+    // Сохраняем новый манифест синхронизации на сервере.
+    let manifest_bytes =
+        serde_json::to_vec(&desired).map_err(|e| internal(format!("сериализация манифеста: {e}")))?;
+    {
+        let mut remote = sftp
+            .open_with_flags(
+                SYNC_MANIFEST,
+                OpenFlags::CREATE | OpenFlags::WRITE | OpenFlags::TRUNCATE,
+            )
+            .await
+            .map_err(|e| internal(format!("открытие {SYNC_MANIFEST} на сервере: {e}")))?;
+        const SFTP_CHUNK: usize = 30 * 1024;
+        for chunk in manifest_bytes.chunks(SFTP_CHUNK) {
+            remote
+                .write_all(chunk)
+                .await
+                .map_err(|e| internal(format!("запись {SYNC_MANIFEST}: {e}")))?;
+        }
+        remote
+            .shutdown()
+            .await
+            .map_err(|e| internal(format!("закрытие {SYNC_MANIFEST}: {e}")))?;
     }
 
     // Корректно завершаем SSH-сессию.
@@ -1047,7 +1110,11 @@ async fn sync_to_panel(
         .disconnect(russh::Disconnect::ByApplication, "", "en")
         .await;
 
-    Ok(Json(SyncResult { uploaded, skipped }))
+    Ok(Json(SyncResult {
+        uploaded,
+        skipped,
+        deleted,
+    }))
 }
 
 // ───────────────────────── Аккаунты ─────────────────────────

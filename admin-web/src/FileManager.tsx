@@ -21,6 +21,7 @@ import { useConfirm, useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import {
   IconChevronRight,
+  IconClose,
   IconCornerUp,
   IconDownload,
   IconFile,
@@ -104,6 +105,8 @@ export function FileManager({
   const [kindFilter, setKindFilter] = useState("all");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [editing, setEditing] = useState<BuildFile | null>(null);
+  // Файл, чьи свойства открыты в выезжающей панели справа.
+  const [editingProps, setEditingProps] = useState<BuildFile | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
   // Активный диалог создания: папка или файл.
   const [creating, setCreating] = useState<"folder" | "file" | null>(null);
@@ -413,9 +416,10 @@ export function FileManager({
                 key={f.id}
                 file={f}
                 selected={selected.has(f.id)}
+                active={editingProps?.id === f.id}
                 onToggle={() => toggleOne(f.id)}
                 onDelete={() => removeFile(f)}
-                onSave={(patch) => saveFile(f, patch)}
+                onEditProps={() => setEditingProps(f)}
                 onEdit={() => setEditing(f)}
                 onOpenDir={(d) => {
                   setQuery("");
@@ -481,9 +485,10 @@ export function FileManager({
               key={f.id}
               file={f}
               selected={selected.has(f.id)}
+              active={editingProps?.id === f.id}
               onToggle={() => toggleOne(f.id)}
               onDelete={() => removeFile(f)}
-              onSave={(patch) => saveFile(f, patch)}
+              onEditProps={() => setEditingProps(f)}
               onEdit={() => setEditing(f)}
             />
           ))}
@@ -497,6 +502,16 @@ export function FileManager({
           file={editing}
           onClose={() => setEditing(null)}
           onSaved={onChanged}
+        />
+      )}
+
+      {editingProps && (
+        <FileSettingsDrawer
+          file={editingProps}
+          onClose={() => setEditingProps(null)}
+          onSave={async (patch) => {
+            await saveFile(editingProps, patch);
+          }}
         />
       )}
 
@@ -814,73 +829,27 @@ function SelectAllRow({
 function FileRow({
   file,
   selected,
+  active,
   onToggle,
   onDelete,
-  onSave,
+  onEditProps,
   onEdit,
   onOpenDir,
 }: {
   file: BuildFile;
   selected: boolean;
+  active: boolean;
   onToggle: () => void;
   onDelete: () => void;
-  onSave: (patch: Partial<BuildFile>) => Promise<void>;
+  onEditProps: () => void;
   onEdit: () => void;
   onOpenDir?: (dir: string) => void;
 }) {
-  const toast = useToast();
-  const [editing, setEditing] = useState(false);
-  const [side, setSide] = useState(file.side);
-  const [kind, setKind] = useState(file.kind);
-  const [optional, setOptional] = useState(file.optional);
-  const [enabledByDefault, setEnabledByDefault] = useState(
-    file.enabledByDefault,
-  );
-  const [overwrite, setOverwrite] = useState(file.overwrite);
-  const [modId, setModId] = useState(file.modId ?? "");
-  const [displayName, setDisplayName] = useState(file.displayName ?? "");
-  const [description, setDescription] = useState(file.description ?? "");
-  const [saving, setSaving] = useState(false);
   const editable = isEditable(file);
-
-  function open() {
-    setSide(file.side);
-    setKind(file.kind);
-    setOptional(file.optional);
-    setEnabledByDefault(file.enabledByDefault);
-    setOverwrite(file.overwrite);
-    setModId(file.modId ?? "");
-    setDisplayName(file.displayName ?? "");
-    setDescription(file.description ?? "");
-    setEditing(true);
-  }
-
-  async function save() {
-    setSaving(true);
-    try {
-      await onSave({
-        side,
-        kind,
-        optional,
-        enabledByDefault,
-        overwrite,
-        modId: optional ? modId.trim() || null : null,
-        displayName: displayName.trim() || null,
-        description: description.trim() || null,
-      });
-      setEditing(false);
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось сохранить",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
 
   return (
     <div
-      className={`fm-row file${editing ? " editing" : ""}${
+      className={`fm-row file${active ? " editing" : ""}${
         selected ? " selected" : ""
       }`}
     >
@@ -929,11 +898,11 @@ function FileRow({
           </button>
         )}
         <button
-          className={`link-btn${editing ? " active" : ""}`}
+          className={`link-btn${active ? " active" : ""}`}
           title="Свойства файла"
-          onClick={() => (editing ? setEditing(false) : open())}
+          onClick={onEditProps}
         >
-          {editing ? "скрыть" : "свойства"}
+          свойства
         </button>
         <a
           className="icon-only"
@@ -951,10 +920,100 @@ function FileRow({
           <IconTrash size={15} />
         </button>
       </div>
+    </div>
+  );
+}
 
-      {editing && (
-        <div className="fm-edit">
-          <div className="fm-edit-field">
+// Выезжающая сбоку панель свойств файла. Раньше это был ряд контролов прямо
+// внутри строки файла, но по ширине он не помещался даже на ПК. Теперь
+// настройки (сторона, тип, опциональность и т.д.) разложены вертикально.
+function FileSettingsDrawer({
+  file,
+  onClose,
+  onSave,
+}: {
+  file: BuildFile;
+  onClose: () => void;
+  onSave: (patch: Partial<BuildFile>) => Promise<void>;
+}) {
+  const toast = useToast();
+  const [side, setSide] = useState(file.side);
+  const [kind, setKind] = useState(file.kind);
+  const [optional, setOptional] = useState(file.optional);
+  const [enabledByDefault, setEnabledByDefault] = useState(
+    file.enabledByDefault,
+  );
+  const [overwrite, setOverwrite] = useState(file.overwrite);
+  const [modId, setModId] = useState(file.modId ?? "");
+  const [displayName, setDisplayName] = useState(file.displayName ?? "");
+  const [description, setDescription] = useState(file.description ?? "");
+  const [saving, setSaving] = useState(false);
+
+  useBodyScrollLock();
+
+  // При выборе другого файла подставляем его значения.
+  useEffect(() => {
+    setSide(file.side);
+    setKind(file.kind);
+    setOptional(file.optional);
+    setEnabledByDefault(file.enabledByDefault);
+    setOverwrite(file.overwrite);
+    setModId(file.modId ?? "");
+    setDisplayName(file.displayName ?? "");
+    setDescription(file.description ?? "");
+  }, [file]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await onSave({
+        side,
+        kind,
+        optional,
+        enabledByDefault,
+        overwrite,
+        modId: optional ? modId.trim() || null : null,
+        displayName: displayName.trim() || null,
+        description: description.trim() || null,
+      });
+      onClose();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сохранить",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fm-drawer-backdrop" onClick={onClose}>
+      <aside
+        className="fm-drawer"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="fm-drawer-head">
+          <div className="fm-drawer-title">
+            <span className="fm-drawer-eyebrow muted">Свойства файла</span>
+            <strong title={file.path}>{baseName(file.path)}</strong>
+          </div>
+          <button className="icon-only" title="Закрыть" onClick={onClose}>
+            <IconClose size={16} />
+          </button>
+        </header>
+
+        <div className="fm-drawer-body">
+          <div className="fm-drawer-field">
             <span className="fm-edit-label muted">Сторона</span>
             <div className="seg">
               {SIDES.map((s) => (
@@ -969,7 +1028,7 @@ function FileRow({
             </div>
           </div>
 
-          <div className="fm-edit-field">
+          <div className="fm-drawer-field">
             <span className="fm-edit-label muted">Тип</span>
             <div className="seg">
               {KINDS.map((k) => (
@@ -1012,7 +1071,7 @@ function FileRow({
           </label>
 
           {optional && (
-            <div className="fm-edit-field">
+            <div className="fm-drawer-field">
               <span
                 className="fm-edit-label muted"
                 title="Стабильный идентификатор мода. По нему лаунчер запоминает выбор игрока — выбор не сбросится при обновлении/переименовании файла. Обычно modid или slug."
@@ -1037,7 +1096,7 @@ function FileRow({
             <span>Перезаписывать</span>
           </label>
 
-          <div className="fm-edit-field fm-edit-grow">
+          <div className="fm-drawer-field">
             <span className="fm-edit-label muted">Имя</span>
             <input
               className="fm-edit-input"
@@ -1047,7 +1106,7 @@ function FileRow({
             />
           </div>
 
-          <div className="fm-edit-field fm-edit-grow">
+          <div className="fm-drawer-field">
             <span className="fm-edit-label muted">Описание</span>
             <input
               className="fm-edit-input"
@@ -1056,16 +1115,17 @@ function FileRow({
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
+        </div>
 
-          <div className="spacer" />
-          <button className="ghost" onClick={() => setEditing(false)}>
+        <footer className="fm-drawer-foot">
+          <button className="ghost" onClick={onClose}>
             Отмена
           </button>
           <button className="primary" onClick={save} disabled={saving}>
             {saving ? "…" : "Сохранить"}
           </button>
-        </div>
-      )}
+        </footer>
+      </aside>
     </div>
   );
 }

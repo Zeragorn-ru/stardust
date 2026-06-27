@@ -247,7 +247,9 @@ export const api = {
     return request("GET", "/api/settings");
   },
 
-  syncToPanel(buildId: number): Promise<{ uploaded: number; skipped: number }> {
+  syncToPanel(
+    buildId: number,
+  ): Promise<{ uploaded: number; skipped: number; deleted: number }> {
     return request("POST", `/api/builds/${buildId}/sync-to-panel`);
   },
 

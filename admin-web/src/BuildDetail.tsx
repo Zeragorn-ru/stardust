@@ -54,7 +54,7 @@ export function BuildDetail({
     try {
       const res = await api.syncToPanel(buildId);
       toast.success(
-        `Синхронизировано: ${res.uploaded} файлов (пропущено: ${res.skipped})`,
+        `Синхронизировано: ${res.uploaded} файлов · удалено: ${res.deleted} · пропущено: ${res.skipped}`,
       );
     } catch (err) {
       toast.error(
