@@ -147,6 +147,9 @@ pub struct AppState {
     /// Запущенный процесс игры, если он есть. Не даём запустить вторую копию,
     /// пока предыдущая не завершилась.
     pub game: Mutex<Option<Child>>,
+    /// Асинхронный лок на весь цикл play_game: guard → check → launch → record.
+    /// Гарантирует, что два одновременных вызова не пройдут проверку параллельно.
+    pub launch_lock: tokio::sync::Mutex<()>,
 }
 
 impl Default for AppState {
@@ -164,6 +167,7 @@ impl Default for AppState {
             token: Mutex::new(None),
             http,
             game: Mutex::new(None),
+            launch_lock: tokio::sync::Mutex::new(()),
         }
     }
 }
@@ -658,8 +662,8 @@ async fn telegram_link_start(
 ///
 /// Окно Tauri не открывает внешние ссылки само (нет navigation на http/https,
 /// а плагина opener в сборке нет). Поэтому передаём URL системному
-/// обработчику. Разрешаем только безопасные схемы, чтобы фронтенд не мог
-/// запустить произвольную программу (`file://`, `cmd` и т. п.).
+/// обработчику. Разрешаем только безопасные схемы и санизуем URL для Windows,
+/// где `cmd /C start` подвержен инъекции через метасимволы.
 #[tauri::command]
 async fn open_external(url: String) -> Result<(), String> {
     let allowed =
@@ -668,20 +672,37 @@ async fn open_external(url: String) -> Result<(), String> {
         return Err("недопустимая схема ссылки".into());
     }
 
+    // На Windows `cmd /C start "" <url>` ретокенизирует аргументы через
+    // внутренние правила cmd.exe. Метасимволы `& | < > ^ %` и кавычки в
+    // URL могут вырваться за пределы `start`. Отвергаем такие URL.
     #[cfg(target_os = "windows")]
-    let result = std::process::Command::new("cmd")
-        .args(["/C", "start", "", &url])
-        .spawn();
+    {
+        if url.contains(['&', '|', '<', '>', '^', '%', '"', '`', '\n', '\r']) {
+            return Err("URL содержит недопустимые символы".into());
+        }
+        let result = std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .spawn();
+        result
+            .map(|_| ())
+            .map_err(|e| format!("не удалось открыть ссылку: {e}"))
+    }
 
     #[cfg(target_os = "macos")]
-    let result = std::process::Command::new("open").arg(&url).spawn();
+    {
+        let result = std::process::Command::new("open").arg(&url).spawn();
+        result
+            .map(|_| ())
+            .map_err(|e| format!("не удалось открыть ссылку: {e}"))
+    }
 
     #[cfg(all(unix, not(target_os = "macos")))]
-    let result = std::process::Command::new("xdg-open").arg(&url).spawn();
-
-    result
-        .map(|_| ())
-        .map_err(|e| format!("не удалось открыть ссылку: {e}"))
+    {
+        let result = std::process::Command::new("xdg-open").arg(&url).spawn();
+        result
+            .map(|_| ())
+            .map_err(|e| format!("не удалось открыть ссылку: {e}"))
+    }
 }
 
 /// Отвязать Telegram (отключить 2FA).
@@ -747,8 +768,17 @@ async fn delete_account(
 // ---------- Запуск игры ----------
 
 /// Запустить игру: подготовить vanilla Minecraft и стартовать JVM.
+///
+/// Асинхронный лок `launch_lock` гарантирует, что два одновременных вызова
+/// не пройдут проверку guard параллельно — lock удерживается на всём
+/// протяжении: проверка → запуск → запись PID.
 #[tauri::command]
 async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    // Занимаем лок на весь цикл: guard → check → launch → record.
+    // Если другой поток уже запускает — ждём его завершения, затем проверяем
+    // заново (прошлая игра могла завершиться пока мы ждали).
+    let _guard = state.launch_lock.lock().await;
+
     let data_dir = paths::data_dir(&app);
 
     // Не даём запустить вторую копию, пока предыдущая жива.
@@ -757,7 +787,6 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let mut guard = state.game.lock().unwrap();
         if let Some(child) = guard.as_mut() {
             match child.try_wait() {
-                // Прошлый запуск завершился — можно стартовать заново.
                 Ok(Some(_)) | Err(_) => {
                     *guard = None;
                     crate::game_guard::clear(&data_dir);
@@ -843,12 +872,14 @@ async fn set_mod_enabled(
 /// Жив ли сейчас процесс игры. Фронт опрашивает это, чтобы держать
 /// кнопку «Играть» неактивной, пока Minecraft запущен.
 #[tauri::command]
-fn game_running(state: State<'_, AppState>) -> bool {
+fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
+    let data_dir = paths::data_dir(&app);
     let mut guard = state.game.lock().unwrap();
     match guard.as_mut() {
         Some(child) => match child.try_wait() {
             Ok(Some(_)) | Err(_) => {
                 *guard = None;
+                crate::game_guard::clear(&data_dir);
                 false
             }
             Ok(None) => true,

@@ -190,7 +190,7 @@ async fn ensure_java(
     fs::create_dir_all(&runtime_dir)
         .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
     let archive = data_dir.join("runtime").join("java-21.zip");
-    download_to(progress, http, TEMURIN_API_URL, &archive, "Java 21 runtime").await?;
+    download_to(progress, http, TEMURIN_API_URL, &archive, "Java 21 runtime", None, None).await?;
     progress.set_label("extracting", "Распаковываем Java 21…");
     extract_java_zip(&archive, &runtime_dir)?;
     let _ = fs::remove_file(&archive);
@@ -275,6 +275,9 @@ fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
     let file =
         fs::File::open(archive).map_err(|e| format!("Не удалось открыть Java archive: {e}"))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("Некорректный Java zip: {e}"))?;
+    let canonical_target = target
+        .canonicalize()
+        .map_err(|e| format!("Не удалось определить путь распаковки: {e}"))?;
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
         let name = file.name().replace('\\', "/");
@@ -286,10 +289,27 @@ fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
             continue;
         }
         let out = target.join(stripped);
+        // Защита от zip-slip: убеждаемся, что путь распаковки внутри target.
+        let canonical_out = out
+            .canonicalize()
+            .or_else(|_| {
+                // Файл ещё не существует — проверяем через parent.
+                out.parent()
+                    .and_then(|p| p.canonicalize().ok())
+                    .map(|p| p.join(out.file_name().unwrap_or_default()))
+            })
+            .map_err(|e| format!("Не удалось проверить путь {}: {e}", out.display()))?;
+        if !canonical_out.starts_with(&canonical_target) {
+            return Err(format!(
+                "Небезопасный путь в zip: {} (попытка выхода за пределы {})",
+                name,
+                target.display()
+            ));
+        }
         if let Some(parent) = out.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
-        let mut out_file = fs::File::create(out).map_err(|e| e.to_string())?;
+        let mut out_file = fs::File::create(&out).map_err(|e| e.to_string())?;
         std::io::copy(&mut file, &mut out_file).map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -325,7 +345,7 @@ async fn ensure_version(
         let Some(entry) = manifest.versions.into_iter().find(|v| v.id == version_id) else {
             return Err(format!("Версия Minecraft {version_id} не найдена"));
         };
-        download_to(progress, http, &entry.url, &version_path, "version json").await?;
+        download_to(progress, http, &entry.url, &version_path, "version json", None, None).await?;
     }
     progress.set_stage_fraction(1.0);
 
@@ -346,7 +366,7 @@ async fn ensure_client(
         let Some(client) = version.downloads.get("client") else {
             return Err("В version json нет client jar".into());
         };
-        download_to(progress, http, &client.url, &path, "client jar").await?;
+        download_to(progress, http, &client.url, &path, "client jar", client.sha1.as_deref(), client.size).await?;
     }
     progress.set_stage_fraction(1.0);
     Ok(())
@@ -378,14 +398,18 @@ async fn download_libraries(
     libraries: &[Library],
     concurrency: usize,
 ) -> Result<(), String> {
-    // Собираем плоский список (url, path, label) только тех артефактов,
-    // которых ещё нет на диске.
-    let mut jobs: Vec<(String, PathBuf, String)> = Vec::new();
+    let mut jobs: Vec<DownloadJob> = Vec::new();
     for lib in libraries.iter().filter(|lib| rules_allow(&lib.rules)) {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             let path = root.join("libraries").join(&artifact.path);
             if !path.exists() && !artifact.url.is_empty() {
-                jobs.push((artifact.url.clone(), path, artifact.path.clone()));
+                jobs.push(DownloadJob {
+                    url: artifact.url.clone(),
+                    path,
+                    label: artifact.path.clone(),
+                    expected_sha1: artifact.sha1.clone(),
+                    expected_size: artifact.size,
+                });
             }
         }
         if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
@@ -393,7 +417,13 @@ async fn download_libraries(
                 if let Some(artifact) = classifiers.get(&native_key) {
                     let path = root.join("libraries").join(&artifact.path);
                     if !path.exists() && !artifact.url.is_empty() {
-                        jobs.push((artifact.url.clone(), path, artifact.path.clone()));
+                        jobs.push(DownloadJob {
+                            url: artifact.url.clone(),
+                            path,
+                            label: artifact.path.clone(),
+                            expected_sha1: artifact.sha1.clone(),
+                            expected_size: artifact.size,
+                        });
                     }
                 }
             }
@@ -421,6 +451,8 @@ async fn ensure_assets(
             &version.asset_index.url,
             &index_path,
             "asset index",
+            None,
+            None,
         )
         .await?;
     }
@@ -430,7 +462,7 @@ async fn ensure_assets(
     let index: AssetIndex =
         serde_json::from_str(&json).map_err(|e| format!("Некорректный asset index: {e}"))?;
 
-    let mut jobs: Vec<(String, PathBuf, String)> = Vec::new();
+    let mut jobs: Vec<DownloadJob> = Vec::new();
     for object in index.objects.values() {
         let prefix = object.hash.get(0..2).ok_or("Некорректный hash asset")?;
         let path = root
@@ -443,21 +475,35 @@ async fn ensure_assets(
                 "https://resources.download.minecraft.net/{prefix}/{}",
                 object.hash
             );
-            jobs.push((url, path, "assets".to_string()));
+            jobs.push(DownloadJob {
+                url,
+                path,
+                label: "assets".to_string(),
+                expected_sha1: Some(object.hash.clone()),
+                expected_size: None,
+            });
         }
     }
 
     download_jobs(progress, http, jobs, concurrency).await
 }
 
-/// Параллельно скачивает набор файлов `(url, path, label)` с ограничением по
-/// числу одновременных загрузок. Каждый завершённый файл двигает долю текущего
-/// этапа; скачанные байты копятся для расчёта общей скорости. Первая ошибка
-/// прекращает обработку и пробрасывается наверх.
+struct DownloadJob {
+    url: String,
+    path: PathBuf,
+    label: String,
+    expected_sha1: Option<String>,
+    expected_size: Option<u64>,
+}
+
+/// Параллельно скачивает набор файлов с ограничением по числу одновременных
+/// загрузок. Каждый завершённый файл двигает долю текущего этапа; скачанные
+/// байты копятся для расчёта общей скорости. Первая ошибка прекращает
+/// обработку и пробрасывается наверх.
 async fn download_jobs(
     progress: &Progress,
     http: &reqwest::Client,
-    jobs: Vec<(String, PathBuf, String)>,
+    jobs: Vec<DownloadJob>,
     concurrency: usize,
 ) -> Result<(), String> {
     progress.set_total_items(jobs.len());
@@ -466,11 +512,11 @@ async fn download_jobs(
         return Ok(());
     }
 
-    let mut stream = stream::iter(jobs.into_iter().map(|(url, path, label)| {
+    let mut stream = stream::iter(jobs.into_iter().map(|job| {
         let http = http.clone();
         async move {
-            let res = download_to_counted(progress, &http, &url, &path, &label).await;
-            (label, res)
+            let res = download_to_counted(progress, &http, &job.url, &job.path, &job.label, job.expected_sha1.as_deref(), job.expected_size).await;
+            (job.label, res)
         }
     }))
     .buffer_unordered(concurrency);
@@ -852,7 +898,7 @@ async fn ensure_neoforge(
             "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar",
             neoforge_version
         );
-        if let Err(e) = download_to(progress, http, &url, &installer, "NeoForge installer").await {
+        if let Err(e) = download_to(progress, http, &url, &installer, "NeoForge installer", None, None).await {
             last_err = e;
             eprintln!("[neoforge] ошибка скачивания installer (попытка {attempt}): {last_err}");
             continue;
@@ -986,10 +1032,10 @@ async fn ensure_authlib_injector(
     progress.set_label("checking", "Загружаем authlib-injector…");
 
     let admin_url = format!("{}/authlib-injector.jar", crate::backend::admin_base_url());
-    if let Err(e) = download_to(progress, http, &admin_url, &jar, "authlib-injector").await {
+    if let Err(e) = download_to(progress, http, &admin_url, &jar, "authlib-injector", None, None).await {
         eprintln!("admin-server не отдал authlib-injector ({e}), пробую апстрим");
         let url = upstream_injector_url(http).await?;
-        download_to(progress, http, &url, &jar, "authlib-injector").await?;
+        download_to(progress, http, &url, &jar, "authlib-injector", None, None).await?;
     }
     Ok(jar)
 }
@@ -1038,8 +1084,10 @@ pub(crate) async fn download_to(
     url: &str,
     path: &Path,
     label: &str,
+    expected_sha1: Option<&str>,
+    expected_size: Option<u64>,
 ) -> Result<(), String> {
-    download_inner(progress, http, url, path, label, DownloadScope::Stage).await
+    download_inner(progress, http, url, path, label, DownloadScope::Stage, expected_sha1, expected_size).await
 }
 
 /// Скачивает один файл многофайлового этапа: долей этапа управляет счётчик
@@ -1050,8 +1098,10 @@ pub(crate) async fn download_to_counted(
     url: &str,
     path: &Path,
     label: &str,
+    expected_sha1: Option<&str>,
+    expected_size: Option<u64>,
 ) -> Result<(), String> {
-    download_inner(progress, http, url, path, label, DownloadScope::Item).await
+    download_inner(progress, http, url, path, label, DownloadScope::Item, expected_sha1, expected_size).await
 }
 
 async fn download_inner(
@@ -1061,6 +1111,8 @@ async fn download_inner(
     path: &Path,
     label: &str,
     scope: DownloadScope,
+    expected_sha1: Option<&str>,
+    expected_size: Option<u64>,
 ) -> Result<(), String> {
     use std::io::Write;
 
@@ -1140,6 +1192,7 @@ async fn download_inner(
         if let Some(e) = chunk_err {
             last_err = e;
             eprintln!("[download] обрыв (попытка {attempt}): {last_err}");
+            let _ = fs::remove_file(&tmp);
             continue;
         }
 
@@ -1147,6 +1200,57 @@ async fn download_inner(
             return Err(e.to_string());
         }
         drop(file);
+
+        // Верификация размера.
+        if let Some(expected) = expected_size {
+            if downloaded != expected {
+                last_err = format!(
+                    "Размер {label}: скачано {downloaded} байт, ожидалось {expected}"
+                );
+                eprintln!("[download] неверный размер (попытка {attempt}): {last_err}");
+                let _ = fs::remove_file(&tmp);
+                continue;
+            }
+        }
+        // Проверка Content-Length, если сервер его прислал.
+        if let Some(cl) = total {
+            if downloaded != cl {
+                last_err = format!(
+                    "Размер {label}: скачано {downloaded} байт, Content-Length {cl}"
+                );
+                eprintln!("[download] size mismatch (попытка {attempt}): {last_err}");
+                let _ = fs::remove_file(&tmp);
+                continue;
+            }
+        }
+
+        // Верификация SHA-1.
+        if let Some(expected) = expected_sha1 {
+            let actual = tauri::async_runtime::spawn_blocking({
+                let tmp = tmp.clone();
+                move || compute_sha1(&tmp)
+            })
+            .await
+            .map_err(|e| format!("Ошибка потока при хешировании: {e}"))?;
+            match actual {
+                Ok(hash) if hash == expected => {}
+                Ok(hash) => {
+                    last_err = format!(
+                        "SHA-1 {label}: получен {hash}, ожидался {expected}"
+                    );
+                    eprintln!("[download] неверный хеш (попытка {attempt}): {last_err}");
+                    let _ = fs::remove_file(&tmp);
+                    continue;
+                }
+                Err(e) => {
+                    last_err = format!("Не удалось вычислить SHA-1 {label}: {e}");
+                    eprintln!("[download] ошибка хеша (попытка {attempt}): {last_err}");
+                    let _ = fs::remove_file(&tmp);
+                    continue;
+                }
+            }
+        }
+
         fs::rename(&tmp, path).map_err(|e| {
             format!(
                 "Не удалось переместить {} в {}: {e}",
@@ -1158,6 +1262,8 @@ async fn download_inner(
         return Ok(());
     }
 
+    // Очистка temp-файла при финальном провале.
+    let _ = fs::remove_file(&tmp);
     Err(last_err)
 }
 
@@ -1169,6 +1275,15 @@ fn network_error(e: reqwest::Error) -> String {
     } else {
         format!("Сетевая ошибка: {e}")
     }
+}
+
+fn compute_sha1(path: &Path) -> Result<String, String> {
+    use sha1::{Digest, Sha1};
+    let bytes =
+        fs::read(path).map_err(|e| format!("Не удалось прочитать файл для хеша {}: {e}", path.display()))?;
+    let mut hasher = Sha1::new();
+    hasher.update(&bytes);
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1229,6 +1344,10 @@ struct VersionArguments {
 #[derive(Debug, Deserialize)]
 struct DownloadInfo {
     url: String,
+    #[serde(default)]
+    sha1: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1270,6 +1389,10 @@ struct LibraryDownloads {
 struct LibraryArtifact {
     path: String,
     url: String,
+    #[serde(default)]
+    sha1: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1304,5 +1427,131 @@ fn current_os_name() -> &'static str {
         "osx"
     } else {
         "linux"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn parse_java_major_old_style() {
+        assert_eq!(
+            parse_java_major("java version \"1.8.0_301\""),
+            Some(8)
+        );
+    }
+
+    #[test]
+    fn parse_java_major_new_style() {
+        assert_eq!(
+            parse_java_major("openjdk version \"21.0.1\" 2024-04-16"),
+            Some(21)
+        );
+    }
+
+    #[test]
+    fn parse_java_major_empty() {
+        assert_eq!(parse_java_major(""), None);
+    }
+
+    #[test]
+    fn parse_java_major_no_version() {
+        assert_eq!(parse_java_major("some random text"), None);
+    }
+
+    #[test]
+    fn substitute_tokens_basic() {
+        let mut replacements = HashMap::new();
+        replacements.insert("${auth_player_name}".to_string(), "Steve".to_string());
+        replacements.insert("${version_name}".to_string(), "1.21.1".to_string());
+        let result = substitute_tokens("--username ${auth_player_name} --version ${version_name}", &replacements);
+        assert_eq!(result, "--username Steve --version 1.21.1");
+    }
+
+    #[test]
+    fn substitute_tokens_no_match() {
+        let replacements = HashMap::new();
+        let result = substitute_tokens("--no-tokens-here", &replacements);
+        assert_eq!(result, "--no-tokens-here");
+    }
+
+    #[test]
+    fn rules_allow_none_rules() {
+        assert!(rules_allow(&None));
+    }
+
+    #[test]
+    fn rules_allow_empty_rules() {
+        assert!(rules_allow(&Some(vec![])));
+    }
+
+    #[test]
+    fn extract_java_zip_rejects_slip() {
+        let dir = std::env::temp_dir().join("stardust_test_zip_slip");
+        let _ = std::fs::create_dir_all(&dir);
+        let target = dir.join("target");
+        let _ = std::fs::create_dir_all(&target);
+
+        // Create a zip with a malicious entry that tries to escape.
+        let zip_path = dir.join("malicious.zip");
+        {
+            let file = fs::File::create(&zip_path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            // This entry tries to write outside the target directory.
+            zip.start_file("jdk/bin/../../etc/passwd", options).unwrap();
+            zip.write_all(b"malicious").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let result = extract_java_zip(&zip_path, &target);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Небезопасный путь"), "Error was: {err}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn extract_java_zip_accepts_valid() {
+        let dir = std::env::temp_dir().join("stardust_test_zip_valid");
+        let _ = std::fs::create_dir_all(&dir);
+        let target = dir.join("target");
+        let _ = std::fs::create_dir_all(&target);
+
+        let zip_path = dir.join("valid.zip");
+        {
+            let file = fs::File::create(&zip_path).unwrap();
+            let mut zip = zip::ZipWriter::new(file);
+            let options = zip::write::SimpleFileOptions::default()
+                .compression_method(zip::CompressionMethod::Stored);
+            zip.start_file("jdk/bin/java", options).unwrap();
+            zip.write_all(b"fake java binary").unwrap();
+            zip.finish().unwrap();
+        }
+
+        let result = extract_java_zip(&zip_path, &target);
+        assert!(result.is_ok(), "Error: {:?}", result.err());
+        assert!(target.join("bin/java").exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn compute_sha1_known_input() {
+        let dir = std::env::temp_dir().join("stardust_test_sha1");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("hello.txt");
+        std::fs::write(&path, b"hello world").unwrap();
+        let hash = compute_sha1(&path).unwrap();
+        // SHA-1 of "hello world" is well-known.
+        assert_eq!(
+            hash,
+            "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

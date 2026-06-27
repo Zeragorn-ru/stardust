@@ -18,7 +18,6 @@ export default function OnboardingScreen({ onDone }: Props) {
 
   return (
     <div className="onboarding glass-in">
-      <div className="onboarding__icon float">⛏</div>
       <h1 className="onboarding__title">Добро пожаловать</h1>
       <p className="muted onboarding__lead">
         Настроим внешний вид. Это можно изменить в любой момент в настройках.

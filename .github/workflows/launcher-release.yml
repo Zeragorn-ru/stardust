@@ -116,3 +116,24 @@ jobs:
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
+
+      # Публикуем SHA-256 хеши установщиков рядом с ассетами релиза.
+      # Лаунчер сверяет скачанный установщик с .sha256 файлом перед запуском.
+      - name: Publish SHA-256 checksums
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          # Ищем установщики в стандартном расположении bundle/NSIS/MSI/AppImage.
+          for dir in launcher/src-tauri/target/release/bundle/nsis launcher/src-tauri/target/release/bundle/macos launcher/src-tauri/target/release/bundle/deb; do
+            if [ -d "$dir" ]; then
+              for artifact in "$dir"/*.{exe,dmg,AppImage,deb} 2>/dev/null; do
+                [ -f "$artifact" ] || continue
+                sha256sum "$artifact" | awk '{print $1}' > "${artifact}.sha256"
+                echo "Publishing $(basename "${artifact}.sha256")"
+                gh release upload "$tag" "${artifact}.sha256" --clobber
+              done
+            fi
+          done

@@ -208,7 +208,7 @@ pub async fn sync(
         let http = http.clone();
         let version = version.clone();
         async move {
-            download_to_counted(progress, &http, &job.url, &job.active, &job.label).await?;
+            download_to_counted(progress, &http, &job.url, &job.active, &job.label, None, None).await?;
             match file_sha1(&job.active) {
                 Some(got) if got.eq_ignore_ascii_case(&job.sha1) => {}
                 Some(got) => {
