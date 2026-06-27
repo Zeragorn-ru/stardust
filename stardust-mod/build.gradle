@@ -1,6 +1,5 @@
 plugins {
-    id 'fabric-loom' version '1.9-SNAPSHOT'
-    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.78'
 }
 
 version = '0.1.0'
@@ -12,12 +11,34 @@ base {
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
-    withSourcesJar()
 }
 
-loom {
+repositories {
+    maven {
+        name = 'JitPack'
+        url = 'https://jitpack.io'
+        content {
+            // Only resolve TAB's API from JitPack.
+            includeGroup 'com.github.NEZNAMY'
+        }
+    }
+}
+
+neoForge {
+    // Minecraft 1.21.1 / NeoForge 21.1.x — matches what the launcher provisions.
+    version = '21.1.234'
+
+    runs {
+        server {
+            server()
+        }
+        client {
+            client()
+        }
+    }
+
     mods {
         stardust {
             sourceSet sourceSets.main
@@ -25,21 +46,20 @@ loom {
     }
 }
 
-
 dependencies {
-    minecraft 'com.mojang:minecraft:1.20.1'
-    mappings 'net.fabricmc:yarn:1.20.1+build.10:v2'
-    modImplementation 'net.fabricmc:fabric-loader:0.16.10'
-    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.92.2+1.20.1'
+    // TAB's developer API. compileOnly: TAB is installed as a separate mod on
+    // the server at runtime and provides these classes. Never shade/relocate it.
+    compileOnly 'com.github.NEZNAMY:TAB-API:6.0.0'
 }
 
-processResources {
-    inputs.property 'version', project.version
-    filesMatching('fabric.mod.json') {
-        expand 'version': project.version
+tasks.named('processResources', ProcessResources).configure {
+    def replacements = [version: project.version]
+    inputs.properties(replacements)
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(replacements)
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 17
+    it.options.release = 21
 }

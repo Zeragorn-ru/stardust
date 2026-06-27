@@ -1,0 +1,36 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+issueTrackerURL = "https://stardust.dev"
+
+[[mods]]
+modId = "stardust"
+version = "${version}"
+displayName = "Stardust"
+description = '''
+Общий мод Stardust для клиента и сервера. На сервере интегрируется с TAB:
+выставляет игрокам бейдж (tab-префикс) и цветной ник в табе.
+'''
+authors = "Stardust"
+
+[[dependencies.stardust]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1,22)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.stardust]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.22)"
+ordering = "NONE"
+side = "BOTH"
+
+# TAB необязателен: интеграция включается, только если он установлен.
+[[dependencies.stardust]]
+modId = "tab"
+type = "optional"
+versionRange = "*"
+ordering = "AFTER"
+side = "SERVER"
