@@ -79,14 +79,13 @@ pub async fn sync(
     data_dir: &Path,
     game_dir: &Path,
     concurrency: usize,
+    manifest: Option<&protocol::Manifest>,
 ) -> Result<(), String> {
     progress.set_label("checking", "Проверяем сборку…");
 
-    let manifest = match crate::backend::fetch_manifest(http).await? {
+    let manifest = match manifest {
         Some(m) => m,
         None => {
-            // Активной сборки нет — это нормальный режим (например, на старте
-            // проекта). Запускаем ванильный NeoForge без модов.
             progress.set_total_items(0);
             return Ok(());
         }
@@ -219,7 +218,10 @@ pub async fn sync(
                     ));
                 }
                 None => {
-                    return Err(format!("Не удалось прочитать скачанный файл {}", job.rel_key))
+                    return Err(format!(
+                        "Не удалось прочитать скачанный файл {}",
+                        job.rel_key
+                    ))
                 }
             }
             remove_if_exists(&job.inactive);
