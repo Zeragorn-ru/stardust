@@ -803,13 +803,6 @@ async fn ensure_neoforge(
         .join("neoforge")
         .join(&neoforge_version);
     let installer = installer_dir.join(format!("neoforge-{neoforge_version}-installer.jar"));
-    if !installer.exists() {
-        let url = format!(
-            "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar",
-            neoforge_version
-        );
-        download_to(progress, http, &url, &installer, "NeoForge installer").await?;
-    }
 
     // NeoForge installer создаёт отдельный профиль в versions/. Если профиль уже
     // есть — не гоняем installer каждый запуск.
@@ -832,69 +825,112 @@ async fn ensure_neoforge(
         .map_err(|e| format!("Не удалось создать launcher_profiles.json: {e}"))?;
     }
 
-    progress.set_label(
-        "extracting",
-        format!("Устанавливаем NeoForge {neoforge_version}…"),
-    );
-    let java_clone = java.to_path_buf();
-    let installer_clone = installer.clone();
-    let root_clone = root.to_path_buf();
-    let neoforge_version_clone = neoforge_version.clone();
-    let status = tauri::async_runtime::spawn_blocking(move || {
-        eprintln!(
-            "[neoforge] запускаем installer {} -> {}",
-            installer_clone.display(),
-            root_clone.display()
-        );
-        let mut command = Command::new(&java_clone);
-        command
-            .arg("-Dhttps.proxyHost=assets.zeragorn.xyz")
-            .arg("-Dhttps.proxyPort=3128")
-            .arg("-Dhttp.proxyHost=assets.zeragorn.xyz")
-            .arg("-Dhttp.proxyPort=3128")
-            .arg("-jar")
-            .arg(&installer_clone)
-            .arg("--install-client")
-            .arg(&root_clone)
-            .current_dir(&root_clone)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        hide_console(&mut command);
-        let output = command
-            .output()
-            .map_err(|e| format!("Не удалось запустить NeoForge installer: {e}"))?;
-        if !output.stdout.is_empty() {
+    // Повтор при ошибке: перекачиваем installer и пробуем установить заново.
+    const MAX_ATTEMPTS: u32 = 3;
+    let mut last_err = String::new();
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        if attempt > 1 {
             eprintln!(
-                "[neoforge-{}] stdout: {}",
-                neoforge_version_clone,
-                String::from_utf8_lossy(&output.stdout).trim_end()
+                "[neoforge] повтор установки {attempt}/{MAX_ATTEMPTS}: удаляем installer и перекачиваем"
             );
-        }
-        if !output.stderr.is_empty() {
-            eprintln!(
-                "[neoforge-{}] stderr: {}",
-                neoforge_version_clone,
-                String::from_utf8_lossy(&output.stderr).trim_end()
+            progress.set_label(
+                "retrying",
+                format!("Повтор NeoForge ({attempt}/{MAX_ATTEMPTS})…"),
             );
+            // Удаляем битый installer, чтобы download_to перекачал.
+            let _ = fs::remove_file(&installer);
+            // Пауза перед повтором.
+            let _ = tauri::async_runtime::spawn_blocking(|| {
+                std::thread::sleep(std::time::Duration::from_secs(3));
+            })
+            .await;
         }
-        eprintln!(
-            "[neoforge] installer завершился со статусом {}",
-            output.status
+
+        // Скачиваем installer (если нет на диске).
+        let url = format!(
+            "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar",
+            neoforge_version
         );
-        Ok(output.status)
-    })
-    .await
-    .map_err(|e| format!("Ошибка потока NeoForge installer: {e}"))?
-    .map_err(|e: String| e)?;
-    if !status.success() {
-        return Err(format!(
-            "NeoForge installer завершился с ошибкой ({status}). Проверь Java 21+ и логи консоли"
-        ));
+        if let Err(e) = download_to(progress, http, &url, &installer, "NeoForge installer").await {
+            last_err = e;
+            eprintln!("[neoforge] ошибка скачивания installer (попытка {attempt}): {last_err}");
+            continue;
+        }
+
+        progress.set_label(
+            "extracting",
+            format!("Устанавливаем NeoForge {neoforge_version}…"),
+        );
+        let java_clone = java.to_path_buf();
+        let installer_clone = installer.clone();
+        let root_clone = root.to_path_buf();
+        let neoforge_version_clone = neoforge_version.clone();
+        let status = tauri::async_runtime::spawn_blocking(move || {
+            eprintln!(
+                "[neoforge] запускаем installer {} -> {}",
+                installer_clone.display(),
+                root_clone.display()
+            );
+            let mut command = Command::new(&java_clone);
+            command
+                .arg("-Dhttps.proxyHost=assets.zeragorn.xyz")
+                .arg("-Dhttps.proxyPort=3128")
+                .arg("-Dhttp.proxyHost=assets.zeragorn.xyz")
+                .arg("-Dhttp.proxyPort=3128")
+                .arg("-jar")
+                .arg(&installer_clone)
+                .arg("--install-client")
+                .arg(&root_clone)
+                .current_dir(&root_clone)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            hide_console(&mut command);
+            let output = command
+                .output()
+                .map_err(|e| format!("Не удалось запустить NeoForge installer: {e}"))?;
+            if !output.stdout.is_empty() {
+                eprintln!(
+                    "[neoforge-{}] stdout: {}",
+                    neoforge_version_clone,
+                    String::from_utf8_lossy(&output.stdout).trim_end()
+                );
+            }
+            if !output.stderr.is_empty() {
+                eprintln!(
+                    "[neoforge-{}] stderr: {}",
+                    neoforge_version_clone,
+                    String::from_utf8_lossy(&output.stderr).trim_end()
+                );
+            }
+            eprintln!(
+                "[neoforge] installer завершился со статусом {}",
+                output.status
+            );
+            Ok(output.status)
+        })
+        .await
+        .map_err(|e| format!("Ошибка потока NeoForge installer: {e}"))?
+        .map_err(|e: String| e)?;
+
+        if !status.success() {
+            last_err = format!(
+                "NeoForge installer завершился с ошибкой ({status}). Проверь Java 21+ и логи консоли"
+            );
+            eprintln!("[neoforge] ошибка установки (попытка {attempt}): {last_err}");
+            continue;
+        }
+        if !marker.exists() {
+            last_err =
+                "NeoForge installer отработал, но профиль не появился в versions/".to_string();
+            eprintln!("[neoforge] маркер не появился (попытка {attempt}): {last_err}");
+            continue;
+        }
+
+        return Ok(profile_id);
     }
-    if !marker.exists() {
-        return Err("NeoForge installer отработал, но профиль не появился в versions/".into());
-    }
-    Ok(profile_id)
+
+    Err(last_err)
 }
 
 /// Читает установленный профиль NeoForge из versions/<id>/<id>.json.
