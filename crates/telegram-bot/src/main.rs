@@ -13,6 +13,8 @@
 //! смену без рестарта контейнера. Из окружения нужен только `DATABASE_URL`.
 
 use std::sync::Arc;
+
+use tracing_subscriber::prelude::*;
 use std::time::Duration;
 
 use store::{
@@ -33,11 +35,17 @@ const OUTBOX_BATCH: i64 = 20;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "telegram_bot=info".into()),
-        )
+    let log_dir = std::env::var("LOG_DIR").unwrap_or_else(|_| "logs".into());
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "telegram-bot.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "telegram_bot=info".into());
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
         .init();
 
     let database_url = std::env::var("DATABASE_URL")

@@ -21,6 +21,9 @@ tar = "0.4"
 flate2 = "1"
 futures-util = "0.3"
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

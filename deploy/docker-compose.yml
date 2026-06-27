@@ -54,9 +54,12 @@ services:
       # контейнера он сгенерируется заново и все выданные подписи протухнут.
       AUTH_KEY_PATH: /data/yggdrasil_key.pem
       RUST_LOG: ${RUST_LOG:-auth_server=info}
+      LOG_DIR: /app/logs
     volumes:
       # Ключ подписи Yggdrasil — ./data/keys.
       - ./data/keys:/data
+      # Логи — ./logs/auth-server/.
+      - ./logs/auth-server:/app/logs
     ports:
       - "${AUTH_PORT:-8080}:8080"
     networks:
@@ -86,9 +89,12 @@ services:
       # Идемпотентно — можно оставить переменную навсегда.
       ADMIN_BOOTSTRAP: ${ADMIN_BOOTSTRAP:-}
       RUST_LOG: ${ADMIN_RUST_LOG:-admin_server=info,tower_http=warn}
+      LOG_DIR: /app/logs
     volumes:
       # Файлы сборок — ./data/modpack.
       - ./data/modpack:/data/modpack
+      # Логи — ./logs/admin-server/.
+      - ./logs/admin-server:/app/logs
     networks:
       - launcher-net
 
@@ -108,6 +114,10 @@ services:
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
       RUST_LOG: ${TELEGRAM_BOT_RUST_LOG:-telegram_bot=info}
+      LOG_DIR: /app/logs
+    volumes:
+      # Логи — ./logs/telegram-bot/.
+      - ./logs/telegram-bot:/app/logs
     networks:
       - launcher-net
 

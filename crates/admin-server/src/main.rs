@@ -13,6 +13,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use tracing_subscriber::prelude::*;
+
 use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{header, HeaderMap, StatusCode},
@@ -64,11 +66,17 @@ struct InjectorCache {
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "admin_server=info,tower_http=warn".into()),
-        )
+    let log_dir = std::env::var("LOG_DIR").unwrap_or_else(|_| "logs".into());
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "admin-server.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "admin_server=info,tower_http=warn".into());
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
         .init();
 
     let database_url = std::env::var("DATABASE_URL")

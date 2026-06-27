@@ -26,6 +26,8 @@ mod yggdrasil;
 use std::sync::Arc;
 use std::time::Duration;
 
+use tracing_subscriber::prelude::*;
+
 use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
@@ -70,11 +72,17 @@ const SKIN_REFRESH_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60); // 6 Ñ
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "auth_server=info,tower_http=warn".into()),
-        )
+    let log_dir = std::env::var("LOG_DIR").unwrap_or_else(|_| "logs".into());
+    let file_appender = tracing_appender::rolling::daily(&log_dir, "auth-server.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "auth_server=info,tower_http=warn".into());
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
+        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
         .init();
 
     let http = reqwest::Client::builder()
