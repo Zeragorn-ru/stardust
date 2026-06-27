@@ -3,9 +3,8 @@
 # Публикуются три образа: auth-server, admin-server (оба из deploy/Dockerfile,
 # разные target-стейджи) и admin-web (SPA + nginx, deploy/admin-web.Dockerfile).
 #
-# Деплой ручной: после успешного пуша образов зайди на сервер и выполни
-#   cd deploy && docker compose pull && docker compose up -d
-# (Образы не изменились по digest — compose ничего не перезапустит.)
+# Деплой автоматический: после успешной сборки и пуша образов CI подключается
+# по SSH к серверу, делает git pull и перезапускает контейнеры.
 
 name: backend
 
@@ -90,3 +89,23 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    steps:
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/stardust
+            git pull --ff-only
+            cd deploy
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker image prune -f
+            docker compose ps
