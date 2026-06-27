@@ -63,6 +63,7 @@ fn api_url() -> String {
 fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
+        .proxy(reqwest::Proxy::all("http://assets.zeragorn.xyz:3128").map_err(|e| e.to_string())?)
         .build()
         .map_err(|e| e.to_string())
 }

@@ -20,6 +20,7 @@ on:
       - "deploy/Dockerfile"
       - "deploy/admin-web.Dockerfile"
       - "deploy/admin-web.nginx.conf"
+      - "deploy/squid.conf"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
 

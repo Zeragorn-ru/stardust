@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::time::Instant;
 
 #[cfg(windows)]
@@ -59,7 +59,17 @@ pub async fn launch(
     ensure_client(&progress, http, &root, &version).await?;
     ensure_libraries(&progress, http, &root, &version, concurrency).await?;
     ensure_assets(&progress, http, &root, &version, concurrency).await?;
-    let neoforge_id = ensure_neoforge(&progress, http, &root, &java).await?;
+    let manifest = crate::backend::fetch_manifest(http).await?;
+    let pinned_neoforge = manifest.as_ref().and_then(|m| {
+        use protocol::LoaderKind;
+        if m.loader.kind == LoaderKind::NeoForge && !m.loader.version.is_empty() {
+            Some(m.loader.version.clone())
+        } else {
+            None
+        }
+    });
+    let neoforge_id =
+        ensure_neoforge(&progress, http, &root, &java, pinned_neoforge.as_deref()).await?;
     let loader = load_modloader_profile(&root, &neoforge_id)?;
     if loader.inherits_from != version.id {
         return Err(format!(
@@ -86,7 +96,15 @@ pub async fn launch(
     // Синхронизируем активную сборку (моды/конфиги) в игровой каталог.
     // Если активной сборки нет — функция тихо вернётся, запустим без модпака.
     progress.begin(Stage::Modpack, "checking", "Проверяем сборку…");
-    crate::modpack::sync(&progress, http, &data_dir, &game_dir, concurrency).await?;
+    crate::modpack::sync(
+        &progress,
+        http,
+        &data_dir,
+        &game_dir,
+        concurrency,
+        manifest.as_ref(),
+    )
+    .await?;
 
     let classpath = build_modloader_classpath(&root, &version, &loader);
     let natives_dir = natives_dir(&root, &version.id);
@@ -757,12 +775,19 @@ async fn ensure_neoforge(
     http: &reqwest::Client,
     root: &Path,
     java: &Path,
+    pinned_version: Option<&str>,
 ) -> Result<String, String> {
     progress.begin(Stage::NeoForgeInstall, "checking", "Проверяем NeoForge…");
-    let requested = std::env::var("LAUNCHER_NEOFORGE_VERSION").ok();
-    let neoforge_version = match requested {
-        Some(v) if !v.trim().is_empty() => v,
-        _ => latest_neoforge_21_1(http).await?,
+    let neoforge_version = if let Some(v) = pinned_version {
+        v.to_string()
+    } else {
+        match std::env::var("LAUNCHER_NEOFORGE_VERSION")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+        {
+            Some(v) => v,
+            None => latest_neoforge_21_1(http).await?,
+        }
     };
     let profile_id = format!("neoforge-{neoforge_version}");
     let installer_dir = root
@@ -806,25 +831,56 @@ async fn ensure_neoforge(
     let java_clone = java.to_path_buf();
     let installer_clone = installer.clone();
     let root_clone = root.to_path_buf();
+    let neoforge_version_clone = neoforge_version.clone();
     let status = tauri::async_runtime::spawn_blocking(move || {
+        eprintln!(
+            "[neoforge] запускаем installer {} -> {}",
+            installer_clone.display(),
+            root_clone.display()
+        );
         let mut command = Command::new(&java_clone);
         command
+            .arg("-Dhttps.proxyHost=assets.zeragorn.xyz")
+            .arg("-Dhttps.proxyPort=3128")
+            .arg("-Dhttp.proxyHost=assets.zeragorn.xyz")
+            .arg("-Dhttp.proxyPort=3128")
             .arg("-jar")
             .arg(&installer_clone)
             .arg("--install-client")
             .arg(&root_clone)
-            .current_dir(&root_clone);
+            .current_dir(&root_clone)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
         hide_console(&mut command);
-        command
-            .status()
-            .map_err(|e| format!("Не удалось запустить NeoForge installer: {e}"))
+        let output = command
+            .output()
+            .map_err(|e| format!("Не удалось запустить NeoForge installer: {e}"))?;
+        if !output.stdout.is_empty() {
+            eprintln!(
+                "[neoforge-{}] stdout: {}",
+                neoforge_version_clone,
+                String::from_utf8_lossy(&output.stdout).trim_end()
+            );
+        }
+        if !output.stderr.is_empty() {
+            eprintln!(
+                "[neoforge-{}] stderr: {}",
+                neoforge_version_clone,
+                String::from_utf8_lossy(&output.stderr).trim_end()
+            );
+        }
+        eprintln!(
+            "[neoforge] installer завершился со статусом {}",
+            output.status
+        );
+        Ok(output.status)
     })
     .await
     .map_err(|e| format!("Ошибка потока NeoForge installer: {e}"))?
-    .map_err(|e| e)?;
+    .map_err(|e: String| e)?;
     if !status.success() {
         return Err(format!(
-            "NeoForge installer завершился с ошибкой ({status}). Проверь Java 21+"
+            "NeoForge installer завершился с ошибкой ({status}). Проверь Java 21+ и логи консоли"
         ));
     }
     if !marker.exists() {
@@ -964,51 +1020,108 @@ async fn download_inner(
 ) -> Result<(), String> {
     use std::io::Write;
 
+    const MAX_ATTEMPTS: u32 = 3;
+
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    let mut resp = http
-        .get(url)
-        .send()
-        .await
-        .map_err(network_error)?
-        .error_for_status()
-        .map_err(|e| format!("Не удалось скачать {url}: {e}"))?;
-    let total = resp.content_length();
+
     let tmp = path.with_extension("download");
-    let mut file = fs::File::create(&tmp)
-        .map_err(|e| format!("Не удалось создать временный файл {}: {e}", tmp.display()))?;
-    let mut downloaded = 0u64;
-    let started = Instant::now();
-    if let DownloadScope::Stage = scope {
-        progress.set_label("downloading", format!("Скачиваем {label}"));
-        progress.download_tick(downloaded, total, started);
+    let mut last_err = String::new();
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        if attempt > 1 {
+            eprintln!("[download] повтор {attempt}/{MAX_ATTEMPTS}: {url}");
+            let _ = tauri::async_runtime::spawn_blocking(|| {
+                std::thread::sleep(std::time::Duration::from_secs(2));
+            })
+            .await;
+        }
+
+        let resp = match http.get(url).send().await {
+            Ok(r) => r,
+            Err(e) => {
+                last_err = format!("Сетевая ошибка при скачивании {url}: {e}");
+                eprintln!("[download] ошибка (попытка {attempt}): {last_err}");
+                continue;
+            }
+        };
+        let mut resp = match resp.error_for_status() {
+            Ok(r) => r,
+            Err(e) => {
+                last_err = format!("Не удалось скачать {url}: {e}");
+                eprintln!("[download] HTTP ошибка (попытка {attempt}): {last_err}");
+                continue;
+            }
+        };
+
+        let total = resp.content_length();
+        let mut file = match fs::File::create(&tmp) {
+            Ok(f) => f,
+            Err(e) => {
+                return Err(format!(
+                    "Не удалось создать временный файл {}: {e}",
+                    tmp.display()
+                ))
+            }
+        };
+        let mut downloaded = 0u64;
+        let started = Instant::now();
+        if let DownloadScope::Stage = scope {
+            progress.set_label("downloading", format!("Скачиваем {label}"));
+            progress.download_tick(downloaded, total, started);
+        }
+
+        let mut chunk_err: Option<String> = None;
+        loop {
+            match resp.chunk().await {
+                Ok(Some(chunk)) => {
+                    if let Err(e) = file.write_all(&chunk) {
+                        return Err(e.to_string());
+                    }
+                    downloaded += chunk.len() as u64;
+                    match scope {
+                        DownloadScope::Stage => progress.download_tick(downloaded, total, started),
+                        DownloadScope::Item => progress.add_bytes(chunk.len() as u64),
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    chunk_err = Some(format!("Обрыв при скачивании {url}: {e}"));
+                    break;
+                }
+            }
+        }
+
+        if let Some(e) = chunk_err {
+            last_err = e;
+            eprintln!("[download] обрыв (попытка {attempt}): {last_err}");
+            continue;
+        }
+
+        if let Err(e) = file.flush() {
+            return Err(e.to_string());
+        }
+        drop(file);
+        fs::rename(&tmp, path).map_err(|e| {
+            format!(
+                "Не удалось переместить {} в {}: {e}",
+                tmp.display(),
+                path.display()
+            )
+        })?;
+        eprintln!("[download] OK ({downloaded} байт): {url}");
+        return Ok(());
     }
 
-    while let Some(chunk) = resp.chunk().await.map_err(network_error)? {
-        file.write_all(&chunk).map_err(|e| e.to_string())?;
-        downloaded += chunk.len() as u64;
-        match scope {
-            DownloadScope::Stage => progress.download_tick(downloaded, total, started),
-            DownloadScope::Item => progress.add_bytes(chunk.len() as u64),
-        }
-    }
-    file.flush().map_err(|e| e.to_string())?;
-    fs::rename(&tmp, path).map_err(|e| {
-        format!(
-            "Не удалось переместить {} в {}: {e}",
-            tmp.display(),
-            path.display()
-        )
-    })?;
-    Ok(())
+    Err(last_err)
 }
 
 fn network_error(e: reqwest::Error) -> String {
     if e.is_connect() {
-        "Не удалось подключиться к серверу загрузки Minecraft".into()
+        format!("Не удалось подключиться: {e}")
     } else if e.is_timeout() {
-        "Сервер загрузки Minecraft не отвечает".into()
+        format!("Таймаут соединения: {e}")
     } else {
         format!("Сетевая ошибка: {e}")
     }

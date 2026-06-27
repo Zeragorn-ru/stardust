@@ -113,6 +113,17 @@ services:
     networks:
       - launcher-net
 
+  squid:
+    image: ubuntu/squid:latest
+    container_name: launcher-squid
+    restart: unless-stopped
+    volumes:
+      - ./squid.conf:/etc/squid/squid.conf:ro
+    ports:
+      - "3128:3128"
+    networks:
+      - launcher-net
+
   admin-web:
     # Статика SPA + reverse-proxy на admin-server. Единственная публичная
     # точка входа для админки и для раздачи манифеста/файлов лаунчеру.

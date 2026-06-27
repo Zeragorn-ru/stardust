@@ -153,6 +153,10 @@ impl Default for AppState {
     fn default() -> Self {
         let http = reqwest::Client::builder()
             .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
+            .proxy(
+                reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
+                    .expect("прокси URL невалиден"),
+            )
             .build()
             .expect("не удалось создать HTTP-клиент");
         Self {
@@ -658,9 +662,8 @@ async fn telegram_link_start(
 /// запустить произвольную программу (`file://`, `cmd` и т. п.).
 #[tauri::command]
 async fn open_external(url: String) -> Result<(), String> {
-    let allowed = url.starts_with("https://")
-        || url.starts_with("http://")
-        || url.starts_with("tg://");
+    let allowed =
+        url.starts_with("https://") || url.starts_with("http://") || url.starts_with("tg://");
     if !allowed {
         return Err("недопустимая схема ссылки".into());
     }
