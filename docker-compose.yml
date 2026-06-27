@@ -24,8 +24,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      # Данные БД лежат в deploy/data/db (рядом со старым расположением).
-      - ./deploy/data/db:/var/lib/postgresql/data
+      # Данные БД — ./data/db.
+      - ./data/db:/var/lib/postgresql/data
     networks:
       - launcher-net
     healthcheck:
@@ -57,8 +57,8 @@ services:
       AUTH_KEY_PATH: /data/yggdrasil_key.pem
       RUST_LOG: ${RUST_LOG:-auth_server=info}
     volumes:
-      # Ключ подписи Yggdrasil в deploy/data/keys.
-      - ./deploy/data/keys:/data
+      # Ключ подписи Yggdrasil — ./data/keys.
+      - ./data/keys:/data
     ports:
       - "${AUTH_PORT:-8080}:8080"
     networks:
@@ -89,8 +89,8 @@ services:
       ADMIN_BOOTSTRAP: ${ADMIN_BOOTSTRAP:-}
       RUST_LOG: ${ADMIN_RUST_LOG:-admin_server=info,tower_http=warn}
     volumes:
-      # Файлы сборок в deploy/data/modpack.
-      - ./deploy/data/modpack:/data/modpack
+      # Файлы сборок — ./data/modpack.
+      - ./data/modpack:/data/modpack
     networks:
       - launcher-net
 
@@ -118,7 +118,7 @@ services:
     container_name: launcher-squid
     restart: unless-stopped
     volumes:
-      - ./deploy/squid.conf:/etc/squid/squid.conf:ro
+      - ./squid.conf:/etc/squid/squid.conf:ro
     ports:
       - "3128:3128"
     networks:
