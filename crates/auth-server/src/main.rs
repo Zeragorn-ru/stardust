@@ -1177,13 +1177,15 @@ async fn ygg_profiles_by_name(
     State(state): State<Shared>,
     Json(names): Json<Vec<String>>,
 ) -> Response {
-    let mut out: Vec<serde_json::Value> = Vec::new();
-    for name in names.iter().take(10) {
-        if let Some(account) = state.store.find_by_name(name).await {
-            let p = account.profile();
-            out.push(json!({ "id": p.id, "name": p.name }));
-        }
-    }
+    let names: Vec<String> = names.into_iter().take(10).collect();
+    let accounts = state.store.find_by_names(&names).await;
+    let out: Vec<serde_json::Value> = accounts
+        .iter()
+        .map(|a| {
+            let p = a.profile();
+            json!({ "id": p.id, "name": p.name })
+        })
+        .collect();
     Json(out).into_response()
 }
 

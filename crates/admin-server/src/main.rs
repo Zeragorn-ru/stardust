@@ -328,37 +328,35 @@ struct SettingsDto {
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
-    let token = state
+    let keys = [
+        SETTING_TELEGRAM_TOKEN,
+        SETTING_TELEGRAM_USERNAME,
+        SETTING_SFTP_HOST,
+        SETTING_SFTP_USERNAME,
+        SETTING_SFTP_PASSWORD,
+    ];
+    let map = state
         .store
-        .get_setting(SETTING_TELEGRAM_TOKEN)
+        .get_settings_batch(&keys)
         .await
         .map_err(internal)?;
-    let username = state
-        .store
-        .get_setting(SETTING_TELEGRAM_USERNAME)
-        .await
-        .map_err(internal)?;
-    let sftp_host = state
-        .store
-        .get_setting(SETTING_SFTP_HOST)
-        .await
-        .map_err(internal)?;
-    let sftp_username = state
-        .store
-        .get_setting(SETTING_SFTP_USERNAME)
-        .await
-        .map_err(internal)?;
-    let sftp_password = state
-        .store
-        .get_setting(SETTING_SFTP_PASSWORD)
-        .await
-        .map_err(internal)?;
+
+    let get = |key: &str| -> Option<String> {
+        map.get(key)
+            .and_then(|v| v.clone())
+    };
+
     Ok(SettingsDto {
-        telegram_token_set: token.map(|t| !t.trim().is_empty()).unwrap_or(false),
-        telegram_bot_username: username.filter(|u| !u.trim().is_empty()),
-        sftp_host: sftp_host.filter(|s| !s.trim().is_empty()),
-        sftp_username: sftp_username.filter(|s| !s.trim().is_empty()),
-        sftp_password_set: sftp_password.map(|p| !p.trim().is_empty()).unwrap_or(false),
+        telegram_token_set: get(SETTING_TELEGRAM_TOKEN)
+            .map(|t| !t.trim().is_empty())
+            .unwrap_or(false),
+        telegram_bot_username: get(SETTING_TELEGRAM_USERNAME)
+            .filter(|u| !u.trim().is_empty()),
+        sftp_host: get(SETTING_SFTP_HOST).filter(|s| !s.trim().is_empty()),
+        sftp_username: get(SETTING_SFTP_USERNAME).filter(|s| !s.trim().is_empty()),
+        sftp_password_set: get(SETTING_SFTP_PASSWORD)
+            .map(|p| !p.trim().is_empty())
+            .unwrap_or(false),
     })
 }
 
@@ -1649,24 +1647,28 @@ fn bearer_token(headers: &HeaderMap) -> Result<String, ApiError> {
 }
 
 fn sha1_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut hasher = Sha1::new();
     hasher.update(bytes);
     let digest = hasher.finalize();
     let mut out = String::with_capacity(40);
-    for b in digest {
-        out.push_str(&format!("{b:02x}"));
+    for &b in &digest {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
     }
     out
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest as _, Sha256};
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     let digest = hasher.finalize();
     let mut out = String::with_capacity(64);
-    for b in digest {
-        out.push_str(&format!("{b:02x}"));
+    for &b in &digest {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
     }
     out
 }

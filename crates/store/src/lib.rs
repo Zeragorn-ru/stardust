@@ -472,6 +472,23 @@ impl Store {
             .map(|row| row_to_account(&row))
     }
 
+    /// Находит аккаунты по никам (пакетный запрос, один SELECT).
+    pub async fn find_by_names(&self, names: &[String]) -> Vec<Account> {
+        if names.is_empty() {
+            return Vec::new();
+        }
+        let keys: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
+        let sql = format!(
+            "SELECT {ACCOUNT_COLUMNS} FROM accounts WHERE username_lower = ANY($1)"
+        );
+        sqlx::query(&sql)
+            .bind(&keys)
+            .fetch_all(&self.pool)
+            .await
+            .map(|rows| rows.iter().map(row_to_account).collect())
+            .unwrap_or_default()
+    }
+
     /// Список всех аккаунтов (для веб-админки).
     pub async fn all_accounts(&self) -> Result<Vec<Account>, StoreError> {
         let sql = format!("SELECT {ACCOUNT_COLUMNS} FROM accounts ORDER BY username_lower");
@@ -713,9 +730,11 @@ fn digest_with_salt(password: &str, salt_hex: &str) -> String {
 }
 
 fn to_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        s.push_str(&format!("{b:02x}"));
+    for &b in bytes {
+        s.push(HEX[(b >> 4) as usize] as char);
+        s.push(HEX[(b & 0x0f) as usize] as char);
     }
     s
 }

@@ -104,6 +104,7 @@ jobs:
             set -euo pipefail
             cd /opt/stardust
             git pull --ff-only
+            cd deploy
             docker compose pull
             docker compose up -d --remove-orphans
             docker image prune -f

@@ -95,6 +95,26 @@ impl Store {
         Ok(value)
     }
 
+    /// Возвращает несколько настроек за один запрос (key -> value).
+    pub async fn get_settings_batch(
+        &self,
+        keys: &[&str],
+    ) -> Result<std::collections::HashMap<String, Option<String>>, StoreError> {
+        let rows: Vec<(String, Option<String>)> =
+            sqlx::query_as("SELECT key, value FROM settings WHERE key = ANY($1)")
+                .bind(keys)
+                .fetch_all(&self.pool)
+                .await?;
+        let mut map = std::collections::HashMap::new();
+        for key in keys {
+            map.insert(key.to_string(), None);
+        }
+        for (k, v) in rows {
+            map.insert(k, Some(v));
+        }
+        Ok(map)
+    }
+
     /// Устанавливает (upsert) значение настройки.
     pub async fn set_setting(&self, key: &str, value: &str) -> Result<(), StoreError> {
         sqlx::query(

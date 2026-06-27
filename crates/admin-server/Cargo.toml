@@ -10,14 +10,14 @@ protocol = { path = "../protocol" }
 store = { path = "../store" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-axum = { version = "0.7", features = ["multipart"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "signal", "fs"] }
-tower-http = { version = "0.6", features = ["cors", "fs"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "multipart"] }
+axum = { workspace = true, features = ["multipart"] }
+tokio = { workspace = true, features = ["fs"] }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+reqwest = { workspace = true, features = ["multipart"] }
 sha1 = "0.10"
-sha2 = "0.10"
-time = { version = "0.3", features = ["formatting"] }
+sha2 = { workspace = true }
+time = { workspace = true }
 russh = "0.61"
 russh-sftp = "2"

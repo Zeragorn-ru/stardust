@@ -4,9 +4,7 @@
 # (.github/workflows/backend.yml) и публикуются в ghcr.io. На сервере ничего
 # не собирается — только скачиваются готовые образы.
 #
-# Файл лежит в корне репозитория (/opt/stardust/docker-compose.yml).
-#
-# Запуск (из корня репозитория):
+# Запуск (из каталога deploy/):
 #   cp .env.example .env       # и отредактируй пароли/адреса
 #   docker compose pull        # скачать образы из ghcr.io
 #   docker compose up -d       # поднять (сборки не будет)
