@@ -1,10 +1,16 @@
 # Сборка и публикация Docker-образов бекенда в ghcr.io.
 #
-# Публикуются три образа: auth-server, admin-server (оба из deploy/Dockerfile,
-# разные target-стейджи) и admin-web (SPA + nginx, deploy/admin-web.Dockerfile).
+# Публикуются четыре образа: auth-server, admin-server, telegram-bot (slim,
+# из готовых бинарей через deploy/runtime.Dockerfile) и admin-web (SPA + nginx,
+# deploy/admin-web.Dockerfile).
+#
+# Ключевая оптимизация: тяжёлая Rust-компиляция (lto=fat, codegen-units=1)
+# происходит РОВНО ОДИН РАЗ в job `build` — там же тесты и инкрементальный
+# кэш cargo (Swatinem/rust-cache). Три бинаря уезжают артефактами, а matrix-job
+# `image` лишь пакует готовый бинарь в slim-образ (компиляции в Docker нет).
 #
 # Деплой автоматический: после успешной сборки и пуша образов CI подключается
-# по SSH к серверу, делает git pull и перезапускает контейнеры.
+# по SSH к серверу и перезапускает контейнеры.
 
 name: backend
 
@@ -16,7 +22,7 @@ on:
       - "Cargo.lock"
       - "crates/**"
       - "admin-web/**"
-      - "deploy/Dockerfile"
+      - "deploy/runtime.Dockerfile"
       - "deploy/admin-web.Dockerfile"
       - "deploy/admin-web.nginx.conf"
       - "deploy/squid.conf"
@@ -24,17 +30,32 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Build + test (auth-server, admin-server, telegram-bot, store, protocol)
+      - name: Test (auth-server, admin-server, telegram-bot, store, protocol)
         run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
+      # Тяжёлая release-сборка всех серверных бинарей за один прогон.
+      # Инкрементальный target/ переживает прогоны благодаря rust-cache.
+      - name: Build release binaries
+        run: cargo build --release -p auth-server -p admin-server -p telegram-bot
+      # Каждый бинарь — отдельный артефакт, чтобы image-job скачивал только свой.
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-binaries
+          path: |
+            target/release/auth-server
+            target/release/admin-server
+            target/release/telegram-bot
+          retention-days: 1
+          if-no-files-found: error
 
   image:
-    needs: build-test
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -42,18 +63,16 @@ jobs:
     strategy:
       matrix:
         include:
+          # Rust-сервисы: пакуются из готового бинаря (kind: rust).
           - name: auth-server
-            dockerfile: deploy/Dockerfile
-            target: auth-server
+            kind: rust
           - name: admin-server
-            dockerfile: deploy/Dockerfile
-            target: admin-server
+            kind: rust
           - name: telegram-bot
-            dockerfile: deploy/Dockerfile
-            target: telegram-bot
+            kind: rust
+          # SPA: собирается из исходников (kind: web).
           - name: admin-web
-            dockerfile: deploy/admin-web.Dockerfile
-            target: admin-web
+            kind: web
     steps:
       - uses: actions/checkout@v4
 
@@ -77,13 +96,38 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build and push
+      # --- Rust-сервисы: берём готовый бинарь, пакуем в slim-образ ---
+      - name: Download server binaries
+        if: matrix.kind == 'rust'
+        uses: actions/download-artifact@v4
+        with:
+          name: server-binaries
+          path: bin
+      - name: Make binary executable
+        if: matrix.kind == 'rust'
+        run: chmod +x bin/${{ matrix.name }}
+      - name: Build and push (rust)
+        if: matrix.kind == 'rust'
         uses: docker/build-push-action@v6
         with:
-          # Контекст — корень воркспейса; Dockerfile в deploy/.
+          # Контекст — только каталог bin/ с бинарями; компиляции нет.
+          context: bin
+          file: deploy/runtime.Dockerfile
+          target: ${{ matrix.name }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      # --- admin-web: сборка SPA из исходников ---
+      - name: Build and push (web)
+        if: matrix.kind == 'web'
+        uses: docker/build-push-action@v6
+        with:
           context: .
-          file: ${{ matrix.dockerfile }}
-          target: ${{ matrix.target }}
+          file: deploy/admin-web.Dockerfile
+          target: admin-web
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -104,7 +148,9 @@ jobs:
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           source: "deploy/docker-compose.yml,deploy/squid.conf"
-          target: "/opt/stardust/deploy/"
+          # На сервере compose-файлы и data/, logs/ лежат прямо в /opt/stardust.
+          # strip_components: 1 срезает префикс deploy/ из путей-источников.
+          target: "/opt/stardust/"
           strip_components: 1
 
       - name: Pull images and restart containers
@@ -115,7 +161,19 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -euo pipefail
-            cd /opt/stardust/deploy
+            cd /opt/stardust
+            # Фиксируем имя проекта, чтобы контейнеры с жёстким container_name
+            # (launcher-*) не оказались "чужими" и не ломали up конфликтом имён.
+            export COMPOSE_PROJECT_NAME=stardust
             docker compose pull
+            # Пересоздаём стек начисто: сносим контейнеры проекта и orphan'ов.
+            docker compose down --remove-orphans
+            # Подстраховка от контейнеров, оставшихся от старого имени проекта.
+            for name in launcher-auth-db launcher-auth-server launcher-admin-server \
+                        launcher-telegram-bot launcher-squid launcher-admin-web; do
+              if [ -n "$(docker ps -aq -f "name=^/${name}$")" ]; then
+                docker rm -f "$name" >/dev/null 2>&1 || true
+              fi
+            done
             docker compose up -d --remove-orphans
             docker compose ps

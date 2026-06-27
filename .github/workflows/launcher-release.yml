@@ -49,7 +49,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: "launcher/src-tauri -> target"
+          # launcher/src-tauri — член корневого воркспейса, поэтому target/
+          # лежит в корне репозитория, а не в launcher/src-tauri/target.
+          # Кэшируем корневой воркспейс целиком (Cargo.lock в корне).
+          workspaces: ". -> target"
 
       - name: Install frontend deps
         working-directory: launcher
