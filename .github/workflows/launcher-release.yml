@@ -143,7 +143,14 @@ jobs:
           # собирается clippy выше — чтобы артефакты зависимостей переиспользовались.
           # ВАЖНО: при кастомном профиле bundle лежит в target/launcher-release/,
           # а не target/release/ — это учтено в шаге Publish SHA-256 ниже.
-          args: ${{ matrix.args }} --profile launcher-release
+          #
+          # Двойной `--`: tauri-action запускает `npm run tauri build -- <args>`,
+          # и npm съедает первый `--`. Сам `tauri build` НЕ знает флаг --profile —
+          # он пробрасывает в cargo только то, что идёт после ЕГО собственного `--`.
+          # Поэтому нужен ещё один `--` перед --profile, иначе tauri падает с
+          # «unexpected argument '--profile'». matrix.args (опции самого tauri
+          # build, напр. --target) идут ДО `--`, аргументы cargo — после.
+          args: ${{ matrix.args }} -- --profile launcher-release
 
       # Публикуем SHA-256 хеши установщиков рядом с ассетами релиза.
       # Лаунчер сверяет скачанный установщик с .sha256 файлом перед запуском.
