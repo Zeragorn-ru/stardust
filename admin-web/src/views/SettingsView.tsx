@@ -293,7 +293,7 @@ export function SettingsView() {
                   Сохранить
                 </button>
                 <button
-                  disabled={syncingStats || !settings?.sftpPasswordSet}
+                  disabled={syncingStats}
                   onClick={syncStats}
                 >
                   {syncingStats ? "Синхронизация…" : "Синхронизировать статистику"}
