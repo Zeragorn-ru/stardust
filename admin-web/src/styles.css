@@ -277,6 +277,7 @@ label {
     color: var(--muted);
     padding: 9px 10px;
     position: relative;
+    text-decoration: none;
 }
 
 .nav-item:hover:not(:disabled) {
