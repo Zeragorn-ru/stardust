@@ -77,8 +77,13 @@ jobs:
         working-directory: launcher
         run: npm ci
 
+      # Clippy в release-профиле специально: следующий шаг (tauri-action) тоже
+      # собирает в release. clippy подменяет компилятор только для крейтов
+      # воркспейса, а зависимости компилируются обычным rustc — поэтому в одном
+      # профиле их артефакты совпадают и release-сборка их переиспользует
+      # вместо повторной компиляции всех зависимостей с нуля.
       - name: Clippy
-        run: cargo clippy -p launcher -- -D warnings
+        run: cargo clippy -p launcher --release -- -D warnings
 
       # Версия в файлах — плейсхолдер 0.0.0. Подставляем реальную из тега
       # (vX.Y.Z -> X.Y.Z) в package.json, Cargo.toml, tauri.conf.json и
