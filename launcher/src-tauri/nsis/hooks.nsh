@@ -50,15 +50,14 @@ Var LaunchAfterInstall
     ExecWait 'taskkill /F /IM StarDust.exe' $0
     Sleep 500
 
-    ; Пишем bat-файл в temp: ждём 5 сек и запускаем лаунчер.
+    ; Пишем VBScript в temp: ждём 5 сек и запускаем лаунчер невидимо.
     GetTempFileName $0
     FileOpen $1 $0 w
-    FileWrite $1 '@echo off"$\r$\n'
-    FileWrite $1 'ping 127.0.0.1 -n 6 >nul"$\r$\n'
-    FileWrite $1 'start "" "$INSTDIR\StarDust.exe"$\r$\n'
+    FileWrite $1 'WScript.Sleep 5000$\r$\n'
+    FileWrite $1 'Set s = CreateObject("WScript.Shell")$\r$\n'
+    FileWrite $1 's.Run """$INSTDIR\StarDust.exe""", 0, False$\r$\n'
     FileClose $1
-    ; Запускаем bat-файл в фоне (окно консоли скроется автоматически).
-    ExecShell "open" $0 "" "" SW_HIDE
+    ExecShell "open" "wscript.exe" $0 "" "" SW_HIDE
 
   launch_done:
 !macroend

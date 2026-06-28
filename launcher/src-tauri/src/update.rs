@@ -200,10 +200,10 @@ fn sanitize_filename(name: &str) -> Result<String, String> {
 fn launch_installer(path: &std::path::Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
         std::process::Command::new(path)
-            // NSIS: полностью тихая установка без мастера и выбора удаления данных.
-            // В hooks.nsh для silent-деинсталляции задан /SD IDNO, поэтому AppData сохраняется.
             .arg("/S")
+            .creation_flags(0x0800_0000)
             .spawn()
             .map_err(|e| format!("Не удалось запустить установщик: {e}"))?;
         Ok(())

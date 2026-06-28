@@ -481,21 +481,21 @@ body {
 }
 
 /* Для главного экрана stagger стартует после завершения enter-перехода (380ms),
-   чтобы элементы появлялись плавно уже на финальной позиции. */
+   но с меньшими задержками для отзывчивости. */
 .main .stagger .stagger-item:nth-child(1) {
-    animation-delay: 0.42s;
+    animation-delay: 0.08s;
 }
 .main .stagger .stagger-item:nth-child(2) {
-    animation-delay: 0.52s;
+    animation-delay: 0.14s;
 }
 .main .stagger .stagger-item:nth-child(3) {
-    animation-delay: 0.62s;
+    animation-delay: 0.2s;
 }
 .main .stagger .stagger-item:nth-child(4) {
-    animation-delay: 0.72s;
+    animation-delay: 0.26s;
 }
 .main .stagger .stagger-item:nth-child(5) {
-    animation-delay: 0.82s;
+    animation-delay: 0.32s;
 }
 
 @keyframes fadeUp {
