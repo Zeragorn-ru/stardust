@@ -626,6 +626,43 @@ impl Store {
             .filter(|r| r.created.elapsed() < JOIN_TTL)
             .map(|r| r.access_token.clone())
     }
+
+    // ─────────────────────── статистика ───────────────────────
+
+    /// Возвращает `(playtime_seconds, last_launched_at)` для аккаунта.
+    pub async fn get_playtime(
+        &self,
+        uuid: &str,
+    ) -> Result<(i64, Option<OffsetDateTime>), StoreError> {
+        let row = sqlx::query(
+            "SELECT playtime_seconds, last_launched_at FROM accounts WHERE uuid = $1",
+        )
+        .bind(normalize_uuid(uuid))
+        .fetch_one(&self.pool)
+        .await?;
+        Ok((row.get("playtime_seconds"), row.get("last_launched_at")))
+    }
+
+    /// Добавляет `delta_seconds` к накопленному времени и обновляет `last_launched_at`.
+    pub async fn add_playtime(
+        &self,
+        uuid: &str,
+        delta_seconds: i64,
+        launched_at: OffsetDateTime,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE accounts
+             SET playtime_seconds = playtime_seconds + $2,
+                 last_launched_at  = $3
+             WHERE uuid = $1",
+        )
+        .bind(normalize_uuid(uuid))
+        .bind(delta_seconds)
+        .bind(launched_at)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
 }
 
 fn row_to_account(row: &PgRow) -> Account {

@@ -334,3 +334,25 @@ pub struct SkinUploadRequest {
     #[serde(default)]
     pub model: SkinModel,
 }
+
+/// Статистика игрока: суммарное время игры и дата последнего запуска.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerStats {
+    /// Суммарное время игры в секундах.
+    #[serde(rename = "playtimeSeconds")]
+    pub playtime_seconds: i64,
+    /// ISO-8601 дата-время последнего запуска игры, либо null.
+    #[serde(rename = "lastLaunchedAt", skip_serializing_if = "Option::is_none")]
+    pub last_launched_at: Option<String>,
+}
+
+/// Тело запроса на запись игровой сессии.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordSessionRequest {
+    /// Длительность сессии в секундах.
+    #[serde(rename = "durationSeconds")]
+    pub duration_seconds: i64,
+    /// ISO-8601 момент запуска игры.
+    #[serde(rename = "launchedAt")]
+    pub launched_at: String,
+}

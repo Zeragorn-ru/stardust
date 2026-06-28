@@ -9,6 +9,7 @@ import type {
   BuildFile,
   BuildHeader,
   CreateBuildInput,
+  PlayerStats,
   Settings,
   UploadMeta,
 } from "./types";
@@ -270,6 +271,10 @@ export const api = {
     sftpPassword?: string;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
+  },
+
+  getAccountStats(uuid: string): Promise<PlayerStats> {
+    return request("GET", `/api/accounts/${uuid}/stats`);
   },
 
   // Скин аккаунта тянем PNG-ом с bearer-токеном и отдаём как object URL

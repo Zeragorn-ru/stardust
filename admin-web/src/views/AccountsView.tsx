@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
-import type { Account } from "../types";
+import type { Account, PlayerStats } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { SkinHead } from "../ui/SkinHead";
 import {
   IconBan,
+  IconChart,
   IconCheck,
   IconKey,
   IconPencil,
@@ -40,6 +41,7 @@ export function AccountsView() {
   const [resettingPw, setResettingPw] = useState<Account | null>(null);
   const [editingTg, setEditingTg] = useState<Account | null>(null);
   const [selfUuid, setSelfUuid] = useState<string | null>(null);
+  const [viewingStats, setViewingStats] = useState<Account | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -320,6 +322,14 @@ export function AccountsView() {
                     <td className="row-actions">
                       <button
                         className="icon-only"
+                        title="Статистика"
+                        disabled={busy === a.uuid}
+                        onClick={() => setViewingStats(a)}
+                      >
+                        <IconChart size={15} />
+                      </button>
+                      <button
+                        className="icon-only"
                         title="Переименовать"
                         disabled={busy === a.uuid}
                         onClick={() => setRenaming(a)}
@@ -435,6 +445,12 @@ export function AccountsView() {
           busy={busy === editingTg.uuid}
           onCancel={() => setEditingTg(null)}
           onSubmit={(chatId) => doSetTelegram(editingTg, chatId)}
+        />
+      )}
+      {viewingStats && (
+        <StatsDialog
+          account={viewingStats}
+          onClose={() => setViewingStats(null)}
         />
       )}
     </div>
@@ -730,6 +746,76 @@ function TelegramDialog({
           >
             {trimmed ? "Сохранить" : "Отвязать"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatPlaytime(seconds: number): string {
+  if (seconds < 60) return `${seconds} с`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem > 0 ? `${h} ч ${rem} мин` : `${h} ч`;
+}
+
+function StatsDialog({
+  account,
+  onClose,
+}: {
+  account: Account;
+  onClose: () => void;
+}) {
+  const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useBodyScrollLock();
+
+  useEffect(() => {
+    api.getAccountStats(account.uuid).then(setStats).catch((e: unknown) => {
+      setError(e instanceof ApiError ? e.message : "Ошибка загрузки");
+    });
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [account.uuid, onClose]);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Статистика — {account.username}</h3>
+        {error ? (
+          <p className="muted">{error}</p>
+        ) : !stats ? (
+          <p className="muted">Загрузка…</p>
+        ) : (
+          <table className="stats-table">
+            <tbody>
+              <tr>
+                <td className="muted">Время в игре</td>
+                <td>{formatPlaytime(stats.playtimeSeconds)}</td>
+              </tr>
+              <tr>
+                <td className="muted">Последний запуск</td>
+                <td>
+                  {stats.lastLaunchedAt
+                    ? new Date(stats.lastLaunchedAt).toLocaleString()
+                    : "—"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        )}
+        <div className="modal-actions">
+          <button onClick={onClose}>Закрыть</button>
         </div>
       </div>
     </div>

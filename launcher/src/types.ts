@@ -138,3 +138,11 @@ export interface Progress {
   /** Оставшееся время, секунд. */
   etaSeconds?: number | null;
 }
+
+/** Статистика игрока. */
+export interface PlayerStats {
+  /** Суммарное время игры, секунды. */
+  playtimeSeconds: number;
+  /** ISO-8601 дата последнего запуска, либо null. */
+  lastLaunchedAt: string | null;
+}

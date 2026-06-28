@@ -43,8 +43,8 @@ use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
     ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
     PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
-    SessionResponse, SkinImportRequest, SkinModel, SkinUploadRequest, TelegramLinkResponse,
-    TwoFactorRequest,
+    PlayerStats, RecordSessionRequest, SessionResponse, SkinImportRequest, SkinModel,
+    SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
 };
 
 use crate::yggdrasil::Keys;
@@ -146,6 +146,8 @@ async fn main() {
         .route("/api/skin/upload", post(skin_upload))
         .route("/api/skin/:uuid", get(skin))
         .route("/api/cape/:uuid", get(cape))
+        .route("/api/stats", get(stats_get))
+        .route("/api/stats/session", post(stats_record_session))
         // --- Yggdrasil / authlib-injector ---
         .route("/", get(ygg_meta))
         .route("/authserver/authenticate", post(ygg_authenticate))
@@ -1212,6 +1214,38 @@ async fn texture(State(state): State<Shared>, Path(hash): Path<String>) -> Respo
         png,
     )
         .into_response()
+}
+
+/// `GET /api/stats` — суммарное время игры и дата последнего запуска.
+async fn stats_get(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<PlayerStats>, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let (playtime_seconds, last_launched_at) =
+        state.store.get_playtime(&account.uuid).await?;
+    Ok(Json(PlayerStats {
+        playtime_seconds,
+        last_launched_at: last_launched_at
+            .map(|t| t.format(&Rfc3339).unwrap_or_default()),
+    }))
+}
+
+/// `POST /api/stats/session` — записать завершившуюся игровую сессию.
+async fn stats_record_session(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<RecordSessionRequest>,
+) -> Result<StatusCode, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let launched_at = time::OffsetDateTime::parse(&req.launched_at, &Rfc3339)
+        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "Неверный формат launchedAt"))?;
+    let delta = req.duration_seconds.max(0);
+    state
+        .store
+        .add_playtime(&account.uuid, delta, launched_at)
+        .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Фоновый цикл: периодически перечитывает скины с Mojang для аккаунтов,

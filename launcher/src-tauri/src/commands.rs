@@ -850,13 +850,55 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         settings.memory_mb.clamp(512, 32768),
         settings.download_concurrency as usize,
         profile,
-        token,
+        token.clone(),
     )
     .await?;
 
     crate::game_guard::record(&data_dir, child.id());
     *state.game.lock().unwrap() = Some(child);
+
+    // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
+    let http = state.http.clone();
+    let data_dir2 = data_dir.clone();
+    tokio::spawn(async move {
+        let launched_at = time::OffsetDateTime::now_utc();
+        let launched_at_str = launched_at
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap_or_default();
+
+        // Ждём завершения процесса, опрашивая каждые 2 секунды.
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let exited = {
+                // Заново достаём Child из state, но state уже не доступен здесь —
+                // используем game_guard: если PID-файл исчез, игра завершилась.
+                !crate::game_guard::is_running(&data_dir2)
+            };
+            if exited {
+                break;
+            }
+        }
+
+        let duration = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds().max(0);
+        if duration > 0 {
+            if let Err(e) =
+                backend::record_session(&http, &token, duration, &launched_at_str).await
+            {
+                eprintln!("[stats] не удалось записать сессию: {e}");
+            }
+        }
+    });
+
     Ok(())
+}
+
+// ---------- Статистика ----------
+
+/// Получить статистику игрока с сервера (playtime, last_launched_at).
+#[tauri::command]
+async fn get_stats(state: State<'_, AppState>) -> Result<protocol::PlayerStats, String> {
+    let (_uuid, token) = current_session(&state)?;
+    backend::get_stats(&state.http, &token).await
 }
 
 // ---------- Сборка (модпак) ----------
@@ -944,6 +986,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             delete_account,
             play_game,
             game_running,
+            get_stats,
             list_optional_mods,
             set_mod_enabled,
             crate::update::check_update,

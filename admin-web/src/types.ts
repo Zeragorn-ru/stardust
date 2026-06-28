@@ -50,6 +50,11 @@ export interface Settings {
   sftpPasswordSet: boolean;
 }
 
+export interface PlayerStats {
+  playtimeSeconds: number;
+  lastLaunchedAt?: string;
+}
+
 export interface CreateBuildInput {
   name: string;
   version: string;

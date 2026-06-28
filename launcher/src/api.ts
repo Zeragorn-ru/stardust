@@ -12,6 +12,7 @@ import type {
   LoginOutcome,
   OptionalMod,
   PlayerProfile,
+  PlayerStats,
   Progress,
   Settings,
   Skin,
@@ -461,6 +462,15 @@ export async function onUpdateProgress(
   } catch {
     return () => undefined;
   }
+}
+
+/** Статистика игрока (playtime, last_launched_at). */
+export async function getStats(): Promise<PlayerStats> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return { playtimeSeconds: 0, lastLaunchedAt: null };
+  }
+  return invoke<PlayerStats>("get_stats");
 }
 
 function delay(ms: number): Promise<void> {

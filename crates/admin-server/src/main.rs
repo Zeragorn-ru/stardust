@@ -155,6 +155,7 @@ async fn main() {
             axum::routing::delete(unlink_account_telegram).put(set_account_telegram),
         )
         .route("/api/accounts/:uuid/skin", get(account_skin))
+        .route("/api/accounts/:uuid/stats", get(account_stats))
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
         .route("/authlib-injector.jar", get(authlib_injector))
@@ -1534,6 +1535,22 @@ async fn account_skin(
         skin.png,
     )
         .into_response())
+}
+
+/// `GET /api/accounts/:uuid/stats` — время игры и дата последнего запуска.
+async fn account_stats(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+) -> Result<Json<protocol::PlayerStats>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let (playtime_seconds, last_launched_at) =
+        state.store.get_playtime(&uuid).await.map_err(map_store)?;
+    Ok(Json(protocol::PlayerStats {
+        playtime_seconds,
+        last_launched_at: last_launched_at
+            .map(|t| t.format(&Rfc3339).unwrap_or_default()),
+    }))
 }
 
 /// Нормализует UUID для сравнения (убирает дефисы, нижний регистр).

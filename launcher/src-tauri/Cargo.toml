@@ -21,7 +21,8 @@ tar = "0.4"
 flate2 = "1"
 futures-util = "0.3"
 toml = { version = "0.8", default-features = false, features = ["parse"] }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "time"] }
+time = { version = "0.3", features = ["formatting"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"

@@ -9,7 +9,8 @@ use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
     ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
     PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
-    SessionResponse, SkinImportRequest, SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
+    PlayerStats, RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
+    TelegramLinkResponse, TwoFactorRequest,
 };
 use serde::Deserialize;
 use std::sync::OnceLock;
@@ -623,5 +624,52 @@ pub async fn telegram_unlink(client: &reqwest::Client, token: &str) -> Result<()
     match resp.json::<ErrorBody>().await {
         Ok(body) => Err(body.error),
         Err(_) => Err("Не удалось отвязать Telegram".to_string()),
+    }
+}
+
+/// GET `/api/stats`. Получить статистику игрока (playtime, last_launched_at).
+pub async fn get_stats(client: &reqwest::Client, token: &str) -> Result<PlayerStats, String> {
+    let resp = client
+        .get(format!("{}/api/stats", base_url()))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return resp
+            .json::<PlayerStats>()
+            .await
+            .map_err(|e| format!("Некорректный ответ сервера: {e}"));
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось получить статистику".to_string()),
+    }
+}
+
+/// POST `/api/stats/session`. Записать завершившуюся игровую сессию.
+pub async fn record_session(
+    client: &reqwest::Client,
+    token: &str,
+    duration_seconds: i64,
+    launched_at: &str,
+) -> Result<(), String> {
+    let req = RecordSessionRequest {
+        duration_seconds,
+        launched_at: launched_at.to_string(),
+    };
+    let resp = client
+        .post(format!("{}/api/stats/session", base_url()))
+        .bearer_auth(token)
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return Ok(());
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось записать сессию".to_string()),
     }
 }

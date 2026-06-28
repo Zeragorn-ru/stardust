@@ -1,0 +1,3 @@
+ALTER TABLE accounts
+    ADD COLUMN IF NOT EXISTS playtime_seconds BIGINT NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS last_launched_at  TIMESTAMPTZ;

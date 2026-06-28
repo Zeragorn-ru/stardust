@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { PlayerProfile, Progress } from "../types";
-import { gameRunning, onLauncherProgress, playGame } from "../api";
+import type { PlayerProfile, PlayerStats, Progress } from "../types";
+import { gameRunning, getStats, onLauncherProgress, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -22,6 +22,7 @@ export default function MainScreen({
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const [skinOpen, setSkinOpen] = useState(false);
+  const [stats, setStats] = useState<PlayerStats | null>(null);
   const busy =
     running ||
     (progress != null &&
@@ -51,6 +52,11 @@ export default function MainScreen({
     });
   }, []);
 
+  // Загружаем статистику при монтировании.
+  useEffect(() => {
+    getStats().then(setStats).catch(() => undefined);
+  }, []);
+
   // Пока игра жива, держим кнопку неактивной и опрашиваем статус процесса.
   useEffect(() => {
     if (!running) return;
@@ -58,6 +64,8 @@ export default function MainScreen({
       if (!(await gameRunning())) {
         setRunning(false);
         setProgress(null);
+        // Обновляем статистику после завершения сессии.
+        getStats().then(setStats).catch(() => undefined);
       }
     }, 1500);
     return () => clearInterval(id);
@@ -134,6 +142,20 @@ export default function MainScreen({
               именем. Ничего настраивать не нужно.
             </p>
           </div>
+          {stats != null && (
+            <div className="hero__stats">
+              <div className="hero__stat">
+                <span className="hero__stat-value">{formatPlaytime(stats.playtimeSeconds)}</span>
+                <span className="hero__stat-label">в игре</span>
+              </div>
+              {stats.lastLaunchedAt != null && (
+                <div className="hero__stat">
+                  <span className="hero__stat-value">{formatLastLaunch(stats.lastLaunchedAt)}</span>
+                  <span className="hero__stat-label">последний запуск</span>
+                </div>
+              )}
+            </div>
+          )}
           <button
             className="btn btn--play"
             onClick={handlePlay}
@@ -209,4 +231,18 @@ function formatEta(seconds: number): string {
 function shortId(id: string): string {
   if (id.length <= 12) return id;
   return `${id.slice(0, 8)}…${id.slice(-4)}`;
+}
+
+function formatPlaytime(seconds: number): string {
+  if (seconds < 60) return `${seconds}с`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h === 0) return `${m}м`;
+  return `${h}ч ${m}м`;
+}
+
+function formatLastLaunch(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
 }
