@@ -269,6 +269,7 @@ export const api = {
     sftpHost?: string;
     sftpUsername?: string;
     sftpPassword?: string;
+    sftpStatsPath?: string;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
   },

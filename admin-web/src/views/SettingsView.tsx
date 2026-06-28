@@ -16,6 +16,7 @@ export function SettingsView() {
   const [sftpHost, setSftpHost] = useState("");
   const [sftpUsername, setSftpUsername] = useState("");
   const [sftpPassword, setSftpPassword] = useState("");
+  const [sftpStatsPath, setSftpStatsPath] = useState("");
   const [savingPanel, setSavingPanel] = useState(false);
 
   const load = useCallback(async () => {
@@ -24,6 +25,7 @@ export function SettingsView() {
       setSettings(s);
       setSftpHost(s.sftpHost ?? "");
       setSftpUsername(s.sftpUsername ?? "");
+      setSftpStatsPath(s.sftpStatsPath ?? "");
     } catch (err) {
       toast.error(
         err instanceof ApiError
@@ -87,9 +89,11 @@ export function SettingsView() {
         sftpHost?: string;
         sftpUsername?: string;
         sftpPassword?: string;
+        sftpStatsPath?: string;
       } = {
         sftpHost,
         sftpUsername,
+        sftpStatsPath,
       };
       if (sftpPassword.trim()) patch.sftpPassword = sftpPassword.trim();
       const next = await api.saveSettings(patch);
@@ -97,6 +101,7 @@ export function SettingsView() {
       setSftpHost(next.sftpHost ?? "");
       setSftpUsername(next.sftpUsername ?? "");
       setSftpPassword("");
+      setSftpStatsPath(next.sftpStatsPath ?? "");
       toast.success("Настройки SFTP сохранены");
     } catch (err) {
       toast.error(
@@ -251,6 +256,16 @@ export function SettingsView() {
                   placeholder="••••••••"
                   value={sftpPassword}
                   onChange={(e) => setSftpPassword(e.target.value)}
+                />
+              </label>
+
+              <label className="fm-prompt-field">
+                <span className="muted">Путь к папке статистики</span>
+                <input
+                  type="text"
+                  placeholder="/home/user/minecraft/world/stats"
+                  value={sftpStatsPath}
+                  onChange={(e) => setSftpStatsPath(e.target.value)}
                 />
               </label>
 

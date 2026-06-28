@@ -48,6 +48,7 @@ export interface Settings {
   sftpHost?: string;
   sftpUsername?: string;
   sftpPasswordSet: boolean;
+  sftpStatsPath?: string;
 }
 
 export interface PlayerStats {
