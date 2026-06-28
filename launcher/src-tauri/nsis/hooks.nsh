@@ -49,14 +49,8 @@ Var LaunchAfterInstall
     ExecWait 'taskkill /F /IM StarDust.exe' $0
     Sleep 500
 
-    ; Запускаем лаунчер с задержкой 5 сек через bat-файл.
-    GetTempFileName $0 "$TEMP" "sd_launch" ".bat"
-    FileOpen $1 $0 w
-    FileWrite $1 '@echo off$\r$\n'
-    FileWrite $1 'ping 127.0.0.1 -n 6 >nul$\r$\n'
-    FileWrite $1 'start "" "$INSTDIR\StarDust.exe"$\r$\n'
-    FileClose $1
-    ExecShell "open" $0
+    ; Запускаем лаунчер после установки.
+    ExecShell "open" "$INSTDIR\StarDust.exe"
 
   launch_done:
 !macroend
