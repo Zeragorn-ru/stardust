@@ -315,6 +315,7 @@ export default function AccountSection({
               Откройте бота в Telegram и отправьте команду, чтобы завершить
               привязку. Статус обновится автоматически после подтверждения.
             </p>
+            <div className="tg-code">/start {tgLink.code}</div>
             {tgLink.deepLink ? (
               <button
                 type="button"
