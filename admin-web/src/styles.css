@@ -976,6 +976,14 @@ td.num {
     gap: 16px;
 }
 
+/* Подсветка всего менеджера при перетаскивании файлов из ОС. */
+.fm.fm-dragging {
+    outline: 2px dashed var(--accent);
+    outline-offset: 4px;
+    border-radius: var(--radius);
+    background: rgba(76, 139, 245, 0.04);
+}
+
 .fm-toolbar {
     display: flex;
     align-items: center;
@@ -1956,6 +1964,13 @@ td.num {
     }
     .fm-name {
         flex: 1 1 100%;
+    }
+    /* Кнопка «Наверх» — это иконка + подпись, перенос ей не нужен. */
+    .fm-up {
+        flex-wrap: nowrap;
+    }
+    .fm-up .fm-name {
+        flex: 0 1 auto;
     }
     .fm-sha {
         display: none;

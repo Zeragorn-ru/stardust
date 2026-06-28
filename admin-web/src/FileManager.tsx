@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { BuildFile } from "./types";
-import { FileUpload } from "./FileUpload";
+import { FileUpload, type FileUploadHandle } from "./FileUpload";
 import { FileEditor, isEditable } from "./FileEditor";
 import {
   baseName,
@@ -110,6 +110,38 @@ export function FileManager({
   const [bulkBusy, setBulkBusy] = useState(false);
   // Активный диалог создания: папка или файл.
   const [creating, setCreating] = useState<"folder" | "file" | null>(null);
+  // Перетаскивание файлов на весь менеджер (а не только в зону загрузки).
+  const uploadRef = useRef<FileUploadHandle>(null);
+  const [dragDepth, setDragDepth] = useState(0);
+
+  // На ПК файлы можно бросать в любое место менеджера, не только в дропзону.
+  function hasFiles(e: React.DragEvent): boolean {
+    return Array.from(e.dataTransfer.types).includes("Files");
+  }
+
+  function onManagerDragEnter(e: React.DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    setDragDepth((d) => d + 1);
+  }
+
+  function onManagerDragOver(e: React.DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }
+
+  function onManagerDragLeave(e: React.DragEvent) {
+    if (!hasFiles(e)) return;
+    setDragDepth((d) => Math.max(0, d - 1));
+  }
+
+  function onManagerDrop(e: React.DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    setDragDepth(0);
+    uploadRef.current?.addFromDataTransfer(e.dataTransfer);
+  }
 
   const searching = query.trim().length > 0 || kindFilter !== "all";
 
@@ -323,7 +355,13 @@ export function FileManager({
   }
 
   return (
-    <div className="fm">
+    <div
+      className={`fm${dragDepth > 0 ? " fm-dragging" : ""}`}
+      onDragEnter={onManagerDragEnter}
+      onDragOver={onManagerDragOver}
+      onDragLeave={onManagerDragLeave}
+      onDrop={onManagerDrop}
+    >
       <div className="fm-toolbar">
         <nav className="breadcrumbs">
           <button
@@ -371,6 +409,13 @@ export function FileManager({
           />
         </div>
       </div>
+
+      <FileUpload
+        ref={uploadRef}
+        buildId={buildId}
+        onUploaded={onChanged}
+        baseDir={dir}
+      />
 
       {selected.size > 0 && (
         <BulkBar
@@ -435,12 +480,11 @@ export function FileManager({
           {dir !== "" && (
             <div className="fm-row up">
               <button
-                className="fm-main"
+                className="fm-main fm-up"
                 onClick={() => setDir(parentDir(dir))}
               >
                 <IconCornerUp size={17} className="fm-icon" />
-                <span className="fm-name">..</span>
-                <span className="fm-meta muted">наверх</span>
+                <span className="fm-name">Наверх</span>
               </button>
             </div>
           )}
@@ -494,8 +538,6 @@ export function FileManager({
           ))}
         </div>
       )}
-
-      <FileUpload buildId={buildId} onUploaded={onChanged} baseDir={dir} />
 
       {editing && (
         <FileEditor

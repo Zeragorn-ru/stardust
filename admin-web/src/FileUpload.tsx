@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { UploadMeta } from "./types";
 import { formatSize, baseName, slugifyModId } from "./format";
@@ -82,15 +82,19 @@ function makeItem(file: File, baseDir: string): QueueItem {
   };
 }
 
-export function FileUpload({
-  buildId,
-  onUploaded,
-  baseDir = "",
-}: {
-  buildId: number;
-  onUploaded: () => void;
-  baseDir?: string;
-}) {
+export interface FileUploadHandle {
+  // Принимает содержимое drop'а из любого места файлового менеджера.
+  addFromDataTransfer: (dt: DataTransfer) => void;
+}
+
+export const FileUpload = forwardRef<
+  FileUploadHandle,
+  {
+    buildId: number;
+    onUploaded: () => void;
+    baseDir?: string;
+  }
+>(function FileUpload({ buildId, onUploaded, baseDir = "" }, ref) {
   const toast = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -139,14 +143,13 @@ export function FileUpload({
     setItems((cur) => cur.filter((it) => it.id !== id));
   }
 
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    // Если браузер даёт файловые entry — обходим папки рекурсивно.
-    const items = e.dataTransfer.items;
+  // Разбирает содержимое drop'а: рекурсивно обходит папки (если браузер даёт
+  // файловые entry), иначе берёт плоский список файлов.
+  function addFromDataTransfer(dt: DataTransfer) {
+    const dtItems = dt.items;
     const entries: FileSystemEntry[] = [];
-    for (let i = 0; i < items.length; i++) {
-      const entry = items[i].webkitGetAsEntry?.();
+    for (let i = 0; i < dtItems.length; i++) {
+      const entry = dtItems[i].webkitGetAsEntry?.();
       if (entry) entries.push(entry);
     }
     if (entries.length) {
@@ -155,9 +158,18 @@ export function FileUpload({
         for (const entry of entries) await collectEntry(entry, "", out);
         addFiles(out);
       })();
-    } else if (e.dataTransfer.files.length) {
-      addFiles(e.dataTransfer.files);
+    } else if (dt.files.length) {
+      addFiles(dt.files);
     }
+  }
+
+  useImperativeHandle(ref, () => ({ addFromDataTransfer }));
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    addFromDataTransfer(e.dataTransfer);
   }
 
   async function uploadAll() {
@@ -222,6 +234,7 @@ export function FileUpload({
         className={`dropzone${dragging ? " over" : ""}`}
         onDragOver={(e) => {
           e.preventDefault();
+          e.stopPropagation();
           setDragging(true);
         }}
         onDragLeave={() => setDragging(false)}
@@ -297,7 +310,7 @@ export function FileUpload({
       )}
     </div>
   );
-}
+});
 
 function QueueRow({
   item,
