@@ -857,8 +857,22 @@ async fn ensure_neoforge(
         .join("versions")
         .join(&profile_id)
         .join(format!("{profile_id}.json"));
-    if marker.exists() {
+    // Проверяем не только json-профиль, но и patched client jar — installer
+    // создаёт его в самом конце. Если jar отсутствует, установка была неполной
+    // (например, installer упал на DOWNLOAD_MOJMAPS) и нужно переустановить.
+    let patched_client = root
+        .join("libraries")
+        .join("net/neoforged/neoforge")
+        .join(&neoforge_version)
+        .join(format!("neoforge-{neoforge_version}-client.jar"));
+    if marker.exists() && patched_client.exists() {
         return Ok(profile_id);
+    }
+    // Если маркер есть, но patched client отсутствует — удаляем маркер,
+    // чтобы installer запустился заново.
+    if marker.exists() {
+        let _ = fs::remove_file(&marker);
+        eprintln!("[neoforge] обнаружена неполная установка (нет patched client), переустанавливаем");
     }
 
     // Installer отказывается работать без launcher_profiles.json в целевой папке.
