@@ -12,7 +12,8 @@ import { Login } from "../Login";
 import { BuildsPage } from "./BuildsPage";
 import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
-import { IconBox, IconLogout, IconSettings, IconUsers } from "../ui/icons";
+import { IconBox, IconLogout, IconSettings, IconSmartphone, IconUsers } from "../ui/icons";
+import { switchViewHref } from "../app/viewMode";
 
 export function DesktopApp() {
   return (
@@ -79,6 +80,9 @@ function Shell() {
               <span className="who-name">{username}</span>
             </div>
           )}
+          <a className="nav-item" href={switchViewHref("mobile")}>
+            <IconSmartphone /> Телефонная версия
+          </a>
           <button className="nav-item" onClick={logout}>
             <IconLogout /> Выйти
           </button>
