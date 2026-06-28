@@ -159,7 +159,7 @@ export default function SettingsScreen({
         </nav>
 
         {section === "account" ? (
-          <div className="settings__body stagger" key="account">
+          <div className="settings__body stagger screen-enter" key="account">
             <AccountSection
               profile={profile}
               onProfileChange={onProfileChange}
@@ -167,11 +167,11 @@ export default function SettingsScreen({
             />
           </div>
         ) : section === "mods" ? (
-          <div className="settings__body stagger" key="mods">
+          <div className="settings__body stagger screen-enter" key="mods">
             <ModsSection />
           </div>
         ) : (
-          <div className="settings__body stagger" key="general">
+          <div className="settings__body stagger screen-enter" key="general">
             <div className="update-card stagger-item">
               <div className="update-card__head">
                 <span className="toggle-row__title">Обновления</span>
