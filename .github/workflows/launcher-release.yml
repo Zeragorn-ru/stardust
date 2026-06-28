@@ -77,13 +77,13 @@ jobs:
         working-directory: launcher
         run: npm ci
 
-      # Clippy в release-профиле специально: следующий шаг (tauri-action) тоже
-      # собирает в release. clippy подменяет компилятор только для крейтов
+      # Clippy в профиле launcher-release специально: следующий шаг (tauri-action)
+      # собирает тем же профилем. clippy подменяет компилятор только для крейтов
       # воркспейса, а зависимости компилируются обычным rustc — поэтому в одном
       # профиле их артефакты совпадают и release-сборка их переиспользует
       # вместо повторной компиляции всех зависимостей с нуля.
       - name: Clippy
-        run: cargo clippy -p launcher --release -- -D warnings
+        run: cargo clippy -p launcher --profile launcher-release -- -D warnings
 
       # Версия в файлах — плейсхолдер 0.0.0. Подставляем реальную из тега
       # (vX.Y.Z -> X.Y.Z) в package.json, Cargo.toml, tauri.conf.json и
@@ -138,7 +138,12 @@ jobs:
           releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Launcher {0}', github.ref_name) || '' }}
           releaseDraft: false
           prerelease: false
-          args: ${{ matrix.args }}
+          # --profile launcher-release: thin-LTO профиль для более быстрой сборки
+          # (см. [profile.launcher-release] в корневом Cargo.toml). Тем же профилем
+          # собирается clippy выше — чтобы артефакты зависимостей переиспользовались.
+          # ВАЖНО: при кастомном профиле bundle лежит в target/launcher-release/,
+          # а не target/release/ — это учтено в шаге Publish SHA-256 ниже.
+          args: ${{ matrix.args }} --profile launcher-release
 
       # Публикуем SHA-256 хеши установщиков рядом с ассетами релиза.
       # Лаунчер сверяет скачанный установщик с .sha256 файлом перед запуском.
@@ -149,8 +154,9 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF_NAME}"
-          # Ищем установщики в стандартном расположении bundle/.
-          for dir in launcher/src-tauri/target/release/bundle/nsis launcher/src-tauri/target/release/bundle/macos launcher/src-tauri/target/release/bundle/deb; do
+          # Ищем установщики в bundle/ кастомного профиля launcher-release
+          # (не release/ — при --profile cargo кладёт артефакты в target/<profile>/).
+          for dir in launcher/src-tauri/target/launcher-release/bundle/nsis launcher/src-tauri/target/launcher-release/bundle/macos launcher/src-tauri/target/launcher-release/bundle/deb; do
             if [ -d "$dir" ]; then
               for ext in exe dmg AppImage deb; do
                 for artifact in "$dir"/*."$ext"; do
