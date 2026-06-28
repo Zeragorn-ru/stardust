@@ -51,7 +51,7 @@ Var LaunchAfterInstall
     Sleep 500
 
     ; Запускаем лаунчер в контексте пользователя, а не elevated NSIS-процесса.
-    ExecShell "" "$INSTDIR\StarDust.exe" "" "" SW_SHOWNORMAL
+    ExecShell "open" "$INSTDIR\StarDust.exe"
 
   launch_done:
 !macroend
