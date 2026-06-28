@@ -70,19 +70,6 @@ export async function startWindowDrag(): Promise<void> {
   await win?.startDragging();
 }
 
-export async function onLauncherLog(
-  handler: (line: string) => void,
-): Promise<() => void> {
-  try {
-    const mod = await import("@tauri-apps/api/event");
-    return mod.listen<string>("launcher://log", (event) => {
-      handler(event.payload);
-    });
-  } catch {
-    return () => undefined;
-  }
-}
-
 export async function onLauncherProgress(
   handler: (progress: Progress) => void,
 ): Promise<() => void> {

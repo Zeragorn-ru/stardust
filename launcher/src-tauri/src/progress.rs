@@ -249,11 +249,10 @@ impl Progress {
         self.emit();
     }
 
-    /// Отправляет строку лога в UI через событие `launcher://log`.
+    /// Записывает строку лога в файл (tracing).
     pub fn log(&self, msg: impl Into<String>) {
         let msg = msg.into();
         tracing::info!("[launcher] {msg}");
-        let _ = self.app.emit("launcher://log", msg);
     }
 
     fn emit(&self) {

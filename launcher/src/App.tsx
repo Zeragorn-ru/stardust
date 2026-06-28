@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlayerProfile, Progress, UpdateInfo } from "./types";
-import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherLog, onLauncherProgress } from "./api";
+import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
 import { isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
 import Aurora from "./components/Aurora";
@@ -29,7 +29,6 @@ export default function App() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
-  const [logs, setLogs] = useState<string[]>([]);
   const progressRef = useRef(progress);
   progressRef.current = progress;
   const runningRef = useRef(running);
@@ -40,15 +39,6 @@ export default function App() {
     running ||
     (progress != null &&
       ["checking", "downloading", "extracting", "launching"].includes(progress.phase));
-
-  // Сбрасываем лог при каждом новом запуске (progress: null → non-null).
-  const prevProgressRef = useRef<Progress | null>(null);
-  useEffect(() => {
-    if (progress !== null && prevProgressRef.current === null) {
-      setLogs([]);
-    }
-    prevProgressRef.current = progress;
-  }, [progress]);
 
   function navigate(next: View) {
     if (navigatingRef.current || next === view) return;
@@ -74,12 +64,6 @@ export default function App() {
       navigatingRef.current = false;
     }, TRANSITION_MS);
   }
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    onLauncherLog((line) => setLogs((prev) => [...prev, line])).then((fn) => { unlisten = fn; });
-    return () => unlisten?.();
-  }, []);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -182,7 +166,6 @@ export default function App() {
             progress={progress}
             running={running}
             busy={busy}
-            logs={logs}
             onProgressChange={setProgress}
             onRunningChange={setRunning}
             onOpenSettings={(section) => {
