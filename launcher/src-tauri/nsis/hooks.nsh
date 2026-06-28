@@ -42,9 +42,9 @@ Var LaunchAfterInstall
     ; Пауза после kill чтобы ОС завершила cleanup.
     Sleep 1000
 
-    ; Запускаем лаунчер. ExecShell использует ShellExecuteEx — новый процесс
-    ; не будет дочерним для NSIS и не завершится вместе с установщиком.
-    ExecShell "open" "$INSTDIR\StarDust.exe"
+    ; Запускаем лаунчер через explorer.exe чтобы процесс стартовал
+    ; в контексте пользователя, а не elevated NSIS-процесса.
+    Exec '"$WINDIR\explorer.exe" "$INSTDIR\StarDust.exe"'
 
   launch_done:
 !macroend
