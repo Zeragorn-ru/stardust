@@ -49,6 +49,7 @@ jobs:
       # собирается на старой glibc (ubuntu-22.04) ради совместимости у юзеров.
       - uses: dtolnay/rust-toolchain@1.96.0
         with:
+          components: clippy
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - uses: Swatinem/rust-cache@v2
