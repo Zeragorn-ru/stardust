@@ -50,9 +50,8 @@ Var LaunchAfterInstall
     ExecWait 'taskkill /F /IM StarDust.exe' $0
     Sleep 500
 
-    ; Запускаем лаунчер через explorer.exe чтобы процесс стартовал
-    ; в контексте пользователя, а не elevated NSIS-процесса.
-    Exec '"$WINDIR\explorer.exe" "$INSTDIR\StarDust.exe"'
+    ; Запускаем лаунчер в контексте пользователя, а не elevated NSIS-процесса.
+    ShellExecAsUser "open" "$INSTDIR\StarDust.exe" "" "$INSTDIR"
 
   launch_done:
 !macroend
