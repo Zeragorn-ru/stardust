@@ -119,8 +119,10 @@ export default function SkinModal({ onClose }: Props) {
     setError(null);
   }
 
+  const canClose = !saving;
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={canClose ? onClose : undefined}>
       <div
         className="modal skin-modal"
         onClick={(e) => e.stopPropagation()}
@@ -130,8 +132,10 @@ export default function SkinModal({ onClose }: Props) {
         <header className="modal__header">
           <h2>Скин</h2>
           <button
+            type="button"
             className="btn btn--icon"
-            onClick={onClose}
+            onClick={canClose ? onClose : undefined}
+            disabled={!canClose}
             aria-label="Закрыть"
           >
             ✕
@@ -263,7 +267,7 @@ export default function SkinModal({ onClose }: Props) {
         </div>
 
         <footer className="modal__footer">
-          <button className="btn btn--ghost" onClick={onClose}>
+          <button className="btn btn--ghost" onClick={canClose ? onClose : undefined} disabled={!canClose}>
             Отмена
           </button>
           <button

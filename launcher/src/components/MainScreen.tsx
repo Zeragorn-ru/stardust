@@ -1,94 +1,96 @@
 import { useEffect, useState } from "react";
 import type { PlayerProfile, PlayerStats, Progress } from "../types";
-import { gameRunning, getStats, onLauncherProgress, playGame } from "../api";
+import { getStats, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import SkinModal from "./SkinModal";
 
+const SERVER_HOST = "play.stardust-mc.xyz";
+const SERVER_STATUS_INTERVAL = 60_000;
+
 interface Props {
   profile: PlayerProfile;
+  progress: Progress | null;
+  running: boolean;
+  busy: boolean;
+  onProgressChange: (p: Progress | null) => void;
+  onRunningChange: (r: boolean) => void;
   onOpenSettings: (section?: "general" | "account") => void;
   onLogout: () => void;
 }
 
 export default function MainScreen({
   profile,
+  progress,
+  running,
+  busy,
+  onProgressChange,
+  onRunningChange,
   onOpenSettings,
   onLogout,
 }: Props) {
   const { skin } = useSkin();
-  const [progress, setProgress] = useState<Progress | null>(null);
-  const [running, setRunning] = useState(false);
   const [skinOpen, setSkinOpen] = useState(false);
   const [stats, setStats] = useState<PlayerStats | null>(null);
-  const busy =
-    running ||
-    (progress != null &&
-      ["checking", "downloading", "extracting", "launching"].includes(
-        progress.phase,
-      ));
-
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    onLauncherProgress(setProgress).then((fn) => {
-      unlisten = fn;
-    });
-    return () => unlisten?.();
-  }, []);
-
-  // При монтировании проверяем, не запущена ли игра уже (напр. после возврата из настроек).
-  useEffect(() => {
-    gameRunning().then((alive) => {
-      if (alive) {
-        setRunning(true);
-        setProgress({
-          phase: "running",
-          label: "Игра запущена",
-          fraction: null,
-        });
-      }
-    });
-  }, []);
+  const [serverOnline, setServerOnline] = useState<boolean | null>(null);
+  const [serverPlayers, setServerPlayers] = useState<number | null>(null);
 
   // Загружаем статистику при монтировании.
   useEffect(() => {
     getStats().then(setStats).catch(() => undefined);
   }, []);
 
-  // Пока игра жива, держим кнопку неактивной и опрашиваем статус процесса.
+  // Обновляем статистику после завершения сессии.
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(async () => {
-      if (!(await gameRunning())) {
-        setRunning(false);
-        setProgress(null);
-        // Обновляем статистику после завершения сессии.
-        getStats().then(setStats).catch(() => undefined);
-      }
-    }, 1500);
-    return () => clearInterval(id);
+    if (!running) {
+      getStats().then(setStats).catch(() => undefined);
+    }
   }, [running]);
 
+  // Статус сервера — опрашиваем через бэкенд (Tauri invoke), fallback на fetch.
+  useEffect(() => {
+    async function checkServer() {
+      try {
+        const mod = await import("@tauri-apps/api/core");
+        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null }>)(
+          "ping_minecraft_server",
+          { host: SERVER_HOST },
+        );
+        setServerOnline(result.online);
+        setServerPlayers(result.players);
+      } catch {
+        setServerOnline(null);
+        setServerPlayers(null);
+      }
+    }
+    checkServer();
+    const id = setInterval(checkServer, SERVER_STATUS_INTERVAL);
+    return () => clearInterval(id);
+  }, []);
+
   async function handlePlay() {
-    setProgress({
-      phase: "checking",
-      label: "Готовим игру…",
-      fraction: null,
-    });
+    onProgressChange({ phase: "checking", label: "Готовим игру…", fraction: null });
+    // Оптимистично обновляем lastLaunchedAt сразу.
+    setStats((s) =>
+      s ? { ...s, lastLaunchedAt: new Date().toISOString() } : s,
+    );
     try {
       await playGame();
-      // Игра запущена: держим кнопку заблокированной, пока процесс жив.
-      setRunning(true);
-      setProgress({ phase: "running", label: "Игра запущена", fraction: null });
+      onRunningChange(true);
+      onProgressChange({ phase: "running", label: "Игра запущена", fraction: null });
     } catch (err) {
-      setProgress({
+      onProgressChange({
         phase: "error",
         label: err instanceof Error ? err.message : String(err),
         fraction: null,
       });
     }
+  }
+
+  function handleDismissError() {
+    onProgressChange(null);
   }
 
   return (
@@ -128,7 +130,9 @@ export default function MainScreen({
             height={340}
           />
           <button
+            type="button"
             className="btn btn--ghost hero__skin-btn"
+            aria-label="Сменить скин"
             onClick={() => setSkinOpen(true)}
           >
             Сменить скин
@@ -154,60 +158,95 @@ export default function MainScreen({
                   <span className="hero__stat-label">последний запуск</span>
                 </div>
               )}
+              <div className="hero__stat">
+                {serverOnline === null ? (
+                  <>
+                    <span className="hero__stat-value hero__stat-value--muted">—</span>
+                    <span className="hero__stat-label">сервер</span>
+                  </>
+                ) : serverOnline ? (
+                  <>
+                    <span className="hero__stat-value hero__stat-value--online">
+                      {serverPlayers != null ? serverPlayers : "●"}
+                    </span>
+                    <span className="hero__stat-label">
+                      {serverPlayers != null ? "онлайн" : "сервер онлайн"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="hero__stat-value hero__stat-value--offline">✕</span>
+                    <span className="hero__stat-label">сервер офлайн</span>
+                  </>
+                )}
+              </div>
             </div>
           )}
-          <button
-            className="btn btn--play"
-            onClick={handlePlay}
-            disabled={busy}
-          >
-            <span className="play-button__top">
-              <span>
-                {running ? "Игра запущена" : busy ? "Подготовка…" : "Играть"}
-              </span>
-              {progress && (
-                <span className="play-button__percent">
-                  {progress.fraction != null
-                    ? `${Math.round(progress.fraction * 100)}%`
-                    : progress.phase === "running"
-                      ? "готово"
-                      : "…"}
+          {progress?.phase === "error" ? (
+            <div className="play-error">
+              <span className="play-error__msg">{progress.label}</span>
+              <button
+                type="button"
+                className="btn btn--play btn--play-retry"
+                onClick={handleDismissError}
+              >
+                Попробовать снова
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn btn--play"
+              onClick={handlePlay}
+              disabled={busy}
+            >
+              <span className="play-button__top">
+                <span>
+                  {running ? "Игра запущена" : busy ? "Подготовка…" : "Играть"}
                 </span>
-              )}
-            </span>
-            {progress && (
-              <span className="play-button__details">
-                <span>{progress.label}</span>
-                {hasDownloadMeta(progress) && (
-                  <span>
-                    {formatBytes(progress.downloadedBytes ?? 0)} /{" "}
-                    {formatBytes(progress.totalBytes ?? 0)} ·{" "}
-                    {formatBytes(progress.speedBytesPerSec ?? 0)}/с
-                    {progress.etaSeconds != null
-                      ? ` · осталось ${formatEta(progress.etaSeconds)}`
-                      : ""}
+                {progress && (
+                  <span className="play-button__percent">
+                    {progress.fraction != null
+                      ? `${Math.round(progress.fraction * 100)}%`
+                      : progress.phase === "running"
+                        ? "готово"
+                        : "…"}
                   </span>
                 )}
               </span>
-            )}
-            {progress && (
-              <span className="play-button__track" aria-hidden="true">
-                <span
-                  className={
-                    "play-button__bar" +
-                    (progress.fraction == null
-                      ? " play-button__bar--indeterminate"
-                      : "")
-                  }
-                  style={
-                    progress.fraction != null
-                      ? { width: `${progress.fraction * 100}%` }
-                      : undefined
-                  }
-                />
-              </span>
-            )}
-          </button>
+              {progress && (
+                <span className="play-button__details">
+                  <span>{progress.label}</span>
+                  {hasDownloadMeta(progress) && (
+                    <span>
+                      {formatBytes(progress.downloadedBytes ?? 0)} /{" "}
+                      {formatBytes(progress.totalBytes ?? 0)} ·{" "}
+                      {formatBytes(progress.speedBytesPerSec ?? 0)}/с
+                      {progress.etaSeconds != null
+                        ? ` · осталось ${formatEta(progress.etaSeconds)}`
+                        : ""}
+                    </span>
+                  )}
+                </span>
+              )}
+              {progress && (
+                <span className="play-button__track" aria-hidden="true">
+                  <span
+                    className={
+                      "play-button__bar" +
+                      (progress.fraction == null
+                        ? " play-button__bar--indeterminate"
+                        : "")
+                    }
+                    style={
+                      progress.fraction != null
+                        ? { width: `${progress.fraction * 100}%` }
+                        : undefined
+                    }
+                  />
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </section>
 
@@ -244,7 +283,11 @@ function formatPlaytime(seconds: number): string {
 function formatLastLaunch(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
+  const day = d.getDate();
+  const mon = months[d.getMonth()];
   const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-  return `${date}, ${time}`;
+  const yearPart = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
+  return `${day} ${mon}${yearPart} ${time}`;
 }
+

@@ -101,34 +101,14 @@ jobs:
           perl -0pi -e "s/^(version\s*=\s*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/m" launcher/src-tauri/Cargo.toml
           perl -0pi -e "s/(name = \"launcher\"\nversion = \")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/" Cargo.lock
 
-      # Создаём релиз заранее как ЧЕРНОВИК, с ретраем. GITHUB_TOKEN иногда
-      # отдаётся на свежий тег ещё с read-доступом (транзиентный 403 на
-      # create-release у tauri-action) — повторная попытка через паузу это
-      # лечит. Черновик не виден пользователям, поэтому пустой релиз не
-      # «висит» на странице релизов, пока идёт сборка. Дальше tauri-action
-      # находит готовый черновик, заливает ассеты и снимает черновик
-      # (releaseDraft: false), так что публикуется только готовый релиз.
-      - name: Ensure draft release exists
+      # Пауза перед tauri-action: GITHUB_TOKEN иногда отдаётся на свежий тег
+      # ещё с read-доступом (транзиентный 403 на create-release). 15 секунд
+      # достаточно чтобы права успели распространиться.
+      - name: Wait for token propagation
         if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-        run: |
-          tag="$GITHUB_REF_NAME"
-          for attempt in 1 2 3; do
-            if gh release view "$tag" >/dev/null 2>&1; then
-              echo "Release $tag already exists."; exit 0
-            fi
-            if gh release create "$tag" --draft --title "Launcher $tag" --notes ""; then
-              echo "Created draft release $tag."; exit 0
-            fi
-            echo "Attempt $attempt to create release failed, retrying in 15s..."
-            sleep 15
-          done
-          echo "::error::Could not create release $tag after 3 attempts."
-          exit 1
+        run: sleep 15
 
-      # На тегах — собрать установщики и залить ассеты в уже созданный Release.
+      # На тегах — собрать установщики и залить ассеты в Release.
       - uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}

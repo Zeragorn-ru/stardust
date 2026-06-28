@@ -700,6 +700,15 @@ body {
     flex: 1;
 }
 
+.btn--stepper {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
 .range-row__number {
     width: 72px;
     text-align: center;
@@ -1170,6 +1179,23 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.06em;
     opacity: 0.5;
+}
+
+.hero__stat-value--online { color: #4ade80; }
+.hero__stat-value--offline { opacity: 0.4; }
+.hero__stat-value--muted  { opacity: 0.4; }
+
+.play-error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.play-error__msg {
+    font-size: 13px;
+    color: #f87171;
+    text-align: center;
 }
 
 .play-button__top {

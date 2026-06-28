@@ -955,6 +955,110 @@ fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
     }
 }
 
+/// Пинг Minecraft-сервера: резолвит SRV-запись `_minecraft._tcp.<host>`,
+/// затем открывает TCP-соединение и шлёт Server List Ping (MC protocol).
+/// Возвращает `{ online: bool, players: Option<u32> }`.
+#[tauri::command]
+async fn ping_minecraft_server(host: String) -> serde_json::Value {
+    use hickory_resolver::TokioResolver;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpStream;
+    use tokio::time::{timeout, Duration};
+
+    // 1. SRV-запись _minecraft._tcp.<host>
+    let (target_host, target_port): (String, u16) = {
+        let resolver = match TokioResolver::builder_tokio() {
+            Ok(b) => b.build(),
+            Err(_) => return serde_json::json!({ "online": false, "players": null }),
+        };
+        let srv_name = format!("_minecraft._tcp.{host}");
+        match resolver.srv_lookup(srv_name.as_str()).await {
+            Ok(lookup) => match lookup.iter().next() {
+                Some(srv) => {
+                    let h = srv.target().to_string();
+                    let h = h.trim_end_matches('.').to_string();
+                    (h, srv.port())
+                }
+                None => (host.clone(), 25565),
+            },
+            Err(_) => (host.clone(), 25565),
+        }
+    };
+
+    // 2. TCP + Server List Ping (MC 1.7+ handshake, protocol -1 = status)
+    let addr = format!("{target_host}:{target_port}");
+    let ping = timeout(Duration::from_secs(5), async {
+        let mut stream = TcpStream::connect(&addr).await?;
+
+        // Build handshake payload
+        let host_bytes = target_host.as_bytes();
+        let mut hs: Vec<u8> = Vec::new();
+        hs.push(0x00); // packet id
+        mc_write_varint(&mut hs, 0xFF_FF_FF_FF); // protocol version = -1
+        mc_write_varint(&mut hs, host_bytes.len() as u32);
+        hs.extend_from_slice(host_bytes);
+        hs.extend_from_slice(&target_port.to_be_bytes());
+        hs.push(0x01); // next state: status
+
+        let mut pkt: Vec<u8> = Vec::new();
+        mc_write_varint(&mut pkt, hs.len() as u32);
+        pkt.extend_from_slice(&hs);
+        stream.write_all(&pkt).await?;
+
+        // Status request
+        stream.write_all(&[0x01, 0x00]).await?;
+
+        // Read response
+        let _pkt_len = mc_read_varint(&mut stream).await?;
+        let _pkt_id  = mc_read_varint(&mut stream).await?;
+        let str_len  = mc_read_varint(&mut stream).await? as usize;
+        let mut buf = vec![0u8; str_len.min(8192)];
+        stream.read_exact(&mut buf).await?;
+        let json: serde_json::Value =
+            serde_json::from_slice(&buf).unwrap_or(serde_json::Value::Null);
+        Ok::<_, std::io::Error>(json)
+    })
+    .await;
+
+    match ping {
+        Ok(Ok(json)) => {
+            let players = json
+                .get("players")
+                .and_then(|p| p.get("online"))
+                .and_then(|v| v.as_u64());
+            serde_json::json!({ "online": true, "players": players })
+        }
+        _ => serde_json::json!({ "online": false, "players": null }),
+    }
+}
+
+fn mc_write_varint(buf: &mut Vec<u8>, mut v: u32) {
+    loop {
+        let mut b = (v & 0x7f) as u8;
+        v >>= 7;
+        if v != 0 { b |= 0x80; }
+        buf.push(b);
+        if v == 0 { break; }
+    }
+}
+
+async fn mc_read_varint(stream: &mut tokio::net::TcpStream) -> std::io::Result<u32> {
+    use tokio::io::AsyncReadExt;
+    let (mut result, mut shift) = (0u32, 0u32);
+    loop {
+        let b = stream.read_u8().await?;
+        result |= ((b & 0x7f) as u32) << shift;
+        if b & 0x80 == 0 { break; }
+        shift += 7;
+        if shift >= 35 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData, "varint overflow",
+            ));
+        }
+    }
+    Ok(result)
+}
+
 /// Регистрирует все команды и состояние в Tauri-приложении.
 pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder
@@ -991,5 +1095,6 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             set_mod_enabled,
             crate::update::check_update,
             crate::update::install_update,
+            ping_minecraft_server,
         ])
 }

@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import type { PlayerProfile, UpdateInfo } from "./types";
-import { checkUpdate, closeWindow, currentProfile, logout } from "./api";
+import { useEffect, useRef, useState } from "react";
+import type { PlayerProfile, Progress, UpdateInfo } from "./types";
+import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
 import { isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
 import Aurora from "./components/Aurora";
@@ -25,10 +25,52 @@ export default function App() {
   // Обновление, обнаруженное авто-проверкой (показываем всплывашкой).
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
 
-  // Escape закрывает окно лаунчера.
+  // Состояние запуска — живёт в App, чтобы не сбрасывалось при переходе в настройки.
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [running, setRunning] = useState(false);
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+  const runningRef = useRef(running);
+  runningRef.current = running;
+
+  const busy =
+    running ||
+    (progress != null &&
+      ["checking", "downloading", "extracting", "launching"].includes(progress.phase));
+
+  // Подписываемся на события прогресса один раз на уровне App.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    onLauncherProgress(setProgress).then((fn) => { unlisten = fn; });
+    return () => unlisten?.();
+  }, []);
+
+  // При старте проверяем, не запущена ли игра уже (переоткрытие лаунчера).
+  useEffect(() => {
+    gameRunning().then((alive) => {
+      if (alive) {
+        setRunning(true);
+        setProgress({ phase: "running", label: "Игра запущена", fraction: null });
+      }
+    });
+  }, []);
+
+  // Пока игра жива — опрашиваем процесс.
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(async () => {
+      if (!(await gameRunning())) {
+        setRunning(false);
+        setProgress(null);
+      }
+    }, 1500);
+    return () => clearInterval(id);
+  }, [running]);
+
+  // Escape закрывает окно только если игра не в процессе запуска/работы.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !runningRef.current && !progressRef.current) {
         void closeWindow();
       }
     }
@@ -120,34 +162,48 @@ export default function App() {
             <div className="spinner" />
           </div>
         ) : (
-          // key пересоздаёт узел при смене экрана → срабатывает entrance-анимация.
-          <div key={view} className="screen-enter">
-            {view === "onboarding" && (
-              <OnboardingScreen onDone={finishOnboarding} />
+          <>
+            {/* Экраны без состояния запуска — пересоздаём при переходе для анимации */}
+            {(view === "onboarding" || view === "login") && (
+              <div key={view} className="screen-enter">
+                {view === "onboarding" && (
+                  <OnboardingScreen onDone={finishOnboarding} />
+                )}
+                {view === "login" && (
+                  <LoginScreen onAuthenticated={handleAuthenticated} />
+                )}
+              </div>
             )}
-            {view === "login" && (
-              <LoginScreen onAuthenticated={handleAuthenticated} />
-            )}
+            {/* Main и Settings не пересоздаём — progress живёт в App */}
             {view === "main" && profile && (
-              <MainScreen
-                profile={profile}
-                onOpenSettings={(section) => {
-                  setSettingsSection(section ?? "general");
-                  setView("settings");
-                }}
-                onLogout={handleLogout}
-              />
+              <div className="screen-enter">
+                <MainScreen
+                  profile={profile}
+                  progress={progress}
+                  running={running}
+                  busy={busy}
+                  onProgressChange={setProgress}
+                  onRunningChange={setRunning}
+                  onOpenSettings={(section) => {
+                    setSettingsSection(section ?? "general");
+                    setView("settings");
+                  }}
+                  onLogout={handleLogout}
+                />
+              </div>
             )}
             {view === "settings" && (
-              <SettingsScreen
-                profile={profile}
-                onProfileChange={setProfile}
-                onAccountDeleted={handleAccountDeleted}
-                initialSection={settingsSection}
-                onClose={() => setView("main")}
-              />
+              <div className="screen-enter">
+                <SettingsScreen
+                  profile={profile}
+                  onProfileChange={setProfile}
+                  onAccountDeleted={handleAccountDeleted}
+                  initialSection={settingsSection}
+                  onClose={() => setView("main")}
+                />
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
       {update && (
