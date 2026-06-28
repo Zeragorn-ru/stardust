@@ -42,6 +42,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: "backend"
       - name: Test (auth-server, admin-server, telegram-bot, store, protocol)
         run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
       # Тяжёлая release-сборка всех серверных бинарей за один прогон.
