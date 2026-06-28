@@ -125,6 +125,12 @@ export const api = {
     return request("POST", `/api/builds/${id}/activate`);
   },
 
+  // Клонирует сборку со всеми файлами в новую (неактивную). Имя
+  // необязательное — сервер сам подставит «<имя> (копия)».
+  cloneBuild(id: number, name?: string): Promise<{ id: number }> {
+    return request("POST", `/api/builds/${id}/clone`, name ? { name } : {});
+  },
+
   // Загрузка с прогрессом через XHR (fetch не даёт upload-progress).
   uploadFileProgress(
     buildId: number,

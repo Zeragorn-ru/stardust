@@ -5,7 +5,7 @@ import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
 import { useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
-import { IconStar, IconSync } from "./ui/icons";
+import { IconCopy, IconStar, IconSync } from "./ui/icons";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
 
@@ -121,9 +121,13 @@ function EditBuildModal({
 export function BuildDetail({
   buildId,
   onChanged,
+  onClone,
 }: {
   buildId: number;
   onChanged: () => void;
+  // Необязательный обработчик клонирования: если задан, в шапке появляется
+  // кнопка «Клонировать». Возвращает id созданной копии (для перехода).
+  onClone?: (buildId: number) => void | Promise<void>;
 }) {
   const toast = useToast();
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
@@ -229,6 +233,16 @@ export function BuildDetail({
             <button className="secondary" onClick={() => setEditing(true)}>
               Редактировать
             </button>
+            {onClone && (
+              <button
+                className="secondary icon-btn"
+                onClick={() => onClone(buildId)}
+                title="Создать копию сборки со всеми файлами"
+              >
+                <IconCopy size={15} />
+                Клонировать
+              </button>
+            )}
             <button
               className="secondary icon-btn"
               disabled={syncing}

@@ -118,6 +118,50 @@ impl Store {
         Ok(id)
     }
 
+    /// Клонирует сборку: создаёт новую (неактивную) с тем же набором файлов.
+    ///
+    /// Байты на диске не копируются — контент адресуется по `storage_key`
+    /// (sha1), а блобы иммутабельны (правка контента пишет новый sha1), поэтому
+    /// несколько сборок могут безопасно ссылаться на один и тот же блоб.
+    /// Копируются только строки БД, всё в одной транзакции. Возвращает id копии.
+    pub async fn clone_build(&self, src_id: i64, new_name: &str) -> Result<i64, StoreError> {
+        let mut tx = self.pool().begin().await?;
+
+        // Копируем заголовок: имя задаёт вызывающий, копия всегда неактивна.
+        let new_id: Option<i64> = sqlx::query_scalar(
+            "INSERT INTO builds (name, version, loader_kind, mc_version, loader_version, is_active)
+             SELECT $2, version, loader_kind, mc_version, loader_version, FALSE
+             FROM builds WHERE id = $1
+             RETURNING id",
+        )
+        .bind(src_id)
+        .bind(new_name)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some(new_id) = new_id else {
+            // Исходной сборки нет — откатываемся.
+            tx.rollback().await?;
+            return Err(StoreError::NotFound);
+        };
+
+        // Копируем все строки файлов на новый build_id (id/created_at — свои).
+        sqlx::query(
+            "INSERT INTO build_files
+                (build_id, path, sha1, size_bytes, side, kind, overwrite, optional,
+                 enabled_by_default, mod_id, display_name, description, storage_key)
+             SELECT $2, path, sha1, size_bytes, side, kind, overwrite, optional,
+                 enabled_by_default, mod_id, display_name, description, storage_key
+             FROM build_files WHERE build_id = $1",
+        )
+        .bind(src_id)
+        .bind(new_id)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(new_id)
+    }
+
     /// Список заголовков всех сборок.
     pub async fn list_builds(&self) -> Result<Vec<BuildHeader>, StoreError> {
         let sql = format!("SELECT {BUILD_COLUMNS} FROM builds ORDER BY id DESC");

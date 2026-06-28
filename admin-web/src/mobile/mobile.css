@@ -1,0 +1,301 @@
+/* Стили мобильного интерфейса (/m). Накладываются поверх общего styles.css:
+   переопределяют раскладку под телефон (нижняя навигация, экраны на всю
+   ширину, крупные тач-цели), переиспользуя дизайн-токены (--bg, --panel,
+   --accent и т. д.). Десктопную разметку не трогаем — только классы с
+   префиксом `m-` плюс пара недостающих утилит. */
+
+/* Каркас: контент скроллится, под ним фиксированная панель вкладок. Высоту
+   считаем по dvh, чтобы не прыгала из-за адресной строки браузера. */
+.m-app {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+}
+
+.m-content {
+    flex: 1;
+    /* Запас снизу под таб-бар + safe-area домашней полоски. */
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+}
+
+/* --- Нижняя навигация --- */
+.m-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    background: var(--panel);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.m-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 9px 4px;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    background: none;
+    border: none;
+    transition: color var(--ease);
+}
+
+.m-tab.active {
+    color: var(--accent);
+}
+
+.m-tab:active {
+    background: var(--panel-2);
+}
+
+/* --- Экран и его шапка --- */
+.m-screen {
+    padding: 14px 12px;
+}
+
+.m-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.m-head h1 {
+    font-size: 20px;
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Список сборок: карточки --- */
+.m-cards {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.m-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition:
+        border-color var(--ease),
+        background var(--ease);
+}
+
+.m-card:active {
+    background: var(--panel-3);
+    border-color: var(--border-strong);
+}
+
+.m-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.m-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.m-card-title strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-card .meta {
+    font-size: 12px;
+}
+
+.m-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+}
+
+.m-card-chevron {
+    color: var(--faint);
+    flex: none;
+}
+
+/* --- Плавающая кнопка создания --- */
+.m-fab {
+    position: fixed;
+    right: 16px;
+    bottom: calc(64px + 16px + env(safe-area-inset-bottom, 0px));
+    z-index: 35;
+    width: 52px;
+    height: 52px;
+    padding: 0;
+    border-radius: var(--radius-pill);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    box-shadow: var(--shadow-md);
+    justify-content: center;
+}
+
+.m-fab:active {
+    background: var(--accent-2);
+}
+
+/* --- Детали сборки --- */
+.m-detail-head {
+    align-items: flex-start;
+}
+
+.m-back {
+    flex: none;
+}
+
+/* Шеврон-иконку разворачиваем влево для кнопки «назад». */
+.flip {
+    transform: scaleX(-1);
+}
+
+.m-detail-titles {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.m-detail-titles h1 {
+    font-size: 19px;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.m-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.m-fm-panel {
+    padding: 12px;
+}
+
+/* --- Настройки и переиспользуемые десктопные экраны --- */
+/* Экраны Settings/Accounts рендерят десктопную вёрстку как есть; полоска
+   выхода сверху и небольшой отступ дают мобильный контекст. */
+.m-screen-reuse .view-head {
+    margin-top: 4px;
+}
+
+.m-logout-bar {
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
+/* Верхняя полоска переиспользуемых экранов: слева переход на полную версию,
+   справа выход. Делим ширину поровну. */
+.m-top-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.m-top-bar .m-logout-bar {
+    margin-bottom: 0;
+}
+
+.m-top-bar > * {
+    flex: 1;
+}
+
+.m-top-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 14px;
+    font-size: 13px;
+    color: var(--text);
+    text-decoration: none;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.m-top-link:active {
+    background: var(--panel-3);
+}
+
+/* --- Вход --- */
+.m-login {
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.m-login-card {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+/* --- Недостающие утилиты, общие для мобильных экранов --- */
+
+/* Вторичная кнопка: как обычная, но с явным «тихим» фоном. На десктопе её
+   нет, а мобильные действия-в-ряд читаются лучше с единым стилем. */
+button.secondary {
+    background: var(--panel-2);
+    border-color: var(--border);
+}
+
+button.secondary:hover:not(:disabled) {
+    background: var(--panel-3);
+    border-color: var(--border-strong);
+}
+
+/* Кнопка с иконкой и подписью (в отличие от .icon-only — без обрезки до квадрата). */
+.icon-btn {
+    gap: 6px;
+}

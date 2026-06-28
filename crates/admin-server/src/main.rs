@@ -130,6 +130,7 @@ async fn main() {
             get(get_build).patch(update_build).delete(delete_build),
         )
         .route("/api/builds/:id/activate", post(activate_build))
+        .route("/api/builds/:id/clone", post(clone_build))
         .route("/api/builds/:id/files", post(upload_file))
         .route(
             "/api/builds/files/:file_id",
@@ -704,6 +705,49 @@ async fn activate_build(
     require_admin(&state, &headers).await?;
     state.store.set_active_build(id).await.map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// Тело запроса клонирования: необязательное имя копии.
+#[derive(Deserialize, Default)]
+struct CloneBuildRequest {
+    #[serde(default)]
+    name: Option<String>,
+}
+
+/// Клонирует сборку со всеми файлами в новую (неактивную). Имя берётся из
+/// тела запроса либо генерируется как «<имя оригинала> (копия)».
+async fn clone_build(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    body: Option<Json<CloneBuildRequest>>,
+) -> Result<Json<CreatedBuild>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Имя копии: явное из запроса (если непустое) или «<оригинал> (копия)».
+    let requested = body
+        .and_then(|Json(b)| b.name)
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let new_name = match requested {
+        Some(name) => name,
+        None => {
+            let src = state
+                .store
+                .get_build(id)
+                .await
+                .map_err(internal)?
+                .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Сборка не найдена"))?;
+            format!("{} (копия)", src.header.name)
+        }
+    };
+
+    let new_id = state
+        .store
+        .clone_build(id, &new_name)
+        .await
+        .map_err(map_store)?;
+    Ok(Json(CreatedBuild { id: new_id }))
 }
 
 // ───────────────────────── Загрузка файлов ─────────────────────────

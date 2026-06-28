@@ -205,3 +205,12 @@ export const IconSync = svg(
 export const IconTelegram = svg(
   <path d="M21.5 4.5 2.5 12l5.5 1.8L19 6.5l-8 8.2v4l2.8-3 4 3z" />,
 );
+
+export const IconMonitor = svg(
+  <>
+    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <path d="M8 21h8" />
+    <path d="M12 17v4" />
+  </>,
+);
+
