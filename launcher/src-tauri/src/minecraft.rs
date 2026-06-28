@@ -970,16 +970,34 @@ async fn ensure_neoforge(
                 "[neoforge] installer завершился со статусом {}",
                 output.status
             );
-            Ok(output.status)
+            let combined = format!(
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            Ok((output.status, combined))
         })
         .await
         .map_err(|e| format!("Ошибка потока NeoForge installer: {e}"))?
         .map_err(|e: String| e)?;
 
+        let (status, installer_output) = status;
         if !status.success() {
-            last_err = format!(
-                "NeoForge installer завершился с ошибкой ({status}). Проверь Java 21+ и логи консоли"
-            );
+            let tail: String = installer_output
+                .lines()
+                .filter(|l| !l.trim().is_empty())
+                .rev()
+                .take(5)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join("\n");
+            last_err = if tail.is_empty() {
+                format!("NeoForge installer завершился с ошибкой ({status})")
+            } else {
+                format!("NeoForge installer завершился с ошибкой ({status}):\n{tail}")
+            };
             eprintln!("[neoforge] ошибка установки (попытка {attempt}): {last_err}");
             continue;
         }
