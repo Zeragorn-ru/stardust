@@ -106,7 +106,7 @@ jobs:
           exit 1
 
       # На тегах — собрать установщики и залить ассеты в уже созданный Release.
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         with:
