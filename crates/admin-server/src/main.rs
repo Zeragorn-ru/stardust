@@ -121,16 +121,16 @@ async fn main() {
     let bg_state = Arc::clone(&state);
     tokio::spawn(async move {
         loop {
-            tokio::time::sleep(Duration::from_secs(15 * 60)).await;
             match do_sync_stats(&bg_state).await {
                 Ok(updated) if updated > 0 => {
-                    tracing::info!("[stats] автоматическая синхронизация: обновлено {updated} игроков");
+                    tracing::info!("[stats] синхронизация: обновлено {updated} игроков");
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    tracing::warn!("[stats] автоматическая синхронизация: {e}");
+                    tracing::warn!("[stats] синхронизация: {e}");
                 }
             }
+            tokio::time::sleep(Duration::from_secs(15 * 60)).await;
         }
     });
 
@@ -1655,7 +1655,8 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
             continue;
         };
         let ticks = json
-            .pointer("/stats/minecraft:custom/minecraft:play_one_minute")
+            .pointer("/stats/minecraft:custom/minecraft:play_time")
+            .or_else(|| json.pointer("/stats/minecraft:custom/minecraft:play_one_minute"))
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         let seconds = ticks / 20;
