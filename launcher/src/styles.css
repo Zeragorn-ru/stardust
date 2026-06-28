@@ -415,11 +415,21 @@ body {
     to   { opacity: 0; transform: translateX(100%); }
 }
 
-/* Останавливаем анимации кнопки «Играть» во время экранных переходов,
-   чтобы она не мерцала при сдвиге родителя */
-.screen-transition .btn--play,
-.screen-transition .btn--play::after {
-    animation: none !important;
+/* Во время exit-перехода замораживаем ВСЕ дочерние анимации,
+   чтобы кнопка «Играть» (playPulse, sheen) не мерцала при сдвиге. */
+.screen-exit-left *,
+.screen-exit-left *::before,
+.screen-exit-left *::after,
+.screen-exit-right *,
+.screen-exit-right *::before,
+.screen-exit-right *::after,
+.screen-exit-up *,
+.screen-exit-up *::before,
+.screen-exit-up *::after,
+.screen-exit-down *,
+.screen-exit-down *::before,
+.screen-exit-down *::after {
+    animation-play-state: paused !important;
 }
 
 :root[data-motion="off"] .screen-transition {
@@ -468,6 +478,24 @@ body {
 }
 .stagger .stagger-item:nth-child(7) {
     animation-delay: 0.4s;
+}
+
+/* Для главного экрана stagger стартует после завершения enter-перехода (380ms),
+   чтобы элементы появлялись плавно уже на финальной позиции. */
+.main .stagger .stagger-item:nth-child(1) {
+    animation-delay: 0.42s;
+}
+.main .stagger .stagger-item:nth-child(2) {
+    animation-delay: 0.52s;
+}
+.main .stagger .stagger-item:nth-child(3) {
+    animation-delay: 0.62s;
+}
+.main .stagger .stagger-item:nth-child(4) {
+    animation-delay: 0.72s;
+}
+.main .stagger .stagger-item:nth-child(5) {
+    animation-delay: 0.82s;
 }
 
 @keyframes fadeUp {
