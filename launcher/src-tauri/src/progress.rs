@@ -249,6 +249,13 @@ impl Progress {
         self.emit();
     }
 
+    /// Отправляет строку лога в UI через событие `launcher://log`.
+    pub fn log(&self, msg: impl Into<String>) {
+        let msg = msg.into();
+        eprintln!("[launcher] {msg}");
+        let _ = self.app.emit("launcher://log", msg);
+    }
+
     fn emit(&self) {
         let inner = self.inner.lock().unwrap();
         let overall = ((inner.completed_weight + inner.current.weight() * inner.current_fraction)

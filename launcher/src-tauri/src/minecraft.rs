@@ -982,6 +982,10 @@ async fn ensure_neoforge(
         .map_err(|e: String| e)?;
 
         let (status, installer_output) = status;
+        // Пробрасываем вывод installer'а в UI-лог построчно.
+        for line in installer_output.lines().filter(|l| !l.trim().is_empty()) {
+            progress.log(format!("[neoforge] {line}"));
+        }
         if !status.success() {
             let tail: String = installer_output
                 .lines()

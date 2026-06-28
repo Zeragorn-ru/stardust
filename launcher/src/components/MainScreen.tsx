@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PlayerProfile, PlayerStats, Progress } from "../types";
 import { getStats, playGame } from "../api";
 import { formatBytes } from "../format";
@@ -15,6 +15,7 @@ interface Props {
   progress: Progress | null;
   running: boolean;
   busy: boolean;
+  logs: string[];
   onProgressChange: (p: Progress | null) => void;
   onRunningChange: (r: boolean) => void;
   onOpenSettings: (section?: "general" | "account") => void;
@@ -26,6 +27,7 @@ export default function MainScreen({
   progress,
   running,
   busy,
+  logs,
   onProgressChange,
   onRunningChange,
   onOpenSettings,
@@ -33,6 +35,11 @@ export default function MainScreen({
 }: Props) {
   const { skin } = useSkin();
   const [skinOpen, setSkinOpen] = useState(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
@@ -265,6 +272,14 @@ export default function MainScreen({
                 </span>
               )}
             </button>
+          )}
+          {busy && logs.length > 0 && (
+            <div className="launch-log">
+              {logs.map((line, i) => (
+                <div key={i} className="launch-log__line">{line}</div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
           )}
         </div>
       </section>
