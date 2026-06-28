@@ -83,6 +83,19 @@ export async function onLauncherProgress(
   }
 }
 
+export async function onStatsUpdated(
+  handler: (stats: PlayerStats) => void,
+): Promise<() => void> {
+  try {
+    const mod = await import("@tauri-apps/api/event");
+    return mod.listen<PlayerStats>("stats-updated", (event) => {
+      handler(event.payload);
+    });
+  } catch {
+    return () => undefined;
+  }
+}
+
 /** Вход по логину/паролю на auth-сервере.
  *
  * Возвращает либо сессию (профиль), либо требование второго фактора —

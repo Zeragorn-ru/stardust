@@ -570,8 +570,8 @@ fn spawn_stats_poller(app: &AppHandle, state: &AppState) {
     let http = state.http.clone();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        // Первый запрос сразу при старте, потом каждые 15 минут.
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
             let token = match app.state::<AppState>().token.lock().unwrap().clone() {
                 Some(t) => t,
                 None => break,
@@ -584,6 +584,7 @@ fn spawn_stats_poller(app: &AppHandle, state: &AppState) {
                     tracing::warn!("[stats] поллинг: {e}");
                 }
             }
+            tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
         }
         // Сбрасываем флаг, чтобы при следующем логине поллер запустился снова.
         *app.state::<AppState>().stats_poller_running.lock().unwrap() = false;

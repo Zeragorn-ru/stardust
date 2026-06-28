@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PlayerProfile, PlayerStats, Progress } from "../types";
-import { getStats, playGame } from "../api";
+import { getStats, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -50,6 +50,13 @@ export default function MainScreen({
       getStats().then(setStats).catch(() => undefined);
     }
   }, [running]);
+
+  // Слушаем фоновое обновление статистики с бэкенда (каждые 15 мин).
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    onStatsUpdated((s) => setStats(s)).then((fn) => { unlisten = fn; });
+    return () => unlisten?.();
+  }, []);
 
   // Статус сервера — опрашиваем через бэкенд (Tauri invoke), fallback на fetch.
   useEffect(() => {
