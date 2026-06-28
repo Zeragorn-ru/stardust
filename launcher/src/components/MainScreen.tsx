@@ -44,7 +44,6 @@ export default function MainScreen({
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
   const [serverMax, setServerMax] = useState<number | null>(null);
-  const [serverPing, setServerPing] = useState<number | null>(null);
 
   // Загружаем статистику при монтировании.
   useEffect(() => {
@@ -70,7 +69,6 @@ export default function MainScreen({
         setServerOnline(result.online);
         setServerPlayers(result.players);
         setServerMax(result.max);
-        setServerPing(result.ping ?? null);
       } catch {
         setServerOnline(null);
         setServerPlayers(null);

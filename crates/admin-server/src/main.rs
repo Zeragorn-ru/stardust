@@ -137,6 +137,7 @@ async fn main() {
             axum::routing::patch(update_file).delete(delete_file),
         )
         .route("/api/builds/:id/sync-to-panel", post(sync_to_panel))
+        .route("/api/settings/sync-stats", post(sync_stats))
         .route(
             "/api/builds/files/:file_id/content",
             axum::routing::put(update_file_content),
@@ -1551,6 +1552,121 @@ async fn account_skin(
         skin.png,
     )
         .into_response())
+}
+
+/// `POST /api/settings/sync-stats` — читает JSON-файлы статистики с SFTP и
+/// обновляет время игры для всех аккаунтов.
+async fn sync_stats(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    let host = state
+        .store
+        .get_setting(SETTING_SFTP_HOST)
+        .await
+        .map_err(internal)?
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpHost не задан"))?;
+    let username = state
+        .store
+        .get_setting(SETTING_SFTP_USERNAME)
+        .await
+        .map_err(internal)?
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpUsername не задан"))?;
+    let password = state
+        .store
+        .get_setting(SETTING_SFTP_PASSWORD)
+        .await
+        .map_err(internal)?
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpPassword не задан"))?;
+    let stats_path = state
+        .store
+        .get_setting(SETTING_SFTP_STATS_PATH)
+        .await
+        .map_err(internal)?
+        .filter(|s| !s.trim().is_empty())
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpStatsPath не задан"))?;
+
+    let (host_part, port) = match host.rsplit_once(':') {
+        Some((h, p)) => match p.parse::<u16>() {
+            Ok(port) => (h.to_string(), port),
+            Err(_) => (host.clone(), 22),
+        },
+        None => (host.clone(), 22),
+    };
+
+    let config = Arc::new(russh::client::Config::default());
+    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler)
+        .await
+        .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
+    let auth = session
+        .authenticate_password(&username, &password)
+        .await
+        .map_err(|e| internal(format!("SSH-аутентификация: {e}")))?;
+    if !auth.success() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "SFTP-аутентификация не прошла: проверьте логин/пароль",
+        ));
+    }
+
+    let channel = session
+        .channel_open_session()
+        .await
+        .map_err(|e| internal(format!("открытие канала: {e}")))?;
+    channel
+        .request_subsystem(true, "sftp")
+        .await
+        .map_err(|e| internal(format!("запуск sftp-подсистемы: {e}")))?;
+    let sftp = russh_sftp::client::SftpSession::new(channel.into_stream())
+        .await
+        .map_err(|e| internal(format!("инициализация SFTP: {e}")))?;
+
+    let entries = sftp
+        .read_dir(&stats_path)
+        .await
+        .map_err(|e| internal(format!("чтение папки {stats_path}: {e}")))?;
+
+    let mut updated = 0usize;
+    for entry in entries {
+        let name = entry.file_name();
+        // Ожидаем файлы вида <uuid>.json
+        let Some(uuid) = name.strip_suffix(".json") else {
+            continue;
+        };
+        let path = format!("{}/{}", stats_path.trim_end_matches('/'), name);
+        let bytes = match sftp.read(&path).await {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            continue;
+        };
+        // Minecraft хранит тики (1/20 сек) в stats.minecraft:custom.minecraft:play_one_minute
+        let ticks = json
+            .pointer("/stats/minecraft:custom/minecraft:play_one_minute")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let seconds = ticks / 20;
+        if state
+            .store
+            .set_playtime_absolute(uuid, seconds)
+            .await
+            .is_ok()
+        {
+            updated += 1;
+        }
+    }
+
+    let _ = session
+        .disconnect(russh::Disconnect::ByApplication, "", "en")
+        .await;
+
+    Ok(Json(serde_json::json!({ "updated": updated })))
 }
 
 /// `GET /api/accounts/:uuid/stats` — время игры и дата последнего запуска.

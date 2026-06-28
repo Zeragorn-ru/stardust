@@ -10,7 +10,7 @@ use tauri::Manager;
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use protocol::PlayerProfile;
 
@@ -151,6 +151,8 @@ pub struct AppState {
     /// Асинхронный лок на весь цикл play_game: guard → check → launch → record.
     /// Гарантирует, что два одновременных вызова не пройдут проверку параллельно.
     pub launch_lock: tokio::sync::Mutex<()>,
+    /// Флаг: фоновый поллер статистики уже запущен.
+    pub stats_poller_running: Mutex<bool>,
 }
 
 impl Default for AppState {
@@ -171,6 +173,7 @@ impl Default for AppState {
             http,
             game: Mutex::new(None),
             launch_lock: tokio::sync::Mutex::new(()),
+            stats_poller_running: Mutex::new(false),
         }
     }
 }
@@ -242,6 +245,7 @@ fn persist_session(
         },
     )?;
     set_runtime_session(state, profile, token);
+    spawn_stats_poller(app, state);
     Ok(())
 }
 
@@ -552,6 +556,40 @@ async fn logout(state: State<'_, AppState>, app: AppHandle) -> Result<(), String
     Ok(())
 }
 
+/// Запускает фоновую задачу, которая каждые 15 минут тянет статистику
+/// и эмитит событие `stats-updated`. Запускается не более одного раза
+/// (флаг `stats_poller_running`). Останавливается, когда токен пропадает.
+fn spawn_stats_poller(app: &AppHandle, state: &AppState) {
+    let mut running = state.stats_poller_running.lock().unwrap();
+    if *running {
+        return;
+    }
+    *running = true;
+    drop(running);
+
+    let http = state.http.clone();
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
+            let token = match app.state::<AppState>().token.lock().unwrap().clone() {
+                Some(t) => t,
+                None => break,
+            };
+            match backend::get_stats(&http, &token).await {
+                Ok(stats) => {
+                    let _ = app.emit("stats-updated", stats);
+                }
+                Err(e) => {
+                    tracing::warn!("[stats] поллинг: {e}");
+                }
+            }
+        }
+        // Сбрасываем флаг, чтобы при следующем логине поллер запустился снова.
+        *app.state::<AppState>().stats_poller_running.lock().unwrap() = false;
+    });
+}
+
 /// Текущий профиль: сначала берём runtime-сессию, затем пробуем поднять
 /// сохранённый `session.json` и проверить токен на auth-сервере.
 #[tauri::command]
@@ -571,6 +609,7 @@ async fn current_profile(
         Ok(profile) => {
             set_runtime_session(&state, profile.clone(), saved.token);
             recover_pending_session(&app, &state);
+            spawn_stats_poller(&app, &state);
             Ok(Some(profile))
         }
         Err(_) => {

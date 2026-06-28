@@ -274,6 +274,10 @@ export const api = {
     return request("PUT", "/api/settings", patch);
   },
 
+  syncStats(): Promise<{ updated: number }> {
+    return request("POST", "/api/settings/sync-stats");
+  },
+
   getAccountStats(uuid: string): Promise<PlayerStats> {
     return request("GET", `/api/accounts/${uuid}/stats`);
   },

@@ -18,6 +18,7 @@ export function SettingsView() {
   const [sftpPassword, setSftpPassword] = useState("");
   const [sftpStatsPath, setSftpStatsPath] = useState("");
   const [savingPanel, setSavingPanel] = useState(false);
+  const [syncingStats, setSyncingStats] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -111,6 +112,20 @@ export function SettingsView() {
       );
     } finally {
       setSavingPanel(false);
+    }
+  }
+
+  async function syncStats() {
+    setSyncingStats(true);
+    try {
+      const { updated } = await api.syncStats();
+      toast.success(`Статистика синхронизирована: обновлено ${updated} игроков`);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось синхронизировать статистику",
+      );
+    } finally {
+      setSyncingStats(false);
     }
   }
 
@@ -276,6 +291,12 @@ export function SettingsView() {
                   onClick={savePanel}
                 >
                   Сохранить
+                </button>
+                <button
+                  disabled={syncingStats || !settings?.sftpPasswordSet}
+                  onClick={syncStats}
+                >
+                  {syncingStats ? "Синхронизация…" : "Синхронизировать статистику"}
                 </button>
               </div>
             </>

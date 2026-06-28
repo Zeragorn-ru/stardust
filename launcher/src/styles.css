@@ -1569,7 +1569,7 @@ body {
     gap: 10px;
 }
 
-.account-form .input {
+.input {
     background: rgba(0, 0, 0, 0.25);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-sm);
@@ -1582,7 +1582,7 @@ body {
         box-shadow var(--t-fast);
 }
 
-.account-form .input:focus {
+.input:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18);
 }
