@@ -176,6 +176,14 @@ export default function SettingsScreen({
                 Память: <strong>{settings.memoryMb} МБ</strong>
               </span>
               <div className="range-row">
+                <button
+                  type="button"
+                  className="btn btn--ghost mem-step-btn"
+                  disabled={settings.memoryMb <= MEM_MIN}
+                  onClick={() =>
+                    setSettings({ ...settings, memoryMb: Math.max(MEM_MIN, settings.memoryMb - MEM_STEP) })
+                  }
+                >−</button>
                 <input
                   type="range"
                   min={MEM_MIN}
@@ -186,21 +194,14 @@ export default function SettingsScreen({
                     setSettings({ ...settings, memoryMb: Number(e.target.value) })
                   }
                 />
-                <input
-                  type="number"
-                  className="input range-row__number"
-                  min={MEM_MIN}
-                  max={MEM_MAX}
-                  step={MEM_STEP}
-                  value={settings.memoryMb}
-                  onChange={(e) => {
-                    const v = Math.round(Number(e.target.value) / MEM_STEP) * MEM_STEP;
-                    setSettings({
-                      ...settings,
-                      memoryMb: Math.max(MEM_MIN, Math.min(MEM_MAX, v || MEM_MIN)),
-                    });
-                  }}
-                />
+                <button
+                  type="button"
+                  className="btn btn--ghost mem-step-btn"
+                  disabled={settings.memoryMb >= MEM_MAX}
+                  onClick={() =>
+                    setSettings({ ...settings, memoryMb: Math.min(MEM_MAX, settings.memoryMb + MEM_STEP) })
+                  }
+                >+</button>
               </div>
               <div className="range-bounds muted">
                 <span>{MEM_MIN} МБ</span>

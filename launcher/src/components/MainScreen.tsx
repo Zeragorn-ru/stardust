@@ -244,5 +244,7 @@ function formatPlaytime(seconds: number): string {
 function formatLastLaunch(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const date = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `${date}, ${time}`;
 }
