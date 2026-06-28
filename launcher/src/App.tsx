@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PlayerProfile, UpdateInfo } from "./types";
-import { checkUpdate, currentProfile, logout } from "./api";
+import { checkUpdate, closeWindow, currentProfile, logout } from "./api";
 import { isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
 import Aurora from "./components/Aurora";
@@ -24,6 +24,17 @@ export default function App() {
 
   // Обновление, обнаруженное авто-проверкой (показываем всплывашкой).
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+
+  // Escape закрывает окно лаунчера.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        void closeWindow();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Стартовый экран + попытка автологина из сохранённой сессии.
   useEffect(() => {

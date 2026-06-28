@@ -19,6 +19,7 @@ function formatSize(bytes: number): string {
 export default function ModsSection() {
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
   // modId-ы, по которым идёт переключение (блокируем повторные клики).
   const [pending, setPending] = useState<Set<string>>(new Set());
 
@@ -83,13 +84,31 @@ export default function ModsSection() {
     );
   }
 
+  const q = filter.trim().toLowerCase();
+  const filtered = q
+    ? mods.filter(
+        (m) =>
+          m.name.toLowerCase().includes(q) ||
+          (m.description && m.description.toLowerCase().includes(q)),
+      )
+    : mods;
+
   return (
     <div className="mods-section">
       <p className="muted mods-section__hint">
         Дополнительные моды устанавливаются вместе со сборкой. Выключенные не
         загружаются игрой — включение применится при следующем запуске.
       </p>
-      {mods.map((mod) => {
+      {mods.length > 3 && (
+        <input
+          type="text"
+          className="input mods-section__filter"
+          placeholder="Поиск модов…"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        />
+      )}
+      {filtered.map((mod) => {
         const busy = pending.has(mod.modId);
         return (
           <div className="toggle-row" key={mod.modId}>

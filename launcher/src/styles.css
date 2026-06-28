@@ -690,6 +690,32 @@ body {
     font-size: 11px;
 }
 
+.range-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.range-row input[type="range"] {
+    flex: 1;
+}
+
+.range-row__number {
+    width: 72px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+}
+
+.range-row__number::-webkit-inner-spin-button,
+.range-row__number::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+}
+
+.mods-section__filter {
+    margin-bottom: 10px;
+}
+
 .alert {
     border-radius: var(--radius-sm);
     padding: 10px 13px;

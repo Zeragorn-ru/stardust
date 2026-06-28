@@ -175,16 +175,33 @@ export default function SettingsScreen({
               <span>
                 Память: <strong>{settings.memoryMb} МБ</strong>
               </span>
-              <input
-                type="range"
-                min={MEM_MIN}
-                max={MEM_MAX}
-                step={MEM_STEP}
-                value={settings.memoryMb}
-                onChange={(e) =>
-                  setSettings({ ...settings, memoryMb: Number(e.target.value) })
-                }
-              />
+              <div className="range-row">
+                <input
+                  type="range"
+                  min={MEM_MIN}
+                  max={MEM_MAX}
+                  step={MEM_STEP}
+                  value={settings.memoryMb}
+                  onChange={(e) =>
+                    setSettings({ ...settings, memoryMb: Number(e.target.value) })
+                  }
+                />
+                <input
+                  type="number"
+                  className="input range-row__number"
+                  min={MEM_MIN}
+                  max={MEM_MAX}
+                  step={MEM_STEP}
+                  value={settings.memoryMb}
+                  onChange={(e) => {
+                    const v = Math.round(Number(e.target.value) / MEM_STEP) * MEM_STEP;
+                    setSettings({
+                      ...settings,
+                      memoryMb: Math.max(MEM_MIN, Math.min(MEM_MAX, v || MEM_MIN)),
+                    });
+                  }}
+                />
+              </div>
               <div className="range-bounds muted">
                 <span>{MEM_MIN} МБ</span>
                 <span>{MEM_MAX} МБ</span>
