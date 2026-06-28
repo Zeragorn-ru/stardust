@@ -701,8 +701,12 @@ async fn open_external(url: String) -> Result<(), String> {
         if url.contains(['&', '|', '<', '>', '^', '%', '"', '`', '\n', '\r']) {
             return Err("URL содержит недопустимые символы".into());
         }
+        // CREATE_NO_WINDOW (0x08000000), чтобы консольное окно cmd.exe не
+        // мелькало при открытии внешней ссылки — как и прочие spawn на Windows.
+        use std::os::windows::process::CommandExt;
         let result = std::process::Command::new("cmd")
             .args(["/C", "start", "", &url])
+            .creation_flags(0x0800_0000)
             .spawn();
         result
             .map(|_| ())

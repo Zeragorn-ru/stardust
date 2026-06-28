@@ -454,8 +454,17 @@ async fn ensure_assets(
     let index: AssetIndex =
         serde_json::from_str(&json).map_err(|e| format!("Некорректный asset index: {e}"))?;
 
+    // Asset index'ы Minecraft часто содержат несколько объектов с одинаковым
+    // content-hash (например пустые .mcmeta). Они дают одинаковый путь
+    // назначения, поэтому дедупим по hash: иначе несколько джоб качают в один
+    // и тот же *.download временный файл параллельно и затирают друг друга,
+    // а второй rename падает → этап assets срывается на чистой установке.
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut jobs: Vec<DownloadJob> = Vec::new();
     for object in index.objects.values() {
+        if !seen.insert(object.hash.as_str()) {
+            continue;
+        }
         let prefix = object.hash.get(0..2).ok_or("Некорректный hash asset")?;
         let path = root
             .join("assets")
@@ -1281,7 +1290,7 @@ async fn download_inner(
             .await
             .map_err(|e| format!("Ошибка потока при хешировании: {e}"))?;
             match actual {
-                Ok(hash) if hash == expected => {}
+                Ok(hash) if hash.eq_ignore_ascii_case(expected) => {}
                 Ok(hash) => {
                     last_err = format!(
                         "SHA-1 {label}: получен {hash}, ожидался {expected}"
