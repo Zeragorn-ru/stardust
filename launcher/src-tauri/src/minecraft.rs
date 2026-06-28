@@ -233,7 +233,8 @@ fn system_java_21() -> Option<PathBuf> {
     }
 }
 
-fn hide_console(_command: &mut Command) {
+#[cfg_attr(not(windows), allow(unused_variables))]
+fn hide_console(command: &mut Command) {
     #[cfg(windows)]
     {
         command.creation_flags(CREATE_NO_WINDOW);
