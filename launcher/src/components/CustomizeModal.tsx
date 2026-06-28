@@ -11,7 +11,7 @@ export default function CustomizeModal({ onClose }: Props) {
   const [tab, setTab] = useState<Tab>("skin");
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay modal-overlay--no-blur" onClick={onClose}>
       <div
         className="modal customize-modal"
         onClick={(e) => e.stopPropagation()}
@@ -55,9 +55,11 @@ export default function CustomizeModal({ onClose }: Props) {
         </header>
 
         {tab === "skin" ? (
-          <SkinModal embedded onClose={onClose} />
+          <div className="customize-modal__body">
+            <SkinModal embedded onClose={onClose} />
+          </div>
         ) : (
-          <div className="customize-wip">
+          <div className="customize-modal__body customize-wip">
             <span className="muted">В разработке</span>
           </div>
         )}

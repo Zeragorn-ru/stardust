@@ -341,7 +341,9 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     }
 
     // Запускаем установщик в тихом режиме и закрываем лаунчер, чтобы он мог заменить файлы.
+    // Небольшая задержка гарантирует, что процесс установщика успеет стартовать.
     launch_installer(&path)?;
+    tokio::time::sleep(std::time::Duration::from_millis(800)).await;
     app.exit(0);
     Ok(())
 }
