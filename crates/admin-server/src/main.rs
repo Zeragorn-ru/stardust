@@ -117,6 +117,23 @@ async fn main() {
         injector: Mutex::new(None),
     });
 
+    // Фоновая задача: синхронизация статистики с SFTP каждые 15 минут.
+    let bg_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_secs(15 * 60)).await;
+            match do_sync_stats(&bg_state).await {
+                Ok(updated) if updated > 0 => {
+                    tracing::info!("[stats] автоматическая синхронизация: обновлено {updated} игроков");
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    tracing::warn!("[stats] автоматическая синхронизация: {e}");
+                }
+            }
+        }
+    });
+
     let app = Router::new()
         .route("/health", get(health))
         // --- Админка (нужен токен админа) ---
@@ -1554,42 +1571,37 @@ async fn account_skin(
         .into_response())
 }
 
-/// `POST /api/settings/sync-stats` — читает JSON-файлы статистики с SFTP и
-/// обновляет время игры для всех аккаунтов.
-async fn sync_stats(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    require_admin(&state, &headers).await?;
-
+/// Внутренняя логика синхронизации статистики с SFTP.
+/// Возвращает количество обновлённых аккаунтов.
+async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
     let host = state
         .store
         .get_setting(SETTING_SFTP_HOST)
         .await
-        .map_err(internal)?
+        .map_err(|e| format!("{e}"))?
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpHost не задан"))?;
+        .ok_or_else(|| "sftpHost не задан".to_string())?;
     let username = state
         .store
         .get_setting(SETTING_SFTP_USERNAME)
         .await
-        .map_err(internal)?
+        .map_err(|e| format!("{e}"))?
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpUsername не задан"))?;
+        .ok_or_else(|| "sftpUsername не задан".to_string())?;
     let password = state
         .store
         .get_setting(SETTING_SFTP_PASSWORD)
         .await
-        .map_err(internal)?
+        .map_err(|e| format!("{e}"))?
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpPassword не задан"))?;
+        .ok_or_else(|| "sftpPassword не задан".to_string())?;
     let stats_path = state
         .store
         .get_setting(SETTING_SFTP_STATS_PATH)
         .await
-        .map_err(internal)?
+        .map_err(|e| format!("{e}"))?
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpStatsPath не задан"))?;
+        .ok_or_else(|| "sftpStatsPath не задан".to_string())?;
 
     let (host_part, port) = match host.rsplit_once(':') {
         Some((h, p)) => match p.parse::<u16>() {
@@ -1602,39 +1614,35 @@ async fn sync_stats(
     let config = Arc::new(russh::client::Config::default());
     let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler)
         .await
-        .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
+        .map_err(|e| format!("SSH-подключение к {host_part}:{port}: {e}"))?;
     let auth = session
         .authenticate_password(&username, &password)
         .await
-        .map_err(|e| internal(format!("SSH-аутентификация: {e}")))?;
+        .map_err(|e| format!("SSH-аутентификация: {e}"))?;
     if !auth.success() {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "SFTP-аутентификация не прошла: проверьте логин/пароль",
-        ));
+        return Err("SFTP-аутентификация не прошла".into());
     }
 
     let channel = session
         .channel_open_session()
         .await
-        .map_err(|e| internal(format!("открытие канала: {e}")))?;
+        .map_err(|e| format!("открытие канала: {e}"))?;
     channel
         .request_subsystem(true, "sftp")
         .await
-        .map_err(|e| internal(format!("запуск sftp-подсистемы: {e}")))?;
+        .map_err(|e| format!("запуск sftp-подсистемы: {e}"))?;
     let sftp = russh_sftp::client::SftpSession::new(channel.into_stream())
         .await
-        .map_err(|e| internal(format!("инициализация SFTP: {e}")))?;
+        .map_err(|e| format!("инициализация SFTP: {e}"))?;
 
     let entries = sftp
         .read_dir(&stats_path)
         .await
-        .map_err(|e| internal(format!("чтение папки {stats_path}: {e}")))?;
+        .map_err(|e| format!("чтение папки {stats_path}: {e}"))?;
 
     let mut updated = 0usize;
     for entry in entries {
         let name = entry.file_name();
-        // Ожидаем файлы вида <uuid>.json
         let Some(uuid) = name.strip_suffix(".json") else {
             continue;
         };
@@ -1646,7 +1654,6 @@ async fn sync_stats(
         let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
             continue;
         };
-        // Minecraft хранит тики (1/20 сек) в stats.minecraft:custom.minecraft:play_one_minute
         let ticks = json
             .pointer("/stats/minecraft:custom/minecraft:play_one_minute")
             .and_then(|v| v.as_i64())
@@ -1666,6 +1673,18 @@ async fn sync_stats(
         .disconnect(russh::Disconnect::ByApplication, "", "en")
         .await;
 
+    Ok(updated)
+}
+
+/// `POST /api/settings/sync-stats` — ручной запуск синхронизации статистики.
+async fn sync_stats(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let updated = do_sync_stats(&state)
+        .await
+        .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, e))?;
     Ok(Json(serde_json::json!({ "updated": updated })))
 }
 
