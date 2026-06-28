@@ -65,6 +65,8 @@ fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .proxy(reqwest::Proxy::all("http://assets.zeragorn.xyz:3128").map_err(|e| e.to_string())?)
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
         .build()
         .map_err(|e| e.to_string())
 }

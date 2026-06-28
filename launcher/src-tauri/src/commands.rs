@@ -160,6 +160,8 @@ impl Default for AppState {
                 reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
                     .expect("прокси URL невалиден"),
             )
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("не удалось создать HTTP-клиент");
         Self {
@@ -176,10 +178,21 @@ impl Default for AppState {
 
 fn read_settings(app: &AppHandle) -> Settings {
     let path = paths::settings_file(app);
-    std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+    match std::fs::read_to_string(&path) {
+        Ok(s) => match serde_json::from_str(&s) {
+            Ok(settings) => settings,
+            Err(e) => {
+                eprintln!("[settings] ошибка парсинга {}: {e}, используются значения по умолчанию", path.display());
+                Settings::default()
+            }
+        },
+        Err(e) => {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                eprintln!("[settings] не удалось прочитать {}: {e}, используются значения по умолчанию", path.display());
+            }
+            Settings::default()
+        }
+    }
 }
 
 fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
@@ -822,7 +835,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         app.clone(),
         &state.http,
         paths::data_dir(&app),
-        settings.memory_mb,
+        settings.memory_mb.clamp(512, 32768),
         settings.download_concurrency as usize,
         profile,
         token,

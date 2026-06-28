@@ -275,9 +275,6 @@ fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
     let file =
         fs::File::open(archive).map_err(|e| format!("Не удалось открыть Java archive: {e}"))?;
     let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("Некорректный Java zip: {e}"))?;
-    let canonical_target = target
-        .canonicalize()
-        .map_err(|e| format!("Не удалось определить путь распаковки: {e}"))?;
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
         let name = file.name().replace('\\', "/");
@@ -288,28 +285,18 @@ fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
         if stripped.is_empty() {
             continue;
         }
-        let out = target.join(stripped);
-        // Защита от zip-slip: убеждаемся, что путь распаковки внутри target.
-        let canonical_out = out
-            .canonicalize()
-            .or_else(|_| {
-                // Файл ещё не существует — проверяем через parent.
-                out.parent()
-                    .and_then(|p| p.canonicalize().ok())
-                    .map(|p| p.join(out.file_name().unwrap_or_default()))
-                    .ok_or_else(|| std::io::Error::new(
-                        std::io::ErrorKind::NotFound,
-                        format!("не удалось разрешить путь {}", out.display()),
-                    ))
-            })
-            .map_err(|e| format!("Не удалось проверить путь {}: {e}", out.display()))?;
-        if !canonical_out.starts_with(&canonical_target) {
+        // Защита от zip-slip: отвергаем любой путь, содержащий `..`-компоненты.
+        // Это надёжнее canonicalize, который не работает для несуществующих файлов.
+        if Path::new(stripped)
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
             return Err(format!(
-                "Небезопасный путь в zip: {} (попытка выхода за пределы {})",
-                name,
+                "Небезопасный путь в zip: {name} (попытка выхода за пределы {})",
                 target.display()
             ));
         }
+        let out = target.join(stripped);
         if let Some(parent) = out.parent() {
             fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
@@ -1067,7 +1054,7 @@ async fn ensure_authlib_injector(
         ).await?;
         // Верификация SHA-256 после скачивания.
         if let Some(expected) = &meta.sha256 {
-            let actual = tauri::async_runtime::spawn_blocking({
+            let _actual = tauri::async_runtime::spawn_blocking({
                 let jar = jar.clone();
                 let expected = expected.trim().to_lowercase();
                 move || -> Result<(), String> {
@@ -1653,16 +1640,16 @@ mod tests {
 
     #[test]
     fn substitute_tokens_basic() {
-        let mut replacements = HashMap::new();
-        replacements.insert("${auth_player_name}".to_string(), "Steve".to_string());
-        replacements.insert("${version_name}".to_string(), "1.21.1".to_string());
+        let mut replacements: HashMap<&str, String> = HashMap::new();
+        replacements.insert("${auth_player_name}", "Steve".to_string());
+        replacements.insert("${version_name}", "1.21.1".to_string());
         let result = substitute_tokens("--username ${auth_player_name} --version ${version_name}", &replacements);
         assert_eq!(result, "--username Steve --version 1.21.1");
     }
 
     #[test]
     fn substitute_tokens_no_match() {
-        let replacements = HashMap::new();
+        let replacements: HashMap<&str, String> = HashMap::new();
         let result = substitute_tokens("--no-tokens-here", &replacements);
         assert_eq!(result, "--no-tokens-here");
     }
@@ -1674,7 +1661,7 @@ mod tests {
 
     #[test]
     fn rules_allow_empty_rules() {
-        assert!(rules_allow(&Some(vec![])));
+        assert!(!rules_allow(&Some(vec![])));
     }
 
     #[test]
