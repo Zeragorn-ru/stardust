@@ -24,31 +24,33 @@ export default function FaceAvatar({ dataUrl, size = 64 }: Props) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = size;
-    canvas.height = size;
+    const dpr = window.devicePixelRatio || 1;
+    const px = Math.round(size * dpr);
+    canvas.width = px;
+    canvas.height = px;
     ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, size, size);
+    ctx.clearRect(0, 0, px, px);
 
     if (!dataUrl) {
-      drawPlaceholder(ctx, size);
+      drawPlaceholder(ctx, px);
       return;
     }
 
     const img = new Image();
     img.onload = () => {
       ctx.imageSmoothingEnabled = false;
-      ctx.clearRect(0, 0, size, size);
+      ctx.clearRect(0, 0, px, px);
       // База лица.
       const [bx, by, bw, bh] = HEAD_BASE;
-      ctx.drawImage(img, bx, by, bw, bh, 0, 0, size, size);
+      ctx.drawImage(img, bx, by, bw, bh, 0, 0, px, px);
       // Второй слой (шляпа/волосы) поверх.
       const [hx, hy, hw, hh] = HEAD_HAT;
-      ctx.drawImage(img, hx, hy, hw, hh, 0, 0, size, size);
+      ctx.drawImage(img, hx, hy, hw, hh, 0, 0, px, px);
     };
     img.src = dataUrl;
   }, [dataUrl, size]);
 
-  return <canvas ref={canvasRef} className="face-avatar" />;
+  return <canvas ref={canvasRef} className="face-avatar" style={{ width: size, height: size }} />;
 }
 
 function drawPlaceholder(ctx: CanvasRenderingContext2D, size: number) {

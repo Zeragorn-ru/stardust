@@ -6,6 +6,7 @@
 
 use std::process::Child;
 use std::sync::Mutex;
+use tauri::Manager;
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};

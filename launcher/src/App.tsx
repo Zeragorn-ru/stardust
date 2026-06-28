@@ -14,38 +14,63 @@ import UpdateModal from "./components/UpdateModal";
 type View = "onboarding" | "login" | "main" | "settings";
 type SettingsSection = "general" | "account";
 
+const VIEW_ORDER: View[] = ["onboarding", "login", "main", "settings"];
+const TRANSITION_MS = 300;
+
 export default function App() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [view, setView] = useState<View>("login");
-  const [settingsSection, setSettingsSection] =
-    useState<SettingsSection>("general");
+  const [exitView, setExitView] = useState<View | null>(null);
+  const [exitClass, setExitClass] = useState("");
+  const [enterClass, setEnterClass] = useState("screen-enter");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [ready, setReady] = useState(false);
   const { reload: reloadSkin } = useSkin();
-
-  // Обновление, обнаруженное авто-проверкой (показываем всплывашкой).
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
-
-  // Состояние запуска — живёт в App, чтобы не сбрасывалось при переходе в настройки.
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const progressRef = useRef(progress);
   progressRef.current = progress;
   const runningRef = useRef(running);
   runningRef.current = running;
+  const navigatingRef = useRef(false);
 
   const busy =
     running ||
     (progress != null &&
       ["checking", "downloading", "extracting", "launching"].includes(progress.phase));
 
-  // Подписываемся на события прогресса один раз на уровне App.
+  function navigate(next: View) {
+    if (navigatingRef.current || next === view) return;
+    navigatingRef.current = true;
+    const fromIdx = VIEW_ORDER.indexOf(view);
+    const toIdx = VIEW_ORDER.indexOf(next);
+    const forward = toIdx > fromIdx;
+    // Горизонтальный слайд для main↔settings, вертикальный для остальных
+    const horizontal = (view === "main" || view === "settings") && (next === "main" || next === "settings");
+    const exitCls = horizontal
+      ? (forward ? "screen-exit-left" : "screen-exit-right")
+      : (forward ? "screen-exit-up" : "screen-exit-down");
+    const enterCls = horizontal
+      ? (forward ? "screen-enter-right" : "screen-enter-left")
+      : (forward ? "screen-enter-bottom" : "screen-enter-top");
+    setExitView(view);
+    setExitClass(exitCls);
+    setEnterClass(enterCls);
+    setView(next);
+    setTimeout(() => {
+      setExitView(null);
+      setExitClass("");
+      navigatingRef.current = false;
+    }, TRANSITION_MS);
+  }
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
     onLauncherProgress(setProgress).then((fn) => { unlisten = fn; });
     return () => unlisten?.();
   }, []);
 
-  // При старте проверяем, не запущена ли игра уже (переоткрытие лаунчера).
   useEffect(() => {
     gameRunning().then((alive) => {
       if (alive) {
@@ -55,7 +80,6 @@ export default function App() {
     });
   }, []);
 
-  // Пока игра жива — опрашиваем процесс.
   useEffect(() => {
     if (!running) return;
     const id = setInterval(async () => {
@@ -67,7 +91,6 @@ export default function App() {
     return () => clearInterval(id);
   }, [running]);
 
-  // Escape закрывает окно только если игра не в процессе запуска/работы.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && !runningRef.current && !progressRef.current) {
@@ -78,7 +101,6 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Стартовый экран + попытка автологина из сохранённой сессии.
   useEffect(() => {
     if (!isOnboarded()) {
       setView("onboarding");
@@ -90,119 +112,95 @@ export default function App() {
         if (p) {
           setProfile(p);
           setView("main");
-          // Скин привязан к аккаунту — тянем его с сервера после автологина.
           reloadSkin();
         }
       })
       .finally(() => setReady(true));
   }, []);
 
-  // Проверка обновлений при запуске и затем раз в 30 минут. Ошибки
-  // (нет сети, GitHub недоступен) глотаем молча — это не должно мешать
-  // запуску и работе лаунчера.
   useEffect(() => {
     let cancelled = false;
     let checking = false;
-
     async function runCheck() {
       if (checking) return;
       checking = true;
       try {
         const info = await checkUpdate();
         if (!cancelled && info.available) setUpdate(info);
-      } catch {
-        // ignore
-      } finally {
-        checking = false;
-      }
+      } catch { /* ignore */ } finally { checking = false; }
     }
-
     runCheck();
     const timer = window.setInterval(runCheck, 30 * 60 * 1000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
 
-  function finishOnboarding() {
-    setOnboarded();
-    setView("login");
-  }
+  function finishOnboarding() { setOnboarded(); navigate("login"); }
 
   function handleAuthenticated(p: PlayerProfile) {
     setProfile(p);
-    setView("main");
-    // Подтянуть скин именно этого аккаунта (у разных аккаунтов разные скины).
+    navigate("main");
     reloadSkin();
   }
 
   async function handleLogout() {
     await logout();
     setProfile(null);
-    setView("login");
-    // Сбросить скин, чтобы он не «протёк» на экран следующего игрока.
+    navigate("login");
     reloadSkin();
   }
 
   function handleAccountDeleted() {
-    // Сессия уже удалена бэкендом — просто возвращаемся на экран входа.
     setProfile(null);
-    setView("login");
+    navigate("login");
     reloadSkin();
+  }
+
+  function renderScreen(v: View, cls: string, key: string) {
+    return (
+      <div key={key} className={cls} style={{ position: "absolute", inset: 0 }}>
+        {v === "onboarding" && <OnboardingScreen onDone={finishOnboarding} />}
+        {v === "login" && <LoginScreen onAuthenticated={handleAuthenticated} />}
+        {v === "main" && profile && (
+          <MainScreen
+            profile={profile}
+            progress={progress}
+            running={running}
+            busy={busy}
+            onProgressChange={setProgress}
+            onRunningChange={setRunning}
+            onOpenSettings={(section) => {
+              setSettingsSection(section ?? "general");
+              navigate("settings");
+            }}
+            onLogout={handleLogout}
+          />
+        )}
+        {v === "settings" && (
+          <SettingsScreen
+            profile={profile}
+            onProfileChange={setProfile}
+            onAccountDeleted={handleAccountDeleted}
+            initialSection={settingsSection}
+            onClose={() => navigate("main")}
+          />
+        )}
+      </div>
+    );
   }
 
   return (
     <div className="app">
       <Aurora />
       <TitleBar />
-      <div className="app__content">
+      <div className="app__content" style={{ position: "relative", overflow: "hidden" }}>
         {!ready ? (
           <div className="app--center">
             <div className="spinner" />
           </div>
         ) : (
           <>
-            {/* Экраны без состояния запуска — пересоздаём при переходе для анимации */}
-            {(view === "onboarding" || view === "login") && (
-              <div key={view} className="screen-enter">
-                {view === "onboarding" && (
-                  <OnboardingScreen onDone={finishOnboarding} />
-                )}
-                {view === "login" && (
-                  <LoginScreen onAuthenticated={handleAuthenticated} />
-                )}
-              </div>
-            )}
-            {/* Main и Settings не пересоздаём — progress живёт в App */}
-            {view === "main" && profile && (
-              <div className="screen-enter">
-                <MainScreen
-                  profile={profile}
-                  progress={progress}
-                  running={running}
-                  busy={busy}
-                  onProgressChange={setProgress}
-                  onRunningChange={setRunning}
-                  onOpenSettings={(section) => {
-                    setSettingsSection(section ?? "general");
-                    setView("settings");
-                  }}
-                  onLogout={handleLogout}
-                />
-              </div>
-            )}
-            {view === "settings" && (
-              <div className="screen-enter">
-                <SettingsScreen
-                  profile={profile}
-                  onProfileChange={setProfile}
-                  onAccountDeleted={handleAccountDeleted}
-                  initialSection={settingsSection}
-                  onClose={() => setView("main")}
-                />
-              </div>
-            )}
+            {exitView && renderScreen(exitView, `screen-transition ${exitClass}`, `exit-${exitView}`)}
+            {renderScreen(view, `screen-transition ${enterClass}`, `enter-${view}`)}
           </>
         )}
       </div>

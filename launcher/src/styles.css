@@ -362,6 +362,63 @@ body {
     }
 }
 
+/* ── Transition system ─────────────────────────────────────── */
+.screen-transition {
+    will-change: transform, opacity;
+    animation-duration: 300ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+}
+
+/* Enter classes */
+.screen-enter-bottom  { animation-name: t-enter-bottom; }
+.screen-enter-top     { animation-name: t-enter-top; }
+.screen-enter-right   { animation-name: t-enter-right; }
+.screen-enter-left    { animation-name: t-enter-left; }
+
+/* Exit classes */
+.screen-exit-up    { animation-name: t-exit-up; }
+.screen-exit-down  { animation-name: t-exit-down; }
+.screen-exit-left  { animation-name: t-exit-left; }
+.screen-exit-right { animation-name: t-exit-right; }
+
+@keyframes t-enter-bottom {
+    from { opacity: 0; transform: translateY(24px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+@keyframes t-enter-top {
+    from { opacity: 0; transform: translateY(-24px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+@keyframes t-enter-right {
+    from { opacity: 0; transform: translateX(32px) scale(0.98); }
+    to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+@keyframes t-enter-left {
+    from { opacity: 0; transform: translateX(-32px) scale(0.98); }
+    to   { opacity: 1; transform: translateX(0)     scale(1); }
+}
+@keyframes t-exit-up {
+    from { opacity: 1; transform: translateY(0)     scale(1); }
+    to   { opacity: 0; transform: translateY(-24px) scale(0.98); }
+}
+@keyframes t-exit-down {
+    from { opacity: 1; transform: translateY(0)    scale(1); }
+    to   { opacity: 0; transform: translateY(24px) scale(0.98); }
+}
+@keyframes t-exit-left {
+    from { opacity: 1; transform: translateX(0)     scale(1); }
+    to   { opacity: 0; transform: translateX(-32px) scale(0.98); }
+}
+@keyframes t-exit-right {
+    from { opacity: 1; transform: translateX(0)    scale(1); }
+    to   { opacity: 0; transform: translateX(32px) scale(0.98); }
+}
+
+:root[data-motion="off"] .screen-transition {
+    animation: none !important;
+}
+
 .glass-in {
     animation: glassIn var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1);
 }
