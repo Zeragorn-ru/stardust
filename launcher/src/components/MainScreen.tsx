@@ -5,7 +5,7 @@ import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
-import SkinModal from "./SkinModal";
+import CustomizeModal from "./CustomizeModal";
 
 const SERVER_HOST = "play.stardust-mc.xyz";
 const SERVER_STATUS_INTERVAL = 60_000;
@@ -37,6 +37,7 @@ export default function MainScreen({
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
   const [serverMax, setServerMax] = useState<number | null>(null);
+  const [serverPing, setServerPing] = useState<number | null>(null);
 
   // Загружаем статистику при монтировании.
   useEffect(() => {
@@ -55,13 +56,14 @@ export default function MainScreen({
     async function checkServer() {
       try {
         const mod = await import("@tauri-apps/api/core");
-        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null; max: number | null }>)(
+        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null; max: number | null; ping: number | null }>)(
           "ping_minecraft_server",
           { host: SERVER_HOST },
         );
         setServerOnline(result.online);
         setServerPlayers(result.players);
         setServerMax(result.max);
+        setServerPing(result.ping ?? null);
       } catch {
         setServerOnline(null);
         setServerPlayers(null);
@@ -134,10 +136,10 @@ export default function MainScreen({
           <button
             type="button"
             className="btn btn--ghost hero__skin-btn"
-            aria-label="Сменить скин"
+            aria-label="Кастомизация"
             onClick={() => setSkinOpen(true)}
           >
-            Сменить скин
+            Кастомизация
           </button>
         </div>
         <div className="hero__launch-card stagger-item">
@@ -173,7 +175,7 @@ export default function MainScreen({
                 ) : serverOnline ? (
                   <>
                     <div className="hero__stat">
-                      <span className="hero__stat-value hero__stat-value--online">онлайн</span>
+                      <span className="hero__stat-value hero__stat-value--online">Онлайн</span>
                       <span className="hero__stat-label">статус</span>
                     </div>
                     <div className="hero__stat">
@@ -183,10 +185,16 @@ export default function MainScreen({
                       </span>
                       <span className="hero__stat-label">игроков</span>
                     </div>
+                    {serverPing != null && (
+                      <div className="hero__stat">
+                        <span className="hero__stat-value hero__stat-value--ping">{serverPing}<span className="hero__stat-unit"> мс</span></span>
+                        <span className="hero__stat-label">пинг</span>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="hero__stat">
-                    <span className="hero__stat-value hero__stat-value--offline">офлайн</span>
+                    <span className="hero__stat-value hero__stat-value--offline">Офлайн</span>
                     <span className="hero__stat-label">статус</span>
                   </div>
                 )}
@@ -261,7 +269,7 @@ export default function MainScreen({
         </div>
       </section>
 
-      {skinOpen && <SkinModal onClose={() => setSkinOpen(false)} />}
+      {skinOpen && <CustomizeModal onClose={() => setSkinOpen(false)} />}
     </div>
   );
 }

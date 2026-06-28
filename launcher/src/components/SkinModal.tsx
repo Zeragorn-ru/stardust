@@ -6,6 +6,8 @@ import SkinViewer3D from "./SkinViewer3D";
 
 interface Props {
   onClose: () => void;
+  /** Если true — рендерим только body+footer без overlay и header (используется внутри CustomizeModal). */
+  embedded?: boolean;
 }
 
 type Tab = "file" | "license";
@@ -14,7 +16,7 @@ type Tab = "file" | "license";
 // принимаем, но предупреждаем: 3D-модель ждёт 64×64.
 const MAX_BYTES = 256 * 1024;
 
-export default function SkinModal({ onClose }: Props) {
+export default function SkinModal({ onClose, embedded = false }: Props) {
   const { skin, save, reload } = useSkin();
   // Если текущий скин импортирован с лицензии — сразу открываем вкладку «С лицензии»
   // с подставленным источником (UUID лицензии).
@@ -121,27 +123,8 @@ export default function SkinModal({ onClose }: Props) {
 
   const canClose = !saving;
 
-  return (
-    <div className="modal-overlay" onClick={canClose ? onClose : undefined}>
-      <div
-        className="modal skin-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <header className="modal__header">
-          <h2>Скин</h2>
-          <button
-            type="button"
-            className="btn btn--icon"
-            onClick={canClose ? onClose : undefined}
-            disabled={!canClose}
-            aria-label="Закрыть"
-          >
-            ✕
-          </button>
-        </header>
-
+  const body = (
+    <>
         <div className="skin-modal__body">
           <div className="skin-modal__preview">
             <SkinViewer3D
@@ -284,6 +267,32 @@ export default function SkinModal({ onClose }: Props) {
                 : "Импортировать"}
           </button>
         </footer>
+    </>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <div className="modal-overlay" onClick={canClose ? onClose : undefined}>
+      <div
+        className="modal skin-modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <header className="modal__header">
+          <h2>Скин</h2>
+          <button
+            type="button"
+            className="btn btn--icon"
+            onClick={canClose ? onClose : undefined}
+            disabled={!canClose}
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
+        </header>
+        {body}
       </div>
     </div>
   );

@@ -15,7 +15,7 @@ type View = "onboarding" | "login" | "main" | "settings";
 type SettingsSection = "general" | "account";
 
 const VIEW_ORDER: View[] = ["onboarding", "login", "main", "settings"];
-const TRANSITION_MS = 300;
+const TRANSITION_MS = 380;
 
 export default function App() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);

@@ -365,8 +365,8 @@ body {
 /* ── Transition system ─────────────────────────────────────── */
 .screen-transition {
     will-change: transform, opacity;
-    animation-duration: 300ms;
-    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-duration: 380ms;
+    animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     animation-fill-mode: both;
 }
 
@@ -383,36 +383,36 @@ body {
 .screen-exit-right { animation-name: t-exit-right; }
 
 @keyframes t-enter-bottom {
-    from { opacity: 0; transform: translateY(24px) scale(0.98); }
-    to   { opacity: 1; transform: translateY(0)    scale(1); }
+    from { opacity: 0; transform: translateY(100%); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes t-enter-top {
-    from { opacity: 0; transform: translateY(-24px) scale(0.98); }
-    to   { opacity: 1; transform: translateY(0)     scale(1); }
+    from { opacity: 0; transform: translateY(-100%); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes t-enter-right {
-    from { opacity: 0; transform: translateX(32px) scale(0.98); }
-    to   { opacity: 1; transform: translateX(0)    scale(1); }
+    from { opacity: 0; transform: translateX(100%); }
+    to   { opacity: 1; transform: translateX(0); }
 }
 @keyframes t-enter-left {
-    from { opacity: 0; transform: translateX(-32px) scale(0.98); }
-    to   { opacity: 1; transform: translateX(0)     scale(1); }
+    from { opacity: 0; transform: translateX(-100%); }
+    to   { opacity: 1; transform: translateX(0); }
 }
 @keyframes t-exit-up {
-    from { opacity: 1; transform: translateY(0)     scale(1); }
-    to   { opacity: 0; transform: translateY(-24px) scale(0.98); }
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-100%); }
 }
 @keyframes t-exit-down {
-    from { opacity: 1; transform: translateY(0)    scale(1); }
-    to   { opacity: 0; transform: translateY(24px) scale(0.98); }
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(100%); }
 }
 @keyframes t-exit-left {
-    from { opacity: 1; transform: translateX(0)     scale(1); }
-    to   { opacity: 0; transform: translateX(-32px) scale(0.98); }
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(-100%); }
 }
 @keyframes t-exit-right {
-    from { opacity: 1; transform: translateX(0)    scale(1); }
-    to   { opacity: 0; transform: translateX(32px) scale(0.98); }
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(100%); }
 }
 
 :root[data-motion="off"] .screen-transition {
@@ -1070,6 +1070,7 @@ body {
     height: 100%;
     image-rendering: pixelated;
     display: block;
+    object-fit: contain;
 }
 
 .account__name {
@@ -1264,6 +1265,8 @@ body {
 .hero__stat-value--online { color: #4ade80; }
 .hero__stat-value--offline { opacity: 0.4; }
 .hero__stat-value--muted  { opacity: 0.4; }
+.hero__stat-value--ping   { color: #60a5fa; }
+.hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
 
 .play-error {
     display: flex;
@@ -2100,4 +2103,74 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+/* ============ CustomizeModal ============ */
+
+.customize-modal {
+    width: 620px;
+    max-width: 96vw;
+}
+
+.customize-modal__header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.customize-modal__header h2 {
+    margin-right: auto;
+}
+
+.customize-tabs {
+    position: relative;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+}
+
+.customize-tab {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    padding: 7px 18px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color var(--t-fast);
+    white-space: nowrap;
+}
+
+.customize-tab:hover:not(.is-active) { color: var(--text); }
+.customize-tab.is-active { color: #fff; }
+
+.customize-tabs__ink {
+    position: absolute;
+    z-index: 0;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc(50% - 6px);
+    border-radius: 8px;
+    background: var(--accent-grad);
+    box-shadow: 0 6px 18px -8px rgba(124, 92, 255, 0.8);
+    transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.customize-tabs__ink.is-right {
+    transform: translateX(calc(100% + 4px));
+}
+
+.customize-wip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    font-size: 14px;
 }
