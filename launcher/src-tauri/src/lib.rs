@@ -26,6 +26,8 @@ pub fn run() {
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "launcher=info".into());
 
+    use tracing_subscriber::prelude::*;
+
     tracing_subscriber::registry()
         .with(env_filter)
         .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))

@@ -297,6 +297,10 @@ fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
                 out.parent()
                     .and_then(|p| p.canonicalize().ok())
                     .map(|p| p.join(out.file_name().unwrap_or_default()))
+                    .ok_or_else(|| std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        format!("не удалось разрешить путь {}", out.display()),
+                    ))
             })
             .map_err(|e| format!("Не удалось проверить путь {}: {e}", out.display()))?;
         if !canonical_out.starts_with(&canonical_target) {
