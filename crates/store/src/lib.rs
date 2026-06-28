@@ -25,7 +25,7 @@ pub use build::{
 pub use telegram::{
     ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_DENY,
     CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET, SETTING_SFTP_HOST,
-    SETTING_SFTP_PASSWORD, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
+    SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
     SETTING_TELEGRAM_USERNAME,
 };
 
@@ -496,6 +496,15 @@ impl Store {
         Ok(rows.iter().map(row_to_account).collect())
     }
 
+    /// Возвращает UUID всех аккаунтов (без дефисов).
+    pub async fn all_account_uuids(&self) -> Result<Vec<String>, StoreError> {
+        let uuids: Vec<String> =
+            sqlx::query_scalar("SELECT uuid FROM accounts")
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(uuids)
+    }
+
     /// Сохраняет/заменяет скин аккаунта (по UUID без дефисов).
     pub async fn set_skin(&self, uuid: &str, skin: StoredSkin) -> Result<(), StoreError> {
         let uuid = normalize_uuid(uuid);
@@ -643,22 +652,21 @@ impl Store {
         Ok((row.get("playtime_seconds"), row.get("last_launched_at")))
     }
 
-    /// Добавляет `delta_seconds` к накопленному времени и обновляет `last_launched_at`.
-    pub async fn add_playtime(
+    /// Устанавливает абсолютное время игры (в секундах) из статистики Minecraft.
+    /// Обновляет `last_launched_at` текущим временем.
+    pub async fn set_playtime_absolute(
         &self,
         uuid: &str,
-        delta_seconds: i64,
-        launched_at: OffsetDateTime,
+        seconds: i64,
     ) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
-             SET playtime_seconds = playtime_seconds + $2,
-                 last_launched_at  = $3
+             SET playtime_seconds = $2,
+                 last_launched_at  = now()
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
-        .bind(delta_seconds)
-        .bind(launched_at)
+        .bind(seconds)
         .execute(&self.pool)
         .await?;
         Ok(())

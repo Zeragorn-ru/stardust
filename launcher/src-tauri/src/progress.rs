@@ -252,7 +252,7 @@ impl Progress {
     /// Отправляет строку лога в UI через событие `launcher://log`.
     pub fn log(&self, msg: impl Into<String>) {
         let msg = msg.into();
-        eprintln!("[launcher] {msg}");
+        tracing::info!("[launcher] {msg}");
         let _ = self.app.emit("launcher://log", msg);
     }
 

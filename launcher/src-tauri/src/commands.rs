@@ -183,13 +183,13 @@ fn read_settings(app: &AppHandle) -> Settings {
         Ok(s) => match serde_json::from_str(&s) {
             Ok(settings) => settings,
             Err(e) => {
-                eprintln!("[settings] ошибка парсинга {}: {e}, используются значения по умолчанию", path.display());
+                tracing::warn!("[settings] ошибка парсинга {}: {e}, используются значения по умолчанию", path.display());
                 Settings::default()
             }
         },
         Err(e) => {
             if e.kind() != std::io::ErrorKind::NotFound {
-                eprintln!("[settings] не удалось прочитать {}: {e}, используются значения по умолчанию", path.display());
+                tracing::warn!("[settings] не удалось прочитать {}: {e}, используются значения по умолчанию", path.display());
             }
             Settings::default()
         }
@@ -279,6 +279,47 @@ pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
         write_settings(app, &Settings::default())?;
     }
     Ok(())
+}
+
+/// Если при прошлом запуске лаунчер закрылся пока игра работала,
+/// `game_session.json` остался на диске. Восстанавливаем сессию:
+/// если PID уже мёртв — записываем статистику и чистим файл.
+///
+/// Вызывать только после того, как токен уже загружен в `AppState`.
+fn recover_pending_session(app: &AppHandle, state: &AppState) {
+    let data_dir = paths::data_dir(app);
+    let Some(pending) = crate::game_guard::read_session(&data_dir) else {
+        return;
+    };
+    // Если игра всё ещё жива — ничего не делаем, spawn в play_game досчитает.
+    if crate::game_guard::is_running(&data_dir) {
+        return;
+    }
+    let token = match state.token.lock().unwrap().clone() {
+        Some(t) => t,
+        None => {
+            crate::game_guard::clear_session(&data_dir);
+            return;
+        }
+    };
+    let http = state.http.clone();
+    let launched_at_str = pending.launched_at.clone();
+    tauri::async_runtime::spawn(async move {
+        let duration = time::OffsetDateTime::parse(
+            &launched_at_str,
+            &time::format_description::well_known::Rfc3339,
+        )
+        .map(|t| (time::OffsetDateTime::now_utc() - t).whole_seconds().max(0))
+        .unwrap_or(0);
+        crate::game_guard::clear_session(&data_dir);
+        if duration > 0 {
+            if let Err(e) =
+                backend::record_session(&http, &token, duration, &launched_at_str).await
+            {
+                tracing::warn!("[stats] восстановление сессии: не удалось записать: {e}");
+            }
+        }
+    });
 }
 
 // ---------- Аутентификация (auth-сервер) ----------
@@ -529,6 +570,7 @@ async fn current_profile(
     match backend::session(&state.http, &saved.token).await {
         Ok(profile) => {
             set_runtime_session(&state, profile.clone(), saved.token);
+            recover_pending_session(&app, &state);
             Ok(Some(profile))
         }
         Err(_) => {
@@ -913,37 +955,36 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     )
     .await?;
 
+    let launched_at = time::OffsetDateTime::now_utc();
+    let launched_at_str = launched_at
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
+
     crate::game_guard::record(&data_dir, child.id());
+    // Сохраняем на диск: если лаунчер закроется пока игра работает,
+    // при следующем старте bootstrap восстановит и запишет сессию.
+    crate::game_guard::write_session(&data_dir, child.id(), &launched_at_str);
     *state.game.lock().unwrap() = Some(child);
 
     // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
     let http = state.http.clone();
     let data_dir2 = data_dir.clone();
     tokio::spawn(async move {
-        let launched_at = time::OffsetDateTime::now_utc();
-        let launched_at_str = launched_at
-            .format(&time::format_description::well_known::Rfc3339)
-            .unwrap_or_default();
-
         // Ждём завершения процесса, опрашивая каждые 2 секунды.
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            let exited = {
-                // Заново достаём Child из state, но state уже не доступен здесь —
-                // используем game_guard: если PID-файл исчез, игра завершилась.
-                !crate::game_guard::is_running(&data_dir2)
-            };
-            if exited {
+            if !crate::game_guard::is_running(&data_dir2) {
                 break;
             }
         }
 
         let duration = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds().max(0);
+        crate::game_guard::clear_session(&data_dir2);
         if duration > 0 {
             if let Err(e) =
                 backend::record_session(&http, &token, duration, &launched_at_str).await
             {
-                eprintln!("[stats] не удалось записать сессию: {e}");
+                tracing::warn!("[stats] не удалось записать сессию: {e}");
             }
         }
     });
@@ -1047,7 +1088,9 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
     // 2. TCP + Server List Ping (MC 1.7+ handshake, protocol -1 = status)
     let addr = format!("{target_host}:{target_port}");
     let ping = timeout(Duration::from_secs(5), async {
+        let t0 = std::time::Instant::now();
         let mut stream = TcpStream::connect(&addr).await?;
+        let ping_ms = t0.elapsed().as_millis() as u64;
 
         // Build handshake payload
         let host_bytes = target_host.as_bytes();
@@ -1075,12 +1118,12 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
         stream.read_exact(&mut buf).await?;
         let json: serde_json::Value =
             serde_json::from_slice(&buf).unwrap_or(serde_json::Value::Null);
-        Ok::<_, std::io::Error>(json)
+        Ok::<_, std::io::Error>((json, ping_ms))
     })
     .await;
 
     match ping {
-        Ok(Ok(json)) => {
+        Ok(Ok((json, ping_ms))) => {
             let players = json
                 .get("players")
                 .and_then(|p| p.get("online"))
@@ -1089,7 +1132,7 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
                 .get("players")
                 .and_then(|p| p.get("max"))
                 .and_then(|v| v.as_u64());
-            serde_json::json!({ "online": true, "players": players, "max": max })
+            serde_json::json!({ "online": true, "players": players, "max": max, "ping": ping_ms })
         }
         _ => serde_json::json!({ "online": false, "players": null }),
     }

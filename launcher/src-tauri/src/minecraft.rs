@@ -139,7 +139,7 @@ pub async fn launch(
                 args.push(format!("-Dauthlibinjector.yggdrasil.prefetched={meta}"));
             }
         }
-        Err(e) => eprintln!("authlib-injector недоступен, запуск без кастомных скинов: {e}"),
+        Err(e) => tracing::warn!("authlib-injector недоступен, запуск без кастомных скинов: {e}"),
     }
 
     args.push("-cp".into());
@@ -872,7 +872,7 @@ async fn ensure_neoforge(
     // чтобы installer запустился заново.
     if marker.exists() {
         let _ = fs::remove_file(&marker);
-        eprintln!("[neoforge] обнаружена неполная установка (нет patched client), переустанавливаем");
+        tracing::warn!("[neoforge] обнаружена неполная установка (нет patched client), переустанавливаем");
     }
 
     // Installer отказывается работать без launcher_profiles.json в целевой папке.
@@ -892,7 +892,7 @@ async fn ensure_neoforge(
 
     for attempt in 1..=MAX_ATTEMPTS {
         if attempt > 1 {
-            eprintln!(
+            tracing::warn!(
                 "[neoforge] повтор установки {attempt}/{MAX_ATTEMPTS}: удаляем installer и перекачиваем"
             );
             progress.set_label(
@@ -915,7 +915,7 @@ async fn ensure_neoforge(
         );
         if let Err(e) = download_to(progress, http, &url, &installer, "NeoForge installer", None, None).await {
             last_err = e;
-            eprintln!("[neoforge] ошибка скачивания installer (попытка {attempt}): {last_err}");
+            tracing::warn!("[neoforge] ошибка скачивания installer (попытка {attempt}): {last_err}");
             continue;
         }
 
@@ -928,7 +928,7 @@ async fn ensure_neoforge(
         let root_clone = root.to_path_buf();
         let neoforge_version_clone = neoforge_version.clone();
         let status = tauri::async_runtime::spawn_blocking(move || {
-            eprintln!(
+            tracing::debug!(
                 "[neoforge] запускаем installer {} -> {}",
                 installer_clone.display(),
                 root_clone.display()
@@ -953,20 +953,20 @@ async fn ensure_neoforge(
                 .output()
                 .map_err(|e| format!("Не удалось запустить NeoForge installer: {e}"))?;
             if !output.stdout.is_empty() {
-                eprintln!(
+                tracing::debug!(
                     "[neoforge-{}] stdout: {}",
                     neoforge_version_clone,
                     String::from_utf8_lossy(&output.stdout).trim_end()
                 );
             }
             if !output.stderr.is_empty() {
-                eprintln!(
+                tracing::debug!(
                     "[neoforge-{}] stderr: {}",
                     neoforge_version_clone,
                     String::from_utf8_lossy(&output.stderr).trim_end()
                 );
             }
-            eprintln!(
+            tracing::debug!(
                 "[neoforge] installer завершился со статусом {}",
                 output.status
             );
@@ -1002,13 +1002,13 @@ async fn ensure_neoforge(
             } else {
                 format!("NeoForge installer завершился с ошибкой ({status}):\n{tail}")
             };
-            eprintln!("[neoforge] ошибка установки (попытка {attempt}): {last_err}");
+            tracing::warn!("[neoforge] ошибка установки (попытка {attempt}): {last_err}");
             continue;
         }
         if !marker.exists() {
             last_err =
                 "NeoForge installer отработал, но профиль не появился в versions/".to_string();
-            eprintln!("[neoforge] маркер не появился (попытка {attempt}): {last_err}");
+            tracing::warn!("[neoforge] маркер не появился (попытка {attempt}): {last_err}");
             continue;
         }
 
@@ -1088,7 +1088,7 @@ async fn ensure_authlib_injector(
     // Путь 1: admin-server (наш сервер, доверяем ему).
     let admin_url = format!("{}/authlib-injector.jar", crate::backend::admin_base_url());
     if let Err(e) = download_to(progress, http, &admin_url, &jar, "authlib-injector", None, None).await {
-        eprintln!("admin-server не отдал authlib-injector ({e}), пробую апстрим");
+        tracing::warn!("admin-server не отдал authlib-injector ({e}), пробую апстрим");
         // Путь 2: прямой апстрим с проверкой SHA-256 из latest.json.
         let meta = fetch_injector_meta(http).await?;
         download_to(
@@ -1222,7 +1222,7 @@ async fn download_inner(
 
     for attempt in 1..=MAX_ATTEMPTS {
         if attempt > 1 {
-            eprintln!("[download] повтор {attempt}/{MAX_ATTEMPTS}: {url}");
+            tracing::debug!("[download] повтор {attempt}/{MAX_ATTEMPTS}: {url}");
             let _ = tauri::async_runtime::spawn_blocking(|| {
                 std::thread::sleep(std::time::Duration::from_secs(2));
             })
@@ -1233,7 +1233,7 @@ async fn download_inner(
             Ok(r) => r,
             Err(e) => {
                 last_err = format!("Сетевая ошибка при скачивании {url}: {e}");
-                eprintln!("[download] ошибка (попытка {attempt}): {last_err}");
+                tracing::warn!("[download] ошибка (попытка {attempt}): {last_err}");
                 continue;
             }
         };
@@ -1241,7 +1241,7 @@ async fn download_inner(
             Ok(r) => r,
             Err(e) => {
                 last_err = format!("Не удалось скачать {url}: {e}");
-                eprintln!("[download] HTTP ошибка (попытка {attempt}): {last_err}");
+                tracing::warn!("[download] HTTP ошибка (попытка {attempt}): {last_err}");
                 continue;
             }
         };
@@ -1286,7 +1286,7 @@ async fn download_inner(
 
         if let Some(e) = chunk_err {
             last_err = e;
-            eprintln!("[download] обрыв (попытка {attempt}): {last_err}");
+            tracing::warn!("[download] обрыв (попытка {attempt}): {last_err}");
             let _ = fs::remove_file(&tmp);
             continue;
         }
@@ -1302,7 +1302,7 @@ async fn download_inner(
                 last_err = format!(
                     "Размер {label}: скачано {downloaded} байт, ожидалось {expected}"
                 );
-                eprintln!("[download] неверный размер (попытка {attempt}): {last_err}");
+                tracing::warn!("[download] неверный размер (попытка {attempt}): {last_err}");
                 let _ = fs::remove_file(&tmp);
                 continue;
             }
@@ -1313,7 +1313,7 @@ async fn download_inner(
                 last_err = format!(
                     "Размер {label}: скачано {downloaded} байт, Content-Length {cl}"
                 );
-                eprintln!("[download] size mismatch (попытка {attempt}): {last_err}");
+                tracing::warn!("[download] size mismatch (попытка {attempt}): {last_err}");
                 let _ = fs::remove_file(&tmp);
                 continue;
             }
@@ -1333,13 +1333,13 @@ async fn download_inner(
                     last_err = format!(
                         "SHA-1 {label}: получен {hash}, ожидался {expected}"
                     );
-                    eprintln!("[download] неверный хеш (попытка {attempt}): {last_err}");
+                    tracing::warn!("[download] неверный хеш (попытка {attempt}): {last_err}");
                     let _ = fs::remove_file(&tmp);
                     continue;
                 }
                 Err(e) => {
                     last_err = format!("Не удалось вычислить SHA-1 {label}: {e}");
-                    eprintln!("[download] ошибка хеша (попытка {attempt}): {last_err}");
+                    tracing::warn!("[download] ошибка хеша (попытка {attempt}): {last_err}");
                     let _ = fs::remove_file(&tmp);
                     continue;
                 }
@@ -1353,7 +1353,7 @@ async fn download_inner(
                 path.display()
             )
         })?;
-        eprintln!("[download] OK ({downloaded} байт): {url}");
+        tracing::debug!("[download] OK ({downloaded} байт): {url}");
         return Ok(());
     }
 

@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
     NewBuild, Role, Store, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD,
-    SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
+    SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -335,6 +335,9 @@ struct SettingsDto {
     /// Установлен ли SFTP-пароль (сам пароль наружу не отдаём).
     #[serde(rename = "sftpPasswordSet")]
     sftp_password_set: bool,
+    /// Путь к папке со статистикой на SFTP-сервере.
+    #[serde(rename = "sftpStatsPath", skip_serializing_if = "Option::is_none")]
+    sftp_stats_path: Option<String>,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -344,6 +347,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_SFTP_HOST,
         SETTING_SFTP_USERNAME,
         SETTING_SFTP_PASSWORD,
+        SETTING_SFTP_STATS_PATH,
     ];
     let map = state
         .store
@@ -367,6 +371,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         sftp_password_set: get(SETTING_SFTP_PASSWORD)
             .map(|p| !p.trim().is_empty())
             .unwrap_or(false),
+        sftp_stats_path: get(SETTING_SFTP_STATS_PATH).filter(|s| !s.trim().is_empty()),
     })
 }
 
@@ -400,6 +405,8 @@ struct UpdateSettingsRequest {
         skip_serializing_if = "Option::is_none"
     )]
     sftp_password: Option<String>,
+    #[serde(rename = "sftpStatsPath", default, skip_serializing_if = "Option::is_none")]
+    sftp_stats_path: Option<String>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -489,6 +496,15 @@ async fn update_settings(
                 .set_setting(SETTING_SFTP_PASSWORD, v)
                 .await
                 .map_err(internal)?;
+        }
+    }
+
+    if let Some(v) = req.sftp_stats_path {
+        let v = v.trim();
+        if v.is_empty() {
+            state.store.delete_setting(SETTING_SFTP_STATS_PATH).await.map_err(internal)?;
+        } else {
+            state.store.set_setting(SETTING_SFTP_STATS_PATH, v).await.map_err(internal)?;
         }
     }
 

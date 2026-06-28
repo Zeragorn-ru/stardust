@@ -94,7 +94,7 @@ LAUNCHER_ADMIN_URL=http://127.0.0.1:8082 npm run tauri dev
   (или `.portable`). Тогда всё хранится в `data/` рядом с exe — ничего не
   пишется в систему, папку можно носить с собой.
 - **Установленный режим** — маркера нет. Данные идут в системную папку
-  `%APPDATA%\com.project.launcher` (Windows).
+  `%APPDATA%\com.stardust.launcher` (Windows).
 
 Внутри папки данных сейчас:
 

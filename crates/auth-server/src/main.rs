@@ -43,7 +43,7 @@ use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
     ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
     PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
-    PlayerStats, RecordSessionRequest, SessionResponse, SkinImportRequest, SkinModel,
+    PlayerStats, SessionResponse, SkinImportRequest, SkinModel,
     SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
 };
 
@@ -118,6 +118,8 @@ async fn main() {
 
     // Фоновое обновление скинов, импортированных с лицензии.
     tokio::spawn(skin_refresh_loop(state.clone()));
+    // Фоновое обновление времени игры из Minecraft stats по SFTP.
+    tokio::spawn(playtime_refresh_loop(state.clone()));
 
     let app = Router::new()
         .route("/health", get(health))
@@ -147,7 +149,6 @@ async fn main() {
         .route("/api/skin/:uuid", get(skin))
         .route("/api/cape/:uuid", get(cape))
         .route("/api/stats", get(stats_get))
-        .route("/api/stats/session", post(stats_record_session))
         // --- Yggdrasil / authlib-injector ---
         .route("/", get(ygg_meta))
         .route("/authserver/authenticate", post(ygg_authenticate))
@@ -1231,22 +1232,7 @@ async fn stats_get(
     }))
 }
 
-/// `POST /api/stats/session` — записать завершившуюся игровую сессию.
-async fn stats_record_session(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-    Json(req): Json<RecordSessionRequest>,
-) -> Result<StatusCode, ApiError> {
-    let account = current_account(&state, &headers).await?;
-    let launched_at = time::OffsetDateTime::parse(&req.launched_at, &Rfc3339)
-        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "Неверный формат launchedAt"))?;
-    let delta = req.duration_seconds.max(0);
-    state
-        .store
-        .add_playtime(&account.uuid, delta, launched_at)
-        .await?;
-    Ok(StatusCode::NO_CONTENT)
-}
+/// `POST /api/stats/session` — удалён, статистика читается фоновым циклом.
 
 /// Фоновый цикл: периодически перечитывает скины с Mojang для аккаунтов,
 /// у которых включена синхронизация (`keep_synced`).
@@ -1278,4 +1264,128 @@ async fn skin_refresh_loop(state: Shared) {
             }
         }
     }
+}
+
+/// Интервал между опросами Minecraft stats по SFTP.
+const PLAYTIME_REFRESH_INTERVAL: Duration = Duration::from_secs(15 * 60);
+
+/// Фоновый цикл: каждые 15 мин читает `<stats_path>/<uuid>.json` по SFTP
+/// и обновляет `playtime_seconds` для всех аккаунтов.
+async fn playtime_refresh_loop(state: Shared) {
+    let mut ticker = tokio::time::interval(PLAYTIME_REFRESH_INTERVAL);
+    ticker.tick().await; // первый тик — немедленно, пропускаем
+    loop {
+        ticker.tick().await;
+        if let Err(e) = refresh_playtime_once(&state).await {
+            tracing::warn!("playtime refresh failed: {e}");
+        }
+    }
+}
+
+/// Минимальный обработчик SSH-клиента: принимаем любой ключ сервера.
+/// Хост задаётся администратором вручную — ответственность оператора.
+struct SftpHandler;
+
+impl russh::client::Handler for SftpHandler {
+    type Error = russh::Error;
+
+    async fn check_server_key(
+        &mut self,
+        _key: &russh::keys::ssh_key::PublicKey,
+    ) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+}
+
+async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
+    use russh_sftp::protocol::OpenFlags;
+    use tokio::io::AsyncReadExt;
+
+    let get = |key| {
+        let store = &state.store;
+        async move {
+            store
+                .get_setting(key)
+                .await
+                .map_err(|e| format!("db: {e}"))?
+                .filter(|s| !s.trim().is_empty())
+                .ok_or_else(|| format!("настройка `{key}` не задана"))
+        }
+    };
+
+    let host = get(store::SETTING_SFTP_HOST).await?;
+    let username = get(store::SETTING_SFTP_USERNAME).await?;
+    let password = get(store::SETTING_SFTP_PASSWORD).await?;
+    let stats_path = get(store::SETTING_SFTP_STATS_PATH).await?;
+
+    // host или host:port
+    let (host_part, port) = match host.rsplit_once(':') {
+        Some((h, p)) => match p.parse::<u16>() {
+            Ok(port) => (h.to_string(), port),
+            Err(_) => (host.clone(), 22),
+        },
+        None => (host.clone(), 22),
+    };
+
+    let config = Arc::new(russh::client::Config::default());
+    let mut ssh = russh::client::connect(config, (host_part.as_str(), port), SftpHandler)
+        .await
+        .map_err(|e| format!("ssh connect: {e}"))?;
+    let ok = ssh
+        .authenticate_password(&username, &password)
+        .await
+        .map_err(|e| format!("ssh auth: {e}"))?;
+    if !matches!(ok, russh::client::AuthResult::Success) {
+        return Err("SFTP-аутентификация не прошла".into());
+    }
+    let channel = ssh
+        .channel_open_session()
+        .await
+        .map_err(|e| format!("channel: {e}"))?;
+    channel
+        .request_subsystem(true, "sftp")
+        .await
+        .map_err(|e| format!("sftp subsystem: {e}"))?;
+    let sftp = russh_sftp::client::SftpSession::new(channel.into_stream())
+        .await
+        .map_err(|e| format!("sftp session: {e}"))?;
+
+    // Читаем все uuid аккаунтов из БД
+    let uuids = state
+        .store
+        .all_account_uuids()
+        .await
+        .map_err(|e| format!("db uuids: {e}"))?;
+
+    let stats_path = stats_path.trim_end_matches('/');
+    for uuid in &uuids {
+        let path = format!("{stats_path}/{uuid}.json");
+        let mut file = match sftp
+            .open_with_flags(&path, OpenFlags::READ)
+            .await
+        {
+            Ok(f) => f,
+            Err(_) => continue, // файл не существует — игрок ещё не играл
+        };
+        let mut buf = Vec::new();
+        if file.read_to_end(&mut buf).await.is_err() {
+            continue;
+        }
+        let ticks: i64 = match parse_play_time(&buf) {
+            Some(t) => t,
+            None => continue,
+        };
+        let seconds = ticks / 20;
+        if let Err(e) = state.store.set_playtime_absolute(uuid, seconds).await {
+            tracing::warn!("set_playtime_absolute({uuid}): {e:?}");
+        }
+    }
+    Ok(())
+}
+
+/// Извлекает `stats.minecraft.custom["minecraft:play_time"]` из JSON-файла статистики.
+fn parse_play_time(data: &[u8]) -> Option<i64> {
+    let v: serde_json::Value = serde_json::from_slice(data).ok()?;
+    v.pointer("/stats/minecraft:custom/minecraft:play_time")
+        .and_then(|x| x.as_i64())
 }

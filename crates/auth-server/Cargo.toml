@@ -21,5 +21,7 @@ uuid = { workspace = true }
 base64 = "0.22"
 rand = { workspace = true }
 time = { workspace = true }
+russh = "0.61"
+russh-sftp = "2"
 rsa = { version = "0.9", features = ["sha1", "pem"] }
 sha1 = { version = "0.10", features = ["oid"] }

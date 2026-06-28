@@ -149,8 +149,8 @@ export default function MainScreen({
             Кастомизация
           </button>
         </div>
-        <div className="hero__launch-card stagger-item">
-          <div className="hero__card">
+        <div className="hero__launch-card stagger stagger-item">
+          <div className="hero__card stagger-item">
             <h2>Всё готово к приключению</h2>
             <p className="muted">
               Нажми «Играть» — мы всё подготовим сами и запустим игру под твоим
@@ -158,7 +158,7 @@ export default function MainScreen({
             </p>
           </div>
           {stats != null && (
-            <div className="hero__info-row">
+            <div className="hero__info-row stagger-item">
               <div className="hero__stats">
                 <div className="hero__stats-title">Статистика</div>
                 <div className="hero__stat">
@@ -209,7 +209,7 @@ export default function MainScreen({
             </div>
           )}
           {progress?.phase === "error" ? (
-            <div className="play-error">
+            <div className="play-error stagger-item">
               <span className="play-error__msg">{progress.label}</span>
               <button
                 type="button"
@@ -221,7 +221,7 @@ export default function MainScreen({
             </div>
           ) : (
             <button
-              className="btn btn--play"
+              className="btn btn--play stagger-item"
               onClick={handlePlay}
               disabled={busy}
             >

@@ -364,17 +364,17 @@ body {
 
 /* ── Transition system ─────────────────────────────────────── */
 .screen-transition {
-    will-change: transform, opacity;
     animation-duration: 380ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     animation-fill-mode: both;
 }
 
-/* Enter classes */
-.screen-enter-bottom  { animation-name: t-enter-bottom; }
-.screen-enter-top     { animation-name: t-enter-top; }
-.screen-enter-right   { animation-name: t-enter-right; }
-.screen-enter-left    { animation-name: t-enter-left; }
+/* Enter classes — will-change только здесь; на exit не нужен и создаёт
+   новый stacking context, сбрасывающий GPU-слои дочерних элементов. */
+.screen-enter-bottom  { will-change: transform, opacity; animation-name: t-enter-bottom; }
+.screen-enter-top     { will-change: transform, opacity; animation-name: t-enter-top; }
+.screen-enter-right   { will-change: transform, opacity; animation-name: t-enter-right; }
+.screen-enter-left    { will-change: transform, opacity; animation-name: t-enter-left; }
 
 /* Exit classes */
 .screen-exit-up    { animation-name: t-exit-up; }
@@ -1128,7 +1128,7 @@ body {
     min-height: 0;
     display: grid;
     grid-template-columns: 220px minmax(0, 1fr);
-    align-items: stretch;
+    align-items: start;
     gap: 22px;
     padding: 18px 22px 22px;
 }
@@ -1227,11 +1227,11 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 26px 30px;
+    padding: 16px 20px;
     background: var(--glass);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
-    box-shadow: var(--shadow);
+    box-shadow: none;
     position: relative;
     overflow: hidden;
 }

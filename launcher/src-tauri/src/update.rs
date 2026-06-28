@@ -316,7 +316,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                     .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
                     match actual {
                         Ok(actual_hex) if actual_hex == expected_hex => {
-                            eprintln!("[update] SHA-256 OK: {actual_hex}");
+                            tracing::debug!("[update] SHA-256 OK: {actual_hex}");
                         }
                         Ok(actual_hex) => {
                             let _ = std::fs::remove_file(&path);
@@ -331,12 +331,12 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                     }
                 }
                 Err(e) => {
-                    eprintln!("[update] предупреждение: не удалось проверить SHA-256 ({e}), продолжаем без верификации");
+                    tracing::warn!("[update] предупреждение: не удалось проверить SHA-256 ({e}), продолжаем без верификации");
                 }
             }
         }
         None => {
-            eprintln!("[update] предупреждение: .sha256 файл не найден в релизе, продолжаем без верификации хеша");
+            tracing::warn!("[update] предупреждение: .sha256 файл не найден в релизе, продолжаем без верификации хеша");
         }
     }
 

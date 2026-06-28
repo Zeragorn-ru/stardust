@@ -22,6 +22,8 @@ pub const SETTING_SFTP_HOST: &str = "sftp_host";
 pub const SETTING_SFTP_USERNAME: &str = "sftp_username";
 /// Ключ настройки: SFTP-пароль (секрет, наружу не отдаём).
 pub const SETTING_SFTP_PASSWORD: &str = "sftp_password";
+/// Ключ настройки: путь к папке stats на Minecraft-сервере (например `/world/stats`).
+pub const SETTING_SFTP_STATS_PATH: &str = "sftp_stats_path";
 
 /// Время жизни кода привязки Telegram.
 const LINK_TTL: Duration = Duration::minutes(15);

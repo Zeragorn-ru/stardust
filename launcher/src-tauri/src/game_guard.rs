@@ -17,8 +17,40 @@
 
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 /// Имя PID-файла запущенной игры внутри data-dir.
 const PID_FILE: &str = "game.pid";
+
+/// Имя файла незавершённой игровой сессии (для восстановления после краша/закрытия лаунчера).
+const SESSION_FILE: &str = "game_session.json";
+
+/// Данные сессии, сохраняемые на диск перед запуском игры.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PendingSession {
+    /// RFC 3339, время старта игры.
+    pub launched_at: String,
+    pub pid: u32,
+}
+
+/// Записывает PID и `launched_at` на диск.
+pub fn write_session(data_dir: &Path, pid: u32, launched_at: &str) {
+    let s = PendingSession { launched_at: launched_at.to_owned(), pid };
+    if let Ok(json) = serde_json::to_string(&s) {
+        let _ = std::fs::write(data_dir.join(SESSION_FILE), json);
+    }
+}
+
+/// Читает незавершённую сессию. Возвращает `None` если файла нет или он повреждён.
+pub fn read_session(data_dir: &Path) -> Option<PendingSession> {
+    let s = std::fs::read_to_string(data_dir.join(SESSION_FILE)).ok()?;
+    serde_json::from_str(&s).ok()
+}
+
+/// Удаляет файл незавершённой сессии.
+pub fn clear_session(data_dir: &Path) {
+    let _ = std::fs::remove_file(data_dir.join(SESSION_FILE));
+}
 
 /// Путь к PID-файлу для данного data-dir.
 fn pid_path(data_dir: &Path) -> PathBuf {

@@ -6,7 +6,15 @@
 ; NeoForge, ассеты, настройки и сессию) из %APPDATA%.
 ;
 ; Идентификатор приложения берётся из `identifier` в tauri.conf.json:
-;   com.project.launcher  ->  %APPDATA%\com.project.launcher
+;   com.stardust.launcher  ->  %APPDATA%\com.stardust.launcher
+!macro NSIS_HOOK_PREINSTALL
+  StrCpy $0 "$APPDATA\com.stardust.launcher"
+  StrCpy $1 "$APPDATA\com.project.launcher"
+  IfFileExists "$0\*.*" migration_done 0
+  IfFileExists "$1\*.*" 0 migration_done
+    Rename "$1" "$0"
+  migration_done:
+!macroend
 
 ; Переменная для хранения состояния CheckBox «Запустить после установки».
 Var LaunchAfterInstall
@@ -30,17 +38,17 @@ Var LaunchAfterInstall
     IntCmp $0 ${BST_CHECKED} launch_app launch_done launch_done
 
   launch_app:
-    IfFileExists "$INSTDIR\StarDust.exe" 0 launch_done
+    ; Читаем путь установки из реестра — $INSTDIR может быть пустым
+    ; если хук вызывается до его инициализации Tauri.
+    ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\StarDust" "InstallLocation"
+    StrCmp $0 "" use_instdir 0
+    StrCpy $INSTDIR $0
 
-    ; Ждём 5 секунд — этого достаточно для штатного завершения старого
-    ; лаунчера (app.exit(0) в Rust закрывает процесс мгновенно).
-    Sleep 5000
-
-    ; Если старый процесс всё ещё висит — убиваем принудительно.
-    ; taskkill /F /IM завершит все процессы с таким именем.
-    Exec 'taskkill /F /IM StarDust.exe'
-    ; Пауза после kill чтобы ОС завершила cleanup.
-    Sleep 1000
+  use_instdir:
+    ; Убиваем старый процесс если он ещё жив (штатный выход занимает <1с,
+    ; но на медленных машинах может задержаться).
+    ExecWait 'taskkill /F /IM StarDust.exe' $0
+    Sleep 500
 
     ; Запускаем лаунчер через explorer.exe чтобы процесс стартовал
     ; в контексте пользователя, а не elevated NSIS-процесса.
@@ -57,7 +65,7 @@ Var LaunchAfterInstall
     /SD IDNO IDYES delete_appdata IDNO keep_appdata
 
   delete_appdata:
-    RMDir /r "$APPDATA\com.project.launcher"
+    RMDir /r "$APPDATA\com.stardust.launcher"
     Goto appdata_done
 
   keep_appdata:

@@ -79,3 +79,8 @@ pub fn settings_file(app: &AppHandle) -> PathBuf {
 pub fn session_file(app: &AppHandle) -> PathBuf {
     data_dir(app).join("session.json")
 }
+
+/// Путь к файлу незавершённой игровой сессии (для восстановления после краша лаунчера).
+pub fn game_session_file(app: &AppHandle) -> PathBuf {
+    data_dir(app).join("game_session.json")
+}
