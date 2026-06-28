@@ -50,7 +50,7 @@ Var LaunchAfterInstall
     Sleep 500
 
     ; Запускаем лаунчер после установки.
-    ExecShell "open" "$INSTDIR\StarDust.exe"
+    Exec '"$INSTDIR\StarDust.exe"'
 
   launch_done:
 !macroend
