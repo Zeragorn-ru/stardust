@@ -296,17 +296,12 @@ pub struct DeleteAccountRequest {
 }
 
 /// Модель скина: `classic` (4px руки) или `slim` (3px руки).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SkinModel {
+    #[default]
     Classic,
     Slim,
-}
-
-impl Default for SkinModel {
-    fn default() -> Self {
-        SkinModel::Classic
-    }
 }
 
 /// Запрос на импорт скина с лицензионного аккаунта Mojang.

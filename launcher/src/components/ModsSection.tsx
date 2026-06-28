@@ -1,20 +1,7 @@
 import { useEffect, useState } from "react";
 import type { OptionalMod } from "../types";
 import { listOptionalMods, setModEnabled } from "../api";
-
-// Человекочитаемый размер файла.
-function formatSize(bytes: number): string {
-  if (bytes <= 0) return "";
-  const units = ["Б", "КБ", "МБ", "ГБ"];
-  let value = bytes;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  const rounded = value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1);
-  return `${rounded} ${units[unit]}`;
-}
+import { formatBytes } from "../format";
 
 export default function ModsSection() {
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
@@ -118,7 +105,7 @@ export default function ModsSection() {
                 {mod.size > 0 && (
                   <span className="muted mods-section__size">
                     {" "}
-                    · {formatSize(mod.size)}
+                    · {formatBytes(mod.size)}
                   </span>
                 )}
               </span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PlayerProfile, Progress } from "../types";
 import { gameRunning, onLauncherProgress, playGame } from "../api";
+import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
@@ -195,18 +196,6 @@ export default function MainScreen({
 
 function hasDownloadMeta(progress: Progress): boolean {
   return progress.downloadedBytes != null || progress.totalBytes != null;
-}
-
-function formatBytes(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0 Б";
-  const units = ["Б", "КБ", "МБ", "ГБ"];
-  let size = value;
-  let unit = 0;
-  while (size >= 1024 && unit < units.length - 1) {
-    size /= 1024;
-    unit++;
-  }
-  return `${size >= 10 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`;
 }
 
 function formatEta(seconds: number): string {

@@ -12,6 +12,7 @@ use protocol::{
     SessionResponse, SkinImportRequest, SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
 };
 use serde::Deserialize;
+use std::sync::OnceLock;
 
 /// URL auth-сервера по умолчанию (продакшен). Для локальной разработки
 /// перекрывается переменной окружения `LAUNCHER_AUTH_URL`.
@@ -22,21 +23,27 @@ const DEFAULT_AUTH_URL: &str = "https://auth.zeragorn.xyz";
 const DEFAULT_ADMIN_URL: &str = "https://admin.zeragorn.xyz";
 
 /// Базовый URL auth-сервера без завершающего слэша.
-pub fn base_url() -> String {
-    std::env::var("LAUNCHER_AUTH_URL")
-        .ok()
-        .map(|s| s.trim().trim_end_matches('/').to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| DEFAULT_AUTH_URL.to_string())
+pub fn base_url() -> &'static str {
+    static URL: OnceLock<String> = OnceLock::new();
+    URL.get_or_init(|| {
+        std::env::var("LAUNCHER_AUTH_URL")
+            .ok()
+            .map(|s| s.trim().trim_end_matches('/').to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| DEFAULT_AUTH_URL.to_string())
+    })
 }
 
 /// Базовый URL admin-сервиса без завершающего слэша.
-pub fn admin_base_url() -> String {
-    std::env::var("LAUNCHER_ADMIN_URL")
-        .ok()
-        .map(|s| s.trim().trim_end_matches('/').to_string())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| DEFAULT_ADMIN_URL.to_string())
+pub fn admin_base_url() -> &'static str {
+    static URL: OnceLock<String> = OnceLock::new();
+    URL.get_or_init(|| {
+        std::env::var("LAUNCHER_ADMIN_URL")
+            .ok()
+            .map(|s| s.trim().trim_end_matches('/').to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| DEFAULT_ADMIN_URL.to_string())
+    })
 }
 
 /// GET `/manifest`. Манифест активной сборки.

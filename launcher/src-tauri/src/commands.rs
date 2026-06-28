@@ -351,15 +351,19 @@ async fn login_2fa_status(
 async fn passwordless_login(
     username: String,
     state: State<'_, AppState>,
+    app: AppHandle,
 ) -> Result<LoginOutcome, String> {
     let trimmed = username.trim();
     if trimmed.is_empty() {
         return Err("Введите логин".into());
     }
     match backend::passwordless_login(&state.http, trimmed).await? {
-        protocol::LoginResult::Ok(auth) => Ok(LoginOutcome::Ok {
-            profile: auth.profile,
-        }),
+        protocol::LoginResult::Ok(auth) => {
+            persist_session(&state, &app, auth.profile.clone(), auth.token)?;
+            Ok(LoginOutcome::Ok {
+                profile: auth.profile,
+            })
+        }
         protocol::LoginResult::TwoFactorRequired {
             challenge,
             hint,
@@ -389,15 +393,19 @@ async fn passwordless_status(
 async fn password_reset_start(
     username: String,
     state: State<'_, AppState>,
+    app: AppHandle,
 ) -> Result<LoginOutcome, String> {
     let trimmed = username.trim();
     if trimmed.is_empty() {
         return Err("Введите логин".into());
     }
     match backend::password_reset_start(&state.http, trimmed).await? {
-        protocol::LoginResult::Ok(auth) => Ok(LoginOutcome::Ok {
-            profile: auth.profile,
-        }),
+        protocol::LoginResult::Ok(auth) => {
+            persist_session(&state, &app, auth.profile.clone(), auth.token)?;
+            Ok(LoginOutcome::Ok {
+                profile: auth.profile,
+            })
+        }
         protocol::LoginResult::TwoFactorRequired {
             challenge,
             hint,

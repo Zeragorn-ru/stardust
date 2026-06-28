@@ -542,8 +542,13 @@ fn read_state(game_dir: &Path) -> ManagedState {
 }
 
 fn write_state(game_dir: &Path, state: &ManagedState) {
-    if let Ok(json) = serde_json::to_string_pretty(state) {
-        let _ = std::fs::write(state_path(game_dir), json);
+    match serde_json::to_string_pretty(state) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(state_path(game_dir), json) {
+                tracing::warn!("Не удалось сохранить managed state: {e}");
+            }
+        }
+        Err(e) => tracing::warn!("Не удалось сериализовать managed state: {e}"),
     }
 }
 
@@ -560,7 +565,12 @@ fn read_choices(data_dir: &Path) -> BTreeMap<String, bool> {
 }
 
 fn write_choices(data_dir: &Path, choices: &BTreeMap<String, bool>) {
-    if let Ok(json) = serde_json::to_string_pretty(choices) {
-        let _ = std::fs::write(choices_path(data_dir), json);
+    match serde_json::to_string_pretty(choices) {
+        Ok(json) => {
+            if let Err(e) = std::fs::write(choices_path(data_dir), json) {
+                tracing::warn!("Не удалось сохранить выбор модов: {e}");
+            }
+        }
+        Err(e) => tracing::warn!("Не удалось сериализовать выбор модов: {e}"),
     }
 }

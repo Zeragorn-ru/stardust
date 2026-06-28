@@ -45,6 +45,8 @@ jobs:
         with:
           workspaces: ". -> target"
           shared-key: "backend"
+          # Сохраняем кеш только на мастер-ветке; PR и workflow_dispatch не трогают кеш.
+          save-if: ${{ github.ref == 'refs/heads/master' }}
       - name: Test (auth-server, admin-server, telegram-bot, store, protocol)
         run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
       # Тяжёлая release-сборка всех серверных бинарей за один прогон.

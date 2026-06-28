@@ -22,12 +22,16 @@ import type {
 
 type InvokeFn = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
 
-// Достаём `invoke` лениво: модуль Tauri есть только в окне приложения.
+// Достаём `invoke` лениво и кешируем: модуль Tauri есть только в окне приложения.
+let _cachedInvoke: InvokeFn | null | undefined;
 async function getInvoke(): Promise<InvokeFn | null> {
+  if (_cachedInvoke !== undefined) return _cachedInvoke;
   try {
     const mod = await import("@tauri-apps/api/core");
-    return mod.invoke as InvokeFn;
+    _cachedInvoke = mod.invoke as InvokeFn;
+    return _cachedInvoke;
   } catch {
+    _cachedInvoke = null;
     return null;
   }
 }
