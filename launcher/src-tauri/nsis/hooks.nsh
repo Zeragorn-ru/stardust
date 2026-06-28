@@ -45,19 +45,18 @@ Var LaunchAfterInstall
     StrCpy $INSTDIR $0
 
   use_instdir:
-    ; Убиваем старый процесс если он ещё жив (штатный выход занимает <1с,
-    ; но на медленных машинах может задержаться).
+    ; Убиваем старый процесс если он ещё жив.
     ExecWait 'taskkill /F /IM StarDust.exe' $0
     Sleep 500
 
-    ; Пишем VBScript в temp: ждём 5 сек и запускаем лаунчер невидимо.
-    GetTempFileName $0
+    ; Запускаем лаунчер с задержкой 5 сек через bat-файл.
+    GetTempFileName $0 "$TEMP" "sd_launch" ".bat"
     FileOpen $1 $0 w
-    FileWrite $1 'WScript.Sleep 5000$\r$\n'
-    FileWrite $1 'Set s = CreateObject("WScript.Shell")$\r$\n'
-    FileWrite $1 's.Run """$INSTDIR\StarDust.exe""", 0, False$\r$\n'
+    FileWrite $1 '@echo off$\r$\n'
+    FileWrite $1 'ping 127.0.0.1 -n 6 >nul$\r$\n'
+    FileWrite $1 'start "" "$INSTDIR\StarDust.exe"$\r$\n'
     FileClose $1
-    ExecShell "open" "wscript.exe" $0 "" "" SW_HIDE
+    ExecShell "open" $0
 
   launch_done:
 !macroend
