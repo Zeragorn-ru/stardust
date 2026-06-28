@@ -925,6 +925,8 @@ async fn ensure_neoforge(
                 .arg("-Dhttps.proxyPort=3128")
                 .arg("-Dhttp.proxyHost=assets.zeragorn.xyz")
                 .arg("-Dhttp.proxyPort=3128")
+                .arg("-Dhttp.nonProxyHosts=*.mojang.com|*.minecraft.net|sessionserver.mojang.com|launchermeta.mojang.com|piston-meta.mojang.com")
+                .arg("-Dhttps.nonProxyHosts=*.mojang.com|*.minecraft.net|sessionserver.mojang.com|launchermeta.mojang.com|piston-meta.mojang.com")
                 .arg("-jar")
                 .arg(&installer_clone)
                 .arg("--install-client")
