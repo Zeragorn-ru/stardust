@@ -54,9 +54,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: ". -> target"
-          # Сохраняем кеш только при успешной сборке, чтобы битые
-          # артефакты не попали в кеш и не сломали следующий прогон.
-          save-if: ${{ github.event_name != 'pull_request' && success() }}
 
       - name: Install frontend deps
         working-directory: launcher
