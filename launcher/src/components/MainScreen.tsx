@@ -182,7 +182,9 @@ export default function MainScreen({
                 ) : serverOnline ? (
                   <>
                     <div className="hero__stat">
-                      <span className="hero__stat-value hero__stat-value--online">Онлайн</span>
+                      <span className="hero__stat-value hero__stat-value--online">
+                        Онлайн <span className="hero__stat-value--ping">· {profile.name}</span>
+                      </span>
                       <span className="hero__stat-label">статус</span>
                     </div>
                     <div className="hero__stat">
@@ -192,12 +194,6 @@ export default function MainScreen({
                       </span>
                       <span className="hero__stat-label">игроков</span>
                     </div>
-                    {serverPing != null && (
-                      <div className="hero__stat">
-                        <span className="hero__stat-value hero__stat-value--ping">{serverPing}<span className="hero__stat-unit"> мс</span></span>
-                        <span className="hero__stat-label">пинг</span>
-                      </div>
-                    )}
                   </>
                 ) : (
                   <div className="hero__stat">
