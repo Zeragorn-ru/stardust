@@ -1581,7 +1581,7 @@ td.num {
     margin-bottom: 12px;
     border: 1px solid var(--accent-2);
     border-radius: var(--radius);
-    background: rgba(76, 139, 245, 0.08);
+    background: var(--surface);
     position: sticky;
     top: 8px;
     z-index: 20;
