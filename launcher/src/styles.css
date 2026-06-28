@@ -700,13 +700,11 @@ body {
     flex: 1;
 }
 
-.mem-step-btn {
-    padding: 0;
-    width: 28px;
-    height: 28px;
-    flex-shrink: 0;
-    font-size: 18px;
-    line-height: 1;
+.range-row__number {
+    width: 72px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
 }
 
 .range-row__number::-webkit-inner-spin-button,

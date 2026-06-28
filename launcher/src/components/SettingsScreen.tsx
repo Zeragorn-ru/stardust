@@ -176,14 +176,6 @@ export default function SettingsScreen({
                 Память: <strong>{settings.memoryMb} МБ</strong>
               </span>
               <div className="range-row">
-                <button
-                  type="button"
-                  className="btn btn--ghost mem-step-btn"
-                  disabled={settings.memoryMb <= MEM_MIN}
-                  onClick={() =>
-                    setSettings({ ...settings, memoryMb: Math.max(MEM_MIN, settings.memoryMb - MEM_STEP) })
-                  }
-                >−</button>
                 <input
                   type="range"
                   min={MEM_MIN}
@@ -194,14 +186,6 @@ export default function SettingsScreen({
                     setSettings({ ...settings, memoryMb: Number(e.target.value) })
                   }
                 />
-                <button
-                  type="button"
-                  className="btn btn--ghost mem-step-btn"
-                  disabled={settings.memoryMb >= MEM_MAX}
-                  onClick={() =>
-                    setSettings({ ...settings, memoryMb: Math.min(MEM_MAX, settings.memoryMb + MEM_STEP) })
-                  }
-                >+</button>
               </div>
               <div className="range-bounds muted">
                 <span>{MEM_MIN} МБ</span>
