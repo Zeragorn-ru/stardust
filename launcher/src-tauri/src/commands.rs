@@ -249,7 +249,30 @@ fn persist_session(
 /// Создаёт `data/`/AppData-папку и дефолтный `settings.json`, чтобы режим
 /// хранения был явно виден сразу после запуска. `session.json` создаётся
 /// только после успешного входа/регистрации.
+/// Переносит данные из старой папки AppData (com.project.launcher)
+/// в новую (com.stardust.launcher) если старая существует, а новая — нет.
+fn migrate_appdata(app: &AppHandle) {
+    // Новая папка берётся через Tauri (identifier = com.stardust.launcher).
+    let new_dir = match app.path().app_data_dir() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    // Старая папка — сосед в %APPDATA% с прежним именем.
+    let old_dir = match new_dir.parent() {
+        Some(p) => p.join("com.project.launcher"),
+        None => return,
+    };
+    if old_dir.exists() && !new_dir.exists() {
+        if let Err(e) = std::fs::rename(&old_dir, &new_dir) {
+            tracing::warn!("appdata migration failed: {e}");
+        } else {
+            tracing::info!("appdata migrated: {} -> {}", old_dir.display(), new_dir.display());
+        }
+    }
+}
+
 pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
+    migrate_appdata(app);
     let settings_path = paths::settings_file(app);
     if !settings_path.exists() {
         write_settings(app, &Settings::default())?;
@@ -730,6 +753,41 @@ async fn open_external(url: String) -> Result<(), String> {
     }
 }
 
+/// Открыть папку в файловом менеджере.
+#[tauri::command]
+async fn open_path(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return Err("путь не существует".into());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .creation_flags(0x0800_0000)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("не удалось открыть папку: {e}"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("не удалось открыть папку: {e}"))
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("не удалось открыть папку: {e}"))
+    }
+}
+
 /// Отвязать Telegram (отключить 2FA).
 #[tauri::command]
 async fn telegram_unlink(state: State<'_, AppState>) -> Result<(), String> {
@@ -1026,7 +1084,11 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
                 .get("players")
                 .and_then(|p| p.get("online"))
                 .and_then(|v| v.as_u64());
-            serde_json::json!({ "online": true, "players": players })
+            let max = json
+                .get("players")
+                .and_then(|p| p.get("max"))
+                .and_then(|v| v.as_u64());
+            serde_json::json!({ "online": true, "players": players, "max": max })
         }
         _ => serde_json::json!({ "online": false, "players": null }),
     }
@@ -1084,6 +1146,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             account_info,
             telegram_link_start,
             open_external,
+            open_path,
             telegram_unlink,
             change_username,
             change_password,

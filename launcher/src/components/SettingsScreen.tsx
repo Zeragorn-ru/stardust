@@ -6,6 +6,7 @@ import {
   getSettings,
   installUpdate,
   onUpdateProgress,
+  openPath,
   saveSettings,
 } from "../api";
 import { useMotion } from "../motion";
@@ -171,6 +172,73 @@ export default function SettingsScreen({
           </div>
         ) : (
           <div className="settings__body stagger" key="general">
+            <div className="update-card stagger-item">
+              <div className="update-card__head">
+                <span className="toggle-row__title">Обновления</span>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={handleCheckUpdate}
+                  disabled={
+                    updateStatus === "checking" || updateStatus === "installing"
+                  }
+                >
+                  {updateStatus === "checking"
+                    ? "Проверка…"
+                    : "Проверить обновления"}
+                </button>
+              </div>
+
+              {updateStatus === "error" && updateError && (
+                <p className="muted update-card__msg">Ошибка: {updateError}</p>
+              )}
+
+              {update && update.available && updateStatus !== "installing" && (
+                <div className="update-card__available">
+                  <p className="update-card__msg">
+                    Доступна версия <strong>{update.version}</strong>
+                    {update.notes ? `: ${update.notes}` : "."}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={handleInstallUpdate}
+                  >
+                    Обновить и перезапустить
+                  </button>
+                </div>
+              )}
+
+              {update && !update.available && updateStatus === "idle" && (
+                <p className="muted update-card__msg">
+                  Установлена последняя версия.
+                </p>
+              )}
+
+              {updateStatus === "installing" && (
+                <div className="update-card__progress">
+                  <p className="muted update-card__msg">
+                    Загрузка обновления…
+                    {updateProgress != null &&
+                      ` ${Math.round(updateProgress * 100)}%`}
+                  </p>
+                  <div className="progress">
+                    <div className="progress__track">
+                      <div
+                        className="progress__bar"
+                        style={{
+                          width:
+                            updateProgress != null
+                              ? `${Math.round(updateProgress * 100)}%`
+                              : "100%",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="field stagger-item">
               <span>
                 Память: <strong>{settings.memoryMb} МБ</strong>
@@ -255,7 +323,11 @@ export default function SettingsScreen({
                 </div>
                 <div className="info-card__row">
                   <span className="muted">Папка exe</span>
-                  <span className="info-card__path" title={info.exeDir}>
+                  <span
+                    className="info-card__path info-card__path--link"
+                    title={info.exeDir}
+                    onClick={() => openPath(info.exeDir)}
+                  >
                     {info.exeDir}
                   </span>
                 </div>
@@ -267,7 +339,11 @@ export default function SettingsScreen({
                 </div>
                 <div className="info-card__row">
                   <span className="muted">Папка данных</span>
-                  <span className="info-card__path" title={info.dataDir}>
+                  <span
+                    className="info-card__path info-card__path--link"
+                    title={info.dataDir}
+                    onClick={() => openPath(info.dataDir)}
+                  >
                     {info.dataDir}
                   </span>
                 </div>
@@ -277,73 +353,6 @@ export default function SettingsScreen({
                 </div>
               </div>
             )}
-
-            <div className="update-card stagger-item">
-              <div className="update-card__head">
-                <span className="toggle-row__title">Обновления</span>
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={handleCheckUpdate}
-                  disabled={
-                    updateStatus === "checking" || updateStatus === "installing"
-                  }
-                >
-                  {updateStatus === "checking"
-                    ? "Проверка…"
-                    : "Проверить обновления"}
-                </button>
-              </div>
-
-              {updateStatus === "error" && updateError && (
-                <p className="muted update-card__msg">Ошибка: {updateError}</p>
-              )}
-
-              {update && update.available && updateStatus !== "installing" && (
-                <div className="update-card__available">
-                  <p className="update-card__msg">
-                    Доступна версия <strong>{update.version}</strong>
-                    {update.notes ? `: ${update.notes}` : "."}
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn--primary"
-                    onClick={handleInstallUpdate}
-                  >
-                    Обновить и перезапустить
-                  </button>
-                </div>
-              )}
-
-              {update && !update.available && updateStatus === "idle" && (
-                <p className="muted update-card__msg">
-                  Установлена последняя версия.
-                </p>
-              )}
-
-              {updateStatus === "installing" && (
-                <div className="update-card__progress">
-                  <p className="muted update-card__msg">
-                    Загрузка обновления…
-                    {updateProgress != null &&
-                      ` ${Math.round(updateProgress * 100)}%`}
-                  </p>
-                  <div className="progress">
-                    <div className="progress__track">
-                      <div
-                        className="progress__bar"
-                        style={{
-                          width:
-                            updateProgress != null
-                              ? `${Math.round(updateProgress * 100)}%`
-                              : "100%",
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>

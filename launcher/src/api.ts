@@ -274,6 +274,12 @@ export async function openExternal(url: string): Promise<void> {
   await invoke<void>("open_external", { url });
 }
 
+/** Открыть папку в файловом менеджере. */
+export async function openPath(path: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (invoke) await invoke<void>("open_path", { path });
+}
+
 /** Сменить ник. Возвращает обновлённый профиль. */
 export async function changeUsername(
   newUsername: string,

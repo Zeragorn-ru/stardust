@@ -36,6 +36,7 @@ export default function MainScreen({
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
+  const [serverMax, setServerMax] = useState<number | null>(null);
 
   // Загружаем статистику при монтировании.
   useEffect(() => {
@@ -54,12 +55,13 @@ export default function MainScreen({
     async function checkServer() {
       try {
         const mod = await import("@tauri-apps/api/core");
-        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null }>)(
+        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null; max: number | null }>)(
           "ping_minecraft_server",
           { host: SERVER_HOST },
         );
         setServerOnline(result.online);
         setServerPlayers(result.players);
+        setServerMax(result.max);
       } catch {
         setServerOnline(null);
         setServerPlayers(null);
@@ -147,37 +149,46 @@ export default function MainScreen({
             </p>
           </div>
           {stats != null && (
-            <div className="hero__stats">
-              <div className="hero__stat">
-                <span className="hero__stat-value">{formatPlaytime(stats.playtimeSeconds)}</span>
-                <span className="hero__stat-label">в игре</span>
-              </div>
-              {stats.lastLaunchedAt != null && (
+            <div className="hero__info-row">
+              <div className="hero__stats">
+                <div className="hero__stats-title">Статистика</div>
                 <div className="hero__stat">
-                  <span className="hero__stat-value">{formatLastLaunch(stats.lastLaunchedAt)}</span>
-                  <span className="hero__stat-label">последний запуск</span>
+                  <span className="hero__stat-value">{formatPlaytime(stats.playtimeSeconds)}</span>
+                  <span className="hero__stat-label">в игре</span>
                 </div>
-              )}
-              <div className="hero__stat">
+                {stats.lastLaunchedAt != null && (
+                  <div className="hero__stat">
+                    <span className="hero__stat-value">{formatLastLaunch(stats.lastLaunchedAt)}</span>
+                    <span className="hero__stat-label">последний запуск</span>
+                  </div>
+                )}
+              </div>
+              <div className="hero__stats">
+                <div className="hero__stats-title">Сервер</div>
                 {serverOnline === null ? (
-                  <>
+                  <div className="hero__stat">
                     <span className="hero__stat-value hero__stat-value--muted">—</span>
-                    <span className="hero__stat-label">сервер</span>
-                  </>
+                    <span className="hero__stat-label">недоступен</span>
+                  </div>
                 ) : serverOnline ? (
                   <>
-                    <span className="hero__stat-value hero__stat-value--online">
-                      {serverPlayers != null ? serverPlayers : "●"}
-                    </span>
-                    <span className="hero__stat-label">
-                      {serverPlayers != null ? "онлайн" : "сервер онлайн"}
-                    </span>
+                    <div className="hero__stat">
+                      <span className="hero__stat-value hero__stat-value--online">онлайн</span>
+                      <span className="hero__stat-label">статус</span>
+                    </div>
+                    <div className="hero__stat">
+                      <span className="hero__stat-value">
+                        {serverPlayers != null ? serverPlayers : "—"}
+                        {serverMax != null ? <span className="hero__stat-max">/{serverMax}</span> : null}
+                      </span>
+                      <span className="hero__stat-label">игроков</span>
+                    </div>
                   </>
                 ) : (
-                  <>
-                    <span className="hero__stat-value hero__stat-value--offline">✕</span>
-                    <span className="hero__stat-label">сервер офлайн</span>
-                  </>
+                  <div className="hero__stat">
+                    <span className="hero__stat-value hero__stat-value--offline">офлайн</span>
+                    <span className="hero__stat-label">статус</span>
+                  </div>
                 )}
               </div>
             </div>
@@ -283,11 +294,10 @@ function formatPlaytime(seconds: number): string {
 function formatLastLaunch(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  const months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
-  const day = d.getDate();
-  const mon = months[d.getMonth()];
+  const day = String(d.getDate()).padStart(2, "0");
+  const mon = String(d.getMonth() + 1).padStart(2, "0");
   const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
-  const yearPart = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
-  return `${day} ${mon}${yearPart} ${time}`;
+  const yearPart = d.getFullYear() !== new Date().getFullYear() ? `.${d.getFullYear()}` : "";
+  return `${day}.${mon}${yearPart} ${time}`;
 }
 
