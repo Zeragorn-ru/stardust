@@ -126,14 +126,16 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF_NAME}"
-          # Ищем установщики в стандартном расположении bundle/NSIS/MSI/AppImage.
+          # Ищем установщики в стандартном расположении bundle/.
           for dir in launcher/src-tauri/target/release/bundle/nsis launcher/src-tauri/target/release/bundle/macos launcher/src-tauri/target/release/bundle/deb; do
             if [ -d "$dir" ]; then
-              for artifact in "$dir"/*.{exe,dmg,AppImage,deb} 2>/dev/null; do
-                [ -f "$artifact" ] || continue
-                sha256sum "$artifact" | awk '{print $1}' > "${artifact}.sha256"
-                echo "Publishing $(basename "${artifact}.sha256")"
-                gh release upload "$tag" "${artifact}.sha256" --clobber
+              for ext in exe dmg AppImage deb; do
+                for artifact in "$dir"/*."$ext"; do
+                  [ -f "$artifact" ] || continue
+                  sha256sum "$artifact" | awk '{print $1}' > "${artifact}.sha256"
+                  echo "Publishing $(basename "${artifact}.sha256")"
+                  gh release upload "$tag" "${artifact}.sha256" --clobber
+                done
               done
             fi
           done
