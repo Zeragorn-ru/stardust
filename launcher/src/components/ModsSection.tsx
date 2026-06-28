@@ -81,8 +81,8 @@ export default function ModsSection() {
     : mods;
 
   return (
-    <div className="mods-section">
-      <p className="muted mods-section__hint">
+    <div className="mods-section stagger">
+      <p className="muted mods-section__hint stagger-item">
         Дополнительные моды устанавливаются вместе со сборкой. Выключенные не
         загружаются игрой — включение применится при следующем запуске.
       </p>
@@ -98,7 +98,7 @@ export default function ModsSection() {
       {filtered.map((mod) => {
         const busy = pending.has(mod.modId);
         return (
-          <div className="toggle-row" key={mod.modId}>
+          <div className="toggle-row stagger-item" key={mod.modId}>
             <div className="toggle-row__text">
               <span className="toggle-row__title">
                 {mod.name}

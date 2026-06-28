@@ -205,7 +205,7 @@ export default function AccountSection({
 
   return (
     <div className="account-section">
-      <div className="info-card">
+      <div className="info-card stagger-item">
         <div className="info-card__row">
           <span className="muted">Ник</span>
           <span>{displayName}</span>
@@ -234,7 +234,7 @@ export default function AccountSection({
         </div>
       </div>
 
-      <form className="account-form" onSubmit={handleRename}>
+      <form className="account-form stagger-item" onSubmit={handleRename}>
         <span className="toggle-row__title">Сменить ник</span>
         <input
           type="text"
@@ -255,7 +255,7 @@ export default function AccountSection({
         </button>
       </form>
 
-      <form className="account-form" onSubmit={handleChangePassword}>
+      <form className="account-form stagger-item" onSubmit={handleChangePassword}>
         <span className="toggle-row__title">Сменить пароль</span>
         <input
           type="password"
@@ -292,7 +292,7 @@ export default function AccountSection({
         </button>
       </form>
 
-      <div className="account-form">
+      <div className="account-form stagger-item">
         <span className="toggle-row__title">Telegram 2FA</span>
         {info?.telegramLinked ? (
           <>
@@ -348,7 +348,7 @@ export default function AccountSection({
       </div>
 
       <form
-        className="account-form account-form--danger"
+        className="account-form account-form--danger stagger-item"
         onSubmit={handleDeleteAccount}
       >
         <span className="toggle-row__title">Удалить аккаунт</span>
