@@ -56,7 +56,7 @@ export default function UpdateModal({ update, onDismiss }: Props) {
         <div className="update-modal__body">
           <p>
             Версия <strong>{update.version}</strong> готова к установке. Текущая
-            — {update.currentVersion}.
+            — {update.currentVersion}
           </p>
           {update.notes && (
             <pre className="update-modal__notes">{update.notes}</pre>
