@@ -21,6 +21,10 @@ export default class ErrorBoundary extends Component<Props, State> {
     console.error("[ErrorBoundary]", error);
   }
 
+  handleRestart = () => {
+    window.location.reload();
+  };
+
   render() {
     if (this.state.hasError) {
       return (
@@ -37,10 +41,10 @@ export default class ErrorBoundary extends Component<Props, State> {
           }}
         >
           <div style={{ fontSize: 42 }}>⚠️</div>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Something went wrong</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Что-то пошло не так</h2>
           <p style={{ fontSize: 13, color: "var(--muted)", maxWidth: 380 }}>
-            Try restarting the launcher. If the problem persists, check the log
-            file in the launcher folder.
+            Попробуйте перезапустить лаунчер. Если проблема сохраняется, проверьте
+            файл журнала в папке лаунчера.
           </p>
           {this.state.error && (
             <pre
@@ -58,6 +62,14 @@ export default class ErrorBoundary extends Component<Props, State> {
               {this.state.error.message}
             </pre>
           )}
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={this.handleRestart}
+            style={{ marginTop: 8 }}
+          >
+            Перезапустить
+          </button>
         </div>
       );
     }

@@ -42,19 +42,19 @@
     -webkit-font-smoothing: antialiased;
 }
 
-/* Режим экономии: гасим длительности и заморозить keyframe-анимации */
+/* Режим экономии: быстрые переходы вместо полного отключения анимаций.
+   Экраны и элементы появляются мгновенно (0.1s), но не «дергаются». */
 :root[data-motion="off"] {
-    --t-fast: 0s;
-    --t-mid: 0s;
-    --t-slow: 0s;
+    --t-fast: 0.08s;
+    --t-mid: 0.1s;
+    --t-slow: 0.12s;
 }
 :root[data-motion="off"] *,
 :root[data-motion="off"] *::before,
 :root[data-motion="off"] *::after {
-    animation-play-state: paused !important;
-    animation-duration: 0s !important;
+    animation-duration: 0.01s !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0s !important;
+    transition-duration: 0.1s !important;
     scroll-behavior: auto !important;
 }
 
@@ -433,7 +433,7 @@ body {
 }
 
 :root[data-motion="off"] .screen-transition {
-    animation: none !important;
+    transition: opacity 0.1s ease !important;
 }
 :root[data-motion="off"] .app {
     animation: none !important;
@@ -743,6 +743,24 @@ body {
     animation: sheen 3.5s ease-in-out infinite;
 }
 
+/* Кнопка «Попробовать снова» при ошибке — компактная, без зелёного. */
+.btn--play-retry {
+    min-height: 0;
+    padding: 12px 24px;
+    font-size: 14px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--glass-border);
+    animation: none;
+}
+.btn--play-retry:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+    transform: translateY(-1px);
+}
+.btn--play-retry::after {
+    display: none;
+}
+
 @keyframes sheen {
     0%,
     60% {
@@ -1031,6 +1049,19 @@ body {
 
 .login__form .btn--primary {
     margin-top: 4px;
+}
+
+/* Контейнер ожидания подтверждения — без自己的 glass, чтобы не было двойного. */
+.login__approval {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    text-align: center;
+}
+
+.login__approval .login__form {
+    width: 100%;
 }
 
 .login__hint {
@@ -2225,16 +2256,23 @@ body {
 
 /* ============ CustomizeModal ============ */
 
-/* Оверлей для кастомизации — без блюра, чтобы 3D-модель выглядела чётко */
+/* Оверлей для кастомизации — градиент вместо плоского цвета, без блюра для 3D */
 .modal-overlay--no-blur {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    background: rgba(5, 6, 12, 0.72);
+    background: linear-gradient(
+        160deg,
+        rgba(80, 50, 140, 0.35) 0%,
+        rgba(5, 6, 12, 0.82) 100%
+    );
 }
 
 .customize-modal {
     width: 620px;
     max-width: 96vw;
+    box-shadow:
+        0 0 80px -20px rgba(124, 92, 255, 0.12),
+        0 24px 64px -16px rgba(0, 0, 0, 0.5);
 }
 
 /* Фиксируем высоту контентной зоны, чтобы смена вкладок не меняла размер */

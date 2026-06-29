@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SkinModal from "./SkinModal";
 
 type Tab = "skin" | "nick";
@@ -9,6 +9,15 @@ interface Props {
 
 export default function CustomizeModal({ onClose }: Props) {
   const [tab, setTab] = useState<Tab>("skin");
+
+  // Закрытие по Escape.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="modal-overlay modal-overlay--no-blur" onClick={onClose}>

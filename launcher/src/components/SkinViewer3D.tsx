@@ -13,9 +13,6 @@ interface Props {
   height?: number;
 }
 
-// Минимальный валидный 64×64 скин (Стив), на случай отсутствия пользовательского.
-// skinview3d сам подставит дефолт, если передать пустую строку нельзя,
-// поэтому при null показываем плейсхолдерную модель через стандартный скин.
 const DEFAULT_SKIN =
   "https://textures.minecraft.net/texture/" +
   "1a4af718455d4aab528e7a61f86fa25e6a369d1768dcb13f7df319a713eb810b";
@@ -32,8 +29,6 @@ function isWebGLAvailable(): boolean {
 /**
  * 3D-модель скина (three.js под капотом, через skinview3d).
  * Вращается мышью; при включённых анимациях персонаж «дышит»/идёт.
- *
- * Если WebGL недоступен — показывает плейсхолдер (аватар-аватарка).
  */
 export default function SkinViewer3D({
   dataUrl,
@@ -59,11 +54,7 @@ export default function SkinViewer3D({
 
     let viewer: SkinViewer;
     try {
-      viewer = new SkinViewer({
-        canvas,
-        width,
-        height,
-      });
+      viewer = new SkinViewer({ canvas, width, height });
     } catch {
       setWebglFailed(true);
       return;
@@ -73,10 +64,7 @@ export default function SkinViewer3D({
     viewer.controls.enablePan = false;
     viewer.fov = 40;
     viewer.zoom = 0.9;
-    // Сглаживание граней модели. У skinview3d есть встроенный FXAA-пасс, но на
-    // резком силуэте он слабоват — добавляем супер-сэмплинг: рендерим в 2×
-    // плотности пикселей и даунскейлим. Кап в 3, чтобы не сажать FPS на HiDPI/4K.
-    // Текстуру скина это не «мылит» — она по-прежнему сэмплится nearest-фильтром.
+    // Супер-сэмплинг: рендерим в 2× плотности и даунскейлим. Кап в 3 для HiDPI.
     viewer.pixelRatio = Math.min((window.devicePixelRatio || 1) * 2, 3);
     viewerRef.current = viewer;
 
@@ -84,8 +72,6 @@ export default function SkinViewer3D({
       viewer.dispose();
       viewerRef.current = null;
     };
-    // width/height фиксированы на маунте; смену размера тут не обрабатываем.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Грузим скин при изменении источника/модели.
@@ -96,12 +82,11 @@ export default function SkinViewer3D({
     viewer
       .loadSkin(src, { model: model === "slim" ? "slim" : "default" })
       .catch(() => {
-        // Битый скин — откатываемся на дефолт.
         viewer.loadSkin(DEFAULT_SKIN);
       });
   }, [dataUrl, model]);
 
-  // Плащ: грузим либо снимаем, когда его нет.
+  // Плащ.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
