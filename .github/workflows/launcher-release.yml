@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           current="${GITHUB_REF_NAME}"
-          prev=$(git tag --sort=-v:refname | grep -v "^${current}$" | head -n1)
+          prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
           if [ -z "$prev" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "No previous tag, will build bootstrap"
@@ -112,7 +112,7 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           current="${GITHUB_REF_NAME}"
-          prev=$(git tag --sort=-v:refname | grep -v "^${current}$" | head -n1)
+          prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
           mkdir -p launcher/src-tauri/nsis
           gh release download "$prev" -p "bootstrap.exe" -D launcher/src-tauri/nsis
           echo "Downloaded bootstrap.exe from $prev"
