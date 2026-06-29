@@ -323,13 +323,8 @@ async fn ensure_version(
     fs::create_dir_all(&version_dir).map_err(|e| e.to_string())?;
 
     if !version_path.exists() {
-        let manifest: VersionManifest = http
-            .get(VERSION_MANIFEST_URL)
-            .send()
-            .await
-            .map_err(network_error)?
-            .error_for_status()
-            .map_err(|e| format!("Не удалось получить манифест Minecraft: {e}"))?
+        let resp = http_get_with_retry(http, VERSION_MANIFEST_URL, "манифест Minecraft", 5).await?;
+        let manifest: VersionManifest = resp
             .json()
             .await
             .map_err(|e| format!("Некорректный манифест Minecraft: {e}"))?;
@@ -1030,13 +1025,8 @@ fn load_modloader_profile(root: &Path, profile_id: &str) -> Result<ModLoaderProf
 }
 
 async fn latest_neoforge_21_1(http: &reqwest::Client) -> Result<String, String> {
-    let xml = http
-        .get(NEOFORGE_METADATA_URL)
-        .send()
-        .await
-        .map_err(network_error)?
-        .error_for_status()
-        .map_err(|e| format!("Не удалось получить версии NeoForge: {e}"))?
+    let resp = http_get_with_retry(http, NEOFORGE_METADATA_URL, "метаданные NeoForge", 5).await?;
+    let xml = resp
         .text()
         .await
         .map_err(network_error)?;
@@ -1209,9 +1199,13 @@ async fn download_inner(
     expected_sha1: Option<&str>,
     expected_size: Option<u64>,
 ) -> Result<(), String> {
-    use std::io::Write;
+    use sha1::{Digest, Sha1};
+    use std::io::{Read as _, Write};
 
-    const MAX_ATTEMPTS: u32 = 3;
+    const MAX_ATTEMPTS: u32 = 5;
+    /// Таймаут на один чанк: 30 секунд. Если за это время чанк не пришёл —
+    /// считаем соединение повреждённым и пробуем заново (с resume).
+    const CHUNK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -1221,18 +1215,34 @@ async fn download_inner(
     let mut last_err = String::new();
 
     for attempt in 1..=MAX_ATTEMPTS {
+        // ── Экспоненциальная задержка: 2 → 4 → 8 → 8 → 8 сек ──
         if attempt > 1 {
-            tracing::debug!("[download] повтор {attempt}/{MAX_ATTEMPTS}: {url}");
-            let _ = tauri::async_runtime::spawn_blocking(|| {
-                std::thread::sleep(std::time::Duration::from_secs(2));
+            let delay_secs = std::cmp::min(2u64.pow(attempt - 1), 8);
+            tracing::debug!(
+                "[download] повтор {attempt}/{MAX_ATTEMPTS} (ожидание {delay_secs}с): {url}"
+            );
+            let _ = tauri::async_runtime::spawn_blocking(move || {
+                std::thread::sleep(std::time::Duration::from_secs(delay_secs));
             })
             .await;
         }
 
-        let resp = match http.get(url).send().await {
+        // ── Определяем offset для resume ──
+        let resume_from: u64 = if attempt > 1 {
+            fs::metadata(&tmp).map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        };
+
+        // ── HTTP-запрос (с Range-заголовком при resume) ──
+        let mut req = http.get(url);
+        if resume_from > 0 {
+            req = req.header("Range", format!("bytes={resume_from}-"));
+        }
+        let resp = match req.send().await {
             Ok(r) => r,
             Err(e) => {
-                last_err = format!("Сетевая ошибка при скачивании {url}: {e}");
+                last_err = format!("Сетевая ошибка при скачивании {label}: {e}");
                 tracing::warn!("[download] ошибка (попытка {attempt}): {last_err}");
                 continue;
             }
@@ -1240,23 +1250,80 @@ async fn download_inner(
         let mut resp = match resp.error_for_status() {
             Ok(r) => r,
             Err(e) => {
-                last_err = format!("Не удалось скачать {url}: {e}");
+                last_err = format!("Не удалось скачать {label}: {e}");
                 tracing::warn!("[download] HTTP ошибка (попытка {attempt}): {last_err}");
                 continue;
             }
         };
 
-        let total = resp.content_length();
-        let mut file = match fs::File::create(&tmp) {
-            Ok(f) => f,
-            Err(e) => {
-                return Err(format!(
-                    "Не удалось создать временный файл {}: {e}",
-                    tmp.display()
-                ))
+        // ── Проверяем, поддерживает ли сервер resume ──
+        let server_accepts_range = resp
+            .headers()
+            .get("accept-ranges")
+            .and_then(|v| v.to_str().ok())
+            .map(|v| v.contains("bytes"))
+            .unwrap_or(false);
+        let is_partial = resp.status() == 206;
+        let actual_offset = if is_partial && resume_from > 0 {
+            resume_from
+        } else if resume_from > 0 && !server_accepts_range {
+            // Сервер не поддерживает Range — начинаем с нуля
+            tracing::debug!("[download] сервер не поддерживает Range, начинаем с нуля");
+            0
+        } else {
+            resume_from
+        };
+
+        let total = resp.content_length().map(|cl| cl + actual_offset);
+        let mut file = if actual_offset > 0 {
+            // Resume: открываем существующий файл и дописываем
+            match fs::OpenOptions::new().append(true).open(&tmp) {
+                Ok(f) => f,
+                Err(_) => {
+                    // Файл пропал — начинаем с нуля
+                    match fs::File::create(&tmp) {
+                        Ok(f) => f,
+                        Err(e) => {
+                            return Err(format!(
+                                "Не удалось создать временный файл {}: {e}",
+                                tmp.display()
+                            ))
+                        }
+                    }
+                }
+            }
+        } else {
+            match fs::File::create(&tmp) {
+                Ok(f) => f,
+                Err(e) => {
+                    return Err(format!(
+                        "Не удалось создать временный файл {}: {e}",
+                        tmp.display()
+                    ))
+                }
             }
         };
-        let mut downloaded = 0u64;
+
+        let mut downloaded = actual_offset;
+        let mut hasher = Sha1::new();
+        // Если resume — нужно учесть уже скачанные байты в хеше.
+        if actual_offset > 0 {
+            let existing = tauri::async_runtime::spawn_blocking({
+                let tmp = tmp.clone();
+                move || -> Result<Vec<u8>, String> {
+                    let mut f = fs::File::open(&tmp)
+                        .map_err(|e| format!("Не удалось прочитать файл для хеша: {e}"))?;
+                    let mut buf = vec![0u8; actual_offset as usize];
+                    f.read_exact(&mut buf)
+                        .map_err(|e| format!("Не удалось прочитать файл для хеша: {e}"))?;
+                    Ok(buf)
+                }
+            })
+            .await
+            .map_err(|e| format!("Ошибка потока: {e}"))??;
+            hasher.update(&existing);
+        }
+
         let started = Instant::now();
         if let DownloadScope::Stage = scope {
             progress.set_label("downloading", format!("Скачиваем {label}"));
@@ -1265,20 +1332,30 @@ async fn download_inner(
 
         let mut chunk_err: Option<String> = None;
         loop {
-            match resp.chunk().await {
-                Ok(Some(chunk)) => {
+            // Таймаут на чтение одного чанка — ловим «повисшее» соединение.
+            match tokio::time::timeout(CHUNK_TIMEOUT, resp.chunk()).await {
+                Ok(Ok(Some(chunk))) => {
+                    hasher.update(&chunk);
                     if let Err(e) = file.write_all(&chunk) {
                         return Err(e.to_string());
                     }
                     downloaded += chunk.len() as u64;
                     match scope {
-                        DownloadScope::Stage => progress.download_tick(downloaded, total, started),
+                        DownloadScope::Stage => {
+                            progress.download_tick(downloaded, total, started)
+                        }
                         DownloadScope::Item => progress.add_bytes(chunk.len() as u64),
                     }
                 }
-                Ok(None) => break,
-                Err(e) => {
-                    chunk_err = Some(format!("Обрыв при скачивании {url}: {e}"));
+                Ok(Ok(None)) => break,
+                Ok(Err(e)) => {
+                    chunk_err = Some(format!("Обрыв при скачивании {label}: {e}"));
+                    break;
+                }
+                Err(_elapsed) => {
+                    chunk_err = Some(format!(
+                        "Таймаут {label}: нет данных {CHUNK_TIMEOUT:?}"
+                    ));
                     break;
                 }
             }
@@ -1287,7 +1364,7 @@ async fn download_inner(
         if let Some(e) = chunk_err {
             last_err = e;
             tracing::warn!("[download] обрыв (попытка {attempt}): {last_err}");
-            let _ = fs::remove_file(&tmp);
+            // НЕ удаляем tmp — при следующей попытке сделаем resume.
             continue;
         }
 
@@ -1296,7 +1373,7 @@ async fn download_inner(
         }
         drop(file);
 
-        // Верификация размера.
+        // ── Верификация размера ──
         if let Some(expected) = expected_size {
             if downloaded != expected {
                 last_err = format!(
@@ -1307,42 +1384,15 @@ async fn download_inner(
                 continue;
             }
         }
-        // Проверка Content-Length, если сервер его прислал.
-        if let Some(cl) = total {
-            if downloaded != cl {
-                last_err = format!(
-                    "Размер {label}: скачано {downloaded} байт, Content-Length {cl}"
-                );
-                tracing::warn!("[download] size mismatch (попытка {attempt}): {last_err}");
+
+        // ── Верификация SHA-1 (по хешу, собранному по ходу скачивания) ──
+        if let Some(expected) = expected_sha1 {
+            let actual = format!("{:x}", hasher.finalize());
+            if !actual.eq_ignore_ascii_case(expected) {
+                last_err = format!("SHA-1 {label}: получен {actual}, ожидался {expected}");
+                tracing::warn!("[download] неверный хеш (попытка {attempt}): {last_err}");
                 let _ = fs::remove_file(&tmp);
                 continue;
-            }
-        }
-
-        // Верификация SHA-1.
-        if let Some(expected) = expected_sha1 {
-            let actual = tauri::async_runtime::spawn_blocking({
-                let tmp = tmp.clone();
-                move || compute_sha1(&tmp)
-            })
-            .await
-            .map_err(|e| format!("Ошибка потока при хешировании: {e}"))?;
-            match actual {
-                Ok(hash) if hash.eq_ignore_ascii_case(expected) => {}
-                Ok(hash) => {
-                    last_err = format!(
-                        "SHA-1 {label}: получен {hash}, ожидался {expected}"
-                    );
-                    tracing::warn!("[download] неверный хеш (попытка {attempt}): {last_err}");
-                    let _ = fs::remove_file(&tmp);
-                    continue;
-                }
-                Err(e) => {
-                    last_err = format!("Не удалось вычислить SHA-1 {label}: {e}");
-                    tracing::warn!("[download] ошибка хеша (попытка {attempt}): {last_err}");
-                    let _ = fs::remove_file(&tmp);
-                    continue;
-                }
             }
         }
 
@@ -1372,6 +1422,42 @@ fn network_error(e: reqwest::Error) -> String {
     }
 }
 
+/// Выполняет HTTP-запрос с повторами. Используется для лёгких запросов
+/// (манифест, метаданные), где нужен retry, но не нужен resume.
+async fn http_get_with_retry(
+    http: &reqwest::Client,
+    url: &str,
+    label: &str,
+    max_attempts: u32,
+) -> Result<reqwest::Response, String> {
+    let mut last_err = String::new();
+    for attempt in 1..=max_attempts {
+        if attempt > 1 {
+            let delay_secs = std::cmp::min(2u64.pow(attempt - 1), 8);
+            tracing::debug!("[http] повтор {attempt}/{max_attempts} ({label})");
+            let _ = tauri::async_runtime::spawn_blocking(move || {
+                std::thread::sleep(std::time::Duration::from_secs(delay_secs));
+            })
+            .await;
+        }
+        match http.get(url).send().await {
+            Ok(resp) => match resp.error_for_status() {
+                Ok(r) => return Ok(r),
+                Err(e) => {
+                    last_err = format!("HTTP ошибка {label}: {e}");
+                    tracing::warn!("[http] {last_err} (попытка {attempt})");
+                }
+            },
+            Err(e) => {
+                last_err = format!("Сетевая ошибка {label}: {e}");
+                tracing::warn!("[http] {last_err} (попытка {attempt})");
+            }
+        }
+    }
+    Err(last_err)
+}
+
+#[cfg(test)]
 fn compute_sha1(path: &Path) -> Result<String, String> {
     use sha1::{Digest, Sha1};
     let bytes =
