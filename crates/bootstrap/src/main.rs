@@ -95,7 +95,7 @@ mod win {
             .open(&log_path)
         {
             Ok(f) => {
-                LOG_FILE = Some(f);
+                unsafe { LOG_FILE = Some(f); }
                 log(&format!("=== Bootstrap started ==="));
             }
             Err(e) => {
@@ -216,7 +216,7 @@ mod win {
             ptr::null(),
             1, // SW_SHOWNORMAL
         );
-        log(&format!("launch_launcher: attempt 3 (ShellExecuteW) hInst={shell_ok}"));
+        log(&format!("launch_launcher: attempt 3 (ShellExecuteW) hInst={:?}", shell_ok));
         if (shell_ok as isize) > 32 {
             log("launch_launcher: attempt 3 OK");
             return true;
