@@ -22,3 +22,5 @@ sha2 = { workspace = true }
 time = { workspace = true }
 russh = "0.61"
 russh-sftp = "2"
+zip = "2"
+toml = "0.8"

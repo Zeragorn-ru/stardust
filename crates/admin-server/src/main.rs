@@ -10,6 +10,7 @@
 //! и токены, что и у auth-server. Админом считается аккаунт с ролью `admin`.
 
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -155,6 +156,7 @@ async fn main() {
         )
         .route("/api/builds/:id/sync-to-panel", post(sync_to_panel))
         .route("/api/build-check", get(build_check))
+        .route("/api/deps-check", get(deps_check))
         .route("/api/settings/sync-stats", post(sync_stats))
         .route(
             "/api/builds/files/:file_id/content",
@@ -1797,6 +1799,184 @@ async fn build_check(State(state): State<Shared>) -> Result<Json<BuildCheckResul
         build_id: record.header.id,
         build_name: record.header.name.clone(),
         total_files: files.len(),
+        problems,
+    }))
+}
+
+// ───────────────────── проверка зависимостей модов ─────────────────────
+
+/// Встроенные modId, которые не являются модами и не проверяются.
+const BUILTIN_MOD_IDS: &[&str] = &[
+    "neoforge",
+    "minecraft",
+    "java",
+    "forge",
+    "fabricloader",
+    "fabric-api",
+    "rift",
+    "quilt_loader",
+];
+
+/// `GET /api/deps-check` — проверяет зависимости модов в активной сборке.
+///
+/// Читает `META-INF/neoforge.mods.toml` из каждого мод-JAR, парсит
+/// `[[dependencies]]` и проверяет что все `type = "required"` зависимости
+/// выполнены (есть другой мод с таким `modId` в сборке).
+#[derive(Serialize)]
+struct DepsCheckResult {
+    build_id: i64,
+    build_name: String,
+    total_mods: usize,
+    problems: Vec<DepsCheckProblem>,
+}
+
+#[derive(Serialize)]
+struct DepsCheckProblem {
+    /// Мод, у которого не выполнена зависимость.
+    from_mod: String,
+    /// Какой modId требуется.
+    required_mod: String,
+    /// Версионный диапазон из TOML.
+    version_range: String,
+    /// Тип зависимости (optional, incompatible, etc.).
+    dep_type: String,
+}
+
+/// Извлекает modId из `[[mods]]` секции `neoforge.mods.toml`.
+fn extract_mod_ids(toml_text: &str) -> Vec<String> {
+    let Ok(val) = toml::Value::from_str(toml_text) else {
+        return Vec::new();
+    };
+    let Some(mods) = val.get("mods").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    mods.iter()
+        .filter_map(|m| m.get("modId")?.as_str().map(|s| s.to_string()))
+        .collect()
+}
+
+/// Извлекает зависимости из `[[dependencies.<modId>]]` секций.
+/// Возвращает vec![(declaring_mod, required_mod, version_range, dep_type)].
+fn extract_dependencies(toml_text: &str) -> Vec<(String, String, String, String)> {
+    let Ok(val) = toml::Value::from_str(toml_text) else {
+        return Vec::new();
+    };
+    let Some(deps_table) = val.get("dependencies").and_then(|v| v.as_table()) else {
+        return Vec::new();
+    };
+
+    let mut result = Vec::new();
+    for (declaring_mod, entries) in deps_table {
+        let Some(arr) = entries.as_array() else {
+            continue;
+        };
+        for entry in arr {
+            let req_mod = match entry.get("modId").and_then(|v| v.as_str()) {
+                Some(s) => s.to_string(),
+                None => continue,
+            };
+            let version_range = entry
+                .get("versionRange")
+                .and_then(|v| v.as_str())
+                .unwrap_or("*")
+                .to_string();
+            let dep_type = entry
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("required")
+                .to_string();
+            result.push((declaring_mod.clone(), req_mod, version_range, dep_type));
+        }
+    }
+    result
+}
+
+/// Читает `neoforge.mods.toml` из JAR-файла по пути на диске.
+fn read_neoforge_toml(jar_path: &std::path::Path) -> Option<String> {
+    let file = std::fs::File::open(jar_path).ok()?;
+    let mut zip = zip::ZipArchive::new(file).ok()?;
+
+    for name in &["META-INF/neoforge.mods.toml", "META-INF/mods.toml"] {
+        if let Ok(mut entry) = zip.by_name(name) {
+            let mut buf = String::new();
+            use std::io::Read;
+            if entry.read_to_string(&mut buf).is_ok() {
+                return Some(buf);
+            }
+        }
+    }
+    None
+}
+
+async fn deps_check(State(state): State<Shared>) -> Result<Json<DepsCheckResult>, ApiError> {
+    let record = state
+        .store
+        .active_build()
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
+
+    let files = state
+        .store
+        .build_files(record.header.id)
+        .await
+        .map_err(internal)?;
+
+    // Собираем modId → путь для каждого мода в сборке.
+    let mod_jars: Vec<(String, std::path::PathBuf)> = files
+        .iter()
+        .filter(|f| f.path.ends_with(".jar") && (f.side == "client" || f.side == "both"))
+        .map(|f| (f.path.clone(), state.modpack_dir.join(&f.sha1)))
+        .collect();
+
+    // Читаем metadatas: modId → (jar_path, provided_mod_ids, raw_toml).
+    let mut all_provided: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut mod_entries: Vec<(String, std::path::PathBuf, Vec<String>, String)> = Vec::new();
+
+    for (path, jar_path) in &mod_jars {
+        let Some(toml_text) = read_neoforge_toml(jar_path) else {
+            continue;
+        };
+        let mod_ids = extract_mod_ids(&toml_text);
+        for id in &mod_ids {
+            all_provided.insert(id.clone());
+        }
+        mod_entries.push((path.clone(), jar_path.clone(), mod_ids, toml_text));
+    }
+
+    let mut problems = Vec::new();
+
+    for (path, _jar_path, mod_ids, toml_text) in &mod_entries {
+        let deps = extract_dependencies(toml_text);
+        for (_declaring, req_mod, version_range, dep_type) in deps {
+            // Проверяем только required зависимости.
+            if dep_type != "required" {
+                continue;
+            }
+            // Пропускаем встроенные.
+            if BUILTIN_MOD_IDS.contains(&req_mod.as_str()) {
+                continue;
+            }
+            // Пропускаем зависимости на самого себя.
+            if mod_ids.contains(&req_mod) {
+                continue;
+            }
+            // Проверяем наличие в сборке.
+            if !all_provided.contains(&req_mod) {
+                problems.push(DepsCheckProblem {
+                    from_mod: path.clone(),
+                    required_mod: req_mod,
+                    version_range,
+                    dep_type,
+                });
+            }
+        }
+    }
+
+    Ok(Json(DepsCheckResult {
+        build_id: record.header.id,
+        build_name: record.header.name.clone(),
+        total_mods: mod_jars.len(),
         problems,
     }))
 }

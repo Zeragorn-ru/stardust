@@ -10,6 +10,7 @@ import type {
   BuildFile,
   BuildHeader,
   CreateBuildInput,
+  DepsCheckResult,
   PlayerStats,
   Settings,
   UploadMeta,
@@ -281,6 +282,10 @@ export const api = {
 
   buildCheck(): Promise<BuildCheckResult> {
     return request("GET", "/api/build-check");
+  },
+
+  depsCheck(): Promise<DepsCheckResult> {
+    return request("GET", "/api/deps-check");
   },
 
   getAccountStats(uuid: string): Promise<PlayerStats> {

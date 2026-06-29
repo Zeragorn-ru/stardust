@@ -90,3 +90,17 @@ export interface BuildCheckResult {
   totalFiles: number;
   problems: BuildCheckProblem[];
 }
+
+export interface DepsCheckProblem {
+  fromMod: string;
+  requiredMod: string;
+  versionRange: string;
+  depType: string;
+}
+
+export interface DepsCheckResult {
+  buildId: number;
+  buildName: string;
+  totalMods: number;
+  problems: DepsCheckProblem[];
+}
