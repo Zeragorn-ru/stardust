@@ -237,5 +237,9 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           bs="launcher/src-tauri/nsis/bootstrap.exe"
+          if [ ! -f "$bs" ]; then
+            echo "bootstrap.exe not found, skipping upload"
+            exit 0
+          fi
           sha256sum "$bs" | awk '{print $1}' > "${bs}.sha256"
           gh release upload "$tag" "$bs" "${bs}.sha256" --clobber
