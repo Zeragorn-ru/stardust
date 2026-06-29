@@ -86,16 +86,47 @@ jobs:
         run: |
           cargo clippy -p launcher --profile launcher-release -- -D warnings
 
-      - name: Clippy bootstrap
+      # Bootstrap: собираем только если изменился с прошлого релиза.
+      # Иначе скачиваем готовый из предыдущего релиза — экономим ~2 минуты.
+      - name: Check bootstrap changes
         if: matrix.platform == 'windows-latest'
+        id: bootstrap
+        shell: bash
+        run: |
+          current="${GITHUB_REF_NAME}"
+          prev=$(git tag --sort=-v:refname | grep -v "^${current}$" | head -n1)
+          if [ -z "$prev" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "No previous tag, will build bootstrap"
+          elif git diff "$prev" HEAD -- crates/bootstrap/ | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Bootstrap changed since $prev, will rebuild"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Bootstrap unchanged since $prev, will download"
+          fi
+
+      - name: Download bootstrap from previous release
+        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          current="${GITHUB_REF_NAME}"
+          prev=$(git tag --sort=-v:refname | grep -v "^${current}$" | head -n1)
+          mkdir -p launcher/src-tauri/nsis
+          gh release download "$prev" -p "bootstrap.exe" -D launcher/src-tauri/nsis
+          echo "Downloaded bootstrap.exe from $prev"
+
+      - name: Clippy bootstrap
+        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
         run: cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
 
       - name: Build bootstrap
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
         run: cargo build --manifest-path crates/bootstrap/Cargo.toml --release
 
       - name: Bundle bootstrap for NSIS
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
         run: |
           mkdir -p launcher/src-tauri/nsis
           cp target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
@@ -179,5 +210,6 @@ jobs:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF_NAME}"
-          sha256sum target/release/bootstrap.exe | awk '{print $1}' > target/release/bootstrap.exe.sha256
-          gh release upload "$tag" target/release/bootstrap.exe target/release/bootstrap.exe.sha256 --clobber
+          bs="launcher/src-tauri/nsis/bootstrap.exe"
+          sha256sum "$bs" | awk '{print $1}' > "${bs}.sha256"
+          gh release upload "$tag" "$bs" "${bs}.sha256" --clobber
