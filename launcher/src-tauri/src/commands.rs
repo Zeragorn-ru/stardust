@@ -31,6 +31,9 @@ pub struct Settings {
     /// Значение ограничивается разумным диапазоном при запуске.
     #[serde(rename = "downloadConcurrency", default = "default_concurrency")]
     pub download_concurrency: u32,
+    /// Показывать 3D-модель скина на главном экране.
+    #[serde(rename = "show3dModel", default = "default_true")]
+    pub show_3d_model: bool,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -42,11 +45,16 @@ fn default_concurrency() -> u32 {
         .clamp(1, 16)
 }
 
+fn default_true() -> bool {
+    true
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
             memory_mb: 4096,
             download_concurrency: default_concurrency(),
+            show_3d_model: true,
         }
     }
 }

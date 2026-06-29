@@ -1087,6 +1087,7 @@ body {
 
 .password-field input {
     width: 100%;
+    box-sizing: border-box;
     padding-right: 40px;
 }
 
@@ -1916,40 +1917,46 @@ body {
 .update-modal__body {
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 18px 20px;
+    gap: 16px;
+    padding: 20px 24px;
 }
 
 .update-modal__version {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
+    gap: 10px;
+    font-size: 15px;
     margin: 0;
 }
 
 .update-modal__version-old {
     color: var(--muted);
+    font-weight: 500;
 }
 
 .update-modal__version-arrow {
     color: var(--muted);
+    font-size: 18px;
 }
 
 .update-modal__version-new {
-    font-weight: 600;
-    color: var(--text);
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(124, 92, 255, 0.12);
+    padding: 2px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(124, 92, 255, 0.2);
 }
 
 .update-modal__notes {
     border-radius: var(--radius-sm);
-    background: rgba(0, 0, 0, 0.28);
+    background: rgba(0, 0, 0, 0.22);
     border: 1px solid var(--glass-border);
     overflow: hidden;
 }
 
 .update-modal__notes-title {
-    padding: 10px 12px 0;
+    padding: 10px 14px 0;
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
@@ -1958,19 +1965,20 @@ body {
 }
 
 .update-modal__notes-content {
-    padding: 8px 12px 10px;
+    padding: 8px 14px 12px;
     max-height: 160px;
     overflow-y: auto;
-    font-size: 12px;
-    line-height: 1.6;
+    font-size: 12.5px;
+    line-height: 1.65;
+    color: rgba(246, 240, 238, 0.85);
 }
 
 .update-modal__notes-content p {
-    margin: 0 0 4px;
+    margin: 0 0 5px;
 }
 
 .update-modal__notes-content li {
-    margin: 0 0 2px 16px;
+    margin: 0 0 3px 16px;
     padding: 0;
     list-style-type: disc;
 }
@@ -1982,31 +1990,44 @@ body {
 .update-modal__progress {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.18);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
 }
 
 .update-modal__phase {
     font-size: 12px;
+    font-weight: 500;
     color: var(--muted);
 }
 
 .update-modal__stats {
     display: flex;
-    gap: 12px;
+    gap: 14px;
     font-size: 12px;
     color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.update-modal__stats span:not(:last-child)::after {
+    content: "·";
+    margin-left: 14px;
+    color: var(--glass-border);
 }
 
 .update-modal__size {
     font-size: 11px;
     color: var(--muted);
+    font-variant-numeric: tabular-nums;
 }
 
 .update-modal__error {
-    padding: 10px 12px;
+    padding: 10px 14px;
     border-radius: var(--radius-sm);
-    background: rgba(255, 60, 60, 0.12);
-    border: 1px solid rgba(255, 60, 60, 0.25);
+    background: rgba(255, 60, 60, 0.1);
+    border: 1px solid rgba(255, 60, 60, 0.2);
     font-size: 13px;
     color: #ff8a8a;
 }

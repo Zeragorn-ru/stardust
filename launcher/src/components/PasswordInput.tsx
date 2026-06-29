@@ -21,6 +21,7 @@ export default function PasswordInput({
   return (
     <div className="password-field">
       <input
+        className="input"
         type={visible ? "text" : "password"}
         value={value}
         onChange={(e) => onChange(e.target.value)}

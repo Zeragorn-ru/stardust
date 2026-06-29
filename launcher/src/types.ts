@@ -54,6 +54,8 @@ export interface Settings {
   memoryMb: number;
   /** Сколько файлов качать одновременно (библиотеки, ассеты, моды). */
   downloadConcurrency: number;
+  /** Показывать 3D-модель скина на главном экране. */
+  show3dModel: boolean;
 }
 
 /** Режим запуска лаунчера. */

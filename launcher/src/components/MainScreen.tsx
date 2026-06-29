@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { PlayerProfile, PlayerStats, Progress } from "../types";
-import { getStats, onStatsUpdated, playGame } from "../api";
+import type { PlayerProfile, PlayerStats, Progress, Settings } from "../types";
+import { getSettings, getStats, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -34,14 +34,16 @@ export default function MainScreen({
   const { skin } = useSkin();
   const [skinOpen, setSkinOpen] = useState(false);
   const [stats, setStats] = useState<PlayerStats | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
   const [serverMax, setServerMax] = useState<number | null>(null);
   const [serverPing, setServerPing] = useState<number | null>(null);
 
-  // Загружаем статистику при монтировании.
+  // Загружаем статистику и настройки при монтировании.
   useEffect(() => {
     getStats().then(setStats).catch(() => undefined);
+    getSettings().then(setSettings).catch(() => undefined);
   }, []);
 
   // Обновляем статистику после завершения сессии.
@@ -133,13 +135,17 @@ export default function MainScreen({
 
       <section className="main__hero stagger">
         <div className="hero__skin stagger-item">
-          <SkinViewer3D
-            dataUrl={skin.dataUrl}
-            model={skin.model}
-            capeUrl={skin.capeUrl}
-            width={240}
-            height={340}
-          />
+          {settings?.show3dModel !== false ? (
+            <SkinViewer3D
+              dataUrl={skin.dataUrl}
+              model={skin.model}
+              capeUrl={skin.capeUrl}
+              width={240}
+              height={340}
+            />
+          ) : (
+            <FaceAvatar dataUrl={skin.dataUrl} size={240} />
+          )}
           <button
             type="button"
             className="btn btn--ghost hero__skin-btn"

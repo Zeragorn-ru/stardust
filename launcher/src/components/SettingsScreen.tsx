@@ -365,6 +365,26 @@ export default function SettingsScreen({
               </button>
             </div>
 
+            {settings && (
+              <div className="toggle-row stagger-item">
+                <div className="toggle-row__text">
+                  <span className="toggle-row__title">3D-модель скина</span>
+                  <span className="muted toggle-row__desc">
+                    Отключите для экономии ресурсов (плоская аватарка вместо 3D).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.show3dModel}
+                  className={"switch" + (settings.show3dModel ? " switch--on" : "")}
+                  onClick={() => setSettings({ ...settings, show3dModel: !settings.show3dModel })}
+                >
+                  <span className="switch__knob" />
+                </button>
+              </div>
+            )}
+
             {info && (
               <div className="info-card stagger-item">
                 <div className="info-card__row">

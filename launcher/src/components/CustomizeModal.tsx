@@ -20,7 +20,7 @@ export default function CustomizeModal({ onClose }: Props) {
   }, [onClose]);
 
   return (
-    <div className="modal-overlay modal-overlay--no-blur" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal customize-modal"
         onClick={(e) => e.stopPropagation()}
