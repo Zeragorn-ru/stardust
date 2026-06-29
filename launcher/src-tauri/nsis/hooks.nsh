@@ -12,7 +12,7 @@
   StrCpy $1 "$APPDATA\com.project.launcher"
   IfFileExists "$0\*.*" migration_done 0
   IfFileExists "$1\*.*" 0 migration_done
-    Rename "$1" "$0"
+    Rename "$1" $0
   migration_done:
 !macroend
 
@@ -38,28 +38,26 @@ Var LaunchAfterInstall
     IntCmp $0 ${BST_CHECKED} launch_app launch_done launch_done
 
   launch_app:
-    ; Читаем путь установки из реестра — $INSTDIR может быть пустым
-    ; если хук вызывается до его инициализации Tauri.
-    ReadRegStr $0 HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\StarDust" "InstallLocation"
-    StrCmp $0 "" use_instdir 0
-    StrCpy $INSTDIR $0
-
-  use_instdir:
     ; Убиваем старый процесс если он ещё жив.
-    ExecWait 'taskkill /F /IM StarDust.exe' $0
-    Sleep 500
+    ExecWait 'taskkill /F /IM StarDust.exe' $9
 
-    ; Ждём пока инсталлятор завершит запись файлов (до 10 сек).
+    ; Ждём пока инсталлятор завершит запись файлов.
     wait_for_exe:
-      IfFileExists "$INSTDIR\StarDust.exe" 0 exe_not_ready
-        Goto exe_ready
-      exe_not_ready:
+      IfFileExists "$INSTDIR\StarDust.exe" exe_ready 0
         Sleep 500
         Goto wait_for_exe
     exe_ready:
 
-    ; Запускаем лаунчер: cmd /C START "" ... отсоединяет процесс от инсталлятора.
-    ExecWait 'cmd /C START "" "$INSTDIR\StarDust.exe"'
+    ; Bat-файл: ждёт 5 сек (пока NSIS закроется), затем запускает лаунчер.
+    ; ShellExecute (ExecShell) отсоединяет процесс от инсталлятора.
+    GetTempFileName $3 "$TEMP" "sd_launch" ".bat"
+    FileOpen $4 $3 w
+    FileWrite $4 '@echo off$\r$\n'
+    FileWrite $4 'ping 127.0.0.1 -n 6 >nul$\r$\n'
+    FileWrite $4 'start "" "$INSTDIR\StarDust.exe"$\r$\n'
+    FileClose $4
+    Sleep 500
+    ExecShell "open" $3
 
   launch_done:
 !macroend
