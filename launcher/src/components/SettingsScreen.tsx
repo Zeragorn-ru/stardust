@@ -197,7 +197,7 @@ export default function SettingsScreen({
                 <div className="update-card__available">
                   <p className="update-card__msg">
                     Доступна версия <strong>{update.version}</strong>
-                    {update.notes ? `: ${update.notes}` : "."}
+                    {update.notes ? `: ${update.notes}` : ""}
                   </p>
                   <button
                     type="button"

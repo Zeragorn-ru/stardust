@@ -89,7 +89,28 @@ async fn fetch_latest() -> Result<GhRelease, String> {
         .map_err(|e| format!("Не удалось разобрать ответ GitHub: {e}"))
 }
 
-/// Убирает ведущий `v`/`V` и пробелы из строки версии.
+/// Убирает из заметок релиза служебные строки GitHub (Full Changelog и т.п.).
+fn clean_release_notes(body: Option<String>) -> Option<String> {
+    body.and_then(|b| {
+        let cleaned: String = b
+            .lines()
+            .filter(|line| {
+                let lower = line.to_lowercase();
+                !lower.starts_with("full changelog")
+                    && !lower.starts_with("**full changelog**")
+                    && !lower.contains("compare/") // github compare links
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+            .trim()
+            .to_string();
+        if cleaned.is_empty() {
+            None
+        } else {
+            Some(cleaned)
+        }
+    })
+}
 fn normalize(v: &str) -> &str {
     v.trim().trim_start_matches(['v', 'V'])
 }
@@ -276,7 +297,7 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
             available: true,
             current_version,
             version: Some(latest),
-            notes: release.body,
+            notes: clean_release_notes(release.body),
         })
     } else {
         Ok(UpdateInfo {
@@ -290,29 +311,82 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
 
 /// Скачать доступное обновление и запустить обновлятор, затем закрыть лаунчер.
 ///
-/// 1. Скачивает `bootstrap.exe` из релиза
-/// 2. Скачивает установщик NSIS
-/// 3. Верифицирует SHA-256 установщика
-/// 4. Запускает `bootstrap.exe <installer_path> <install_dir>`
-/// 5. Закрывает лаунчер
+/// Bootstrap кэшируется в data_dir по SHA-256: если хеш совпадает с релизом,
+/// повторное скачивание не требуется.
 ///
-/// Прогресс скачивания эмитится событием `launcher://update-progress`
-/// с долей 0..1 (или null, если общий размер неизвестен).
+/// 1. Проверяет кэш bootstrap.exe (сравнение SHA-256)
+/// 2. Скачивает bootstrap.exe (если нужно)
+/// 3. Скачивает установщик NSIS
+/// 4. Верифицирует SHA-256 установщика
+/// 5. Запускает `bootstrap.exe <installer_path> <install_dir>`
+/// 6. Закрывает лаунчер
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
     let release = fetch_latest().await?;
 
-    // Находим bootstrap.exe в ассетах.
+    // Находим bootstrap.exe и его хеш в ассетах.
     let bootstrap_asset = find_bootstrap_asset(&release.assets)
         .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
+    let bootstrap_sha256_asset = find_sha256_asset(&release.assets, &bootstrap_asset.name);
 
     // Находим установщик.
     let installer_asset = pick_asset(&release.assets)
         .ok_or_else(|| "В релизе нет подходящего установщика".to_string())?;
 
-    // Скачиваем bootstrap.exe.
     let http = http_client()?;
-    let bootstrap_path = download_asset(&http, bootstrap_asset, "bootstrap.exe").await?;
+
+    // Кэш bootstrap.exe в data_dir.
+    let data_dir = crate::paths::data_dir(&app);
+    let cached_bootstrap = data_dir.join("bootstrap.exe");
+    let cached_hash_file = data_dir.join("bootstrap.exe.sha256");
+
+    // Определяем нужно ли скачивать bootstrap.
+    let mut need_download_bootstrap = true;
+    if cached_bootstrap.exists() {
+        if let Some(sha256_a) = bootstrap_sha256_asset {
+            if let Ok(expected) =
+                fetch_expected_sha256(&http, &sha256_a.browser_download_url).await
+            {
+                if let Ok(actual) = tauri::async_runtime::spawn_blocking({
+                    let p = cached_bootstrap.clone();
+                    move || compute_sha256(&p)
+                })
+                .await
+                .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?
+                {
+                    if actual == expected {
+                        tracing::info!("[update] bootstrap кэш актуален: {actual}");
+                        need_download_bootstrap = false;
+                    } else {
+                        tracing::info!(
+                            "[update] bootstrap хеш изменился: кэш {actual}, релиз {expected}"
+                        );
+                    }
+                }
+            }
+        } else {
+            // Нет .sha256 в релизе — используем кэш если есть.
+            tracing::info!("[update] bootstrap .sha256 нет в релизе, используем кэш");
+            need_download_bootstrap = false;
+        }
+    }
+
+    let bootstrap_path = if need_download_bootstrap {
+        let path = download_asset(&http, bootstrap_asset, "bootstrap.exe").await?;
+        // Сохраняем в кэш.
+        let _ = std::fs::copy(&path, &cached_bootstrap);
+        // Сохраняем хеш.
+        if let Some(sha256_a) = bootstrap_sha256_asset {
+            if let Ok(hash) =
+                fetch_expected_sha256(&http, &sha256_a.browser_download_url).await
+            {
+                let _ = std::fs::write(&cached_hash_file, &hash);
+            }
+        }
+        path
+    } else {
+        cached_bootstrap
+    };
 
     // Скачиваем установщик.
     let installer_path = download_asset(&http, installer_asset, "установщик").await?;
