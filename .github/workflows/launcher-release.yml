@@ -90,6 +90,7 @@ jobs:
 
       # Bootstrap: собираем только на тегах, только на Windows, только если
       # изменился с прошлого релиза. Иначе скачиваем готовый — экономим ~2 минуты.
+      # Если скачивание не удалось (bootstrap нет в предыдущем релизе) — собираем.
       - name: Check bootstrap changes
         id: bootstrap
         if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
@@ -117,7 +118,9 @@ jobs:
           fi
 
       - name: Download bootstrap from previous release
+        id: download_bootstrap
         if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'false'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         shell: bash
@@ -128,16 +131,17 @@ jobs:
           gh release download "$prev" -p "bootstrap.exe" -D launcher/src-tauri/nsis
           echo "Downloaded bootstrap.exe from $prev"
 
+      # Собираем если: изменился ИЛИ скачивание не удалось (нет в предыдущем релизе).
       - name: Clippy bootstrap
-        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && (steps.bootstrap.outputs.changed == 'true' || steps.download_bootstrap.outcome == 'failure')
         run: cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
 
       - name: Build bootstrap
-        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && (steps.bootstrap.outputs.changed == 'true' || steps.download_bootstrap.outcome == 'failure')
         run: cargo build --manifest-path crates/bootstrap/Cargo.toml --release
 
       - name: Bundle bootstrap for NSIS
-        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && (steps.bootstrap.outputs.changed == 'true' || steps.download_bootstrap.outcome == 'failure')
         run: |
           mkdir -p launcher/src-tauri/nsis
           cp target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
