@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SkinViewer, WalkingAnimation, IdleAnimation } from "skinview3d";
 import type { SkinModel } from "../types";
+import { animationsEnabled } from "../preferences";
 import { useMotion } from "../motion";
 
 interface Props {
@@ -65,7 +66,10 @@ export default function SkinViewer3D({
     viewer.fov = 40;
     viewer.zoom = 0.9;
     // Супер-сэмплинг: рендерим в 2× плотности и даунскейлим. Кап в 3 для HiDPI.
-    viewer.pixelRatio = Math.min((window.devicePixelRatio || 1) * 2, 3);
+    // При выключенных анимациях — без супер-сэмплинга (1×) для экономии GPU.
+    viewer.pixelRatio = animationsEnabled()
+      ? Math.min((window.devicePixelRatio || 1) * 2, 3)
+      : 1;
     viewerRef.current = viewer;
 
     return () => {

@@ -57,6 +57,15 @@
     transition-duration: 0.1s !important;
     scroll-behavior: auto !important;
 }
+/* Убираем backdrop-filter — самый дорогой CSS-эффект. */
+:root[data-motion="off"] .glass,
+:root[data-motion="off"] .login__form,
+:root[data-motion="off"] .modal-overlay,
+:root[data-motion="off"] .settings,
+:root[data-motion="off"] .modal {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
 
 * {
     box-sizing: border-box;
@@ -1045,6 +1054,7 @@ body {
     backdrop-filter: blur(20px) saturate(140%);
     -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
+    contain: layout style;
 }
 
 .login__form .btn--primary {
@@ -1067,6 +1077,35 @@ body {
 .login__hint {
     text-align: center;
     font-size: 12px;
+}
+
+/* ============ Password field ============ */
+
+.password-field {
+    position: relative;
+}
+
+.password-field input {
+    width: 100%;
+    padding-right: 40px;
+}
+
+.password-field__toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
+}
+
+.password-field__toggle:hover {
+    color: var(--text);
 }
 
 /* ============ Главный экран ============ */
@@ -1469,6 +1508,7 @@ body {
     height: calc(100vh - 38px);
     min-height: 0;
     overflow: hidden;
+    contain: layout style;
 }
 
 .settings__header {
@@ -1835,6 +1875,7 @@ body {
     flex-direction: column;
     overflow: hidden;
     animation: modal-in 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+    contain: layout style;
 }
 
 @keyframes modal-in {

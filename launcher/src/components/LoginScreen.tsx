@@ -11,6 +11,7 @@ import {
   passwordResetStatus,
   register,
 } from "../api";
+import PasswordInput from "./PasswordInput";
 
 interface Props {
   onAuthenticated: (profile: PlayerProfile) => void;
@@ -338,22 +339,18 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         <form className="login__form" onSubmit={handleResetConfirm}>
           <label className="field">
             <span>Новый пароль</span>
-            <input
-              type="password"
+            <PasswordInput
               autoFocus
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••"
+              onChange={setNewPassword}
               disabled={busy}
             />
           </label>
           <label className="field">
             <span>Повторите пароль</span>
-            <input
-              type="password"
+            <PasswordInput
               value={newPasswordConfirm}
-              onChange={(e) => setNewPasswordConfirm(e.target.value)}
-              placeholder="••••••••"
+              onChange={setNewPasswordConfirm}
               disabled={busy}
             />
           </label>
@@ -463,11 +460,9 @@ export default function LoginScreen({ onAuthenticated }: Props) {
 
         <label className="field">
           <span>Пароль</span>
-          <input
-            type="password"
+          <PasswordInput
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
+            onChange={setPassword}
             disabled={busy}
           />
         </label>
@@ -475,11 +470,9 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         {isRegister && (
           <label className="field">
             <span>Повторите пароль</span>
-            <input
-              type="password"
+            <PasswordInput
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              placeholder="••••••••"
+              onChange={setConfirm}
               disabled={busy}
             />
           </label>

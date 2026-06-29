@@ -13,6 +13,7 @@ import {
   telegramLinkStart,
   telegramUnlink,
 } from "../api";
+import PasswordInput from "./PasswordInput";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -257,29 +258,20 @@ export default function AccountSection({
 
       <form className="account-form stagger-item" onSubmit={handleChangePassword}>
         <span className="toggle-row__title">Сменить пароль</span>
-        <input
-          type="password"
-          className="input"
+        <PasswordInput
           value={currentPassword}
-          onChange={(e) => setCurrentPassword(e.target.value)}
+          onChange={setCurrentPassword}
           placeholder="Текущий пароль"
-          autoComplete="current-password"
         />
-        <input
-          type="password"
-          className="input"
+        <PasswordInput
           value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
+          onChange={setNewPassword}
           placeholder="Новый пароль"
-          autoComplete="new-password"
         />
-        <input
-          type="password"
-          className="input"
+        <PasswordInput
           value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
+          onChange={setConfirmPassword}
           placeholder="Повторите новый пароль"
-          autoComplete="new-password"
         />
         {pwErr && <p className="form-msg form-msg--error">{pwErr}</p>}
         {pwMsg && <p className="form-msg form-msg--ok">{pwMsg}</p>}
@@ -357,13 +349,10 @@ export default function AccountSection({
         </p>
         {confirmingDelete ? (
           <>
-            <input
-              type="password"
-              className="input"
+            <PasswordInput
               value={deletePassword}
-              onChange={(e) => setDeletePassword(e.target.value)}
+              onChange={setDeletePassword}
               placeholder="Пароль для подтверждения"
-              autoComplete="current-password"
             />
             {deleteErr && (
               <p className="form-msg form-msg--error">{deleteErr}</p>

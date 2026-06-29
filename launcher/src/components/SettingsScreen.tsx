@@ -57,6 +57,7 @@ export default function SettingsScreen({
   const { animations, setAnimations } = useMotion();
   const [section, setSection] = useState<Section>(initialSection);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [initialSettings, setInitialSettings] = useState<Settings | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -69,9 +70,26 @@ export default function SettingsScreen({
   const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
 
   useEffect(() => {
-    getSettings().then(setSettings);
+    getSettings().then((s) => {
+      setSettings(s);
+      setInitialSettings(s);
+    });
     getAppInfo().then(setInfo);
   }, []);
+
+  // Проверка несохранённых изменений.
+  const isDirty =
+    settings != null &&
+    initialSettings != null &&
+    (settings.memoryMb !== initialSettings.memoryMb ||
+      settings.downloadConcurrency !== initialSettings.downloadConcurrency);
+
+  function handleClose() {
+    if (isDirty && !window.confirm("Есть несохранённые изменения. Покинуть настройки?")) {
+      return;
+    }
+    onClose();
+  }
 
   async function handleCheckUpdate() {
     setUpdateStatus("checking");
@@ -112,6 +130,7 @@ export default function SettingsScreen({
     setSaving(true);
     try {
       await saveSettings(settings);
+      setInitialSettings(settings);
       onClose();
     } finally {
       setSaving(false);
@@ -129,7 +148,7 @@ export default function SettingsScreen({
   return (
     <div className="settings">
       <header className="settings__header">
-        <button className="btn btn--ghost" onClick={onClose}>
+        <button className="btn btn--ghost" onClick={handleClose}>
           ← Назад
         </button>
         <h2>Настройки</h2>
