@@ -51,28 +51,64 @@ pub fn admin_base_url() -> &'static str {
 ///
 /// `Ok(None)` — активной сборки нет (404): это не ошибка, лаунчер просто
 /// запускает игру без модпака. `Err` — реальная сетевая/серверная проблема.
+///
+/// При успешном скачивании манифест кешируется на диск (`cached-manifest.json`).
+/// При сетевой ошибке отдаёт последнюю известную версию из кеша.
 pub async fn fetch_manifest(
     client: &reqwest::Client,
+    data_dir: &std::path::Path,
 ) -> Result<Option<protocol::Manifest>, String> {
-    let resp = client
+    let cache_path = data_dir.join("cached-manifest.json");
+
+    match client
         .get(format!("{}/manifest", admin_base_url()))
         .send()
         .await
-        .map_err(network_error)?;
-
-    if resp.status() == reqwest::StatusCode::NOT_FOUND {
-        return Ok(None);
+    {
+        Ok(resp) if resp.status() == reqwest::StatusCode::NOT_FOUND => {
+            // Активной сборки нет — удаляем кеш.
+            let _ = std::fs::remove_file(&cache_path);
+            return Ok(None);
+        }
+        Ok(resp) if resp.status().is_success() => {
+            match resp.json::<protocol::Manifest>().await {
+                Ok(manifest) => {
+                    // Сохраняем в кеш (best-effort).
+                    let _ = std::fs::write(
+                        &cache_path,
+                        serde_json::to_vec(&manifest).unwrap_or_default(),
+                    );
+                    tracing::debug!("[manifest] скачан и закеширован");
+                    return Ok(Some(manifest));
+                }
+                Err(e) => {
+                    return Err(format!("Некорректный манифест сборки: {e}"));
+                }
+            }
+        }
+        Ok(resp) => {
+            return Err(format!(
+                "Ошибка сервера сборок ({})",
+                resp.status().as_u16()
+            ));
+        }
+        Err(e) => {
+            // Сетевая ошибка — пробуем кеш.
+            tracing::warn!("[manifest] сетевая ошибка ({e}), пробуем кеш");
+            if let Ok(bytes) = std::fs::read(&cache_path) {
+                match serde_json::from_slice(&bytes) {
+                    Ok(manifest) => {
+                        tracing::info!("[manifest] использован кешированный манифест");
+                        return Ok(Some(manifest));
+                    }
+                    Err(e) => {
+                        tracing::warn!("[manifest] кеш повреждён: {e}");
+                    }
+                }
+            }
+            return Err(network_error(e));
+        }
     }
-    if !resp.status().is_success() {
-        return Err(format!(
-            "Ошибка сервера сборок ({})",
-            resp.status().as_u16()
-        ));
-    }
-    resp.json::<protocol::Manifest>()
-        .await
-        .map(Some)
-        .map_err(|e| format!("Некорректный манифест сборки: {e}"))
 }
 
 /// Тело ошибки, которое отдаёт auth-сервер: `{ "error": "..." }`.

@@ -253,7 +253,7 @@ pub async fn list_optional_mods(
     data_dir: &Path,
     game_dir: &Path,
 ) -> Result<Vec<OptionalMod>, String> {
-    let Some(manifest) = crate::backend::fetch_manifest(http).await? else {
+    let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Ok(Vec::new());
     };
     let choices = read_choices(data_dir);
@@ -315,7 +315,7 @@ pub async fn set_mod_enabled(
     // Пытаемся применить переименование сразу. Путь берём из манифеста (не
     // доверяем фронту). Если манифест недоступен — переименование произойдёт
     // при следующем запуске в sync().
-    if let Ok(Some(manifest)) = crate::backend::fetch_manifest(http).await {
+    if let Ok(Some(manifest)) = crate::backend::fetch_manifest(http, data_dir).await {
         let entry = manifest
             .optional_client_mods()
             .find(|m| mod_choice_key(m) == mod_id);

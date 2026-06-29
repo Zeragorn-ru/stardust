@@ -59,7 +59,7 @@ pub async fn launch(
     ensure_client(&progress, http, &root, &version).await?;
     ensure_libraries(&progress, http, &root, &version, concurrency).await?;
     ensure_assets(&progress, http, &root, &version, concurrency).await?;
-    let manifest = crate::backend::fetch_manifest(http).await?;
+    let manifest = crate::backend::fetch_manifest(http, &data_dir).await?;
     let pinned_neoforge = manifest.as_ref().and_then(|m| {
         use protocol::LoaderKind;
         if m.loader.kind == LoaderKind::NeoForge && !m.loader.version.is_empty() {

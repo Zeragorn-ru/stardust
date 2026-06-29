@@ -321,9 +321,71 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
                 backend::record_session(&http, &token, duration, &launched_at_str).await
             {
                 tracing::warn!("[stats] восстановление сессии: не удалось записать: {e}");
+                save_pending_session(&data_dir, &token, duration, &launched_at_str);
             }
         }
+        // Повторяем ранее.failed сессии.
+        drain_pending_sessions(&http, &data_dir, &token).await;
     });
+}
+
+// ---------- Очередь повтора сессий ----------
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct PendingSession {
+    token: String,
+    duration: i64,
+    launched_at: String,
+}
+
+/// Путь к файлу очереди неотправленных сессий.
+fn pending_sessions_path(data_dir: &std::path::Path) -> std::path::PathBuf {
+    data_dir.join("pending-sessions.json")
+}
+
+/// Сохраняет сессию в очередь для повтора.
+fn save_pending_session(data_dir: &std::path::Path, token: &str, duration: i64, launched_at: &str) {
+    let path = pending_sessions_path(data_dir);
+    let mut sessions: Vec<PendingSession> = std::fs::read(&path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default();
+    sessions.push(PendingSession {
+        token: token.to_string(),
+        duration,
+        launched_at: launched_at.to_string(),
+    });
+    let _ = std::fs::write(&path, serde_json::to_vec(&sessions).unwrap_or_default());
+}
+
+/// Пытается отправить все сессии из очереди. Успешные удаляются.
+async fn drain_pending_sessions(
+    http: &reqwest::Client,
+    data_dir: &std::path::Path,
+    _current_token: &str,
+) {
+    let path = pending_sessions_path(data_dir);
+    let sessions: Vec<PendingSession> = match std::fs::read(&path) {
+        Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
+        Err(_) => return,
+    };
+    if sessions.is_empty() {
+        return;
+    }
+    tracing::info!("[stats] повтор отправки {} сессий из очереди", sessions.len());
+    let mut remaining = Vec::new();
+    for s in &sessions {
+        // Используем токен из записи (может отличаться от текущего).
+        if let Err(e) = backend::record_session(http, &s.token, s.duration, &s.launched_at).await {
+            tracing::warn!("[stats] повтор сессии {}/{} не удался: {e}", s.duration, s.launched_at);
+            remaining.push(s.clone());
+        }
+    }
+    if remaining.is_empty() {
+        let _ = std::fs::remove_file(&path);
+    } else {
+        let _ = std::fs::write(&path, serde_json::to_vec(&remaining).unwrap_or_default());
+    }
 }
 
 // ---------- Аутентификация (auth-сервер) ----------
@@ -570,6 +632,9 @@ fn spawn_stats_poller(app: &AppHandle, state: &AppState) {
     let http = state.http.clone();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        let data_dir = crate::paths::data_dir(&app);
+        let cache_path = data_dir.join("cached-stats.json");
+
         // Первый запрос сразу при старте, потом каждые 15 минут.
         loop {
             let token = match app.state::<AppState>().token.lock().unwrap().clone() {
@@ -578,10 +643,21 @@ fn spawn_stats_poller(app: &AppHandle, state: &AppState) {
             };
             match backend::get_stats(&http, &token).await {
                 Ok(stats) => {
+                    // Кешируем на диск (best-effort).
+                    let _ = std::fs::write(
+                        &cache_path,
+                        serde_json::to_vec(&stats).unwrap_or_default(),
+                    );
                     let _ = app.emit("stats-updated", stats);
                 }
                 Err(e) => {
                     tracing::warn!("[stats] поллинг: {e}");
+                    // Пробуем отдать кешированные данные.
+                    if let Ok(bytes) = std::fs::read(&cache_path) {
+                        if let Ok(stats) = serde_json::from_slice::<protocol::PlayerStats>(&bytes) {
+                            let _ = app.emit("stats-updated", stats);
+                        }
+                    }
                 }
             }
             tokio::time::sleep(std::time::Duration::from_secs(15 * 60)).await;
@@ -613,10 +689,15 @@ async fn current_profile(
             spawn_stats_poller(&app, &state);
             Ok(Some(profile))
         }
-        Err(_) => {
-            remove_saved_session(&app);
-            clear_runtime_session(&state);
-            Ok(None)
+        Err(e) => {
+            // Сервер недоступен — НЕ удаляем сессию, работаем оффлайн.
+            // Используем сохранённый профиль, чтобы лаунчер мог запускать игру.
+            tracing::warn!("[session] сервер недоступен ({e}), работаем оффлайн");
+            let profile = saved.profile.clone();
+            set_runtime_session(&state, profile.clone(), saved.token);
+            recover_pending_session(&app, &state);
+            spawn_stats_poller(&app, &state);
+            Ok(Some(profile))
         }
     }
 }
@@ -1024,7 +1105,9 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
             if let Err(e) =
                 backend::record_session(&http, &token, duration, &launched_at_str).await
             {
-                tracing::warn!("[stats] не удалось записать сессию: {e}");
+                tracing::warn!("[stats] не удалось записать сессию: {e}, сохраняем в очередь");
+                // Сохраняем в очередь для повтора при следующем запуске.
+                save_pending_session(&data_dir2, &token, duration, &launched_at_str);
             }
         }
     });
