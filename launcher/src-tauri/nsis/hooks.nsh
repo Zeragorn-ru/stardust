@@ -49,6 +49,15 @@ Var LaunchAfterInstall
     ExecWait 'taskkill /F /IM StarDust.exe' $0
     Sleep 500
 
+    ; Ждём пока инсталлятор завершит запись файлов (до 10 сек).
+    wait_for_exe:
+      IfFileExists "$INSTDIR\StarDust.exe" 0 exe_not_ready
+        Goto exe_ready
+      exe_not_ready:
+        Sleep 500
+        Goto wait_for_exe
+    exe_ready:
+
     ; Запускаем лаунчер: cmd /C START "" ... отсоединяет процесс от инсталлятора.
     ExecWait 'cmd /C START "" "$INSTDIR\StarDust.exe"'
 
