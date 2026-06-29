@@ -80,3 +80,10 @@ pub fn session_file(app: &AppHandle) -> PathBuf {
     data_dir(app).join("session.json")
 }
 
+/// Папка кеша скинов (по UUID).
+pub fn skin_cache_dir(app: &AppHandle) -> PathBuf {
+    let dir = data_dir(app).join("skin-cache");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+

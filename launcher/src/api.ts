@@ -375,6 +375,13 @@ export async function getSkin(): Promise<Skin> {
   return invoke<Skin>("get_skin");
 }
 
+/** Прочитать кеш скина с диска (мгновенно, без сети). */
+export async function loadSkinCache(): Promise<Skin | null> {
+  const invoke = await getInvoke();
+  if (!invoke) return null;
+  return invoke<Skin | null>("load_skin_cache");
+}
+
 /** Сохранить скин (data-URL PNG + модель). */
 export async function setSkin(
   dataUrl: string,

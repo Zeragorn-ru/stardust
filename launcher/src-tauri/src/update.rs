@@ -538,41 +538,21 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     let http = http_client()?;
 
     // ── Фаза 1: bootstrap (0.00 — 0.30) ──────────────────────────────────
-    let data_dir = crate::paths::data_dir(&app);
-    let cached_bootstrap = data_dir.join("bootstrap.exe");
+    let _data_dir = crate::paths::data_dir(&app);
 
-    let bootstrap_path = if cached_bootstrap.exists() {
-        tracing::info!("[update] bootstrap кэш: {}", cached_bootstrap.display());
-        emit_progress(
-            &app,
-            &UpdateProgress {
-                phase: "downloading_bootstrap".into(),
-                label: "Bootstrap найден в кэше".into(),
-                fraction: Some(0.30),
-                downloaded_bytes: None,
-                total_bytes: None,
-                speed_bytes_per_sec: None,
-                eta_seconds: None,
-            },
-        );
-        cached_bootstrap
-    } else {
-        let bootstrap_asset = find_bootstrap_asset(&release.assets)
-            .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
-        let path = download_asset_with_progress(
-            &app,
-            &http,
-            bootstrap_asset,
-            "bootstrap.exe",
-            "downloading_bootstrap",
-            0.0,
-            0.30,
-            bootstrap_asset.size,
-        )
-        .await?;
-        let _ = std::fs::copy(&path, &cached_bootstrap);
-        cached_bootstrap
-    };
+    let bootstrap_asset = find_bootstrap_asset(&release.assets)
+        .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
+    let bootstrap_path = download_asset_with_progress(
+        &app,
+        &http,
+        bootstrap_asset,
+        "bootstrap.exe",
+        "downloading_bootstrap",
+        0.0,
+        0.30,
+        bootstrap_asset.size,
+    )
+    .await?;
 
     // ── Фаза 2: установщик (0.30 — 0.85) ─────────────────────────────────
     let installer_path = download_asset_with_progress(

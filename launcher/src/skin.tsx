@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Skin, SkinModel } from "./types";
-import { getSkin, setSkin as persistSkin } from "./api";
+import { getSkin, loadSkinCache, setSkin as persistSkin } from "./api";
 
 interface SkinContextValue {
   skin: Skin;
@@ -39,7 +39,12 @@ export function SkinProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    reload();
+    // Мгновенно показываем кеш с диска, затем обновляем с сервера.
+    loadSkinCache().then((cached) => {
+      if (cached) setSkinState(cached);
+      // Всегда обновляем с сервера (кеш мог устареть).
+      reload();
+    });
   }, []);
 
   async function save(dataUrl: string, model: SkinModel) {

@@ -755,8 +755,10 @@ fn current_session(state: &State<AppState>) -> Result<(String, String), String> 
 /// Скин привязан к аккаунту (UUID), поэтому при смене аккаунта на том же
 /// устройстве показывается скин нового игрока. Если вход не выполнен или
 /// скин не задан — возвращаем пустой скин с моделью по умолчанию.
+/// После загрузки с сервера сохраняем кеш на диск для мгновенного
+/// отображения при следующем запуске.
 #[tauri::command]
-async fn get_skin(state: State<'_, AppState>) -> Result<Skin, String> {
+async fn get_skin(state: State<'_, AppState>, app: AppHandle) -> Result<Skin, String> {
     let Ok((uuid, _token)) = current_session(&state) else {
         return Ok(Skin {
             data_url: None,
@@ -766,27 +768,51 @@ async fn get_skin(state: State<'_, AppState>) -> Result<Skin, String> {
         });
     };
 
-    match backend::get_skin(&state.http, &uuid).await? {
+    let result = match backend::get_skin(&state.http, &uuid).await? {
         Some(fetched) => {
-            // Плащ опционален; ошибку его загрузки не считаем критичной.
             let cape_url = backend::get_cape(&state.http, &uuid)
                 .await
                 .ok()
                 .flatten()
                 .map(|b64| format!("data:image/png;base64,{b64}"));
-            Ok(Skin {
+            Skin {
                 data_url: Some(format!("data:image/png;base64,{}", fetched.png_base64)),
                 model: normalize_model(&fetched.model),
                 cape_url,
                 source: fetched.source,
-            })
+            }
         }
-        None => Ok(Skin {
+        None => Skin {
             data_url: None,
             model: "classic".into(),
             cape_url: None,
             source: None,
-        }),
+        },
+    };
+
+    // Сохраняем кеш на диск.
+    let cache_dir = crate::paths::skin_cache_dir(&app);
+    let _ = tokio::fs::create_dir_all(&cache_dir).await;
+    let cache_path = cache_dir.join(format!("{uuid}.json"));
+    if let Ok(json) = serde_json::to_string(&result) {
+        let _ = tokio::fs::write(&cache_path, json).await;
+    }
+
+    Ok(result)
+}
+
+/// Прочитать кеш скина с диска (без сети, мгновенно).
+/// Вызывается при старте для мгновенного отображения, пока идёт запрос к серверу.
+#[tauri::command]
+async fn load_skin_cache(state: State<'_, AppState>, app: AppHandle) -> Result<Option<Skin>, String> {
+    let uuid = match state.profile.lock().unwrap().as_ref() {
+        Some(p) => p.id.clone(),
+        None => return Ok(None),
+    };
+    let cache_path = crate::paths::skin_cache_dir(&app).join(format!("{uuid}.json"));
+    match tokio::fs::read_to_string(&cache_path).await {
+        Ok(json) => serde_json::from_str(&json).map_err(|e| e.to_string()),
+        Err(_) => Ok(None),
     }
 }
 
@@ -1308,6 +1334,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             save_settings,
             app_info,
             get_skin,
+            load_skin_cache,
             set_skin,
             import_skin_from_license,
             account_info,
