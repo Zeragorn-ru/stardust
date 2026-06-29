@@ -49,8 +49,8 @@ Var LaunchAfterInstall
     ExecWait 'taskkill /F /IM StarDust.exe' $0
     Sleep 500
 
-    ; Запускаем лаунчер после установки.
-    Exec '"$INSTDIR\StarDust.exe"'
+    ; Запускаем лаунчер: cmd /C START "" ... отсоединяет процесс от инсталлятора.
+    ExecWait 'cmd /C START "" "$INSTDIR\StarDust.exe"'
 
   launch_done:
 !macroend
