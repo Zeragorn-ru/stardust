@@ -49,6 +49,7 @@ mod win {
         installer_start_ms: u64,
         ticks: u32,
         close_at: u64,
+        launch_delay_ms: Option<u64>,
     }
 
     static mut STATE: Option<State> = None;
@@ -334,12 +335,32 @@ mod win {
                             if result == WAIT_OBJECT_0 {
                                 CloseHandle(handle);
                                 state.installer_handle = None;
+                                // Даём NSIS время завершить запись файлов на диск.
+                                state.launch_delay_ms = Some(1500);
                                 state.phase = Phase::Launching;
                             }
                         }
                     }
                     Phase::Launching => {
+                        // Ждём перед первой попыткой запуска (файл может ещё не быть готов).
+                        if let Some(remaining) = state.launch_delay_ms {
+                            if remaining > 0 {
+                                let step = 33.min(remaining);
+                                state.launch_delay_ms = Some(remaining - step);
+                                let mut rc = mem::zeroed::<RECT>();
+                                GetClientRect(hwnd, &mut rc);
+                                InvalidateRect(hwnd, &rc, 0);
+                                return 0;
+                            }
+                        }
                         let launcher_path = state.launcher_path.clone();
+                        if !launcher_path.exists() {
+                            // Файл ещё не появился — ждём дальше.
+                            let mut rc = mem::zeroed::<RECT>();
+                            GetClientRect(hwnd, &mut rc);
+                            InvalidateRect(hwnd, &rc, 0);
+                            return 0;
+                        }
                         if launch_launcher(&launcher_path) {
                             state.phase = Phase::Done;
                             state.close_at = now_ms() + 200;
@@ -406,6 +427,7 @@ mod win {
                 installer_start_ms: 0,
                 ticks: 0,
                 close_at: 0,
+                launch_delay_ms: None,
             });
 
             let class = wide("StarDustBootstrap");

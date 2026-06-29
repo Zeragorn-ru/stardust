@@ -258,34 +258,33 @@ export default function SettingsScreen({
                 <div className="update-card__progress">
                   <p className="muted update-card__msg">
                     {updateProgress?.label ?? "Загрузка обновления…"}
-                    {updateProgress?.fraction != null &&
-                      ` ${Math.round(updateProgress.fraction * 100)}%`}
+                    {Number.isFinite(updateProgress?.fraction) &&
+                      ` ${Math.round(updateProgress!.fraction! * 100)}%`}
                   </p>
                   <div className="progress">
                     <div className="progress__track">
                       <div
                         className={
                           "progress__bar" +
-                          (updateProgress?.fraction == null
+                          (!Number.isFinite(updateProgress?.fraction)
                             ? " progress__bar--indeterminate"
                             : "")
                         }
                         style={{
-                          width:
-                            updateProgress?.fraction != null
-                              ? `${Math.round(updateProgress.fraction * 100)}%`
-                              : undefined,
+                          width: Number.isFinite(updateProgress?.fraction)
+                            ? `${Math.round(updateProgress!.fraction! * 100)}%`
+                            : undefined,
                         }}
                       />
                     </div>
                   </div>
-                  {updateProgress?.speedBytesPerSec != null &&
-                    updateProgress.speedBytesPerSec > 0 && (
+                  {Number.isFinite(updateProgress?.speedBytesPerSec) &&
+                    updateProgress!.speedBytesPerSec! > 0 && (
                       <p className="muted update-card__msg">
-                        {formatSpeed(updateProgress.speedBytesPerSec)}
-                        {updateProgress.etaSeconds != null &&
-                          updateProgress.etaSeconds > 0 &&
-                          ` · ${formatEta(updateProgress.etaSeconds)}`}
+                        {formatSpeed(updateProgress!.speedBytesPerSec!)}
+                        {Number.isFinite(updateProgress?.etaSeconds) &&
+                          updateProgress!.etaSeconds! > 0 &&
+                          ` · ${formatEta(updateProgress!.etaSeconds!)}`}
                       </p>
                     )}
                 </div>

@@ -419,9 +419,11 @@ async fn download_single(params: &DownloadParams<'_>) -> Result<(), String> {
                 0.0
             };
             let fraction = if content_length > 0 {
-                params.fraction_start
+                let raw = params.fraction_start
                     + (downloaded as f64 / content_length as f64)
-                        * (params.fraction_end - params.fraction_start)
+                        * (params.fraction_end - params.fraction_start);
+                // Защита от NaN/Inf — шлём None если что-то пошло не так.
+                if raw.is_finite() { raw } else { params.fraction_start }
             } else {
                 params.fraction_start
             };

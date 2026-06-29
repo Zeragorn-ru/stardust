@@ -108,7 +108,7 @@ export default function UpdateModal({ update, onDismiss }: Props) {
 
   const installing = status === "installing";
   const fraction = progress?.fraction ?? null;
-  const percent = fraction != null ? Math.round(Math.min(Math.max(fraction, 0), 1) * 100) : null;
+  const percent = fraction != null && Number.isFinite(fraction) ? Math.round(Math.min(Math.max(fraction, 0), 1) * 100) : null;
   const speed = progress?.speedBytesPerSec ?? null;
   const eta = progress?.etaSeconds ?? null;
   const downloaded = progress?.downloadedBytes ?? null;
