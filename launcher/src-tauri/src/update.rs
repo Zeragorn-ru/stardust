@@ -196,23 +196,72 @@ fn sanitize_filename(name: &str) -> Result<String, String> {
     Ok(basename.to_string())
 }
 
-/// Запускает скачанный установщик в тихом режиме. На прочих платформах не поддержано.
-fn launch_installer(path: &std::path::Path) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        std::process::Command::new(path)
-            .arg("/S")
-            .creation_flags(0x0800_0000)
-            .spawn()
-            .map_err(|e| format!("Не удалось запустить установщик: {e}"))?;
-        Ok(())
+/// Ищет bootstrap.exe в ассетах релиза.
+fn find_bootstrap_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
+    assets
+        .iter()
+        .find(|a| a.name.to_lowercase() == "bootstrap.exe")
+}
+
+/// Скачивает файл из релиза во временную директорию.
+async fn download_asset(
+    http: &reqwest::Client,
+    asset: &GhAsset,
+    progress_name: &str,
+) -> Result<std::path::PathBuf, String> {
+    use std::io::Write;
+
+    let safe_name = sanitize_filename(&asset.name)?;
+    let path = std::env::temp_dir().join(&safe_name);
+
+    let mut resp = http
+        .get(&asset.browser_download_url)
+        .send()
+        .await
+        .map_err(|e| format!("Не удалось скачать {progress_name}: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!(
+            "{progress_name}: загрузка вернула статус {}",
+            resp.status()
+        ));
     }
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = path;
-        Err("Автоустановка поддерживается только на Windows".into())
+
+    let mut file = std::fs::File::create(&path)
+        .map_err(|e| format!("Не удалось создать файл {progress_name}: {e}"))?;
+
+    while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
+        file.write_all(&chunk).map_err(|e| e.to_string())?;
     }
+    file.flush().map_err(|e| e.to_string())?;
+
+    Ok(path)
+}
+
+/// Запускает bootstrap.exe с установщиком и каталогом установки.
+#[cfg(target_os = "windows")]
+fn launch_bootstrap(
+    bootstrap_path: &std::path::Path,
+    installer_path: &std::path::Path,
+    install_dir: &std::path::Path,
+) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new(bootstrap_path)
+        .arg(installer_path)
+        .arg(install_dir)
+        .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
+        .spawn()
+        .map_err(|e| format!("Не удалось запустить обновлятор: {e}"))?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn launch_bootstrap(
+    _bootstrap_path: &std::path::Path,
+    _installer_path: &std::path::Path,
+    _install_dir: &std::path::Path,
+) -> Result<(), String> {
+    Err("Обновление поддерживается только на Windows".into())
 }
 
 /// Проверить наличие обновления, ничего не устанавливая.
@@ -239,77 +288,44 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
     }
 }
 
-/// Скачать доступное обновление и запустить установщик, затем закрыть лаунчер.
+/// Скачать доступное обновление и запустить обновлятор, затем закрыть лаунчер.
+///
+/// 1. Скачивает `bootstrap.exe` из релиза
+/// 2. Скачивает установщик NSIS
+/// 3. Верифицирует SHA-256 установщика
+/// 4. Запускает `bootstrap.exe <installer_path> <install_dir>`
+/// 5. Закрывает лаунчер
 ///
 /// Прогресс скачивания эмитится событием `launcher://update-progress`
 /// с долей 0..1 (или null, если общий размер неизвестен).
-///
-/// Целостность проверяется через SHA-256 файл рядом с установщиком в релизе.
-/// Если .sha256 файл недоступен — выводится предупреждение, но установка продолжается.
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
-    use std::io::Write;
-    use tauri::Emitter;
-
     let release = fetch_latest().await?;
-    let asset = pick_asset(&release.assets)
+
+    // Находим bootstrap.exe в ассетах.
+    let bootstrap_asset = find_bootstrap_asset(&release.assets)
+        .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
+
+    // Находим установщик.
+    let installer_asset = pick_asset(&release.assets)
         .ok_or_else(|| "В релизе нет подходящего установщика".to_string())?;
 
-    // Санитизация имени файла: только basename, отвергаем traversal.
-    let safe_name = sanitize_filename(&asset.name)?;
-    let path = std::env::temp_dir().join(&safe_name);
+    // Скачиваем bootstrap.exe.
+    let http = http_client()?;
+    let bootstrap_path = download_asset(&http, bootstrap_asset, "bootstrap.exe").await?;
 
-    let mut resp = http_client()?
-        .get(&asset.browser_download_url)
-        .send()
-        .await
-        .map_err(|e| format!("Не удалось скачать обновление: {e}"))?;
+    // Скачиваем установщик.
+    let installer_path = download_asset(&http, installer_asset, "установщик").await?;
 
-    if !resp.status().is_success() {
-        return Err(format!("Загрузка вернула статус {}", resp.status()));
-    }
-
-    let total = resp.content_length();
-    let mut file = std::fs::File::create(&path)
-        .map_err(|e| format!("Не удалось создать файл обновления: {e}"))?;
-
-    let mut downloaded: u64 = 0;
-    let _ = app.emit("launcher://update-progress", Some(0.0));
-    while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
-        file.write_all(&chunk).map_err(|e| e.to_string())?;
-        downloaded += chunk.len() as u64;
-        let fraction = total.map(|t| {
-            if t > 0 {
-                downloaded as f64 / t as f64
-            } else {
-                0.0
-            }
-        });
-        let _ = app.emit("launcher://update-progress", fraction);
-    }
-    file.flush().map_err(|e| e.to_string())?;
-    drop(file);
-
-    // Верификация размера.
-    if let Some(cl) = total {
-        if downloaded != cl {
-            let _ = std::fs::remove_file(&path);
-            return Err(format!(
-                "Размер установщика: скачано {downloaded} байт, Content-Length {cl}"
-            ));
-        }
-    }
-
-    // Верификация SHA-256 через .sha256 файл в релизе.
-    let sha256_asset = find_sha256_asset(&release.assets, &asset.name);
+    // Верификация SHA-256 установщика через .sha256 файл в релизе.
+    let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name);
     match sha256_asset {
         Some(sha256_a) => {
-            let http = http_client()?;
             let expected = fetch_expected_sha256(&http, &sha256_a.browser_download_url).await;
             match expected {
                 Ok(expected_hex) => {
                     let actual = tauri::async_runtime::spawn_blocking({
-                        let p = path.clone();
+                        let p = installer_path.clone();
                         move || compute_sha256(&p)
                     })
                     .await
@@ -319,13 +335,13 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                             tracing::debug!("[update] SHA-256 OK: {actual_hex}");
                         }
                         Ok(actual_hex) => {
-                            let _ = std::fs::remove_file(&path);
+                            let _ = std::fs::remove_file(&installer_path);
                             return Err(format!(
                                 "SHA-256 не совпал: получен {actual_hex}, ожидался {expected_hex}"
                             ));
                         }
                         Err(e) => {
-                            let _ = std::fs::remove_file(&path);
+                            let _ = std::fs::remove_file(&installer_path);
                             return Err(format!("Не удалось вычислить SHA-256: {e}"));
                         }
                     }
@@ -340,9 +356,15 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    // Запускаем установщик в тихом режиме и закрываем лаунчер, чтобы он мог заменить файлы.
-    // Небольшая задержка гарантирует, что процесс установщика успеет стартовать.
-    launch_installer(&path)?;
+    // Каталог установки — рядом с текущим exe (родитель текущего процесса).
+    let install_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .unwrap_or_else(std::env::temp_dir);
+
+    // Запускаем bootstrap.exe с установщиком и каталогом установки,
+    // затем закрываем лаунчер.
+    launch_bootstrap(&bootstrap_path, &installer_path, &install_dir)?;
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;
     app.exit(0);
     Ok(())
