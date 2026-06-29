@@ -98,8 +98,12 @@ jobs:
         run: |
           set +e
           mkdir -p launcher/src-tauri/nsis
-          current="${GITHUB_REF_NAME}"
-          prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
+
+          # Нет bootstrap crate — нечего собирать/скачивать
+          if [ ! -f crates/bootstrap/Cargo.toml ]; then
+            echo "No bootstrap crate found, skipping"
+            exit 0
+          fi
 
           build_bootstrap() {
             echo "Building bootstrap from source"
@@ -108,8 +112,12 @@ jobs:
             cp target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
           }
 
-          # Нет bootstrap crate или нет предыдущего тега — собираем
-          if [ ! -f crates/bootstrap/Cargo.toml ] || [ -z "$prev" ]; then
+          current="${GITHUB_REF_NAME}"
+          prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
+
+          # Нет предыдущего тега — собираем
+          if [ -z "$prev" ]; then
+            echo "No previous tag, building"
             build_bootstrap
             exit 0
           fi
@@ -117,6 +125,7 @@ jobs:
           # Проверяем изменился ли
           diff=$(git diff "$prev" HEAD -- crates/bootstrap/ 2>/dev/null)
           if [ -n "$diff" ]; then
+            echo "Bootstrap changed since $prev"
             build_bootstrap
             exit 0
           fi
@@ -126,6 +135,7 @@ jobs:
           if gh release download "$prev" -p "bootstrap.exe" -D launcher/src-tauri/nsis 2>/dev/null; then
             echo "Downloaded OK"
           else
+            echo "Download failed, building from source"
             build_bootstrap
           fi
 
