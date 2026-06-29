@@ -101,7 +101,7 @@ jobs:
 
           build_bootstrap() {
             echo "Building bootstrap from source"
-            cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
+            cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings && \
             cargo build --manifest-path crates/bootstrap/Cargo.toml --release
             cp crates/bootstrap/target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
           }
@@ -148,6 +148,11 @@ jobs:
           perl -0pi -e "s/(\"version\"\s*:\s*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/" launcher/src-tauri/tauri.conf.json
           perl -0pi -e "s/^(version\s*=\s*\")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/m" launcher/src-tauri/Cargo.toml
           perl -0pi -e "s/(name = \"launcher\"\nversion = \")[0-9]+\.[0-9]+\.[0-9]+(\")/\${1}$version\${2}/" Cargo.lock
+          # Проверяем что замена прошла успешно
+          if ! grep -q "$version" launcher/package.json; then
+            echo "ERROR: version replacement failed in package.json"
+            exit 1
+          fi
 
       # Пауза перед tauri-action: GITHUB_TOKEN иногда отдаётся на свежий тег
       # ещё с read-доступом (транзиентный 403 на create-release). 15 секунд
@@ -215,7 +220,7 @@ jobs:
                   [ -f "$artifact" ] || continue
                   sha256sum "$artifact" | awk '{print $1}' > "${artifact}.sha256"
                   echo "Publishing $(basename "${artifact}.sha256")"
-                  gh release upload "$tag" "${artifact}.sha256" --clobber
+                  gh release upload "$tag" "${artifact}.sha256" --clobber --verify
                 done
               done
             fi
@@ -236,4 +241,4 @@ jobs:
             exit 0
           fi
           sha256sum "$bs" | awk '{print $1}' > "${bs}.sha256"
-          gh release upload "$tag" "$bs" "${bs}.sha256" --clobber
+          gh release upload "$tag" "$bs" "${bs}.sha256" --clobber --verify
