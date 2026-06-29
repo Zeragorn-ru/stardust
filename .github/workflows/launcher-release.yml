@@ -88,63 +88,46 @@ jobs:
         run: |
           cargo clippy -p launcher --profile launcher-release -- -D warnings
 
-      # Bootstrap: собираем только на тегах, только на Windows, только если
-      # изменился с прошлого релиза. Иначе скачиваем готовый — экономим ~2 минуты.
-      # Если скачивание не удалось (bootstrap нет в предыдущем релизе) — собираем.
-      - name: Check bootstrap changes
-        id: bootstrap
+      # Bootstrap: на Windows + теги. Скачиваем из предыдущего релиза если
+      # не изменился, иначе собираем. Любая ошибка — фоллбэк на сборку.
+      - name: Bootstrap (download or build)
         if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
-        shell: bash
-        run: |
-          if [ ! -f crates/bootstrap/Cargo.toml ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "No bootstrap crate, will try download"
-            exit 0
-          fi
-          current="${GITHUB_REF_NAME}"
-          prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
-          if [ -z "$prev" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "No previous tag, will build bootstrap"
-          else
-            diff=$(git diff "$prev" HEAD -- crates/bootstrap/ 2>/dev/null || echo "diff-failed")
-            if [ -n "$diff" ] && [ "$diff" != "diff-failed" ]; then
-              echo "changed=true" >> "$GITHUB_OUTPUT"
-              echo "Bootstrap changed since $prev, will rebuild"
-            else
-              echo "changed=false" >> "$GITHUB_OUTPUT"
-              echo "Bootstrap unchanged since $prev, will download"
-            fi
-          fi
-
-      - name: Download bootstrap from previous release
-        id: download_bootstrap
-        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'false'
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          set +e
+          mkdir -p launcher/src-tauri/nsis
           current="${GITHUB_REF_NAME}"
           prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
-          mkdir -p launcher/src-tauri/nsis
-          gh release download "$prev" -p "bootstrap.exe" -D launcher/src-tauri/nsis
-          echo "Downloaded bootstrap.exe from $prev"
 
-      # Собираем если: изменился ИЛИ скачивание не удалось (нет в предыдущем релизе).
-      - name: Clippy bootstrap
-        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && (steps.bootstrap.outputs.changed == 'true' || steps.download_bootstrap.outcome == 'failure')
-        run: cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
+          build_bootstrap() {
+            echo "Building bootstrap from source"
+            cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
+            cargo build --manifest-path crates/bootstrap/Cargo.toml --release
+            cp target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
+          }
 
-      - name: Build bootstrap
-        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && (steps.bootstrap.outputs.changed == 'true' || steps.download_bootstrap.outcome == 'failure')
-        run: cargo build --manifest-path crates/bootstrap/Cargo.toml --release
+          # Нет bootstrap crate или нет предыдущего тега — собираем
+          if [ ! -f crates/bootstrap/Cargo.toml ] || [ -z "$prev" ]; then
+            build_bootstrap
+            exit 0
+          fi
 
-      - name: Bundle bootstrap for NSIS
-        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && (steps.bootstrap.outputs.changed == 'true' || steps.download_bootstrap.outcome == 'failure')
-        run: |
-          mkdir -p launcher/src-tauri/nsis
-          cp target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
+          # Проверяем изменился ли
+          diff=$(git diff "$prev" HEAD -- crates/bootstrap/ 2>/dev/null)
+          if [ -n "$diff" ]; then
+            build_bootstrap
+            exit 0
+          fi
+
+          # Не изменился — пробуем скачать
+          echo "Downloading bootstrap from $prev"
+          if gh release download "$prev" -p "bootstrap.exe" -D launcher/src-tauri/nsis 2>/dev/null; then
+            echo "Downloaded OK"
+          else
+            build_bootstrap
+          fi
 
       # Версия в файлах — плейсхолдер 0.0.0. Подставляем реальную из тега
       # (vX.Y.Z -> X.Y.Z) в package.json, Cargo.toml, tauri.conf.json и
