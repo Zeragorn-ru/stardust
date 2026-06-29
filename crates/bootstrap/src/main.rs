@@ -17,6 +17,7 @@ mod win {
     use windows_sys::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
     use windows_sys::Win32::System::Threading::{CreateProcessW, WaitForSingleObject, STARTUPINFOW, PROCESS_INFORMATION, GetExitCodeProcess};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+    use windows_sys::Win32::UI::Shell::ShellExecuteW;
     use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
     const BG_DEEP: COLORREF = 0x000F0B0A;
@@ -98,7 +99,7 @@ mod win {
                 log(&format!("=== Bootstrap started ==="));
             }
             Err(e) => {
-                eprintln!("bootstrap: cannot open log {log_path}: {e}");
+                eprintln!("bootstrap: cannot open log {}: {e}", log_path.display());
             }
         }
     }
@@ -132,7 +133,7 @@ mod win {
             &mut pi,
         );
         if ok != 0 {
-            log(&format!("run_installer: CreateProcessW OK, hProcess={}", pi.hProcess));
+            log(&format!("run_installer: CreateProcessW OK, hProcess={:?}", pi.hProcess));
             Some(pi.hProcess)
         } else {
             let err = last_error();
@@ -170,7 +171,7 @@ mod win {
             &mut pi,
         ) != 0
         {
-            log(&format!("launch_launcher: attempt 1 OK, hProcess={}", pi.hProcess));
+            log(&format!("launch_launcher: attempt 1 OK, hProcess={:?}", pi.hProcess));
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
             return true;
@@ -198,7 +199,7 @@ mod win {
             &mut pi2,
         ) != 0
         {
-            log(&format!("launch_launcher: attempt 2 OK, hProcess={}", pi2.hProcess));
+            log(&format!("launch_launcher: attempt 2 OK, hProcess={:?}", pi2.hProcess));
             CloseHandle(pi2.hProcess);
             CloseHandle(pi2.hThread);
             return true;
@@ -213,7 +214,7 @@ mod win {
             exe_w.as_ptr(),
             ptr::null(),
             ptr::null(),
-            SW_SHOWNORMAL.0 as i32,
+            1, // SW_SHOWNORMAL
         );
         log(&format!("launch_launcher: attempt 3 (ShellExecuteW) hInst={shell_ok}"));
         if (shell_ok as isize) > 32 {
