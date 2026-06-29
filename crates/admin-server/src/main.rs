@@ -154,6 +154,7 @@ async fn main() {
             axum::routing::patch(update_file).delete(delete_file),
         )
         .route("/api/builds/:id/sync-to-panel", post(sync_to_panel))
+        .route("/api/build-check", get(build_check))
         .route("/api/settings/sync-stats", post(sync_stats))
         .route(
             "/api/builds/files/:file_id/content",
@@ -1724,6 +1725,80 @@ async fn manifest(State(state): State<Shared>) -> Result<Json<protocol::Manifest
         .map_err(internal)?
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
     Ok(Json(record.client_manifest(&state.files_base_url)))
+}
+
+// ───────────────────── проверка сборки ─────────────────────
+
+/// `GET /api/build-check` — проверяет что все файлы активной сборки лежат на диске.
+///
+/// Для каждого файла сборки проверяет наличие `<modpack_dir>/<sha1>` и размер.
+/// Возвращает список проблем (если есть) или пустой массив.
+#[derive(Serialize)]
+struct BuildCheckResult {
+    build_id: i64,
+    build_name: String,
+    total_files: usize,
+    problems: Vec<BuildCheckProblem>,
+}
+
+#[derive(Serialize)]
+struct BuildCheckProblem {
+    path: String,
+    sha1: String,
+    kind: String, // "missing" | "size_mismatch"
+    detail: String,
+}
+
+async fn build_check(State(state): State<Shared>) -> Result<Json<BuildCheckResult>, ApiError> {
+    let record = state
+        .store
+        .active_build()
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
+
+    let files = state
+        .store
+        .build_files(record.header.id)
+        .await
+        .map_err(internal)?;
+
+    let mut problems = Vec::new();
+
+    for f in &files {
+        let path = state.modpack_dir.join(&f.sha1);
+        match std::fs::metadata(&path) {
+            Ok(meta) => {
+                let disk_size = meta.len() as i64;
+                if disk_size != f.size_bytes {
+                    problems.push(BuildCheckProblem {
+                        path: f.path.clone(),
+                        sha1: f.sha1.clone(),
+                        kind: "size_mismatch".into(),
+                        detail: format!(
+                            "ожидается {} байт, на диске {}",
+                            f.size_bytes, disk_size
+                        ),
+                    });
+                }
+            }
+            Err(_) => {
+                problems.push(BuildCheckProblem {
+                    path: f.path.clone(),
+                    sha1: f.sha1.clone(),
+                    kind: "missing".into(),
+                    detail: format!("файл не найден: {}", path.display()),
+                });
+            }
+        }
+    }
+
+    Ok(Json(BuildCheckResult {
+        build_id: record.header.id,
+        build_name: record.header.name.clone(),
+        total_files: files.len(),
+        problems,
+    }))
 }
 
 // ───────────────────── authlib-injector ─────────────────────

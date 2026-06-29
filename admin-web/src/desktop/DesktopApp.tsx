@@ -12,7 +12,8 @@ import { Login } from "../Login";
 import { BuildsPage } from "./BuildsPage";
 import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
-import { IconBox, IconLogout, IconSettings, IconSmartphone, IconUsers } from "../ui/icons";
+import { BuildCheckView } from "../views/BuildCheckView";
+import { IconBox, IconCheck, IconLogout, IconSettings, IconSmartphone, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
 export function DesktopApp() {
@@ -44,6 +45,7 @@ function Gate() {
 
 const NAV = [
   { to: "/builds", label: "Сборки", icon: <IconBox /> },
+  { to: "/build-check", label: "Проверка", icon: <IconCheck /> },
   { to: "/accounts", label: "Аккаунты", icon: <IconUsers /> },
   { to: "/settings", label: "Настройки", icon: <IconSettings /> },
 ];
@@ -92,6 +94,7 @@ function Shell() {
         <Routes>
           <Route path="/builds" element={<BuildsPage />} />
           <Route path="/builds/:id" element={<BuildsPage />} />
+          <Route path="/build-check" element={<BuildCheckView />} />
           <Route path="/accounts" element={<AccountsView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="*" element={<Navigate to="/builds" replace />} />

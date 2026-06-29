@@ -76,3 +76,17 @@ export interface UploadMeta {
   displayName?: string;
   description?: string;
 }
+
+export interface BuildCheckProblem {
+  path: string;
+  sha1: string;
+  kind: string;
+  detail: string;
+}
+
+export interface BuildCheckResult {
+  buildId: number;
+  buildName: string;
+  totalFiles: number;
+  problems: BuildCheckProblem[];
+}

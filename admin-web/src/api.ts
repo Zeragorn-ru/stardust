@@ -5,6 +5,7 @@
 
 import type {
   Account,
+  BuildCheckResult,
   BuildDetail,
   BuildFile,
   BuildHeader,
@@ -276,6 +277,10 @@ export const api = {
 
   syncStats(): Promise<{ updated: number }> {
     return request("POST", "/api/settings/sync-stats");
+  },
+
+  buildCheck(): Promise<BuildCheckResult> {
+    return request("GET", "/api/build-check");
   },
 
   getAccountStats(uuid: string): Promise<PlayerStats> {
