@@ -68,7 +68,7 @@ pub async fn fetch_manifest(
         Ok(resp) if resp.status() == reqwest::StatusCode::NOT_FOUND => {
             // Активной сборки нет — удаляем кеш.
             let _ = std::fs::remove_file(&cache_path);
-            return Ok(None);
+            Ok(None)
         }
         Ok(resp) if resp.status().is_success() => {
             match resp.json::<protocol::Manifest>().await {
@@ -79,34 +79,29 @@ pub async fn fetch_manifest(
                         serde_json::to_vec(&manifest).unwrap_or_default(),
                     );
                     tracing::debug!("[manifest] скачан и закеширован");
-                    return Ok(Some(manifest));
+                    Ok(Some(manifest))
                 }
                 Err(e) => {
-                    return Err(format!("Некорректный манифест сборки: {e}"));
+                    Err(format!("Некорректный манифест сборки: {e}"))
                 }
             }
         }
         Ok(resp) => {
-            return Err(format!(
+            Err(format!(
                 "Ошибка сервера сборок ({})",
                 resp.status().as_u16()
-            ));
+            ))
         }
         Err(e) => {
             // Сетевая ошибка — пробуем кеш.
             tracing::warn!("[manifest] сетевая ошибка ({e}), пробуем кеш");
             if let Ok(bytes) = std::fs::read(&cache_path) {
-                match serde_json::from_slice(&bytes) {
-                    Ok(manifest) => {
-                        tracing::info!("[manifest] использован кешированный манифест");
-                        return Ok(Some(manifest));
-                    }
-                    Err(e) => {
-                        tracing::warn!("[manifest] кеш повреждён: {e}");
-                    }
+                if let Ok(manifest) = serde_json::from_slice(&bytes) {
+                    tracing::info!("[manifest] использован кешированный манифест");
+                    return Ok(Some(manifest));
                 }
             }
-            return Err(network_error(e));
+            Err(network_error(e))
         }
     }
 }
