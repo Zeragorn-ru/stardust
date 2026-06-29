@@ -103,7 +103,7 @@ jobs:
             echo "Building bootstrap from source"
             cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
             cargo build --manifest-path crates/bootstrap/Cargo.toml --release
-            cp target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
+            cp crates/bootstrap/target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
           }
 
           current="${GITHUB_REF_NAME}"
