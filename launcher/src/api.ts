@@ -19,6 +19,7 @@ import type {
   SkinModel,
   TelegramLinkResponse,
   UpdateInfo,
+  UpdateProgress,
 } from "./types";
 
 type InvokeFn = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
@@ -469,13 +470,13 @@ export async function installUpdate(): Promise<void> {
   await invoke<void>("install_update");
 }
 
-/** Подписаться на прогресс скачивания обновления (доля 0..1 или null). */
+/** Подписаться на прогресс обновления лаунчера. */
 export async function onUpdateProgress(
-  handler: (fraction: number | null) => void,
+  handler: (progress: UpdateProgress) => void,
 ): Promise<() => void> {
   try {
     const mod = await import("@tauri-apps/api/event");
-    return mod.listen<number | null>("launcher://update-progress", (event) => {
+    return mod.listen<UpdateProgress>("launcher://update-progress", (event) => {
       handler(event.payload);
     });
   } catch {

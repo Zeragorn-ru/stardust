@@ -218,11 +218,14 @@ mod win {
 
         let progress_fraction: f64 = match state.phase {
             Phase::Done => 1.0,
-            Phase::Launching => 0.95,
+            Phase::Launching => 0.9,
             Phase::Installing => {
+                // Индикация: плавное заполнение до 0.85 с замедлением.
+                // Настоящий прогресс NSIS недоступен, показываем что процесс идёт.
                 let elapsed = now_ms() - state.installer_start_ms;
-                let progress = (elapsed as f64 / 3000.0).min(1.0);
-                0.1 + progress * 0.7
+                let t = (elapsed as f64 / 1000.0).min(1.0); // 0..1 за секунду
+                // Логарифмическое замедление: быстро в начале, медленно к концу.
+                0.1 + t.sqrt() * 0.75
             }
         };
 

@@ -29,8 +29,9 @@ Var LaunchAfterInstall
 !macroend
 
 !macro NSIS_HOOK_POSTINSTALL
-  ; Автообновление запускает NSIS с /S — сразу запускаем лаунчер.
-  IfSilent launch_app check_checkbox
+  ; Автообновление (/S) — bootstrap.exe запустит лаунчер сам после NSIS.
+  ; НЕ запускаем здесь, чтобы не было двойного запуска.
+  IfSilent launch_done check_checkbox
 
   check_checkbox:
     ; Обычная установка: запускаем только если галочка отмечена.
@@ -48,18 +49,11 @@ Var LaunchAfterInstall
         Goto wait_for_exe
     exe_ready:
 
-    ; Bat-файл: ждёт 5 сек (пока NSIS закроется), затем запускает лаунчер.
-    ; ShellExecute (ExecShell) отсоединяет процесс от инсталлятора.
-    GetTempFileName $3 "$TEMP"
-    StrCpy $4 "$3.bat"
-    Rename "$3" "$4"
-    FileOpen $5 "$4" w
-    FileWrite $5 '@echo off$\r$\n'
-    FileWrite $5 'ping 127.0.0.1 -n 6 >nul$\r$\n'
-    FileWrite $5 'start "" "$INSTDIR\StarDust.exe"$\r$\n'
-    FileClose $5
-    Sleep 500
-    ExecShell "open" "$4"
+    ; Даём инсталлятору закрыться и освободить файлы.
+    Sleep 1500
+
+    ; Запускаем лаунчер. ExecShell отсоединяет процесс от инсталлятора.
+    ExecShell "open" "$INSTDIR\StarDust.exe"
 
   launch_done:
 !macroend

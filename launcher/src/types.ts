@@ -98,6 +98,24 @@ export interface UpdateInfo {
   notes: string | null;
 }
 
+/** Прогресс обновления лаунчера (отдельно от прогресса запуска игры). */
+export interface UpdateProgress {
+  /** Фаза: "downloading_bootstrap" | "downloading_installer" | "verifying_sha256" | "launching" | "error". */
+  phase: string;
+  /** Описание для отображения. */
+  label: string;
+  /** Общий прогресс 0..1. */
+  fraction: number | null;
+  /** Сколько байт скачано. */
+  downloadedBytes: number | null;
+  /** Общий размер файла. */
+  totalBytes: number | null;
+  /** Скорость загрузки (байт/сек). */
+  speedBytesPerSec: number | null;
+  /** Оставшееся время (секунды). */
+  etaSeconds: number | null;
+}
+
 /** Опциональный мод активной сборки (вкладка «Сборка»). */
 export interface OptionalMod {
   /** Стабильный идентификатор (modId из манифеста). */

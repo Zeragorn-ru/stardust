@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, PlayerProfile, Settings, UpdateInfo } from "../types";
+import type { AppInfo, PlayerProfile, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
   getAppInfo,
@@ -32,6 +32,21 @@ const MEM_STEP = 512;
 const DL_MIN = 1;
 const DL_MAX = 16;
 
+/** Форматирование скорости загрузки. */
+function formatSpeed(bytesPerSec: number): string {
+  if (bytesPerSec < 1024) return `${Math.round(bytesPerSec)} Б/с`;
+  if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} КБ/с`;
+  return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} МБ/с`;
+}
+
+/** Форматирование ETA. */
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `~${Math.round(seconds)}с`;
+  const min = Math.floor(seconds / 60);
+  const sec = Math.round(seconds % 60);
+  return sec > 0 ? `~${min}м ${sec}с` : `~${min}м`;
+}
+
 export default function SettingsScreen({
   profile,
   onProfileChange,
@@ -51,7 +66,7 @@ export default function SettingsScreen({
     "idle" | "checking" | "installing" | "error"
   >("idle");
   const [updateError, setUpdateError] = useState<string | null>(null);
-  const [updateProgress, setUpdateProgress] = useState<number | null>(null);
+  const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
 
   useEffect(() => {
     getSettings().then(setSettings);
@@ -75,9 +90,14 @@ export default function SettingsScreen({
     setUpdateStatus("installing");
     setUpdateError(null);
     setUpdateProgress(null);
-    const unlisten = await onUpdateProgress(setUpdateProgress);
+    const unlisten = await onUpdateProgress((p) => {
+      setUpdateProgress(p);
+      if (p.phase === "error") {
+        setUpdateError(p.label);
+        setUpdateStatus("error");
+      }
+    });
     try {
-      // При успехе бэкенд перезапустит приложение — промис может не завершиться.
       await installUpdate();
     } catch (e) {
       setUpdateError(e instanceof Error ? e.message : String(e));
@@ -218,23 +238,37 @@ export default function SettingsScreen({
               {updateStatus === "installing" && (
                 <div className="update-card__progress">
                   <p className="muted update-card__msg">
-                    Загрузка обновления…
-                    {updateProgress != null &&
-                      ` ${Math.round(updateProgress * 100)}%`}
+                    {updateProgress?.label ?? "Загрузка обновления…"}
+                    {updateProgress?.fraction != null &&
+                      ` ${Math.round(updateProgress.fraction * 100)}%`}
                   </p>
                   <div className="progress">
                     <div className="progress__track">
                       <div
-                        className="progress__bar"
+                        className={
+                          "progress__bar" +
+                          (updateProgress?.fraction == null
+                            ? " progress__bar--indeterminate"
+                            : "")
+                        }
                         style={{
                           width:
-                            updateProgress != null
-                              ? `${Math.round(updateProgress * 100)}%`
-                              : "100%",
+                            updateProgress?.fraction != null
+                              ? `${Math.round(updateProgress.fraction * 100)}%`
+                              : undefined,
                         }}
                       />
                     </div>
                   </div>
+                  {updateProgress?.speedBytesPerSec != null &&
+                    updateProgress.speedBytesPerSec > 0 && (
+                      <p className="muted update-card__msg">
+                        {formatSpeed(updateProgress.speedBytesPerSec)}
+                        {updateProgress.etaSeconds != null &&
+                          updateProgress.etaSeconds > 0 &&
+                          ` · ${formatEta(updateProgress.etaSeconds)}`}
+                      </p>
+                    )}
                 </div>
               )}
             </div>
