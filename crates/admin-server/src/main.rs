@@ -1736,6 +1736,7 @@ async fn manifest(State(state): State<Shared>) -> Result<Json<protocol::Manifest
 /// Для каждого файла сборки проверяет наличие `<modpack_dir>/<sha1>` и размер.
 /// Возвращает список проблем (если есть) или пустой массив.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct BuildCheckResult {
     build_id: i64,
     build_name: String,
@@ -1823,6 +1824,7 @@ const BUILTIN_MOD_IDS: &[&str] = &[
 /// `[[dependencies]]` и проверяет что все `type = "required"` зависимости
 /// выполнены (есть другой мод с таким `modId` в сборке).
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DepsCheckResult {
     build_id: i64,
     build_name: String,
@@ -1831,6 +1833,7 @@ struct DepsCheckResult {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DepsCheckProblem {
     /// Мод, у которого не выполнена зависимость.
     from_mod: String,
