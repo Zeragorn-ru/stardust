@@ -39,7 +39,12 @@ export function setOnboarded(): void {
 
 /** Проставить режим движения на корне документа (CSS гейтит по нему анимации). */
 export function applyMotion(on: boolean): void {
-  document.documentElement.dataset.motion = on ? "on" : "off";
+    document.documentElement.dataset.motion = on ? "on" : "off";
+}
+
+/** Включены ли анимации прямо сейчас (читает data-motion из DOM). */
+export function animationsEnabled(): boolean {
+    return document.documentElement.dataset.motion !== "off";
 }
 
 // Применяем сразу при импорте модуля — до первого рендера React,

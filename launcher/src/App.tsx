@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PlayerProfile, Progress, UpdateInfo } from "./types";
 import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
-import { isOnboarded, setOnboarded } from "./preferences";
+import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
 import Aurora from "./components/Aurora";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -44,6 +44,17 @@ export default function App() {
   function navigate(next: View) {
     if (navigatingRef.current || next === view) return;
     navigatingRef.current = true;
+
+    // Без анимаций — мгновенное переключение без наложения экранов.
+    if (!animationsEnabled()) {
+      setExitView(null);
+      setExitClass("");
+      setEnterClass("");
+      setView(next);
+      navigatingRef.current = false;
+      return;
+    }
+
     const fromIdx = VIEW_ORDER.indexOf(view);
     const toIdx = VIEW_ORDER.indexOf(next);
     const forward = toIdx > fromIdx;
