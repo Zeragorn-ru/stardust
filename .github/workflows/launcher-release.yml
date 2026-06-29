@@ -30,6 +30,8 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install Linux deps
         if: matrix.platform == 'ubuntu-22.04'
@@ -88,8 +90,9 @@ jobs:
 
       # Bootstrap: собираем только если изменился с прошлого релиза.
       # Иначе скачиваем готовый из предыдущего релиза — экономим ~2 минуты.
+      # Работает только на тегах: при workflow_dispatch пропускается.
       - name: Check bootstrap changes
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/')
         id: bootstrap
         shell: bash
         run: |
@@ -98,18 +101,22 @@ jobs:
           if [ -z "$prev" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "No previous tag, will build bootstrap"
-          elif git diff "$prev" HEAD -- crates/bootstrap/ | grep -q .; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "Bootstrap changed since $prev, will rebuild"
           else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "Bootstrap unchanged since $prev, will download"
+            diff=$(git diff "$prev" HEAD -- crates/bootstrap/)
+            if [ -n "$diff" ]; then
+              echo "changed=true" >> "$GITHUB_OUTPUT"
+              echo "Bootstrap changed since $prev, will rebuild"
+            else
+              echo "changed=false" >> "$GITHUB_OUTPUT"
+              echo "Bootstrap unchanged since $prev, will download"
+            fi
           fi
 
       - name: Download bootstrap from previous release
         if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'false'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
           current="${GITHUB_REF_NAME}"
           prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
