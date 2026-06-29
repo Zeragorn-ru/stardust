@@ -88,22 +88,26 @@ jobs:
         run: |
           cargo clippy -p launcher --profile launcher-release -- -D warnings
 
-      # Bootstrap: собираем только если изменился с прошлого релиза.
-      # Иначе скачиваем готовый из предыдущего релиза — экономим ~2 минуты.
-      # Работает только на тегах: при workflow_dispatch пропускается.
+      # Bootstrap: собираем только на тегах, только на Windows, только если
+      # изменился с прошлого релиза. Иначе скачиваем готовый — экономим ~2 минуты.
       - name: Check bootstrap changes
-        if: matrix.platform == 'windows-latest' && startsWith(github.ref, 'refs/tags/')
         id: bootstrap
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
         shell: bash
         run: |
+          if [ ! -f crates/bootstrap/Cargo.toml ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No bootstrap crate, will try download"
+            exit 0
+          fi
           current="${GITHUB_REF_NAME}"
           prev=$(git tag --sort=-v:refname | awk -v cur="$current" '$0 != cur' | head -n1)
           if [ -z "$prev" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "No previous tag, will build bootstrap"
           else
-            diff=$(git diff "$prev" HEAD -- crates/bootstrap/)
-            if [ -n "$diff" ]; then
+            diff=$(git diff "$prev" HEAD -- crates/bootstrap/ 2>/dev/null || echo "diff-failed")
+            if [ -n "$diff" ] && [ "$diff" != "diff-failed" ]; then
               echo "changed=true" >> "$GITHUB_OUTPUT"
               echo "Bootstrap changed since $prev, will rebuild"
             else
@@ -113,7 +117,7 @@ jobs:
           fi
 
       - name: Download bootstrap from previous release
-        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'false'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'false'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         shell: bash
@@ -125,15 +129,15 @@ jobs:
           echo "Downloaded bootstrap.exe from $prev"
 
       - name: Clippy bootstrap
-        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
         run: cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
 
       - name: Build bootstrap
-        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
         run: cargo build --manifest-path crates/bootstrap/Cargo.toml --release
 
       - name: Bundle bootstrap for NSIS
-        if: matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest' && steps.bootstrap.outputs.changed == 'true'
         run: |
           mkdir -p launcher/src-tauri/nsis
           cp target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
