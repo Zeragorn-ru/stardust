@@ -200,7 +200,7 @@ jobs:
                   [ -f "$artifact" ] || continue
                   sha256sum "$artifact" | awk '{print $1}' > "${artifact}.sha256"
                   echo "Publishing $(basename "${artifact}.sha256")"
-                  gh release upload "$tag" "${artifact}.sha256" --clobber --verify
+                  gh release upload "$tag" "${artifact}.sha256" --clobber
                 done
               done
             fi
@@ -221,4 +221,4 @@ jobs:
             exit 0
           fi
           sha256sum "$bs" | awk '{print $1}' > "${bs}.sha256"
-          gh release upload "$tag" "$bs" "${bs}.sha256" --clobber --verify
+          gh release upload "$tag" "$bs" "${bs}.sha256" --clobber

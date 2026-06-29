@@ -14,8 +14,8 @@
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
-/// Эндпоинт GitHub Releases API по умолчанию.
-const RELEASES_API: &str = "https://api.github.com/repos/Zeragorn-ru/stardust/releases/latest";
+/// Эндпоинт GitHub Releases API по умолчанию — список релизов (новые первые).
+const RELEASES_API: &str = "https://api.github.com/repos/Zeragorn-ru/stardust/releases";
 
 /// User-Agent обязателен для запросов к GitHub API.
 const USER_AGENT: &str = "stardust-launcher-updater";
@@ -71,22 +71,43 @@ fn http_client() -> Result<reqwest::Client, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Загружает данные о последнем релизе.
-async fn fetch_latest() -> Result<GhRelease, String> {
+/// Загружает список релизов (новые первые, до 50 штук).
+async fn fetch_releases() -> Result<Vec<GhRelease>, String> {
     let resp = http_client()?
         .get(api_url())
         .header("Accept", "application/vnd.github+json")
+        .query(&[("per_page", "50")])
         .send()
         .await
-        .map_err(|e| format!("Не удалось получить данные о релизе: {e}"))?;
+        .map_err(|e| format!("Не удалось получить список релизов: {e}"))?;
 
     if !resp.status().is_success() {
         return Err(format!("GitHub API ответил статусом {}", resp.status()));
     }
 
-    resp.json::<GhRelease>()
+    resp.json::<Vec<GhRelease>>()
         .await
-        .map_err(|e| format!("Не удалось разобрать ответ GitHub: {e}"))
+        .map_err(|e| format!("Не удалось разобрать список релизов: {e}"))
+}
+
+/// Проверяет, есть ли в релизе установщик и bootstrap.exe (обновлятор).
+fn is_release_ready(release: &GhRelease) -> bool {
+    let has_installer = pick_asset(&release.assets).is_some();
+    let has_bootstrap = find_bootstrap_asset(&release.assets).is_some();
+    has_installer && has_bootstrap
+}
+
+/// Ищет первый релиз, который новее текущей версии и готов к скачиванию
+/// (есть установщик + bootstrap.exe). Релизы идут от нового к старому.
+async fn find_update_release(current_version: &str) -> Result<Option<GhRelease>, String> {
+    let releases = fetch_releases().await?;
+    for release in releases {
+        let tag = normalize(&release.tag_name);
+        if is_newer(tag, current_version) && is_release_ready(&release) {
+            return Ok(Some(release));
+        }
+    }
+    Ok(None)
 }
 
 /// Убирает из заметок релиза служебные строки GitHub (Full Changelog и т.п.).
@@ -286,42 +307,43 @@ fn launch_bootstrap(
 }
 
 /// Проверить наличие обновления, ничего не устанавливая.
+/// Ищет первый релиз новее текущей версии с установщиком и bootstrap.exe.
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
     let current_version = app.package_info().version.to_string();
-    let release = fetch_latest().await?;
-    let latest = normalize(&release.tag_name).to_string();
-
-    if is_newer(&latest, &current_version) {
-        Ok(UpdateInfo {
-            available: true,
-            current_version,
-            version: Some(latest),
-            notes: clean_release_notes(release.body),
-        })
-    } else {
-        Ok(UpdateInfo {
+    match find_update_release(&current_version).await? {
+        Some(release) => {
+            let version = normalize(&release.tag_name).to_string();
+            Ok(UpdateInfo {
+                available: true,
+                current_version,
+                version: Some(version),
+                notes: clean_release_notes(release.body),
+            })
+        }
+        None => Ok(UpdateInfo {
             available: false,
             current_version,
             version: None,
             notes: None,
-        })
+        }),
     }
 }
 
 /// Скачать доступное обновление и запустить обновлятор, затем закрыть лаунчер.
 ///
-/// Bootstrap кэшируется в data_dir по SHA-256: если хеш совпадает с релизом,
-/// повторное скачивание не требуется.
-///
-/// 1. Использует кэш bootstrap.exe (или скачивает при первом обновлении)
-/// 2. Скачивает установщик NSIS
-/// 3. Верифицирует SHA-256 установщика
-/// 4. Запускает `bootstrap.exe <installer_path> <install_dir>`
-/// 5. Закрывает лаунчер
+/// 1. Ищет релиз новее текущей версии с установщиком и bootstrap.exe
+/// 2. Использует кэш bootstrap.exe (или скачивает при первом обновлении)
+/// 3. Скачивает установщик NSIS
+/// 4. Верифицирует SHA-256 установщика
+/// 5. Запускает `bootstrap.exe <installer_path> <install_dir>`
+/// 6. Закрывает лаунчер
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
-    let release = fetch_latest().await?;
+    let current_version = app.package_info().version.to_string();
+    let release = find_update_release(&current_version)
+        .await?
+        .ok_or_else(|| "Нет доступного обновления".to_string())?;
 
     // Находим установщик.
     let installer_asset = pick_asset(&release.assets)
