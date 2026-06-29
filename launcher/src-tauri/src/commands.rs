@@ -163,8 +163,8 @@ impl Default for AppState {
                 reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
                     .expect("прокси URL невалиден"),
             )
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(20))
             .build()
             .expect("не удалось создать HTTP-клиент");
         Self {
