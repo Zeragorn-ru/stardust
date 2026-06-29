@@ -22,8 +22,8 @@ mod win {
     const GLASS_BORDER: COLORREF = 0x0014161F;
     const TEXT_COL: COLORREF = 0x00F6F0EE;
     const MUTED: COLORREF = 0x00B5A09A;
-    const ACCENT: COLORREF = 0x00FF5C7C;
     const PROGRESS_BG: COLORREF = 0x00282A3A;
+    const PROGRESS_FG: COLORREF = 0x00F6F0EE;
 
     const WIN_W: i32 = 380;
     const WIN_H: i32 = 160;
@@ -146,7 +146,7 @@ mod win {
         DeleteObject(border_rgn as _);
         DeleteObject(border_brush as _);
 
-        let pen = CreatePen(PS_SOLID, 2, ACCENT);
+        let pen = CreatePen(PS_SOLID, 2, TEXT_COL);
         let old_pen = SelectObject(mem_dc, pen);
         MoveToEx(mem_dc, 30, 2, ptr::null_mut());
         LineTo(mem_dc, w - 30, 2);
@@ -155,7 +155,7 @@ mod win {
 
         SetBkMode(mem_dc, TRANSPARENT as i32);
 
-        let dot_brush = CreateSolidBrush(ACCENT);
+        let dot_brush = CreateSolidBrush(TEXT_COL);
         let dot_rgn = CreateEllipticRgn(20, 14, 30, 24);
         FillRgn(mem_dc, dot_rgn, dot_brush);
         DeleteObject(dot_rgn as _);
@@ -189,7 +189,7 @@ mod win {
             }
             Phase::Done => {
                 status_text = wide("Готово!");
-                status_color = ACCENT;
+                status_color = TEXT_COL;
             }
         }
 
@@ -220,8 +220,9 @@ mod win {
             Phase::Done => 1.0,
             Phase::Launching => 0.95,
             Phase::Installing => {
-                let phase = (state.ticks as f64 * 0.08).sin() * 0.5 + 0.5;
-                0.4 + phase * 0.3
+                let elapsed = now_ms() - state.installer_start_ms;
+                let progress = (elapsed as f64 / 3000.0).min(1.0);
+                0.1 + progress * 0.7
             }
         };
 
@@ -244,7 +245,7 @@ mod win {
             );
             SelectClipRgn(mem_dc, clip_rgn);
 
-            let fill_brush = CreateSolidBrush(ACCENT);
+            let fill_brush = CreateSolidBrush(PROGRESS_FG);
             let fill_rect = RECT {
                 left: PROGRESS_X,
                 top: PROGRESS_Y,
@@ -338,7 +339,7 @@ mod win {
                         let launcher_path = state.launcher_path.clone();
                         if launch_launcher(&launcher_path) {
                             state.phase = Phase::Done;
-                            state.close_at = now_ms() + 600;
+                            state.close_at = now_ms() + 200;
                         }
                     }
                     Phase::Done if state.close_at > 0 && now_ms() >= state.close_at => {
@@ -442,7 +443,7 @@ mod win {
                 return;
             }
 
-            SetLayeredWindowAttributes(hwnd, 0, 245, LWA_ALPHA);
+            SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
 
             ShowWindow(hwnd, SW_SHOW);
             UpdateWindow(hwnd);
