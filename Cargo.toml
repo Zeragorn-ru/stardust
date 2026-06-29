@@ -8,6 +8,7 @@ members = [
     "crates/telegram-bot",
     "launcher/src-tauri",
 ]
+exclude = ["crates/bootstrap"]
 
 [workspace.package]
 version = "0.1.0"
