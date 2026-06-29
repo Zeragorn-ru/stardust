@@ -50,14 +50,16 @@ Var LaunchAfterInstall
 
     ; Bat-файл: ждёт 5 сек (пока NSIS закроется), затем запускает лаунчер.
     ; ShellExecute (ExecShell) отсоединяет процесс от инсталлятора.
-    GetTempFileName $3 "$TEMP" "sd_launch" ".bat"
-    FileOpen $4 $3 w
-    FileWrite $4 '@echo off$\r$\n'
-    FileWrite $4 'ping 127.0.0.1 -n 6 >nul$\r$\n'
-    FileWrite $4 'start "" "$INSTDIR\StarDust.exe"$\r$\n'
-    FileClose $4
+    GetTempFileName $3 "$TEMP"
+    StrCpy $4 "$3.bat"
+    Rename "$3" "$4"
+    FileOpen $5 "$4" w
+    FileWrite $5 '@echo off$\r$\n'
+    FileWrite $5 'ping 127.0.0.1 -n 6 >nul$\r$\n'
+    FileWrite $5 'start "" "$INSTDIR\StarDust.exe"$\r$\n'
+    FileClose $5
     Sleep 500
-    ExecShell "open" $3
+    ExecShell "open" "$4"
 
   launch_done:
 !macroend
