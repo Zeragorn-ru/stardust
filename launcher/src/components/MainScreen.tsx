@@ -114,7 +114,7 @@ export default function MainScreen({
           title="Настройки аккаунта"
         >
           <div className="account__avatar account__avatar--skin">
-            <FaceAvatar dataUrl={skin.dataUrl} size={44} />
+            <FaceAvatar dataUrl={skin.dataUrl} size={42} />
           </div>
           <div className="account__info">
             <div className="account__name">{profile.name}</div>
