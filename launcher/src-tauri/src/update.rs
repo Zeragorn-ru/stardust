@@ -12,13 +12,49 @@
 // одного релиза GitHub Releases API (.../releases/latest).
 
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
 /// Эндпоинт GitHub Releases API по умолчанию — список релизов (новые первые).
 const RELEASES_API: &str = "https://api.github.com/repos/Zeragorn-ru/stardust/releases";
 
 /// User-Agent обязателен для запросов к GitHub API.
 const USER_AGENT: &str = "stardust-launcher-updater";
+
+/// Максимальное количество попыток скачивания.
+const MAX_DOWNLOAD_ATTEMPTS: u32 = 3;
+
+/// Начальная задержка между попытками (секунды). Удваивается при каждой попытке.
+const INITIAL_BACKOFF_SECS: u64 = 2;
+
+// ─── Payload для Tauri events ────────────────────────────────────────────────
+
+/// Фаза обновления для отображения в UI.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateProgress {
+    /// Текущая фаза: "downloading_bootstrap", "downloading_installer",
+    /// "verifying_sha256", "launching", "error".
+    phase: String,
+    /// Человекочитаемое описание.
+    label: String,
+    /// Общий прогресс 0..1.
+    fraction: Option<f64>,
+    /// Сколько байт уже скачано.
+    downloaded_bytes: Option<u64>,
+    /// Общий размер файла.
+    total_bytes: Option<u64>,
+    /// Скорость загрузки (байт/сек).
+    speed_bytes_per_sec: Option<f64>,
+    /// Оставшееся время (секунды).
+    eta_seconds: Option<f64>,
+}
+
+/// Отправить прогресс обновления во фронтенд.
+fn emit_progress(app: &AppHandle, progress: &UpdateProgress) {
+    let _ = app.emit("launcher://update-progress", progress);
+}
+
+// ─── Модели GitHub API ──────────────────────────────────────────────────────
 
 /// Результат проверки обновлений для фронтенда.
 #[derive(Debug, Clone, Serialize)]
@@ -49,7 +85,12 @@ struct GhRelease {
 struct GhAsset {
     name: String,
     browser_download_url: String,
+    /// Размер файла в байтах (GitHub API отдаёт поле `size`).
+    #[serde(default)]
+    size: u64,
 }
+
+// ─── Вспомогательные функции ────────────────────────────────────────────────
 
 /// URL релизного API с учётом переопределения через окружение.
 fn api_url() -> String {
@@ -64,9 +105,12 @@ fn api_url() -> String {
 fn http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
-        .proxy(reqwest::Proxy::all("http://assets.zeragorn.xyz:3128").map_err(|e| e.to_string())?)
+        .proxy(
+            reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
+                .map_err(|e| e.to_string())?,
+        )
         .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(std::time::Duration::from_secs(60))
+        .timeout(std::time::Duration::from_secs(120))
         .build()
         .map_err(|e| e.to_string())
 }
@@ -119,7 +163,7 @@ fn clean_release_notes(body: Option<String>) -> Option<String> {
                 let lower = line.to_lowercase();
                 !lower.starts_with("full changelog")
                     && !lower.starts_with("**full changelog**")
-                    && !lower.contains("compare/") // github compare links
+                    && !lower.contains("compare/")
             })
             .collect::<Vec<_>>()
             .join("\n")
@@ -132,6 +176,7 @@ fn clean_release_notes(body: Option<String>) -> Option<String> {
         }
     })
 }
+
 fn normalize(v: &str) -> &str {
     v.trim().trim_start_matches(['v', 'V'])
 }
@@ -187,7 +232,6 @@ fn pick_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
 }
 
 /// Ищет SHA-256 хеш для given installer name в ассетах релиза.
-/// Ожидает файл `*.sha256` с содержимым вида `<hex>\n` или `<hex>  <filename>\n`.
 fn find_sha256_asset<'a>(assets: &'a [GhAsset], installer_name: &str) -> Option<&'a GhAsset> {
     let sha256_name = format!("{installer_name}.sha256");
     assets.iter().find(|a| a.name == sha256_name)
@@ -206,7 +250,6 @@ async fn fetch_expected_sha256(http: &reqwest::Client, url: &str) -> Result<Stri
         .await
         .map_err(|e| format!("Не удалось прочитать .sha256: {e}"))?;
 
-    // Формат: `<64 hex chars>` или `<64 hex chars>  <filename>` (coreutils sha256sum).
     let hex = text
         .split_whitespace()
         .next()
@@ -227,10 +270,10 @@ fn sanitize_filename(name: &str) -> Result<String, String> {
     if name.is_empty() {
         return Err("Имя файла пустое".into());
     }
-    if name.contains(['/', '\\']) || name == ".." || name.starts_with("..") || name.contains("..") {
+    if name.contains(['/', '\\']) || name == ".." || name.starts_with("..") || name.contains("..")
+    {
         return Err(format!("Подозрительное имя файла: {name}"));
     }
-    // Дополнительно: берём только последний компонент (на случай строковых артефактов).
     let basename = std::path::Path::new(name)
         .file_name()
         .and_then(|n| n.to_str())
@@ -245,40 +288,169 @@ fn find_bootstrap_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
         .find(|a| a.name.to_lowercase() == "bootstrap.exe")
 }
 
-/// Скачивает файл из релиза во временную директорию.
-async fn download_asset(
+// ─── Скачивание с прогрессом и retry ────────────────────────────────────────
+
+/// Параметры скачивания для передачи между функциями.
+struct DownloadParams<'a> {
+    app: &'a AppHandle,
+    http: &'a reqwest::Client,
+    url: &'a str,
+    path: &'a std::path::Path,
+    phase_name: &'a str,
+    fraction_start: f64,
+    fraction_end: f64,
+    total_size: u64,
+    progress_name: &'a str,
+}
+
+/// Скачивает файл из релиза во временную директорию с прогрессом и retry.
+#[allow(clippy::too_many_arguments)]
+async fn download_asset_with_progress(
+    app: &AppHandle,
     http: &reqwest::Client,
     asset: &GhAsset,
     progress_name: &str,
+    phase_name: &str,
+    fraction_start: f64,
+    fraction_end: f64,
+    total_size: u64,
 ) -> Result<std::path::PathBuf, String> {
-    use std::io::Write;
-
     let safe_name = sanitize_filename(&asset.name)?;
     let path = std::env::temp_dir().join(&safe_name);
 
-    let mut resp = http
-        .get(&asset.browser_download_url)
+    let params = DownloadParams {
+        app,
+        http,
+        url: &asset.browser_download_url,
+        path: &path,
+        phase_name,
+        fraction_start,
+        fraction_end,
+        total_size,
+        progress_name,
+    };
+
+    let mut last_err = String::new();
+
+    for attempt in 1..=MAX_DOWNLOAD_ATTEMPTS {
+        if attempt > 1 {
+            let backoff = INITIAL_BACKOFF_SECS * 2u64.pow(attempt - 2);
+            tracing::info!(
+                "[update] попытка {attempt}/{MAX_DOWNLOAD_ATTEMPTS} для {progress_name} (ожидание {backoff}с)"
+            );
+            emit_progress(
+                app,
+                &UpdateProgress {
+                    phase: phase_name.into(),
+                    label: format!("Повтор {attempt}/{MAX_DOWNLOAD_ATTEMPTS}…"),
+                    fraction: Some(fraction_start),
+                    downloaded_bytes: None,
+                    total_bytes: if total_size > 0 { Some(total_size) } else { None },
+                    speed_bytes_per_sec: None,
+                    eta_seconds: None,
+                },
+            );
+            tokio::time::sleep(std::time::Duration::from_secs(backoff)).await;
+        }
+
+        match download_single(&params).await {
+            Ok(()) => return Ok(path),
+            Err(e) => {
+                tracing::warn!("[update] ошибка скачивания {progress_name} (попытка {attempt}): {e}");
+                last_err = e;
+            }
+        }
+    }
+
+    Err(format!(
+        "Не удалось скачать {progress_name} после {MAX_DOWNLOAD_ATTEMPTS} попыток: {last_err}"
+    ))
+}
+
+/// Одна попытка скачивания файла с прогрессом.
+async fn download_single(params: &DownloadParams<'_>) -> Result<(), String> {
+    use std::io::Write;
+
+    let mut resp = params
+        .http
+        .get(params.url)
         .send()
         .await
-        .map_err(|e| format!("Не удалось скачать {progress_name}: {e}"))?;
+        .map_err(|e| format!("Не удалось скачать {}: {e}", params.progress_name))?;
 
     if !resp.status().is_success() {
         return Err(format!(
-            "{progress_name}: загрузка вернула статус {}",
+            "{}: загрузка вернула статус {}",
+            params.progress_name,
             resp.status()
         ));
     }
 
-    let mut file = std::fs::File::create(&path)
-        .map_err(|e| format!("Не удалось создать файл {progress_name}: {e}"))?;
+    let content_length = resp.content_length().unwrap_or(params.total_size);
+
+    let mut file = std::fs::File::create(params.path)
+        .map_err(|e| format!("Не удалось создать файл {}: {e}", params.progress_name))?;
+
+    let mut downloaded: u64 = 0;
+    let start = std::time::Instant::now();
+    let mut last_emit = std::time::Instant::now();
 
     while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
         file.write_all(&chunk).map_err(|e| e.to_string())?;
+        downloaded += chunk.len() as u64;
+
+        if last_emit.elapsed() >= std::time::Duration::from_millis(250) {
+            let elapsed = start.elapsed().as_secs_f64();
+            let speed = if elapsed > 0.0 {
+                downloaded as f64 / elapsed
+            } else {
+                0.0
+            };
+            let fraction = if content_length > 0 {
+                params.fraction_start
+                    + (downloaded as f64 / content_length as f64)
+                        * (params.fraction_end - params.fraction_start)
+            } else {
+                params.fraction_start
+            };
+            let eta = if speed > 0.0 && content_length > downloaded {
+                Some((content_length - downloaded) as f64 / speed)
+            } else {
+                None
+            };
+
+            emit_progress(
+                params.app,
+                &UpdateProgress {
+                    phase: params.phase_name.into(),
+                    label: format!("Скачивание {}…", params.progress_name),
+                    fraction: Some(fraction),
+                    downloaded_bytes: Some(downloaded),
+                    total_bytes: if content_length > 0 {
+                        Some(content_length)
+                    } else {
+                        None
+                    },
+                    speed_bytes_per_sec: Some(speed),
+                    eta_seconds: eta,
+                },
+            );
+            last_emit = std::time::Instant::now();
+        }
     }
+
     file.flush().map_err(|e| e.to_string())?;
 
-    Ok(path)
+    tracing::info!(
+        "[update] {} скачан: {downloaded} байт за {:.1}с",
+        params.progress_name,
+        start.elapsed().as_secs_f64()
+    );
+
+    Ok(())
 }
+
+// ─── Запуск bootstrap ───────────────────────────────────────────────────────
 
 /// Запускает bootstrap.exe с установщиком и каталогом установки.
 #[cfg(target_os = "windows")]
@@ -306,8 +478,9 @@ fn launch_bootstrap(
     Err("Обновление поддерживается только на Windows".into())
 }
 
+// ─── Tauri commands ─────────────────────────────────────────────────────────
+
 /// Проверить наличие обновления, ничего не устанавливая.
-/// Ищет первый релиз новее текущей версии с установщиком и bootstrap.exe.
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
     let current_version = app.package_info().version.to_string();
@@ -332,12 +505,11 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
 
 /// Скачать доступное обновление и запустить обновлятор, затем закрыть лаунчер.
 ///
-/// 1. Ищет релиз новее текущей версии с установщиком и bootstrap.exe
-/// 2. Использует кэш bootstrap.exe (или скачивает при первом обновлении)
-/// 3. Скачивает установщик NSIS
-/// 4. Верифицирует SHA-256 установщика
-/// 5. Запускает `bootstrap.exe <installer_path> <install_dir>`
-/// 6. Закрывает лаунчер
+/// Фазы с прогрессом:
+/// 1. downloading_bootstrap  (0.00 — 0.30)
+/// 2. downloading_installer  (0.30 — 0.85)
+/// 3. verifying_sha256       (0.85 — 0.95)
+/// 4. launching              (0.95 — 1.00)
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
     let current_version = app.package_info().version.to_string();
@@ -345,34 +517,76 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         .await?
         .ok_or_else(|| "Нет доступного обновления".to_string())?;
 
-    // Находим установщик.
     let installer_asset = pick_asset(&release.assets)
         .ok_or_else(|| "В релизе нет подходящего установщика".to_string())?;
+    let installer_size = installer_asset.size;
 
     let http = http_client()?;
 
-    // Кэш bootstrap.exe в data_dir.
+    // ── Фаза 1: bootstrap (0.00 — 0.30) ──────────────────────────────────
     let data_dir = crate::paths::data_dir(&app);
     let cached_bootstrap = data_dir.join("bootstrap.exe");
 
-    // Используем кэш если bootstrap.exe существует.
-    // Хеш не проверяем — bootstrap это маленькая программа которая просто
-    // запускает NSIS installer, его бинарник не критичен.
     let bootstrap_path = if cached_bootstrap.exists() {
         tracing::info!("[update] bootstrap кэш: {}", cached_bootstrap.display());
+        emit_progress(
+            &app,
+            &UpdateProgress {
+                phase: "downloading_bootstrap".into(),
+                label: "Bootstrap найден в кэше".into(),
+                fraction: Some(0.30),
+                downloaded_bytes: None,
+                total_bytes: None,
+                speed_bytes_per_sec: None,
+                eta_seconds: None,
+            },
+        );
         cached_bootstrap
     } else {
         let bootstrap_asset = find_bootstrap_asset(&release.assets)
             .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
-        let path = download_asset(&http, bootstrap_asset, "bootstrap.exe").await?;
+        let path = download_asset_with_progress(
+            &app,
+            &http,
+            bootstrap_asset,
+            "bootstrap.exe",
+            "downloading_bootstrap",
+            0.0,
+            0.30,
+            bootstrap_asset.size,
+        )
+        .await?;
         let _ = std::fs::copy(&path, &cached_bootstrap);
         cached_bootstrap
     };
 
-    // Скачиваем установщик.
-    let installer_path = download_asset(&http, installer_asset, "установщик").await?;
+    // ── Фаза 2: установщик (0.30 — 0.85) ─────────────────────────────────
+    let installer_path = download_asset_with_progress(
+        &app,
+        &http,
+        installer_asset,
+        &installer_asset.name,
+        "downloading_installer",
+        0.30,
+        0.85,
+        installer_size,
+    )
+    .await?;
 
-    // Верификация SHA-256 установщика через .sha256 файл в релизе.
+    // ── Фаза 3: SHA-256 верификация (0.85 — 0.95) ────────────────────────
+    emit_progress(
+        &app,
+        &UpdateProgress {
+            phase: "verifying_sha256".into(),
+            label: "Проверка целостности файла…".into(),
+            fraction: Some(0.85),
+            downloaded_bytes: None,
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
+        },
+    );
+
     let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name);
     match sha256_asset {
         Some(sha256_a) => {
@@ -387,22 +601,25 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                     .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
                     match actual {
                         Ok(actual_hex) if actual_hex == expected_hex => {
-                            tracing::debug!("[update] SHA-256 OK: {actual_hex}");
+                            tracing::debug!("[update] SHA-256 OK");
                         }
-                        Ok(actual_hex) => {
+                        Ok(_mismatched_hex) => {
                             let _ = std::fs::remove_file(&installer_path);
-                            return Err(format!(
-                                "SHA-256 не совпал: получен {actual_hex}, ожидался {expected_hex}"
-                            ));
+                            return Err(
+                                "Повреждён файл установщика (SHA-256 не совпал). Скачайте заново."
+                                    .to_string(),
+                            );
                         }
                         Err(e) => {
                             let _ = std::fs::remove_file(&installer_path);
-                            return Err(format!("Не удалось вычислить SHA-256: {e}"));
+                            return Err(format!("Не удалось проверить файл: {e}"));
                         }
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("[update] предупреждение: не удалось проверить SHA-256 ({e}), продолжаем без верификации");
+                    tracing::warn!(
+                        "[update] предупреждение: не удалось проверить SHA-256 ({e}), продолжаем без верификации"
+                    );
                 }
             }
         }
@@ -411,19 +628,46 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    // Каталог установки — рядом с текущим exe (родитель текущего процесса).
+    // ── Фаза 4: запуск (0.95 — 1.00) ─────────────────────────────────────
+    emit_progress(
+        &app,
+        &UpdateProgress {
+            phase: "launching".into(),
+            label: "Запуск обновления…".into(),
+            fraction: Some(0.95),
+            downloaded_bytes: None,
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
+        },
+    );
+
     let install_dir = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(std::env::temp_dir);
 
-    // Запускаем bootstrap.exe с установщиком и каталогом установки,
-    // затем закрываем лаунчер.
     launch_bootstrap(&bootstrap_path, &installer_path, &install_dir)?;
+
+    emit_progress(
+        &app,
+        &UpdateProgress {
+            phase: "launching".into(),
+            label: "Обновление запущено. Лаунчер закроется…".into(),
+            fraction: Some(1.0),
+            downloaded_bytes: None,
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
+        },
+    );
+
     tokio::time::sleep(std::time::Duration::from_millis(800)).await;
     app.exit(0);
     Ok(())
 }
+
+// ─── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -500,7 +744,6 @@ mod tests {
         let path = dir.join("empty.bin");
         std::fs::write(&path, b"").unwrap();
         let hash = compute_sha256(&path).unwrap();
-        // SHA-256 of empty string is well-known.
         assert_eq!(
             hash,
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -528,10 +771,12 @@ mod tests {
             GhAsset {
                 name: "setup.exe".into(),
                 browser_download_url: "".into(),
+                size: 0,
             },
             GhAsset {
                 name: "setup.exe.sha256".into(),
                 browser_download_url: "https://example.com/sha".into(),
+                size: 0,
             },
         ];
         let found = find_sha256_asset(&assets, "setup.exe");
@@ -544,6 +789,7 @@ mod tests {
         let assets = vec![GhAsset {
             name: "setup.exe".into(),
             browser_download_url: "".into(),
+            size: 0,
         }];
         assert!(find_sha256_asset(&assets, "setup.exe").is_none());
     }

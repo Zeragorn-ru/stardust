@@ -185,8 +185,10 @@ jobs:
             echo "Release $tag already exists"
           fi
 
-          # Загружаем установщики и SHA-256 из bundle
-          for dir in launcher/src-tauri/target/launcher-release/bundle/nsis launcher/src-tauri/target/launcher-release/bundle/macos launcher/src-tauri/target/launcher-release/bundle/deb; do
+          # Загружаем установщики и SHA-256 из bundle.
+          # launcher/src-tauri — член воркспейса, поэтому target лежит в КОРНЕ
+          # (target/launcher-release/bundle/), а НЕ в launcher/src-tauri/target/.
+          for dir in target/launcher-release/bundle/nsis target/launcher-release/bundle/macos target/launcher-release/bundle/deb; do
             if [ -d "$dir" ]; then
               for ext in exe dmg AppImage deb; do
                 for artifact in "$dir"/*."$ext"; do
