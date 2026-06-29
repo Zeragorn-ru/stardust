@@ -435,6 +435,18 @@ body {
 :root[data-motion="off"] .screen-transition {
     animation: none !important;
 }
+:root[data-motion="off"] .app {
+    animation: none !important;
+}
+:root[data-motion="off"] .stagger-item {
+    animation: none !important;
+}
+:root[data-motion="off"] .slide-in-left {
+    animation: none !important;
+}
+:root[data-motion="off"] .skin-tab-panel {
+    animation: none !important;
+}
 
 .glass-in {
     animation: glassIn var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1);

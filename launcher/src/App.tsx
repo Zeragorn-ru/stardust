@@ -4,6 +4,7 @@ import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLaunch
 import { isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
 import Aurora from "./components/Aurora";
+import ErrorBoundary from "./components/ErrorBoundary";
 import OnboardingScreen from "./components/OnboardingScreen";
 import LoginScreen from "./components/LoginScreen";
 import MainScreen from "./components/MainScreen";
@@ -192,18 +193,20 @@ export default function App() {
     <div className="app">
       <Aurora />
       <TitleBar />
-      <div className="app__content" style={{ position: "relative", overflow: "hidden" }}>
-        {!ready ? (
-          <div className="app--center">
-            <div className="spinner" />
-          </div>
-        ) : (
-          <>
-            {exitView && renderScreen(exitView, `screen-transition ${exitClass}`, `exit-${exitView}`)}
-            {renderScreen(view, `screen-transition ${enterClass}`, `enter-${view}`)}
-          </>
-        )}
-      </div>
+      <ErrorBoundary>
+        <div className="app__content" style={{ position: "relative", overflow: "hidden" }}>
+          {!ready ? (
+            <div className="app--center">
+              <div className="spinner" />
+            </div>
+          ) : (
+            <>
+              {exitView && renderScreen(exitView, `screen-transition ${exitClass}`, `exit-${exitView}`)}
+              {renderScreen(view, `screen-transition ${enterClass}`, `enter-${view}`)}
+            </>
+          )}
+        </div>
+      </ErrorBoundary>
       {update && (
         <UpdateModal update={update} onDismiss={() => setUpdate(null)} />
       )}

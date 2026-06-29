@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SkinViewer, WalkingAnimation, IdleAnimation } from "skinview3d";
 import type { SkinModel } from "../types";
 import { useMotion } from "../motion";
@@ -20,9 +20,20 @@ const DEFAULT_SKIN =
   "https://textures.minecraft.net/texture/" +
   "1a4af718455d4aab528e7a61f86fa25e6a369d1768dcb13f7df319a713eb810b";
 
+function isWebGLAvailable(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 3D-модель скина (three.js под капотом, через skinview3d).
  * Вращается мышью; при включённых анимациях персонаж «дышит»/идёт.
+ *
+ * Если WebGL недоступен — показывает плейсхолдер (аватар-аватарка).
  */
 export default function SkinViewer3D({
   dataUrl,
@@ -34,17 +45,30 @@ export default function SkinViewer3D({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<SkinViewer | null>(null);
   const { animations } = useMotion();
+  const [webglFailed, setWebglFailed] = useState(false);
 
   // Создаём вьюер один раз.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const viewer = new SkinViewer({
-      canvas,
-      width,
-      height,
-    });
+    if (!isWebGLAvailable()) {
+      setWebglFailed(true);
+      return;
+    }
+
+    let viewer: SkinViewer;
+    try {
+      viewer = new SkinViewer({
+        canvas,
+        width,
+        height,
+      });
+    } catch {
+      setWebglFailed(true);
+      return;
+    }
+
     viewer.controls.enableZoom = false;
     viewer.controls.enablePan = false;
     viewer.fov = 40;
@@ -101,6 +125,29 @@ export default function SkinViewer3D({
       viewer.animation.paused = true;
     }
   }, [animations]);
+
+  if (webglFailed) {
+    return (
+      <div
+        className="skin-viewer-3d"
+        style={{
+          width,
+          height,
+          background: "var(--glass)",
+          border: "1px solid var(--glass-border)",
+          borderRadius: "var(--radius)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: 0.5,
+          fontSize: 13,
+          color: "var(--muted)",
+        }}
+      >
+        3D unavailable
+      </div>
+    );
+  }
 
   return <canvas ref={canvasRef} className="skin-viewer-3d" />;
 }
