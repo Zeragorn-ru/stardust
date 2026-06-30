@@ -230,6 +230,7 @@ export function FileManager({
       optional: patch.optional,
       enabledByDefault: patch.enabledByDefault,
       overwrite: patch.overwrite,
+      disabled: patch.disabled,
       modId: patch.modId ?? undefined,
       displayName: patch.displayName ?? undefined,
       description: patch.description ?? undefined,
@@ -252,6 +253,7 @@ export function FileManager({
           optional: patch.optional,
           enabledByDefault: patch.enabledByDefault,
           overwrite: patch.overwrite,
+          disabled: patch.disabled,
         });
       } catch {
         failed++;

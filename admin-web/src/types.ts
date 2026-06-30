@@ -73,6 +73,7 @@ export interface UploadMeta {
   overwrite?: boolean;
   optional?: boolean;
   enabledByDefault?: boolean;
+  disabled?: boolean;
   modId?: string;
   displayName?: string;
   description?: string;

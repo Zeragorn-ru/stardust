@@ -1144,7 +1144,8 @@ async fn sync_to_panel(
     for file in &build.files {
         // Грузим всё, что нужно серверу (side = server | both), независимо от
         // опциональности и «включён по умолчанию» — опц. моды тоже едут.
-        if file.side != "server" && file.side != "both" {
+        // Отключённые файлы пропускаем — они не должны отдаваться ни клиенту, ни серверу.
+        if file.disabled || (file.side != "server" && file.side != "both") {
             skipped += 1;
             continue;
         }
