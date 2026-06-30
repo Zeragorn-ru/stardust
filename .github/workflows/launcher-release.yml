@@ -272,10 +272,18 @@ jobs:
           sha256sum "$path" | awk '{print $1}' > "${path}.sha256"
           gh release upload "$tag" "$path" "${path}.sha256" --clobber
 
+          # Считаем sha256 и size для portable бинарника.
+          portable_sha=$(cat "${path}.sha256")
+          portable_size=$(stat -c%s "$path" 2>/dev/null || stat -f%z "$path" 2>/dev/null)
+
           # NSIS installer (Windows only)
           installer="stardust-native-v${version}-setup.exe"
+          installer_sha=""
+          installer_size=""
           if [ -f "$installer" ]; then
             sha256sum "$installer" | awk '{print $1}' > "${installer}.sha256"
+            installer_sha=$(cat "${installer}.sha256")
+            installer_size=$(stat -c%s "$installer" 2>/dev/null || stat -f%z "$installer" 2>/dev/null)
             echo "Uploading $installer"
             gh release upload "$tag" "$installer" "${installer}.sha256" --clobber
           fi
@@ -289,44 +297,54 @@ jobs:
             gh release upload "$tag" bootstrap-beta.exe bootstrap-beta.exe.sha256 --clobber
           fi
 
-          # Генерация latest-beta.json для updater'а нативного лаунчера.
+          # Генерация latest-beta.json.
           pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          base_url="https://github.com/Zeragorn-ru/stardust/releases/download/${tag}"
 
-          cat > latest-beta.json << EOJSON
-          {
-            "version": "$version",
-            "notes": "Beta release $tag",
-            "pub_date": "$pub_date",
-            "platforms": {}
+          export VERSION_VAR="$version"
+          export TAG_VAR="$tag"
+          export PUB_DATE_VAR="$pub_date"
+          export INSTALLER_VAR="$installer"
+          export INSTALLER_SHA_VAR="$installer_sha"
+          export INSTALLER_SIZE_VAR="$installer_size"
+          export PORTABLE_VAR="$path"
+          export PORTABLE_SHA_VAR="$portable_sha"
+          export PORTABLE_SIZE_VAR="$portable_size"
+          export BASE_URL_VAR="$base_url"
+
+          python3 << 'PYEOF'
+          import json, sys, os
+
+          version = os.environ.get("VERSION_VAR", "")
+          tag = os.environ.get("TAG_VAR", "")
+          pub_date = os.environ.get("PUB_DATE_VAR", "")
+          installer = os.environ.get("INSTALLER_VAR", "")
+          installer_sha = os.environ.get("INSTALLER_SHA_VAR", "")
+          installer_size = os.environ.get("INSTALLER_SIZE_VAR", "")
+          portable = os.environ.get("PORTABLE_VAR", "")
+          portable_sha = os.environ.get("PORTABLE_SHA_VAR", "")
+          portable_size = os.environ.get("PORTABLE_SIZE_VAR", "")
+          base_url = os.environ.get("BASE_URL_VAR", "")
+
+          d = {
+              "version": version,
+              "notes": f"Beta release {tag}",
+              "pub_date": pub_date,
+              "platforms": {}
           }
-          EOJSON
 
-          # Заполняем platforms для каждой платформы.
-          for asset in $(gh release view "$tag" --json assets -q '.assets[].name'); do
-            case "$asset" in
-              stardust-native-v*-setup.exe)
-                sha=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .sha256" 2>/dev/null || sha256sum "$asset" | awk '{print $1}')
-                url=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .url")
-                python3 -c "
-          import json, sys
-          with open('latest-beta.json') as f: d = json.load(f)
-          d['platforms']['windows-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
-          with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
-          " "$url" "$sha" "$(stat -c%s "$asset" 2>/dev/null || stat -f%z "$asset" 2>/dev/null)"
-                ;;
-              stardust-native-v*)
-                [[ "$asset" == *setup* ]] && continue
-                sha=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .sha256" 2>/dev/null || sha256sum "$asset" | awk '{print $1}')
-                url=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .url")
-                python3 -c "
-          import json, sys
-          with open('latest-beta.json') as f: d = json.load(f)
-          d['platforms']['linux-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
-          with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
-          " "$url" "$sha" "$(stat -c%s "$asset" 2>/dev/null || stat -f%z "$asset" 2>/dev/null)"
-                ;;
-            esac
-          done
+          if installer and installer_sha:
+              import urllib.parse
+              url = f"{base_url}/{urllib.parse.quote(installer)}"
+              d["platforms"]["windows-x86_64"] = {
+                  "url": url,
+                  "sha256": installer_sha,
+                  "size": int(installer_size) if installer_size else 0
+              }
+
+          with open("latest-beta.json", "w") as f:
+              json.dump(d, f, indent=2)
+          PYEOF
 
           gh release upload "$tag" latest-beta.json --clobber
           echo "Uploaded latest-beta.json"
