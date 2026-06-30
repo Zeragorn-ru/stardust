@@ -161,3 +161,135 @@ jobs:
             echo "Uploading bootstrap.exe"
             gh release upload "$tag" "$bs" "${bs}.sha256" --clobber
           fi
+
+  # === Бета: нативный лаунчер (Iced) ===
+  beta:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+          - platform: ubuntu-22.04
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: "beta-${{ matrix.platform }}"
+          save-if: ${{ startsWith(github.ref, 'refs/tags/') }}
+          cache-on-failure: true
+
+      # Clippy нативного лаунчера.
+      - name: Clippy native launcher
+        run: cargo clippy -p stardust-native --release -- -D warnings
+
+      # Сборка нативного лаунчера.
+      - name: Build native launcher
+        run: cargo build -p stardust-native --release
+
+      # Определяем имя exe по платформе.
+      - name: Set binary name
+        id: bin
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            echo "exe=stardust-native.exe" >> $GITHUB_OUTPUT
+            echo "path=target/release/stardust-native.exe" >> $GITHUB_OUTPUT
+          else
+            echo "exe=stardust-native" >> $GITHUB_OUTPUT
+            echo "path=target/release/stardust-native" >> $GITHUB_OUTPUT
+          fi
+
+      # Bootstrap (beta) — только Windows.
+      - name: Cache bootstrap
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: crates/bootstrap/target
+          key: bootstrap-${{ matrix.platform }}-${{ hashFiles('crates/bootstrap/**') }}
+          restore-keys: bootstrap-${{ matrix.platform }}-
+
+      - name: Build bootstrap (beta)
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings && \
+          cargo build --manifest-path crates/bootstrap/Cargo.toml --release
+
+      # Загрузка в release.
+      - name: Upload beta artifacts
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          exe="${{ steps.bin.outputs.exe }}"
+          path="${{ steps.bin.outputs.path }}"
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "Launcher $tag" --generate-notes
+          fi
+
+          sha256sum "$path" | awk '{print $1}' > "${path}.sha256"
+          gh release upload "$tag" "$path" "${path}.sha256" --clobber
+
+          # Bootstrap beta (stardust-native.exe)
+          bs="crates/bootstrap/target/release/bootstrap.exe"
+          if [ -f "$bs" ]; then
+            cp "$bs" bootstrap-beta.exe
+            sha256sum bootstrap-beta.exe | awk '{print $1}' > bootstrap-beta.exe.sha256
+            echo "Uploading bootstrap-beta.exe"
+            gh release upload "$tag" bootstrap-beta.exe bootstrap-beta.exe.sha256 --clobber
+          fi
+
+          # Генерация latest-beta.json для updater'а нативного лаунчера.
+          # Формат совместим с Tauri updater: { "version", "notes", "pub_date", "platforms" }
+          version="${tag#v}"
+          pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          cat > latest-beta.json << EOJSON
+          {
+            "version": "$version",
+            "notes": "Beta release $tag",
+            "pub_date": "$pub_date",
+            "platforms": {}
+          }
+          EOJSON
+
+          # Заполняем platforms для каждой платформы.
+          for asset in $(gh release view "$tag" --json assets -q '.assets[].name'); do
+            case "$asset" in
+              stardust-native.exe)
+                sha=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .sha256" 2>/dev/null || sha256sum "$asset" | awk '{print $1}')
+                url=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .url")
+                python3 -c "
+          import json, sys
+          with open('latest-beta.json') as f: d = json.load(f)
+          d['platforms']['windows-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
+          with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
+          " "$url" "$sha" "$(stat -c%s stardust-native.exe 2>/dev/null || stat -f%z stardust-native.exe 2>/dev/null)"
+                ;;
+              stardust-native)
+                sha=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .sha256" 2>/dev/null || sha256sum "$asset" | awk '{print $1}')
+                url=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .url")
+                python3 -c "
+          import json, sys
+          with open('latest-beta.json') as f: d = json.load(f)
+          d['platforms']['linux-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
+          with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
+          " "$url" "$sha" "$(stat -c%s stardust-native 2>/dev/null || stat -f%z stardust-native 2>/dev/null)"
+                ;;
+            esac
+          done
+
+          gh release upload "$tag" latest-beta.json --clobber
+          echo "Uploaded latest-beta.json"

@@ -1,0 +1,22 @@
+[package]
+name = "stardust-native"
+version = "0.1.0"
+edition = "2021"
+description = "StarDust Launcher — нативная версия (Iced)"
+
+[dependencies]
+iced = { version = "0.13", features = ["tokio", "svg"] }
+iced_aw = { version = "0.11", features = ["badge", "tab_bar"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+chrono = { version = "0.4", features = ["serde"] }
+protocol = { path = "../crates/protocol" }
+store = { path = "../crates/store" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

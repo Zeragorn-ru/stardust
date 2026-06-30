@@ -56,6 +56,7 @@ mod win {
         close_at: u64,
         launch_delay_ms: Option<u64>,
         error_msg: Option<String>,
+        is_beta: bool,
     }
 
     static mut STATE: Option<State> = None;
@@ -269,6 +270,9 @@ mod win {
         DeleteObject(dot_brush as _);
 
         let segui = wide("Segoe UI");
+        let state = STATE.as_ref().unwrap();
+        let is_beta = state.is_beta;
+
         let hfont_brand = CreateFontW(
             13, 0, 0, 0, 700, 0, 0, 0,
             DEFAULT_CHARSET as u32, 0, 0, CLEARTYPE_QUALITY as u32, 0,
@@ -276,8 +280,9 @@ mod win {
         );
         let old_font = SelectObject(mem_dc, hfont_brand);
         SetTextColor(mem_dc, MUTED);
-        let brand = wide("STARDUST");
-        TextOutW(mem_dc, 36, 12, brand.as_ptr(), 8);
+        let brand_wide = wide(if is_beta { "STARDUST BETA" } else { "STARDUST" });
+        let brand_len = brand_wide.len() as i32 - 1;
+        TextOutW(mem_dc, 36, 12, brand_wide.as_ptr(), brand_len);
         SelectObject(mem_dc, old_font);
         DeleteObject(hfont_brand as _);
 
@@ -389,7 +394,7 @@ mod win {
         );
         let old_font = SelectObject(mem_dc, hfont_ver);
         SetTextColor(mem_dc, MUTED);
-        let ver = wide("StarDust Launcher");
+        let ver = wide(if is_beta { "StarDust Launcher (Beta)" } else { "StarDust Launcher" });
         TextOutW(mem_dc, 18, h - 25, ver.as_ptr(), ver.len() as i32 - 1);
         SelectObject(mem_dc, old_font);
         DeleteObject(hfont_ver as _);
@@ -535,8 +540,16 @@ mod win {
         let args: Vec<String> = std::env::args().collect();
         log(&format!("args: {args:?}"));
 
+        let is_beta = args.iter().any(|a| a == "--beta");
+        log(&format!("is_beta={is_beta}"));
+
+        let default_exe = if is_beta {
+            "stardust-native.exe".to_string()
+        } else {
+            "launcher.exe".to_string()
+        };
+
         let (installer_path, install_dir, exe_name) = if args.len() >= 4 {
-            // Аргументы: <installer> <install_dir> <exe_name>
             (
                 PathBuf::from(&args[1]),
                 PathBuf::from(&args[2]),
@@ -546,17 +559,22 @@ mod win {
             (
                 PathBuf::from(&args[1]),
                 PathBuf::from(&args[2]),
-                "launcher.exe".to_string(),
+                default_exe,
             )
         } else {
-            let dir = unsafe {
-                let mut buf = [0u16; 512];
-                let len = GetModuleFileNameW(ptr::null_mut(), buf.as_mut_ptr(), 512);
-                PathBuf::from(String::from_utf16_lossy(&buf[..len as usize]))
-                    .parent().unwrap_or(&PathBuf::new()).to_path_buf()
-            };
-            log(&format!("no args, fallback dir={}", dir.display()));
-            (PathBuf::new(), dir, "launcher.exe".to_string())
+            // Определяем %LOCALAPPDATA%
+            let local_app_data = std::env::var("LOCALAPPDATA")
+                .unwrap_or_else(|_| {
+                    // Fallback для не-Windows
+                    let home = std::env::var("USERPROFILE")
+                        .or_else(|_| std::env::var("HOME"))
+                        .unwrap_or_default();
+                    std::path::PathBuf::from(home).join("AppData").join("Local")
+                });
+
+            let folder = if is_beta { "stardust-beta" } else { "stardust" };
+            let dir = std::path::PathBuf::from(local_app_data).join(folder);
+            (PathBuf::new(), dir, default_exe)
         };
 
         init_log(&install_dir);
@@ -586,6 +604,7 @@ mod win {
                 close_at: 0,
                 launch_delay_ms: None,
                 error_msg: None,
+                is_beta,
             });
 
             let class = wide("StarDustBootstrap");
@@ -606,7 +625,7 @@ mod win {
             let x = (screen_w - WIN_W) / 2;
             let y = (screen_h - WIN_H) / 2;
 
-            let title = wide("StarDust");
+            let title = wide(if is_beta { "StarDust Beta" } else { "StarDust" });
             let hwnd = CreateWindowExW(
                 WS_EX_TOPMOST | WS_EX_LAYERED,
                 class.as_ptr(),
