@@ -62,6 +62,17 @@ export async function minimizeWindow(): Promise<void> {
   await win?.minimize();
 }
 
+export async function maximizeWindow(): Promise<void> {
+  const win = await getCurrentWindow();
+  if (!win) return;
+  const maximized = await win.isMaximized();
+  if (maximized) {
+    await win.unmaximize();
+  } else {
+    await win.maximize();
+  }
+}
+
 export async function closeWindow(): Promise<void> {
   const win = await getCurrentWindow();
   await win?.close();

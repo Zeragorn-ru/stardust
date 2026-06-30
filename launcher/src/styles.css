@@ -247,6 +247,13 @@ body {
     background: currentColor;
 }
 
+.window-btn__maximize {
+    width: 10px !important;
+    height: 10px !important;
+    border: 1.5px solid currentColor;
+    border-radius: 2px;
+}
+
 .window-btn--close {
     font-size: 20px;
     line-height: 1;
@@ -1070,6 +1077,17 @@ body {
     text-align: center;
 }
 
+.login__approval-waiting {
+    font-size: 14px;
+    color: var(--muted);
+    animation: approval-pulse 2s ease-in-out infinite;
+}
+
+@keyframes approval-pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
 .login__approval .login__form {
     width: 100%;
 }
@@ -1532,6 +1550,16 @@ body {
     margin-left: auto;
 }
 
+.settings__loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 24px;
+    grid-column: 1 / -1;
+}
+
 .settings__layout {
     flex: 1;
     min-height: 0;
@@ -1799,6 +1827,21 @@ body {
     to {
         transform: rotate(360deg);
     }
+}
+
+.skeleton-text {
+    display: inline-block;
+    width: 60px;
+    height: 1em;
+    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
+    background-size: 200% 100%;
+    border-radius: 4px;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
 }
 
 /* ============ Вкладки (вход/регистрация) ============ */

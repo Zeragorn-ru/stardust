@@ -224,20 +224,24 @@ export default function SkinModal({ onClose, embedded = false }: Props) {
                   />
                 </label>
 
-                <label className="skin-sync">
-                  <input
-                    type="checkbox"
-                    checked={keepSynced}
-                    onChange={(e) => setKeepSynced(e.target.checked)}
-                  />
-                  <span>
-                    Синхронизируем скин и плащ
-                    <span className="muted skin-sync__hint">
+                <div className="toggle-row">
+                  <div className="toggle-row__text">
+                    <span className="toggle-row__title">Синхронизация скина</span>
+                    <span className="muted toggle-row__desc">
                       Лаунчер запомнит UUID лицензии и будет обновлять скин и
                       плащ — даже после смены ника.
                     </span>
-                  </span>
-                </label>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={keepSynced}
+                    className={"switch" + (keepSynced ? " switch--on" : "")}
+                    onClick={() => setKeepSynced(!keepSynced)}
+                  >
+                    <span className="switch__knob" />
+                  </button>
+                </div>
 
                 <p className="muted skin-modal__note">
                   Импортируем скин и плащ с официального аккаунта Mojang.

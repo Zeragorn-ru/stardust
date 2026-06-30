@@ -10,6 +10,14 @@ import CustomizeModal from "./CustomizeModal";
 const SERVER_HOST = "play.stardust-mc.xyz";
 const SERVER_STATUS_INTERVAL = 60_000;
 
+/** Цвет индикатора пинга: зелёный <80мс, жёлтый <200мс, красный иначе. */
+function pingColor(ping: number | null): string {
+  if (ping == null) return "var(--muted)";
+  if (ping < 80) return "#5cb8a8";
+  if (ping < 200) return "#d4a843";
+  return "#e06060";
+}
+
 interface Props {
   profile: PlayerProfile;
   progress: Progress | null;
@@ -163,18 +171,26 @@ export default function MainScreen({
               именем. Ничего настраивать не нужно.
             </p>
           </div>
-          {stats != null && (
-            <div className="hero__info-row stagger-item">
+          <div className="hero__info-row stagger-item">
               <div className="hero__stats">
                 <div className="hero__stats-title">Статистика</div>
-                <div className="hero__stat">
-                  <span className="hero__stat-value">{formatPlaytime(stats.playtimeSeconds)}</span>
-                  <span className="hero__stat-label">в игре</span>
-                </div>
-                {stats.lastLaunchedAt != null && (
+                {stats != null ? (
+                  <>
+                    <div className="hero__stat">
+                      <span className="hero__stat-value">{formatPlaytime(stats.playtimeSeconds)}</span>
+                      <span className="hero__stat-label">в игре</span>
+                    </div>
+                    {stats.lastLaunchedAt != null && (
+                      <div className="hero__stat">
+                        <span className="hero__stat-value">{formatLastLaunch(stats.lastLaunchedAt)}</span>
+                        <span className="hero__stat-label">последний запуск</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
                   <div className="hero__stat">
-                    <span className="hero__stat-value">{formatLastLaunch(stats.lastLaunchedAt)}</span>
-                    <span className="hero__stat-label">последний запуск</span>
+                    <span className="hero__stat-value skeleton-text" />
+                    <span className="hero__stat-label skeleton-text" />
                   </div>
                 )}
               </div>
@@ -189,7 +205,11 @@ export default function MainScreen({
                   <>
                     <div className="hero__stat">
                       <span className="hero__stat-value hero__stat-value--online">
-                        Онлайн {serverPing != null && <span className="hero__stat-value--ping">· {serverPing}мс</span>}
+                        Онлайн {serverPing != null && (
+                          <span style={{ color: pingColor(serverPing), fontWeight: 600 }}>
+                            · {serverPing}мс
+                          </span>
+                        )}
                       </span>
                       <span className="hero__stat-label">статус</span>
                     </div>
@@ -209,7 +229,6 @@ export default function MainScreen({
                 )}
               </div>
             </div>
-          )}
           {progress?.phase === "error" ? (
             <div className="play-error stagger-item">
               <span className="play-error__msg">{progress.label}</span>

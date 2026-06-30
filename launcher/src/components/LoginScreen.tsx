@@ -290,7 +290,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         </div>
 
         <div className="login__approval">
-          <p className="muted">{title}: ожидаем ответ из Telegram…</p>
+          <p className="login__approval-waiting">{title}: ожидаем ответ из Telegram…</p>
           {allowManualCode && (
             <form className="login__form" onSubmit={handleVerify}>
               <label className="field">

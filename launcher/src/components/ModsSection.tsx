@@ -56,7 +56,10 @@ export default function ModsSection() {
   if (!mods) {
     return (
       <div className="mods-section">
-        <p className="muted">Загрузка списка модов…</p>
+        <div className="settings__loading">
+          <div className="spinner" />
+          <span className="muted">Загрузка списка модов…</span>
+        </div>
       </div>
     );
   }
@@ -86,7 +89,7 @@ export default function ModsSection() {
         Дополнительные моды устанавливаются вместе со сборкой. Выключенные не
         загружаются игрой — включение применится при следующем запуске.
       </p>
-      {mods.length > 3 && (
+      {mods.length > 0 && (
         <input
           type="text"
           className="input mods-section__filter"

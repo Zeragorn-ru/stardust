@@ -54,10 +54,44 @@ export default function FaceAvatar({ dataUrl, size = 64 }: Props) {
 }
 
 function drawPlaceholder(ctx: CanvasRenderingContext2D, size: number) {
-  ctx.fillStyle = "#454b66";
-  ctx.fillRect(0, 0, size, size);
-  ctx.fillStyle = "#9aa0b5";
   const u = size / 8;
+
+  // Background gradient — dark to slightly lighter
+  const grad = ctx.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, "#3a4060");
+  grad.addColorStop(1, "#2a3050");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Head shape — rounded square
+  ctx.fillStyle = "#5a6080";
+  const pad = u * 0.5;
+  const r = u * 0.6;
+  const x = pad, y = pad, w = size - pad * 2, h = size - pad * 2;
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+  ctx.fill();
+
+  // Eyes — two squares with slight glow
+  ctx.fillStyle = "#c8cce0";
   ctx.fillRect(u * 2, u * 3, u, u);
   ctx.fillRect(u * 5, u * 3, u, u);
+
+  // Eye shine — small highlight
+  ctx.fillStyle = "#e0e4f0";
+  ctx.fillRect(u * 2, u * 3, u * 0.4, u * 0.4);
+  ctx.fillRect(u * 5, u * 3, u * 0.4, u * 0.4);
+
+  // Mouth — subtle line
+  ctx.fillStyle = "#7a80a0";
+  ctx.fillRect(u * 2.5, u * 5.5, u * 3, u * 0.5);
 }

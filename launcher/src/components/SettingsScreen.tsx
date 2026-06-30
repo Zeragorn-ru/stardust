@@ -140,7 +140,10 @@ export default function SettingsScreen({
   if (!settings) {
     return (
       <div className="settings">
-        <p className="muted">Загрузка настроек…</p>
+        <div className="settings__loading">
+          <div className="spinner" />
+          <span className="muted">Загрузка настроек…</span>
+        </div>
       </div>
     );
   }
