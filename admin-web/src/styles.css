@@ -1067,6 +1067,20 @@ td.num {
     background: var(--panel-2);
 }
 
+.fm-row--disabled {
+    opacity: 0.45;
+}
+
+.fm-row--disabled:hover {
+    opacity: 0.65;
+}
+
+.tag--disabled {
+    background: rgba(255, 100, 80, 0.15);
+    color: #e06050;
+    border-color: rgba(255, 100, 80, 0.2);
+}
+
 .fm-row.up {
     color: var(--muted);
 }

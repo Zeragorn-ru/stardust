@@ -49,6 +49,7 @@ pub struct BuildFileMeta {
     pub overwrite: bool,
     pub optional: bool,
     pub enabled_by_default: bool,
+    pub disabled: bool,
     pub mod_id: Option<String>,
     pub display_name: Option<String>,
     pub description: Option<String>,
@@ -65,6 +66,7 @@ pub struct BuildFileInput {
     pub overwrite: bool,
     pub optional: bool,
     pub enabled_by_default: bool,
+    pub disabled: bool,
     pub mod_id: Option<String>,
     pub display_name: Option<String>,
     pub description: Option<String>,
@@ -90,6 +92,7 @@ pub struct BuildFileRow {
     pub overwrite: bool,
     pub optional: bool,
     pub enabled_by_default: bool,
+    pub disabled: bool,
     pub mod_id: Option<String>,
     pub display_name: Option<String>,
     pub description: Option<String>,
@@ -99,7 +102,7 @@ pub struct BuildFileRow {
 const BUILD_COLUMNS: &str = "id, name, version, loader_kind, mc_version, loader_version, is_active";
 
 const FILE_COLUMNS: &str = "id, path, sha1, size_bytes, side, kind, overwrite, optional, \
-     enabled_by_default, mod_id, display_name, description, storage_key";
+     enabled_by_default, disabled, mod_id, display_name, description, storage_key";
 
 impl Store {
     /// Создаёт новую сборку. Не делает её активной автоматически.
@@ -148,9 +151,9 @@ impl Store {
         sqlx::query(
             "INSERT INTO build_files
                 (build_id, path, sha1, size_bytes, side, kind, overwrite, optional,
-                 enabled_by_default, mod_id, display_name, description, storage_key)
+                 enabled_by_default, disabled, mod_id, display_name, description, storage_key)
              SELECT $2, path, sha1, size_bytes, side, kind, overwrite, optional,
-                 enabled_by_default, mod_id, display_name, description, storage_key
+                 enabled_by_default, disabled, mod_id, display_name, description, storage_key
              FROM build_files WHERE build_id = $1",
         )
         .bind(src_id)
@@ -281,12 +284,13 @@ impl Store {
         let id: i64 = sqlx::query_scalar(
             "INSERT INTO build_files
                 (build_id, path, sha1, size_bytes, side, kind, overwrite, optional,
-                 enabled_by_default, mod_id, display_name, description, storage_key)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                 enabled_by_default, disabled, mod_id, display_name, description, storage_key)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
              ON CONFLICT (build_id, path) DO UPDATE SET
                 sha1 = EXCLUDED.sha1, size_bytes = EXCLUDED.size_bytes, side = EXCLUDED.side,
                 kind = EXCLUDED.kind, overwrite = EXCLUDED.overwrite, optional = EXCLUDED.optional,
-                enabled_by_default = EXCLUDED.enabled_by_default, mod_id = EXCLUDED.mod_id,
+                enabled_by_default = EXCLUDED.enabled_by_default, disabled = EXCLUDED.disabled,
+                mod_id = EXCLUDED.mod_id,
                 display_name = EXCLUDED.display_name, description = EXCLUDED.description,
                 storage_key = EXCLUDED.storage_key
              RETURNING id",
@@ -300,6 +304,7 @@ impl Store {
         .bind(file.overwrite)
         .bind(file.optional)
         .bind(file.enabled_by_default)
+        .bind(file.disabled)
         .bind(&file.mod_id)
         .bind(&file.display_name)
         .bind(&file.description)
@@ -324,7 +329,8 @@ impl Store {
         let sql = format!(
             "UPDATE build_files SET
                 side = $2, kind = $3, overwrite = $4, optional = $5,
-                enabled_by_default = $6, mod_id = $7, display_name = $8, description = $9
+                enabled_by_default = $6, disabled = $7,
+                mod_id = $8, display_name = $9, description = $10
              WHERE id = $1
              RETURNING {FILE_COLUMNS}"
         );
@@ -335,6 +341,7 @@ impl Store {
             .bind(meta.overwrite)
             .bind(meta.optional)
             .bind(meta.enabled_by_default)
+            .bind(meta.disabled)
             .bind(&meta.mod_id)
             .bind(&meta.display_name)
             .bind(&meta.description)
@@ -403,7 +410,7 @@ impl BuildRecord {
         let files = self
             .files
             .iter()
-            .filter(|f| side_from_str(&f.side).on_client())
+            .filter(|f| !f.disabled && side_from_str(&f.side).on_client())
             .map(|f| f.to_entry(base))
             .collect();
         Manifest {
@@ -461,6 +468,7 @@ fn row_to_file(row: &sqlx::postgres::PgRow) -> BuildFileRow {
         overwrite: row.get("overwrite"),
         optional: row.get("optional"),
         enabled_by_default: row.get("enabled_by_default"),
+        disabled: row.get("disabled"),
         mod_id: row.get("mod_id"),
         display_name: row.get("display_name"),
         description: row.get("description"),

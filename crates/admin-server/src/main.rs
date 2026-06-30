@@ -576,6 +576,7 @@ struct BuildFileDto {
     optional: bool,
     #[serde(rename = "enabledByDefault")]
     enabled_by_default: bool,
+    disabled: bool,
     #[serde(rename = "modId")]
     mod_id: Option<String>,
     #[serde(rename = "displayName")]
@@ -595,6 +596,7 @@ impl From<store::BuildFileRow> for BuildFileDto {
             overwrite: f.overwrite,
             optional: f.optional,
             enabled_by_default: f.enabled_by_default,
+            disabled: f.disabled,
             mod_id: f.mod_id,
             display_name: f.display_name,
             description: f.description,
@@ -867,6 +869,7 @@ async fn upload_file(
         overwrite: meta.overwrite.unwrap_or(true),
         optional: meta.optional.unwrap_or(false),
         enabled_by_default: meta.enabled_by_default.unwrap_or(true),
+        disabled: false,
         mod_id: meta.mod_id,
         display_name: meta.display_name,
         description: meta.description,
@@ -889,6 +892,7 @@ async fn upload_file(
         overwrite: file.overwrite,
         optional: file.optional,
         enabled_by_default: file.enabled_by_default,
+        disabled: file.disabled,
         mod_id: file.mod_id,
         display_name: file.display_name,
         description: file.description,
@@ -920,6 +924,7 @@ struct UpdateFileMeta {
     optional: Option<bool>,
     #[serde(rename = "enabledByDefault")]
     enabled_by_default: Option<bool>,
+    disabled: Option<bool>,
     #[serde(rename = "modId")]
     mod_id: Option<String>,
     #[serde(rename = "displayName")]
@@ -948,6 +953,7 @@ async fn update_file(
         enabled_by_default: patch
             .enabled_by_default
             .unwrap_or(current.enabled_by_default),
+        disabled: patch.disabled.unwrap_or(current.disabled),
         mod_id: patch.mod_id.or(current.mod_id),
         display_name: patch.display_name.or(current.display_name),
         description: patch.description.or(current.description),

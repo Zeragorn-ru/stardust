@@ -441,6 +441,12 @@ export function FileManager({
               v ? "Перезаписывать" : "Не перезаписывать",
             )
           }
+          onDisabled={(v) =>
+            bulkPatch(
+              { disabled: v },
+              v ? "Отключены" : "Включены",
+            )
+          }
           onDelete={bulkDelete}
           onClear={clearSelection}
         />
@@ -598,6 +604,7 @@ function BulkBar({
   onOptional,
   onEnabled,
   onOverwrite,
+  onDisabled,
   onDelete,
   onClear,
 }: {
@@ -608,6 +615,7 @@ function BulkBar({
   onOptional: (v: boolean) => void;
   onEnabled: (v: boolean) => void;
   onOverwrite: (v: boolean) => void;
+  onDisabled: (v: boolean) => void;
   onDelete: () => void;
   onClear: () => void;
 }) {
@@ -705,6 +713,26 @@ function BulkBar({
               className="seg-btn"
               disabled={busy}
               onClick={() => onOverwrite(false)}
+            >
+              нет
+            </button>
+          </div>
+        </div>
+
+        <div className="fm-bulk-group">
+          <span className="fm-bulk-label">Отключён</span>
+          <div className="seg">
+            <button
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onDisabled(true)}
+            >
+              да
+            </button>
+            <button
+              className="seg-btn"
+              disabled={busy}
+              onClick={() => onDisabled(false)}
             >
               нет
             </button>
@@ -893,7 +921,7 @@ function FileRow({
     <div
       className={`fm-row file${active ? " editing" : ""}${
         selected ? " selected" : ""
-      }`}
+      }${file.disabled ? " fm-row--disabled" : ""}`}
     >
       <label className="fm-check">
         <input type="checkbox" checked={selected} onChange={onToggle} />
@@ -914,6 +942,7 @@ function FileRow({
         {file.optional && (
           <span className="tag">опц.{file.enabledByDefault ? "✓" : "✗"}</span>
         )}
+        {file.disabled && <span className="tag tag--disabled">откл.</span>}
         {!file.overwrite && <span className="tag">no-ow</span>}
         {file.displayName && (
           <span className="fm-disp muted">{file.displayName}</span>
@@ -986,6 +1015,7 @@ function FileSettingsDrawer({
     file.enabledByDefault,
   );
   const [overwrite, setOverwrite] = useState(file.overwrite);
+  const [disabled, setDisabled] = useState(file.disabled);
   const [modId, setModId] = useState(file.modId ?? "");
   const [displayName, setDisplayName] = useState(file.displayName ?? "");
   const [description, setDescription] = useState(file.description ?? "");
@@ -1000,6 +1030,7 @@ function FileSettingsDrawer({
     setOptional(file.optional);
     setEnabledByDefault(file.enabledByDefault);
     setOverwrite(file.overwrite);
+    setDisabled(file.disabled);
     setModId(file.modId ?? "");
     setDisplayName(file.displayName ?? "");
     setDescription(file.description ?? "");
@@ -1022,6 +1053,7 @@ function FileSettingsDrawer({
         optional,
         enabledByDefault,
         overwrite,
+        disabled,
         modId: optional ? modId.trim() || null : null,
         displayName: displayName.trim() || null,
         description: description.trim() || null,
@@ -1097,6 +1129,15 @@ function FileSettingsDrawer({
               }}
             />
             <span>Опциональный</span>
+          </label>
+
+          <label className="fm-edit-check">
+            <input
+              type="checkbox"
+              checked={disabled}
+              onChange={(e) => setDisabled(e.target.checked)}
+            />
+            <span>Отключён (не отдаётся клиенту)</span>
           </label>
 
           <label

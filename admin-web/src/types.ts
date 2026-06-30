@@ -20,6 +20,7 @@ export interface BuildFile {
   overwrite: boolean;
   optional: boolean;
   enabledByDefault: boolean;
+  disabled: boolean;
   modId: string | null;
   displayName: string | null;
   description: string | null;
