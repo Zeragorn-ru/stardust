@@ -466,17 +466,24 @@ async fn download_single(params: &DownloadParams<'_>) -> Result<(), String> {
 
 // ─── Запуск bootstrap ───────────────────────────────────────────────────────
 
-/// Запускает bootstrap.exe с установщиком и каталогом установки.
+/// Запускает bootstrap.exe с установщиком, каталогом установки и именем exe.
 #[cfg(target_os = "windows")]
 fn launch_bootstrap(
     bootstrap_path: &std::path::Path,
     installer_path: &std::path::Path,
     install_dir: &std::path::Path,
 ) -> Result<(), String> {
+    // Передаём имя текущего exe, чтобы bootstrap знал как называется бинарник.
+    let exe_name = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_owned()))
+        .unwrap_or_else(|| std::ffi::OsString::from("launcher.exe"));
+
     use std::os::windows::process::CommandExt;
     std::process::Command::new(bootstrap_path)
         .arg(installer_path)
         .arg(install_dir)
+        .arg(exe_name)
         .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
         .spawn()
         .map_err(|e| format!("Не удалось запустить обновлятор: {e}"))?;

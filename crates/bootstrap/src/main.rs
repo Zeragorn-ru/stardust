@@ -535,8 +535,19 @@ mod win {
         let args: Vec<String> = std::env::args().collect();
         log(&format!("args: {args:?}"));
 
-        let (installer_path, install_dir) = if args.len() >= 3 {
-            (PathBuf::from(&args[1]), PathBuf::from(&args[2]))
+        let (installer_path, install_dir, exe_name) = if args.len() >= 4 {
+            // Аргументы: <installer> <install_dir> <exe_name>
+            (
+                PathBuf::from(&args[1]),
+                PathBuf::from(&args[2]),
+                args[3].clone(),
+            )
+        } else if args.len() >= 3 {
+            (
+                PathBuf::from(&args[1]),
+                PathBuf::from(&args[2]),
+                "launcher.exe".to_string(),
+            )
         } else {
             let dir = unsafe {
                 let mut buf = [0u16; 512];
@@ -545,15 +556,16 @@ mod win {
                     .parent().unwrap_or(&PathBuf::new()).to_path_buf()
             };
             log(&format!("no args, fallback dir={}", dir.display()));
-            (PathBuf::new(), dir)
+            (PathBuf::new(), dir, "launcher.exe".to_string())
         };
 
         init_log(&install_dir);
 
         log(&format!("installer_path={}", installer_path.display()));
         log(&format!("install_dir={}", install_dir.display()));
+        log(&format!("exe_name={exe_name}"));
 
-        let launcher_path = install_dir.join("StarDust.exe");
+        let launcher_path = install_dir.join(&exe_name);
         log(&format!("launcher_path={}", launcher_path.display()));
         log(&format!("launcher_path.exists={}", launcher_path.exists()));
 
