@@ -245,9 +245,8 @@ jobs:
         run: |
           choco install nsis -y
           version="${{ steps.bin.outputs.version }}"
-          bs="crates/bootstrap/target/release/bootstrap.exe"
-          cp "${{ steps.bin.outputs.path }}" stardust-native.exe
-          cp "$bs" bootstrap.exe
+          cp "${{ steps.bin.outputs.path }}" native-launcher/stardust-native.exe
+          cp crates/bootstrap/target/release/bootstrap.exe native-launcher/bootstrap.exe
           "/c/Program Files (x86)/NSIS/makensis.exe" \
             -DVERSION="$version" \
             -DEXE_PATH=stardust-native.exe \
