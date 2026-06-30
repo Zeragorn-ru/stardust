@@ -1,9 +1,9 @@
 # Сборка лаунчера (Tauri) и публикация в GitHub Release.
 #
-# Триггер релиза — git-тег вида v1.2.3. Собирает установщики через
-# `tauri build` и публикует в Release. Установленные лаунчеры сами опрашивают
-# GitHub Releases API и при наличии новой версии скачивают и запускают
-# установщик (см. update.rs).
+# Триггер релиза — git-тег вида v1.2.3. tauri-action собирает установщики и
+# кладёт их в Release. Установленные лаунчеры сами опрашивают GitHub Releases
+# API и при наличии новой версии скачивают и запускают установщик (см.
+# update.rs).
 
 name: launcher-release
 
@@ -65,6 +65,11 @@ jobs:
         working-directory: launcher
         run: npm ci
 
+      # Clippy: проверка перед сборкой. Компилирует зависимости в профиле
+      # launcher-release — tauri-action переиспользует те же артефакты.
+      - name: Clippy
+        run: cargo clippy -p launcher --profile launcher-release -- -D warnings
+
       # Bootstrap: на Windows + теги.
       - name: Cache bootstrap
         if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
@@ -88,7 +93,7 @@ jobs:
           fi
           cp crates/bootstrap/target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe
 
-      # Версия из тега — подставляем в package.json, Cargo.toml, tauri.conf.json, Cargo.lock.
+      # Версия из тега.
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
@@ -104,25 +109,21 @@ jobs:
             exit 1
           fi
 
-      # Clippy + Tauri build в одном шаге.
-      # Clippy компилирует зависимости в профиле launcher-release —
-      # tauri build переиспользует те же артефакты без повторной сборки.
-      - name: Clippy + Build
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        working-directory: launcher
-        run: |
-          echo "=== Running clippy ==="
-          cargo clippy -p launcher --profile launcher-release -- -D warnings
-
-          echo "=== Building Tauri ==="
-          npx tauri build -- ${{ matrix.args }} -- --profile launcher-release
-
-      # Пауза перед созданием релиза (GITHUB_TOKEN может ещё не иметь прав).
+      # Пауза перед tauri-action.
       - name: Wait for token propagation
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: sleep 15
+
+      # Сборка установщиков.
+      - uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: launcher
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }} -- --profile launcher-release
 
       # Создаём релиз и загружаем ВСЕ ассеты.
       - name: Create release and upload all assets

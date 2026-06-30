@@ -18,6 +18,9 @@ const DEFAULT_SKIN =
   "https://textures.minecraft.net/texture/" +
   "1a4af718455d4aab528e7a61f86fa25e6a369d1768dcb13f7df319a713eb810b";
 
+/** Через сколько мс бездействия мыши ставить рендер на паузу. */
+const IDLE_TIMEOUT_MS = 8_000;
+
 function isWebGLAvailable(): boolean {
   try {
     const c = document.createElement("canvas");
@@ -30,6 +33,11 @@ function isWebGLAvailable(): boolean {
 /**
  * 3D-модель скина (three.js под капотом, через skinview3d).
  * Вращается мышью; при включённых анимациях персонаж «дышит»/идёт.
+ *
+ * Автопауза:
+ *  - Окно не в фокусе → пауза рендера
+ *  - Нет движения мыши > 8 с → пауза рендера
+ *  - При возврате фокуса/движении мыши → возобновление
  */
 export default function SkinViewer3D({
   dataUrl,
@@ -42,6 +50,51 @@ export default function SkinViewer3D({
   const viewerRef = useRef<SkinViewer | null>(null);
   const { animations } = useMotion();
   const [webglFailed, setWebglFailed] = useState(false);
+
+  // Флаги паузы.
+  const pausedRef = useRef(false);       // окно не в фокусе
+  const idleRef = useRef(false);         // нет активности > IDLE_TIMEOUT_MS
+  const rafRef = useRef<number>(0);      // handle requestAnimationFrame
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Запустить цикл рендера (если не запущен и нет паузы). */
+  function startLoop() {
+    if (rafRef.current) return; // уже работает
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    function frame() {
+      if (!viewerRef.current) return;
+      if (pausedRef.current || idleRef.current) {
+        rafRef.current = 0;
+        return;
+      }
+      viewerRef.current.render();
+      rafRef.current = requestAnimationFrame(frame);
+    }
+    rafRef.current = requestAnimationFrame(frame);
+  }
+
+  /** Остановить цикл рендера. */
+  function stopLoop() {
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+    }
+  }
+
+  /** Сбросить таймер бездействия. */
+  function resetIdleTimer() {
+    if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    if (idleRef.current) {
+      idleRef.current = false;
+      startLoop();
+    }
+    idleTimerRef.current = setTimeout(() => {
+      idleRef.current = true;
+      stopLoop();
+    }, IDLE_TIMEOUT_MS);
+  }
 
   // Создаём вьюер один раз.
   useEffect(() => {
@@ -72,9 +125,63 @@ export default function SkinViewer3D({
       : 1;
     viewerRef.current = viewer;
 
+    // Первый кадр.
+    viewer.render();
+
     return () => {
+      stopLoop();
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       viewer.dispose();
       viewerRef.current = null;
+    };
+  }, []);
+
+  // Слушаем фокус/потерю фокуса окна Tauri.
+  useEffect(() => {
+    let unlistenFn: (() => void) | null = null;
+
+    async function setup() {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const win = getCurrentWindow();
+
+        // onFocusChanged возвращает unlisten функцию.
+        const unlisten = await win.onFocusChanged(({ payload: focused }) => {
+          pausedRef.current = !focused;
+          if (focused) {
+            resetIdleTimer();
+            startLoop();
+          } else {
+            stopLoop();
+          }
+        });
+        unlistenFn = unlisten;
+      } catch {
+        // Не Tauri окно — пропускаем.
+      }
+    }
+    void setup();
+
+    return () => {
+      unlistenFn?.();
+    };
+  }, []);
+
+  // Отслеживаем движение мыши на canvas для idle-timeout.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    function onMouseMove() {
+      resetIdleTimer();
+    }
+
+    canvas.addEventListener("mousemove", onMouseMove);
+    // Инициализируем таймер сразу.
+    resetIdleTimer();
+
+    return () => {
+      canvas.removeEventListener("mousemove", onMouseMove);
     };
   }, []);
 
@@ -112,6 +219,10 @@ export default function SkinViewer3D({
     } else {
       viewer.animation = new IdleAnimation();
       viewer.animation.paused = true;
+    }
+    // Перерисовать после смены анимации.
+    if (!pausedRef.current && !idleRef.current) {
+      viewer.render();
     }
   }, [animations]);
 
