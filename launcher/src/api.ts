@@ -41,6 +41,7 @@ async function getInvoke(): Promise<InvokeFn | null> {
 const FALLBACK_SETTINGS: Settings = {
   memoryMb: 4096,
   downloadConcurrency: 6,
+  show3dModel: true,
 };
 
 // Ключи для dev-фолбэка в браузере.
