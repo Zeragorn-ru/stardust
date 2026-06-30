@@ -116,8 +116,7 @@ export default function UpdateModal({ update, onDismiss }: Props) {
         role="dialog"
         aria-modal="true"
       >
-        {/* Glow accent line at top */}
-        <div className="update-card__glow" />
+        {/* Glow accent line removed — card background is the design */}
 
         {/* Header with version info */}
         <div className="update-card__header">
