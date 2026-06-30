@@ -2,7 +2,7 @@
 
 use iced::{
     widget::{button, column, container, row, slider, text, text_input, toggler},
-    Element, Length, Task,
+    border, Color, Element, Length, Task,
 };
 
 use crate::api::{self, AccountInfo, LauncherSettings, OptionalMod, TelegramLinkResponse};
@@ -477,32 +477,63 @@ impl State {
 
         let header_container = container(header)
             .width(Length::Fill)
-            .style(|_theme: &iced::Theme| iced::widget::container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgba(
-                    0.039, 0.043, 0.078, 0.4,
-                ))),
-                border: iced::border::rounded(0).width(1).color(Colors::GLASS_BORDER),
-                ..Default::default()
-            });
+            .style(styles::settings_header_bg);
 
         // ─── Sidebar nav ───────────────────────────
-        let nav_general = button(text("Общие").size(14))
-            .on_press(Message::SwitchSection(Section::General))
-            .padding(iced::Padding::new(10.0).left(14.0).right(14.0))
-            .width(Length::Fill)
-            .style(styles::nav_item(self.section == Section::General));
+        let nav_indicator_width = 3u16;
+        let nav_indicator_height = 18u16;
 
-        let nav_account = button(text("Аккаунт").size(14))
-            .on_press(Message::SwitchSection(Section::Account))
-            .padding(iced::Padding::new(10.0).left(14.0).right(14.0))
-            .width(Length::Fill)
-            .style(styles::nav_item(self.section == Section::Account));
+        let indicator_for = |active: bool| -> Element<'_, Message> {
+            if active {
+                container(text(""))
+                    .width(nav_indicator_width)
+                    .height(nav_indicator_height)
+                    .style(|_theme: &iced::Theme| iced::widget::container::Style {
+                        background: Some(iced::Background::Gradient(styles::nav_indicator_color())),
+                        border: border::rounded(99).width(0).color(Color::TRANSPARENT),
+                        ..Default::default()
+                    })
+                    .into()
+            } else {
+                container(text(""))
+                    .width(nav_indicator_width)
+                    .height(0)
+                    .into()
+            }
+        };
 
-        let nav_mods = button(text("Сборка").size(14))
-            .on_press(Message::SwitchSection(Section::Mods))
-            .padding(iced::Padding::new(10.0).left(14.0).right(14.0))
-            .width(Length::Fill)
-            .style(styles::nav_item(self.section == Section::Mods));
+        let nav_general = {
+            let active = self.section == Section::General;
+            let ind = indicator_for(active);
+            let btn = button(text("Общие").size(14))
+                .on_press(Message::SwitchSection(Section::General))
+                .padding(iced::Padding::new(10.0).left(14.0).right(14.0))
+                .width(Length::Fill)
+                .style(styles::nav_item(active));
+            row![ind, btn].spacing(6).align_y(iced::Alignment::Center)
+        };
+
+        let nav_account = {
+            let active = self.section == Section::Account;
+            let ind = indicator_for(active);
+            let btn = button(text("Аккаунт").size(14))
+                .on_press(Message::SwitchSection(Section::Account))
+                .padding(iced::Padding::new(10.0).left(14.0).right(14.0))
+                .width(Length::Fill)
+                .style(styles::nav_item(active));
+            row![ind, btn].spacing(6).align_y(iced::Alignment::Center)
+        };
+
+        let nav_mods = {
+            let active = self.section == Section::Mods;
+            let ind = indicator_for(active);
+            let btn = button(text("Сборка").size(14))
+                .on_press(Message::SwitchSection(Section::Mods))
+                .padding(iced::Padding::new(10.0).left(14.0).right(14.0))
+                .width(Length::Fill)
+                .style(styles::nav_item(active));
+            row![ind, btn].spacing(6).align_y(iced::Alignment::Center)
+        };
 
         let sidebar = column![nav_general, nav_account, nav_mods]
             .spacing(4)
@@ -510,13 +541,7 @@ impl State {
             .width(180);
 
         let sidebar_container = container(sidebar)
-            .style(|_theme: &iced::Theme| iced::widget::container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgba(
-                    0.039, 0.043, 0.078, 0.25,
-                ))),
-                border: iced::border::rounded(0).width(0).color(Colors::GLASS_BORDER),
-                ..Default::default()
-            });
+            .style(styles::settings_sidebar_bg);
 
         // ─── Body ──────────────────────────────────
         let body = match self.section {
@@ -641,10 +666,10 @@ impl State {
 
         let mut rename_section = column![rename_title, rename_input, rename_btn].spacing(8);
         if let Some(ref msg) = self.rename_msg {
-            rename_section = rename_section.push(text(msg.as_str()).size(13).color(Colors::TEAL));
+            rename_section = rename_section.push(text(msg.as_str()).size(13).color(styles::form_msg_ok()));
         }
         if let Some(ref err) = self.rename_err {
-            rename_section = rename_section.push(text(err.as_str()).size(13).color(Colors::DANGER));
+            rename_section = rename_section.push(text(err.as_str()).size(13).color(styles::form_msg_error()));
         }
 
         let rename_card = container(rename_section)
@@ -680,10 +705,10 @@ impl State {
 
         let mut pw_section = column![pw_title, pw_cur, pw_new, pw_conf, pw_btn].spacing(8);
         if let Some(ref msg) = self.pw_msg {
-            pw_section = pw_section.push(text(msg.as_str()).size(13).color(Colors::TEAL));
+            pw_section = pw_section.push(text(msg.as_str()).size(13).color(styles::form_msg_ok()));
         }
         if let Some(ref err) = self.pw_err {
-            pw_section = pw_section.push(text(err.as_str()).size(13).color(Colors::DANGER));
+            pw_section = pw_section.push(text(err.as_str()).size(13).color(styles::form_msg_error()));
         }
 
         let pw_card = container(pw_section)
@@ -720,11 +745,7 @@ impl State {
             )
             .padding(iced::Padding::new(10.0).left(14.0).right(14.0))
             .width(Length::Fill)
-            .style(|_theme: &iced::Theme| iced::widget::container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.3))),
-                border: iced::border::rounded(8).width(1).color(Colors::GLASS_BORDER),
-                ..Default::default()
-            });
+            .style(styles::tg_code_bg);
             tg_section = tg_section.push(code_display);
 
             if let Some(ref deep) = link.deep_link {
@@ -749,7 +770,7 @@ impl State {
             tg_section = tg_section.push(link_btn);
         }
         if let Some(ref err) = self.tg_err {
-            tg_section = tg_section.push(text(err.as_str()).size(13).color(Colors::DANGER));
+            tg_section = tg_section.push(text(err.as_str()).size(13).color(styles::form_msg_error()));
         }
 
         let tg_card = container(tg_section)
@@ -776,7 +797,7 @@ impl State {
             del_section = del_section.push(del_pw);
 
             if let Some(ref err) = self.delete_err {
-                del_section = del_section.push(text(err.as_str()).size(13).color(Colors::DANGER));
+                del_section = del_section.push(text(err.as_str()).size(13).color(styles::form_msg_error()));
             }
 
             let cancel_btn = button(text("Отмена").size(14))
@@ -825,7 +846,7 @@ impl State {
 
         if let Some(ref err) = self.mods_err {
             let err_text = format!("Ошибка: {err}");
-            content = content.push(text(err_text).size(14).color(Colors::DANGER));
+            content = content.push(text(err_text).size(14).color(styles::form_msg_error()));
             return content.into();
         }
 

@@ -98,13 +98,7 @@ impl State {
 
         let header_container = container(header)
             .width(Length::Fill)
-            .style(|_theme: &iced::Theme| iced::widget::container::Style {
-                background: Some(iced::Background::Color(iced::Color::from_rgba(
-                    0.039, 0.043, 0.078, 0.4,
-                ))),
-                border: iced::border::rounded(0).width(0).color(Colors::GLASS_BORDER),
-                ..Default::default()
-            });
+            .style(styles::main_header_bg);
 
         // ─── Hero section ─────────────────────────
         // Left: large avatar
@@ -242,7 +236,7 @@ impl State {
                     } else {
                         "—".to_string()
                     };
-                    ("Онлайн", Colors::TEAL, players)
+                    ("Онлайн", Colors::GREEN_ONLINE, players)
                 } else {
                     ("Офлайн", Colors::DANGER, "—".to_string())
                 }
@@ -254,9 +248,9 @@ impl State {
             let color = if ping < 80 {
                 Colors::TEAL
             } else if ping < 200 {
-                iced::Color::from_rgb(0.83, 0.66, 0.26)
+                Colors::PING_YELLOW
             } else {
-                Colors::DANGER
+                Colors::PING_RED
             };
             text(format!(" · {ping}мс")).size(20).color(color)
         });
@@ -330,21 +324,13 @@ impl State {
             let bar_fill: Element<'_, Message> = container(text(""))
                 .width(Length::FillPortion(portion))
                 .height(5)
-                .style(|_theme: &iced::Theme| iced::widget::container::Style {
-                    background: Some(iced::Background::Color(iced::Color::from_rgba(1.0, 1.0, 1.0, 0.7))),
-                    border: iced::border::rounded(3),
-                    ..Default::default()
-                })
+                .style(styles::play_bar_fill)
                 .into();
 
             let bar: Element<'_, Message> = container(bar_fill)
                 .width(Length::Fill)
                 .height(5)
-                .style(|_theme: &iced::Theme| iced::widget::container::Style {
-                    background: Some(iced::Background::Color(iced::Color::from_rgba(0.0, 0.0, 0.0, 0.2))),
-                    border: iced::border::rounded(3),
-                    ..Default::default()
-                })
+                .style(styles::play_bar_track)
                 .into();
 
             let inner = column![
@@ -358,11 +344,7 @@ impl State {
             container(inner)
                 .padding(iced::Padding::new(16.0).left(20.0).right(20.0).top(16.0).bottom(16.0))
                 .width(Length::Fill)
-                .style(|_theme: &iced::Theme| iced::widget::container::Style {
-                    background: Some(iced::Background::Gradient(styles::play_gradient(135.0))),
-                    border: iced::border::rounded(11),
-                    ..Default::default()
-                })
+                .style(styles::play_progress_bg)
                 .into()
         } else {
             let label = if self.busy {
