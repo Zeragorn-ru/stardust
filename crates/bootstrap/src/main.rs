@@ -36,6 +36,7 @@ mod win {
     const PROGRESS_W: i32 = WIN_W - 80;
 
     #[derive(PartialEq)]
+    #[allow(dead_code)]
     enum Phase {
         Installing,
         Launching,
@@ -96,7 +97,7 @@ mod win {
         {
             Ok(f) => {
                 unsafe { LOG_FILE = Some(f); }
-                log(&format!("=== Bootstrap started ==="));
+                log("=== Bootstrap started ===");
             }
             Err(e) => {
                 eprintln!("bootstrap: cannot open log {}: {e}", log_path.display());
