@@ -7468,13 +7468,17 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "futures-util",
  "hex",
  "iced",
+ "libc",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
  "sha1 0.10.6",
+ "sha2 0.10.9",
  "tokio",
+ "toml 0.8.2",
  "zip",
 ]
 

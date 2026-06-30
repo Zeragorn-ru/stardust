@@ -13,7 +13,7 @@ mod win {
 
     use windows_sys::Win32::Foundation::*;
     use windows_sys::Win32::Graphics::Gdi::*;
-    use windows_sys::Win32::System::LibraryLoader::{GetModuleHandleW, GetModuleFileNameW};
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::System::Performance::{QueryPerformanceCounter, QueryPerformanceFrequency};
     use windows_sys::Win32::System::Threading::{CreateProcessW, WaitForSingleObject, STARTUPINFOW, PROCESS_INFORMATION, GetExitCodeProcess};
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
@@ -565,15 +565,14 @@ mod win {
             // Определяем %LOCALAPPDATA%
             let local_app_data = std::env::var("LOCALAPPDATA")
                 .unwrap_or_else(|_| {
-                    // Fallback для не-Windows
                     let home = std::env::var("USERPROFILE")
                         .or_else(|_| std::env::var("HOME"))
                         .unwrap_or_default();
-                    std::path::PathBuf::from(home).join("AppData").join("Local")
+                    format!("{home}\\AppData\\Local")
                 });
 
             let folder = if is_beta { "stardust-beta" } else { "stardust" };
-            let dir = std::path::PathBuf::from(local_app_data).join(folder);
+            let dir = std::path::PathBuf::from(&local_app_data).join(folder);
             (PathBuf::new(), dir, default_exe)
         };
 

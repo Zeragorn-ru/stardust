@@ -2,8 +2,9 @@
 
 //! HTTP API клиент — реальные эндпоинты auth.zeragorn.xyz + admin.zeragorn.xyz.
 
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
 const AUTH_BASE: &str = "https://auth.zeragorn.xyz";
 const ADMIN_BASE: &str = "https://admin.zeragorn.xyz";
@@ -77,7 +78,41 @@ pub struct Manifest {
     pub name: String,
     pub version: String,
     #[serde(default)]
+    pub loader: LoaderInfo,
+    #[serde(default)]
     pub files: Vec<ManifestFile>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoaderInfo {
+    #[serde(default)]
+    pub minecraft: String,
+    #[serde(default)]
+    pub kind: LoaderKind,
+    #[serde(default)]
+    pub version: String,
+}
+
+impl Default for LoaderInfo {
+    fn default() -> Self {
+        Self {
+            minecraft: String::new(),
+            kind: LoaderKind::Vanilla,
+            version: String::new(),
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LoaderKind {
+    #[default]
+    Vanilla,
+    Fabric,
+    Quilt,
+    Forge,
+    NeoForge,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -255,31 +290,31 @@ pub async fn fetch_manifest(
 
 // ─── Session persistence ───────────────────────────────────
 
-pub fn session_path(data_dir: &PathBuf) -> PathBuf {
+pub fn session_path(data_dir: &Path) -> PathBuf {
     data_dir.join("session.json")
 }
 
-pub fn save_session(data_dir: &PathBuf, session: &SavedSession) -> Result<(), String> {
+pub fn save_session(data_dir: &Path, session: &SavedSession) -> Result<(), String> {
     let json = serde_json::to_string_pretty(session).map_err(|e| format!("Ошибка: {e}"))?;
     std::fs::write(session_path(data_dir), json).map_err(|e| format!("Ошибка записи: {e}"))
 }
 
-pub fn load_session(data_dir: &PathBuf) -> Option<SavedSession> {
+pub fn load_session(data_dir: &Path) -> Option<SavedSession> {
     let content = std::fs::read_to_string(session_path(data_dir)).ok()?;
     serde_json::from_str(&content).ok()
 }
 
-pub fn delete_session(data_dir: &PathBuf) {
+pub fn delete_session(data_dir: &Path) {
     let _ = std::fs::remove_file(session_path(data_dir));
 }
 
 // ─── Settings persistence ──────────────────────────────────
 
-pub fn settings_path(data_dir: &PathBuf) -> PathBuf {
+pub fn settings_path(data_dir: &Path) -> PathBuf {
     data_dir.join("settings.json")
 }
 
-pub fn load_settings(data_dir: &PathBuf) -> LauncherSettings {
+pub fn load_settings(data_dir: &Path) -> LauncherSettings {
     let content = match std::fs::read_to_string(settings_path(data_dir)) {
         Ok(c) => c,
         Err(_) => {
@@ -295,19 +330,19 @@ pub fn load_settings(data_dir: &PathBuf) -> LauncherSettings {
     })
 }
 
-pub fn save_settings(data_dir: &PathBuf, settings: &LauncherSettings) -> Result<(), String> {
+pub fn save_settings(data_dir: &Path, settings: &LauncherSettings) -> Result<(), String> {
     let json = serde_json::to_string_pretty(settings).map_err(|e| format!("Ошибка: {e}"))?;
     std::fs::write(settings_path(data_dir), json).map_err(|e| format!("Ошибка записи: {e}"))
 }
 
 // ─── Stats cache ───────────────────────────────────────────
 
-pub fn load_cached_stats(data_dir: &PathBuf) -> Option<PlayerStats> {
+pub fn load_cached_stats(data_dir: &Path) -> Option<PlayerStats> {
     let content = std::fs::read_to_string(data_dir.join("cached-stats.json")).ok()?;
     serde_json::from_str(&content).ok()
 }
 
-pub fn save_cached_stats(data_dir: &PathBuf, stats: &PlayerStats) {
+pub fn save_cached_stats(data_dir: &Path, stats: &PlayerStats) {
     let _ = std::fs::write(
         data_dir.join("cached-stats.json"),
         serde_json::to_string(stats).unwrap_or_default(),
@@ -316,14 +351,14 @@ pub fn save_cached_stats(data_dir: &PathBuf, stats: &PlayerStats) {
 
 // ─── Game dir ──────────────────────────────────────────────
 
-pub fn game_dir(data_dir: &PathBuf) -> PathBuf {
+pub fn game_dir(data_dir: &Path) -> PathBuf {
     data_dir.join("minecraft").join("game")
 }
 
-pub fn managed_files_path(game_dir: &PathBuf) -> PathBuf {
+pub fn managed_files_path(game_dir: &Path) -> PathBuf {
     game_dir.join("managed-files.json")
 }
 
-pub fn mod_choices_path(data_dir: &PathBuf) -> PathBuf {
+pub fn mod_choices_path(data_dir: &Path) -> PathBuf {
     data_dir.join("mod-choices.json")
 }

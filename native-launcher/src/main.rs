@@ -1,13 +1,15 @@
-//! StarDust Launcher — нативная версия на Iced.
+//! StarDust Launcher — native version on Iced.
 //!
-//! Без WebView2, чистый Rust, нативный рендеринг.
+//! No WebView2, pure Rust, native rendering.
 
 #![allow(dead_code)]
 
 mod api;
+mod game_guard;
 mod minecraft;
 mod modpack;
 mod paths;
+mod progress;
 mod screens;
 mod styles;
 mod updater;
