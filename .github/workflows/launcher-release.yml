@@ -276,7 +276,7 @@ jobs:
           with open('latest-beta.json') as f: d = json.load(f)
           d['platforms']['windows-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
           with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
-          " "$url" "$sha" "$(stat -c%s stardust-native.exe 2>/dev/null || stat -f%z stardust-native.exe 2>/dev/null)"
+          " "$url" "$sha" "$(stat -c%s target/release/stardust-native.exe 2>/dev/null || stat -f%z target/release/stardust-native.exe 2>/dev/null)"
                 ;;
               stardust-native)
                 sha=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .sha256" 2>/dev/null || sha256sum "$asset" | awk '{print $1}')
@@ -286,7 +286,7 @@ jobs:
           with open('latest-beta.json') as f: d = json.load(f)
           d['platforms']['linux-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
           with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
-          " "$url" "$sha" "$(stat -c%s stardust-native 2>/dev/null || stat -f%z stardust-native 2>/dev/null)"
+          " "$url" "$sha" "$(stat -c%s target/release/stardust-native 2>/dev/null || stat -f%z target/release/stardust-native 2>/dev/null)"
                 ;;
             esac
           done
