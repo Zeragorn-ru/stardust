@@ -191,6 +191,54 @@ pub async fn register(username: &str, password: &str) -> Result<LoginResult, Str
     resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
 }
 
+pub async fn login_passwordless(username: &str) -> Result<LoginResult, String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/passwordless/login"))
+        .json(&serde_json::json!({ "username": username }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
+}
+
+pub async fn password_reset_start(username: &str) -> Result<(), String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/password-reset/start"))
+        .json(&serde_json::json!({ "username": username }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    Ok(())
+}
+
+pub async fn password_reset_complete(username: &str, new_password: &str) -> Result<LoginResult, String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/password-reset/complete"))
+        .json(&serde_json::json!({ "username": username, "newPassword": new_password }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
+}
+
 pub async fn session(token: &str) -> Result<PlayerProfile, String> {
     let http = build_client();
     let resp = http

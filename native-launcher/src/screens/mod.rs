@@ -8,6 +8,7 @@ pub mod title_bar;
 use std::sync::Arc;
 
 use iced::{Element, Task, Theme};
+use iced::window;
 
 use crate::api;
 use crate::api::{LauncherSettings, PlayerProfile, PlayerStats, SavedSession, ServerStatus};
@@ -32,6 +33,7 @@ pub struct App {
     pub exit: bool,
     pub progress: Option<Arc<Progress>>,
     pub game_pid: Option<u32>,
+    pub window_id: Option<window::Id>,
 }
 
 #[derive(Debug, Clone)]
@@ -51,6 +53,10 @@ pub enum Message {
     GameLaunched(Result<u32, String>),
     ProgressTick(ProgressSnapshot),
     GameExited,
+    // Window
+    WindowIdLoaded(Option<window::Id>),
+    DragWindow,
+    Minimize,
     CloseRequested,
 }
 
@@ -92,12 +98,16 @@ impl App {
             exit: false,
             progress: None,
             game_pid: None,
+            window_id: None,
         };
 
-        let task = Task::perform(
-            restore_session(app.data_dir.clone()),
-            Message::SessionRestored,
-        );
+        let task = Task::batch([
+            Task::perform(
+                restore_session(app.data_dir.clone()),
+                Message::SessionRestored,
+            ),
+            window::get_latest().map(Message::WindowIdLoaded),
+        ]);
 
         (app, task)
     }
@@ -113,6 +123,30 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
         Message::NavigateTo(screen) => {
             state.screen = screen;
             Task::none()
+        }
+
+        // ─── Window ─────────────────────────────────
+        Message::WindowIdLoaded(id) => {
+            state.window_id = id;
+            Task::none()
+        }
+        Message::DragWindow => {
+            if let Some(id) = state.window_id {
+                window::drag(id)
+            } else {
+                Task::none()
+            }
+        }
+        Message::Minimize => {
+            if let Some(id) = state.window_id {
+                window::minimize(id, true)
+            } else {
+                Task::none()
+            }
+        }
+        Message::CloseRequested => {
+            state.exit = true;
+            iced::exit()
         }
 
         // ─── Login ──────────────────────────────
@@ -329,11 +363,6 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
 
         Message::GameExited => Task::none(),
         Message::PlayStarted => Task::none(),
-
-        Message::CloseRequested => {
-            state.exit = true;
-            iced::exit()
-        }
 
         Message::Settings(msg) => {
             let task = state.settings.update(msg.clone());
