@@ -247,13 +247,6 @@ body {
     background: currentColor;
 }
 
-.window-btn__maximize {
-    width: 10px !important;
-    height: 10px !important;
-    border: 1.5px solid currentColor;
-    border-radius: 2px;
-}
-
 .window-btn--close {
     font-size: 20px;
     line-height: 1;

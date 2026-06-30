@@ -1,4 +1,4 @@
-import { closeWindow, maximizeWindow, minimizeWindow, startWindowDrag } from "../api";
+import { closeWindow, minimizeWindow, startWindowDrag } from "../api";
 
 export default function TitleBar() {
   return (
@@ -20,15 +20,6 @@ export default function TitleBar() {
           onClick={minimizeWindow}
         >
           <span />
-        </button>
-        <button
-          type="button"
-          className="window-btn"
-          aria-label="Развернуть"
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={maximizeWindow}
-        >
-          <span className="window-btn__maximize" />
         </button>
         <button
           type="button"
