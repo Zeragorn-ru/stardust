@@ -1,26 +1,48 @@
-//! HTTP API клиент для взаимодействия с сервером.
+#![allow(dead_code)]
+
+//! HTTP API клиент — реальные эндпоинты auth.zeragorn.xyz + admin.zeragorn.xyz.
 
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
-const DEFAULT_API_BASE: &str = "http://localhost:8080";
+const AUTH_BASE: &str = "https://auth.zeragorn.xyz";
+const ADMIN_BASE: &str = "https://admin.zeragorn.xyz";
+const PROXY: &str = "http://assets.zeragorn.xyz:3128";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Профиль игрока.
+// ─── Типы ───────────────────────────────────────────────────
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Profile {
+pub struct PlayerProfile {
     pub name: String,
     pub uuid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LoginResult {
+    pub profile: PlayerProfile,
     pub access_token: String,
     pub client_token: String,
 }
 
-/// Статистика игрока.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Stats {
+pub struct SessionResponse {
+    pub profile: PlayerProfile,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SavedSession {
+    pub profile: PlayerProfile,
+    pub access_token: String,
+    pub client_token: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerStats {
     pub playtime_seconds: u64,
     pub last_launched: Option<chrono::DateTime<chrono::Utc>>,
 }
 
-/// Статус сервера.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerStatus {
     pub online: bool,
@@ -29,203 +51,279 @@ pub struct ServerStatus {
     pub ping: Option<u32>,
 }
 
-/// Настройки лаунчера.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Settings {
+pub struct LauncherSettings {
     pub memory_mb: u32,
     pub download_concurrency: u32,
-    pub animations: bool,
     pub show_3d_model: bool,
 }
 
-impl Default for Settings {
+impl Default for LauncherSettings {
     fn default() -> Self {
+        let cpus = std::thread::available_parallelism()
+            .map(|n| n.get() as u32)
+            .unwrap_or(4)
+            .clamp(1, 16);
         Self {
             memory_mb: 4096,
-            download_concurrency: 6,
-            animations: true,
+            download_concurrency: cpus,
             show_3d_model: true,
         }
     }
 }
 
-/// Информация о сборке.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BuildInfo {
-    pub name: String,
-    pub version: String,
-    pub mc_version: String,
-    pub loader_kind: String,
-    pub loader_version: String,
-}
-
-/// Манифест файлов.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
     pub name: String,
     pub version: String,
-    pub files: Vec<FileEntry>,
+    #[serde(default)]
+    pub files: Vec<ManifestFile>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FileEntry {
+pub struct ManifestFile {
     pub path: String,
     pub url: String,
     pub sha1: String,
     pub size: u64,
+    #[serde(default = "default_side")]
     pub side: String,
+    #[serde(default)]
     pub kind: String,
+    #[serde(default)]
     pub overwrite: bool,
+    #[serde(default)]
     pub optional: bool,
+    #[serde(default = "default_true")]
     pub enabled_by_default: bool,
+    #[serde(default)]
     pub mod_id: Option<String>,
+    #[serde(default)]
     pub display_name: Option<String>,
+    #[serde(default)]
     pub description: Option<String>,
 }
 
-/// API клиент.
-pub struct Client {
-    base_url: String,
-    http: reqwest::Client,
+fn default_side() -> String { "client".to_string() }
+fn default_true() -> bool { true }
+
+// ─── HTTP клиент ────────────────────────────────────────────
+
+fn build_client() -> reqwest::Client {
+    let mut builder = reqwest::Client::builder()
+        .user_agent(format!("stardust-launcher/{VERSION}"))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(20));
+
+    if let Ok(proxy) = reqwest::Proxy::all(PROXY) {
+        builder = builder.proxy(proxy);
+    }
+
+    builder.build().unwrap_or_default()
 }
 
-impl Client {
-    pub fn new(base_url: Option<String>) -> Self {
-        Self {
-            base_url: base_url.unwrap_or_else(|| DEFAULT_API_BASE.to_string()),
-            http: reqwest::Client::new(),
-        }
-    }
+// ─── Auth API ───────────────────────────────────────────────
 
-    /// Вход по логину/паролю.
-    pub async fn login(&self, username: &str, password: &str) -> Result<Profile, String> {
-        let resp = self.http
-            .post(format!("{}/api/auth/login", self.base_url))
-            .json(&serde_json::json!({
-                "username": username,
-                "password": password,
-            }))
-            .send()
-            .await
-            .map_err(|e| format!("Ошибка сети: {}", e))?;
-
-        if !resp.status().is_success() {
-            let text = resp.text().await.unwrap_or_default();
-            return Err(text);
-        }
-
-        resp.json::<Profile>().await
-            .map_err(|e| format!("Ошибка парсинга: {}", e))
-    }
-
-    /// Получить статистику.
-    pub async fn get_stats(&self) -> Result<Stats, String> {
-        let resp = self.http
-            .get(format!("{}/api/stats", self.base_url))
-            .send()
-            .await
-            .map_err(|e| format!("Ошибка сети: {}", e))?;
-
-        resp.json::<Stats>().await
-            .map_err(|e| format!("Ошибка парсинга: {}", e))
-    }
-
-    /// Пинг сервера.
-    pub async fn ping_server(&self) -> Result<ServerStatus, String> {
-        let resp = self.http
-            .get(format!("{}/api/server/ping", self.base_url))
-            .send()
-            .await
-            .map_err(|e| format!("Ошибка сети: {}", e))?;
-
-        resp.json::<ServerStatus>().await
-            .map_err(|e| format!("Ошибка парсинга: {}", e))
-    }
-
-    /// Получить настройки.
-    pub async fn get_settings(&self) -> Result<Settings, String> {
-        let resp = self.http
-            .get(format!("{}/api/settings", self.base_url))
-            .send()
-            .await
-            .map_err(|e| format!("Ошибка сети: {}", e))?;
-
-        if !resp.status().is_success() {
-            return Ok(Settings::default());
-        }
-
-        resp.json::<Settings>().await
-            .map_err(|e| format!("Ошибка парсинга: {}", e))
-    }
-
-    /// Сохранить настройки.
-    pub async fn save_settings(&self, settings: &Settings) -> Result<(), String> {
-        self.http
-            .put(format!("{}/api/settings", self.base_url))
-            .json(settings)
-            .send()
-            .await
-            .map_err(|e| format!("Ошибка сети: {}", e))?;
-
-        Ok(())
-    }
-
-    /// Получить манифест сборки.
-    pub async fn get_manifest(&self) -> Result<Manifest, String> {
-        let resp = self
-            .http
-            .get(format!("{}/manifest", self.base_url))
-            .send()
-            .await
-            .map_err(|e| format!("Ошибка сети: {}", e))?;
-
-        resp.json::<Manifest>()
-            .await
-            .map_err(|e| format!("Ошибка парсинга: {}", e))
-    }
-}
-
-// --- Модульные функции для использования в экранах ---
-
-pub async fn login(username: &str, password: &str) -> Result<Profile, String> {
-    Client::new(None).login(username, password).await
-}
-
-pub async fn register(username: &str, password: &str) -> Result<Profile, String> {
-    let client = Client::new(None);
-    let resp = client
-        .http
-        .post(format!("{}/api/auth/register", client.base_url))
-        .json(&serde_json::json!({
-            "username": username,
-            "password": password,
-        }))
+pub async fn login(username: &str, password: &str) -> Result<LoginResult, String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/login"))
+        .json(&serde_json::json!({ "username": username, "password": password }))
         .send()
         .await
-        .map_err(|e| format!("Ошибка сети: {}", e))?;
+        .map_err(|e| format!("Сеть: {e}"))?;
 
     if !resp.status().is_success() {
         let text = resp.text().await.unwrap_or_default();
         return Err(text);
     }
+    resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
+}
 
-    resp.json::<Profile>()
+pub async fn register(username: &str, password: &str) -> Result<LoginResult, String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/register"))
+        .json(&serde_json::json!({ "username": username, "password": password }))
+        .send()
         .await
-        .map_err(|e| format!("Ошибка парсинга: {}", e))
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
 }
 
-pub async fn get_stats() -> Result<Stats, String> {
-    Client::new(None).get_stats().await
+pub async fn session(token: &str) -> Result<PlayerProfile, String> {
+    let http = build_client();
+    let resp = http
+        .get(format!("{AUTH_BASE}/api/session"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("Сессия невалидна (HTTP {})", resp.status()));
+    }
+    let sr: SessionResponse = resp.json().await.map_err(|e| format!("Парсинг: {e}"))?;
+    Ok(sr.profile)
 }
 
-pub async fn ping_server() -> Result<ServerStatus, String> {
-    Client::new(None).ping_server().await
+pub async fn get_stats(token: &str) -> Result<PlayerStats, String> {
+    let http = build_client();
+    let resp = http
+        .get(format!("{AUTH_BASE}/api/stats"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.json::<PlayerStats>().await.map_err(|e| format!("Парсинг: {e}"))
 }
 
-pub async fn load_settings() -> Result<Settings, String> {
-    Client::new(None).get_settings().await
+pub async fn record_session(token: &str, duration_secs: u64, launched_at: &str) -> Result<(), String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/stats/session"))
+        .bearer_auth(token)
+        .json(&serde_json::json!({
+            "duration_seconds": duration_secs,
+            "launched_at": launched_at,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    Ok(())
 }
 
-pub async fn save_settings(settings: &Settings) -> Result<(), String> {
-    Client::new(None).save_settings(settings).await
+pub async fn get_skin(uuid: &str) -> Result<Vec<u8>, String> {
+    let http = build_client();
+    let resp = http
+        .get(format!("{AUTH_BASE}/api/skin/{uuid}"))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    resp.bytes().await.map(|b| b.to_vec()).map_err(|e| format!("Чтение: {e}"))
+}
+
+// ─── Manifest (Admin) ──────────────────────────────────────
+
+pub async fn fetch_manifest(
+    data_dir: &std::path::Path,
+) -> Result<Option<Manifest>, String> {
+    let http = build_client();
+    match http.get(format!("{ADMIN_BASE}/manifest")).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let m: Manifest = resp.json().await.map_err(|e| format!("Парсинг: {e}"))?;
+            let cache_path = data_dir.join("cached-manifest.json");
+            let _ = std::fs::write(&cache_path, serde_json::to_string(&m).unwrap_or_default());
+            Ok(Some(m))
+        }
+        Ok(resp) if resp.status().as_u16() == 404 => {
+            let cache_path = data_dir.join("cached-manifest.json");
+            let _ = std::fs::remove_file(&cache_path);
+            Ok(None)
+        }
+        Ok(_) | Err(_) => {
+            let cache_path = data_dir.join("cached-manifest.json");
+            if let Ok(content) = std::fs::read_to_string(&cache_path) {
+                if let Ok(m) = serde_json::from_str::<Manifest>(&content) {
+                    Ok(Some(m))
+                } else {
+                    Err("Нет манифеста и нет кеша".to_string())
+                }
+            } else {
+                Err("Нет манифеста и нет кеша".to_string())
+            }
+        }
+    }
+}
+
+// ─── Session persistence ───────────────────────────────────
+
+pub fn session_path(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join("session.json")
+}
+
+pub fn save_session(data_dir: &PathBuf, session: &SavedSession) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(session).map_err(|e| format!("Ошибка: {e}"))?;
+    std::fs::write(session_path(data_dir), json).map_err(|e| format!("Ошибка записи: {e}"))
+}
+
+pub fn load_session(data_dir: &PathBuf) -> Option<SavedSession> {
+    let content = std::fs::read_to_string(session_path(data_dir)).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+pub fn delete_session(data_dir: &PathBuf) {
+    let _ = std::fs::remove_file(session_path(data_dir));
+}
+
+// ─── Settings persistence ──────────────────────────────────
+
+pub fn settings_path(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join("settings.json")
+}
+
+pub fn load_settings(data_dir: &PathBuf) -> LauncherSettings {
+    let content = match std::fs::read_to_string(settings_path(data_dir)) {
+        Ok(c) => c,
+        Err(_) => {
+            let s = LauncherSettings::default();
+            let _ = save_settings(data_dir, &s);
+            return s;
+        }
+    };
+    serde_json::from_str(&content).unwrap_or_else(|_| {
+        let s = LauncherSettings::default();
+        let _ = save_settings(data_dir, &s);
+        s
+    })
+}
+
+pub fn save_settings(data_dir: &PathBuf, settings: &LauncherSettings) -> Result<(), String> {
+    let json = serde_json::to_string_pretty(settings).map_err(|e| format!("Ошибка: {e}"))?;
+    std::fs::write(settings_path(data_dir), json).map_err(|e| format!("Ошибка записи: {e}"))
+}
+
+// ─── Stats cache ───────────────────────────────────────────
+
+pub fn load_cached_stats(data_dir: &PathBuf) -> Option<PlayerStats> {
+    let content = std::fs::read_to_string(data_dir.join("cached-stats.json")).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+pub fn save_cached_stats(data_dir: &PathBuf, stats: &PlayerStats) {
+    let _ = std::fs::write(
+        data_dir.join("cached-stats.json"),
+        serde_json::to_string(stats).unwrap_or_default(),
+    );
+}
+
+// ─── Game dir ──────────────────────────────────────────────
+
+pub fn game_dir(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join("minecraft").join("game")
+}
+
+pub fn managed_files_path(game_dir: &PathBuf) -> PathBuf {
+    game_dir.join("managed-files.json")
+}
+
+pub fn mod_choices_path(data_dir: &PathBuf) -> PathBuf {
+    data_dir.join("mod-choices.json")
 }

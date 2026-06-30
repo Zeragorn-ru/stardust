@@ -1,27 +1,24 @@
-//! Экран настроек。
+//! Экран настроек.
 
 use iced::{
     widget::{button, column, row, slider, text, toggler},
     Element, Task,
 };
 
-use crate::api::{self, Settings};
+use crate::api::{self, LauncherSettings};
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum Message {
     Close,
     MemoryChanged(f32),
     ConcurrencyChanged(f32),
-    AnimationsToggled(bool),
     Show3dModelToggled(bool),
     Save,
-    Saved(Result<(), String>),
-    Loaded(Settings),
+    Saved,
 }
 
 pub struct State {
-    pub settings: Option<Settings>,
+    pub settings: Option<LauncherSettings>,
     pub dirty: bool,
 }
 
@@ -50,13 +47,6 @@ impl State {
                 }
                 Task::none()
             }
-            Message::AnimationsToggled(v) => {
-                if let Some(ref mut s) = self.settings {
-                    s.animations = v;
-                    self.dirty = true;
-                }
-                Task::none()
-            }
             Message::Show3dModelToggled(v) => {
                 if let Some(ref mut s) = self.settings {
                     s.show_3d_model = v;
@@ -69,34 +59,32 @@ impl State {
                     let s = settings.clone();
                     self.dirty = false;
                     Task::perform(
-                        async move { api::save_settings(&s).await },
-                        Message::Saved,
+                        async move {
+                            let data_dir = crate::paths::data_dir();
+                            let _ = api::save_settings(&data_dir, &s);
+                        },
+                        |_| Message::Saved,
                     )
                 } else {
                     Task::none()
                 }
             }
-            Message::Saved(_) => Task::none(),
-            Message::Loaded(s) => {
-                self.settings = Some(s);
-                Task::none()
-            }
+            Message::Saved => Task::none(),
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let back_btn =
-            button(text("← Назад").size(14)).on_press(Message::Close);
-
+        let back_btn = button(text("← Назад").size(14)).on_press(Message::Close);
         let title = text("Настройки").size(20).color(iced::Color::WHITE);
 
-        let save_btn = if self.dirty {
-            button(text("Сохранить").size(14))
-                .on_press(Message::Save)
-                .padding(iced::Padding::new(8.0).left(16.0).right(16.0))
-        } else {
-            button(text("Сохранить").size(14))
-                .padding(iced::Padding::new(8.0).left(16.0).right(16.0))
+        let save_btn = {
+            let btn = button(text("Сохранить").size(14))
+                .padding(iced::Padding::new(8.0).left(16.0).right(16.0));
+            if self.dirty {
+                btn.on_press(Message::Save)
+            } else {
+                btn
+            }
         };
 
         let header = row![back_btn, title, iced::widget::horizontal_space(), save_btn]
@@ -121,18 +109,8 @@ impl State {
             .size(14)
             .color(iced::Color::WHITE);
 
-            let concurrency_slider = slider(
-                1.0..=16.0,
-                concurrency,
-                Message::ConcurrencyChanged,
-            )
-            .step(1.0);
-
-            let animations_toggle = row![
-                text("Анимации").size(14).color(iced::Color::WHITE),
-                iced::widget::horizontal_space(),
-                toggler(settings.animations).on_toggle(Message::AnimationsToggled),
-            ];
+            let concurrency_slider =
+                slider(1.0..=16.0, concurrency, Message::ConcurrencyChanged).step(1.0);
 
             let model_toggle = row![
                 text("3D-модель скина")
@@ -152,8 +130,6 @@ impl State {
                 concurrency_label,
                 concurrency_slider,
                 iced::widget::vertical_space().height(12),
-                animations_toggle,
-                iced::widget::vertical_space().height(8),
                 model_toggle,
             ]
             .spacing(4)

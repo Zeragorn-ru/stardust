@@ -5,22 +5,20 @@ use iced::{
     Element, Length, Task,
 };
 
-use crate::api::{ServerStatus, Stats};
+use crate::api::{PlayerStats, ServerStatus};
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum Message {
     OpenSettings,
     Logout,
     Play,
-    StatsLoaded(Result<Stats, String>),
-    ServerStatusLoaded(Result<ServerStatus, String>),
 }
 
 pub struct State {
-    pub stats: Option<Stats>,
+    pub stats: Option<PlayerStats>,
     pub server: Option<ServerStatus>,
     pub busy: bool,
+    pub status_text: String,
 }
 
 impl State {
@@ -29,6 +27,7 @@ impl State {
             stats: None,
             server: None,
             busy: false,
+            status_text: String::new(),
         }
     }
 
@@ -38,16 +37,6 @@ impl State {
                 self.busy = true;
                 Task::none()
             }
-            Message::StatsLoaded(Ok(stats)) => {
-                self.stats = Some(stats);
-                Task::none()
-            }
-            Message::StatsLoaded(Err(_)) => Task::none(),
-            Message::ServerStatusLoaded(Ok(server)) => {
-                self.server = Some(server);
-                Task::none()
-            }
-            Message::ServerStatusLoaded(Err(_)) => Task::none(),
             Message::OpenSettings | Message::Logout => Task::none(),
         }
     }
@@ -61,12 +50,10 @@ impl State {
             let hours = stats.playtime_seconds / 3600;
             let mins = (stats.playtime_seconds % 3600) / 60;
             let playtime = format!("{}ч {}м", hours, mins);
-
             let last_launch = stats
                 .last_launched
                 .map(|t| t.format("%d.%m.%Y %H:%M").to_string())
                 .unwrap_or_else(|| "—".to_string());
-
             (playtime, last_launch)
         } else {
             ("—".to_string(), "—".to_string())
@@ -101,10 +88,10 @@ impl State {
             if let Some(ref server) = self.server {
                 if server.online {
                     let color = iced::Color::from_rgb(0.36, 0.72, 0.66);
-                    let players = if let (Some(current), Some(max)) =
+                    let players = if let (Some(cur), Some(mx)) =
                         (server.players, server.max)
                     {
-                        format!("{}/{}", current, max)
+                        format!("{cur}/{mx}")
                     } else {
                         "—".to_string()
                     };
@@ -117,36 +104,34 @@ impl State {
                     )
                 }
             } else {
-                (
-                    "—",
-                    iced::Color::from_rgb(0.5, 0.5, 0.6),
-                    "—".to_string(),
-                )
+                ("—", iced::Color::from_rgb(0.5, 0.5, 0.6), "—".to_string())
             };
 
-        let ping_text = if let Some(ref server) = self.server {
-            if let Some(ping) = server.ping {
-                let color = if ping < 80 {
-                    iced::Color::from_rgb(0.36, 0.72, 0.66)
-                } else if ping < 200 {
-                    iced::Color::from_rgb(0.83, 0.66, 0.26)
-                } else {
-                    iced::Color::from_rgb(0.88, 0.38, 0.38)
-                };
-                text(format!("· {}мс", ping)).size(20).color(color)
+        let ping_text = self.server.as_ref().and_then(|s| s.ping).map(|ping| {
+            let color = if ping < 80 {
+                iced::Color::from_rgb(0.36, 0.72, 0.66)
+            } else if ping < 200 {
+                iced::Color::from_rgb(0.83, 0.66, 0.26)
             } else {
-                text("").size(20)
-            }
-        } else {
-            text("").size(20)
-        };
+                iced::Color::from_rgb(0.88, 0.38, 0.38)
+            };
+            text(format!("· {ping}мс")).size(20).color(color)
+        });
 
         let server_card = column![
             server_title,
             row![
                 column![
-                    row![text(status_text).size(20).color(status_color), ping_text,]
-                        .spacing(4),
+                    {
+                        let mut r = row![text(status_text)
+                            .size(20)
+                            .color(status_color)]
+                        .spacing(4);
+                        if let Some(pt) = ping_text {
+                            r = r.push(pt);
+                        }
+                        r
+                    },
                     text("статус")
                         .size(11)
                         .color(iced::Color::from_rgb(0.5, 0.5, 0.6)),
@@ -163,6 +148,14 @@ impl State {
         .spacing(8)
         .padding(16);
 
+        let status_line = if !self.status_text.is_empty() {
+            text(&self.status_text)
+                .size(11)
+                .color(iced::Color::from_rgb(0.6, 0.6, 0.7))
+        } else {
+            text("").size(11)
+        };
+
         let play_btn = if self.busy {
             button(text("Подготовка...").size(16))
                 .padding(iced::Padding::new(16.0).left(48.0).right(48.0))
@@ -176,13 +169,13 @@ impl State {
 
         let settings_btn =
             button(text("⚙ Настройки").size(12)).on_press(Message::OpenSettings);
-
         let logout_btn = button(text("Выйти").size(12)).on_press(Message::Logout);
 
         column![
             iced::widget::vertical_space().height(24),
             row![stats_card, server_card].spacing(16),
             iced::widget::vertical_space().height(16),
+            status_line,
             play_btn,
             iced::widget::vertical_space().height(16),
             row![settings_btn, iced::widget::horizontal_space(), logout_btn],

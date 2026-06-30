@@ -2,13 +2,15 @@
 //!
 //! Без WebView2, чистый Rust, нативный рендеринг.
 
-#[allow(dead_code)]
+#![allow(dead_code)]
+
 mod api;
-#[allow(dead_code)]
+mod minecraft;
+mod modpack;
 mod paths;
 mod screens;
-#[allow(dead_code)]
 mod styles;
+mod updater;
 
 use screens::App;
 

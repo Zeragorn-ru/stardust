@@ -5,9 +5,9 @@ use iced::{
     Element,
 };
 
-use super::{Profile, Screen};
+use super::{PlayerProfile, Screen};
 
-pub fn view(screen: Screen, profile: Option<&Profile>) -> Element<'_, super::Message> {
+pub fn view(screen: Screen, profile: Option<&PlayerProfile>) -> Element<'_, super::Message> {
     let title = match screen {
         Screen::Login => "StarDust — Вход",
         Screen::Main => "StarDust — Главная",

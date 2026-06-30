@@ -1,22 +1,20 @@
-//! Экран входа。
+//! Экран входа.
 
 use iced::{
     widget::{button, column, container, text, text_input},
     Element, Length, Task,
 };
 
-use crate::api::{self, Profile};
+use crate::api::{self, LoginResult};
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum Message {
     UsernameChanged(String),
     PasswordChanged(String),
     ToggleRegister,
     Submit,
-    LoginSuccess(Profile),
+    LoginSuccess(LoginResult),
     Error(String),
-    ClearError,
 }
 
 pub struct State {
@@ -68,7 +66,7 @@ impl State {
                         }
                     },
                     |result| match result {
-                        Ok(profile) => Message::LoginSuccess(profile),
+                        Ok(lr) => Message::LoginSuccess(lr),
                         Err(e) => Message::Error(e),
                     },
                 )
@@ -80,10 +78,6 @@ impl State {
             Message::Error(e) => {
                 self.busy = false;
                 self.error = Some(e);
-                Task::none()
-            }
-            Message::ClearError => {
-                self.error = None;
                 Task::none()
             }
         }
