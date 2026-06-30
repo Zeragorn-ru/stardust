@@ -56,7 +56,6 @@ mod win {
         close_at: u64,
         launch_delay_ms: Option<u64>,
         error_msg: Option<String>,
-        is_beta: bool,
     }
 
     static mut STATE: Option<State> = None;
@@ -270,8 +269,6 @@ mod win {
         DeleteObject(dot_brush as _);
 
         let segui = wide("Segoe UI");
-        let state = STATE.as_ref().unwrap();
-        let is_beta = state.is_beta;
 
         let hfont_brand = CreateFontW(
             13, 0, 0, 0, 700, 0, 0, 0,
@@ -280,7 +277,7 @@ mod win {
         );
         let old_font = SelectObject(mem_dc, hfont_brand);
         SetTextColor(mem_dc, MUTED);
-        let brand_wide = wide(if is_beta { "STARDUST BETA" } else { "STARDUST" });
+        let brand_wide = wide("STARDUST");
         let brand_len = brand_wide.len() as i32 - 1;
         TextOutW(mem_dc, 36, 12, brand_wide.as_ptr(), brand_len);
         SelectObject(mem_dc, old_font);
@@ -394,7 +391,7 @@ mod win {
         );
         let old_font = SelectObject(mem_dc, hfont_ver);
         SetTextColor(mem_dc, MUTED);
-        let ver = wide(if is_beta { "StarDust Launcher (Beta)" } else { "StarDust Launcher" });
+        let ver = wide("StarDust Launcher");
         TextOutW(mem_dc, 18, h - 25, ver.as_ptr(), ver.len() as i32 - 1);
         SelectObject(mem_dc, old_font);
         DeleteObject(hfont_ver as _);
@@ -540,14 +537,7 @@ mod win {
         let args: Vec<String> = std::env::args().collect();
         log(&format!("args: {args:?}"));
 
-        let is_beta = args.iter().any(|a| a == "--beta");
-        log(&format!("is_beta={is_beta}"));
-
-        let default_exe = if is_beta {
-            "stardust-native.exe".to_string()
-        } else {
-            "launcher.exe".to_string()
-        };
+        let default_exe = "launcher.exe".to_string();
 
         let (installer_path, install_dir, exe_name) = if args.len() >= 4 {
             (
@@ -571,8 +561,7 @@ mod win {
                     format!("{home}\\AppData\\Local")
                 });
 
-            let folder = if is_beta { "stardust-beta" } else { "stardust" };
-            let dir = std::path::PathBuf::from(&local_app_data).join(folder);
+            let dir = std::path::PathBuf::from(&local_app_data).join("stardust");
             (PathBuf::new(), dir, default_exe)
         };
 
@@ -603,7 +592,6 @@ mod win {
                 close_at: 0,
                 launch_delay_ms: None,
                 error_msg: None,
-                is_beta,
             });
 
             let class = wide("StarDustBootstrap");
@@ -624,7 +612,7 @@ mod win {
             let x = (screen_w - WIN_W) / 2;
             let y = (screen_h - WIN_H) / 2;
 
-            let title = wide(if is_beta { "StarDust Beta" } else { "StarDust" });
+            let title = wide("StarDust");
             let hwnd = CreateWindowExW(
                 WS_EX_TOPMOST | WS_EX_LAYERED,
                 class.as_ptr(),
