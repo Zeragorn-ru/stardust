@@ -43,6 +43,19 @@ export default function AccountSection({
   const [pwMsg, setPwMsg] = useState<string | null>(null);
   const [pwErr, setPwErr] = useState<string | null>(null);
 
+  // Auto-hide success messages after 3s.
+  useEffect(() => {
+    if (!nameMsg) return;
+    const t = setTimeout(() => setNameMsg(null), 3000);
+    return () => clearTimeout(t);
+  }, [nameMsg]);
+
+  useEffect(() => {
+    if (!pwMsg) return;
+    const t = setTimeout(() => setPwMsg(null), 3000);
+    return () => clearTimeout(t);
+  }, [pwMsg]);
+
   // Удаление аккаунта.
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteStatus, setDeleteStatus] = useState<"idle" | "saving">("idle");

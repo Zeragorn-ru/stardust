@@ -385,6 +385,14 @@ export default function SettingsScreen({
               </div>
             )}
 
+            <button
+              type="button"
+              className="btn btn--ghost stagger-item"
+              onClick={() => setSettings({ memoryMb: 4096, downloadConcurrency: 6, show3dModel: true })}
+            >
+              Сбросить настройки по умолчанию
+            </button>
+
             {info && (
               <div className="info-card stagger-item">
                 <div className="info-card__row">
