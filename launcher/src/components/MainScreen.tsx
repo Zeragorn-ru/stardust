@@ -206,7 +206,7 @@ export default function MainScreen({
                     <div className="hero__stat">
                       <span className="hero__stat-value hero__stat-value--online">
                         Онлайн {serverPing != null && (
-                          <span style={{ color: pingColor(serverPing), fontWeight: 600 }}>
+                          <span style={{ color: pingColor(serverPing) }}>
                             · {serverPing}мс
                           </span>
                         )}

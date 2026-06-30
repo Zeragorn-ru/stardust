@@ -1390,7 +1390,6 @@ body {
 .hero__stat-value--online { color: #4ade80; }
 .hero__stat-value--offline { opacity: 0.4; }
 .hero__stat-value--muted  { opacity: 0.4; }
-.hero__stat-value--ping   { color: #60a5fa; }
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
 
 .play-error {
