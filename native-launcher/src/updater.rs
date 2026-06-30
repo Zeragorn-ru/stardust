@@ -1,9 +1,11 @@
-//! Updater — проверка GitHub Releases + скачивание.
+//! Updater — проверка GitHub Releases + скачивание + запуск bootstrap.
 
 use serde::Deserialize;
 use std::path::PathBuf;
 
 const RELEASES_URL: &str = "https://api.github.com/repos/Zeragorn-ru/stardust/releases";
+const LATEST_JSON_URL: &str =
+    "https://github.com/Zeragorn-ru/stardust/releases/download/latest/latest-beta.json";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const MAX_DOWNLOAD_ATTEMPTS: u32 = 3;
 
@@ -28,6 +30,7 @@ struct GhRelease {
 struct GhAsset {
     name: String,
     browser_download_url: String,
+    #[allow(dead_code)]
     size: u64,
 }
 
@@ -84,11 +87,17 @@ pub async fn check_update() -> UpdateInfo {
     for release in &releases {
         let tag = release.tag_name.trim_start_matches('v');
         if is_newer(tag, &current) {
-            // Ищем подходящий ассет.
+            // Ищем NSIS installer (предпочтительно) или portable.
             let asset = release.assets.iter().find(|a| {
-                a.name.contains("native")
-                    || a.name.ends_with(".exe") && !a.name.contains("setup")
-                    || a.name.ends_with(".AppImage")
+                a.name.contains("setup") && a.name.ends_with(".exe")
+            }).or_else(|| {
+                release.assets.iter().find(|a| {
+                    a.name.contains("native") && a.name.ends_with(".exe") && !a.name.contains("setup")
+                })
+            }).or_else(|| {
+                release.assets.iter().find(|a| {
+                    a.name.ends_with(".AppImage")
+                })
             });
 
             if let Some(asset) = asset {
@@ -150,6 +159,36 @@ pub async fn download_update(url: &str) -> Result<PathBuf, String> {
         }
     }
     Err("Не удалось скачать".to_string())
+}
+
+/// Запустить bootstrap для установки обновления.
+///
+/// Если скачан NSIS installer (.exe setup) — передаёт его в bootstrap.
+/// Если portable — запускает напрямую (fallback).
+pub fn spawn_installer(installer_path: &std::path::Path, install_dir: &std::path::Path) -> Result<(), String> {
+    // Ищем bootstrap.exe рядом с текущим exe.
+    let current_exe = std::env::current_exe().map_err(|e| format!("Текущий exe: {e}"))?;
+    let exe_dir = current_exe.parent().ok_or("Нет родительской папки")?;
+    let bootstrap = exe_dir.join("bootstrap.exe");
+
+    if !bootstrap.exists() {
+        return Err("bootstrap.exe не найден рядом с лаунчером".to_string());
+    }
+
+    eprintln!(
+        "Запуск bootstrap: {} \"{}\" \"{}\"",
+        bootstrap.display(),
+        installer_path.display(),
+        install_dir.display(),
+    );
+
+    std::process::Command::new(&bootstrap)
+        .arg(installer_path)
+        .arg(install_dir)
+        .spawn()
+        .map_err(|e| format!("Запуск bootstrap: {e}"))?;
+
+    Ok(())
 }
 
 /// Сравнение версий: true если `new_ver` > `current_ver`.

@@ -195,17 +195,31 @@ jobs:
       - name: Build native launcher
         run: cargo build -p stardust-native --release
 
-      # Определяем имя exe по платформе.
-      - name: Set binary name
+      # Версия из тега и ренейм бинарника.
+      - name: Set version and rename binary
         id: bin
         shell: bash
         run: |
+          version="${GITHUB_REF_NAME#v}"
+          if [ -z "$version" ] || [ "$version" = "$GITHUB_REF_NAME" ]; then
+            version="$(grep '^version' native-launcher/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          fi
+          echo "version=$version" >> $GITHUB_OUTPUT
+
           if [ "${{ matrix.platform }}" = "windows-latest" ]; then
-            echo "exe=stardust-native.exe" >> $GITHUB_OUTPUT
-            echo "path=target/release/stardust-native.exe" >> $GITHUB_OUTPUT
+            src="target/release/stardust-native.exe"
+            dst="stardust-native-v${version}.exe"
+            cp "$src" "$dst"
+            echo "exe=$dst" >> $GITHUB_OUTPUT
+            echo "path=$dst" >> $GITHUB_OUTPUT
+            echo "platform_key=windows-x86_64" >> $GITHUB_OUTPUT
           else
-            echo "exe=stardust-native" >> $GITHUB_OUTPUT
-            echo "path=target/release/stardust-native" >> $GITHUB_OUTPUT
+            src="target/release/stardust-native"
+            dst="stardust-native-v${version}"
+            cp "$src" "$dst"
+            echo "exe=$dst" >> $GITHUB_OUTPUT
+            echo "path=$dst" >> $GITHUB_OUTPUT
+            echo "platform_key=linux-x86_64" >> $GITHUB_OUTPUT
           fi
 
       # Bootstrap (beta) — только Windows.
@@ -224,6 +238,22 @@ jobs:
           cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings && \
           cargo build --manifest-path crates/bootstrap/Cargo.toml --release
 
+      # NSIS installer — только Windows.
+      - name: Build NSIS installer
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          choco install nsis -y
+          version="${{ steps.bin.outputs.version }}"
+          bs="crates/bootstrap/target/release/bootstrap.exe"
+          cp "${{ steps.bin.outputs.path }}" stardust-native.exe
+          cp "$bs" bootstrap.exe
+          "/c/Program Files (x86)/NSIS/makensis.exe" \
+            -DVERSION="$version" \
+            -DEXE_PATH=stardust-native.exe \
+            -DBS_PATH=bootstrap.exe \
+            native-launcher/installer.nsi
+
       # Загрузка в release.
       - name: Upload beta artifacts
         if: startsWith(github.ref, 'refs/tags/')
@@ -234,6 +264,7 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           exe="${{ steps.bin.outputs.exe }}"
           path="${{ steps.bin.outputs.path }}"
+          version="${{ steps.bin.outputs.version }}"
 
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --title "Launcher $tag" --generate-notes
@@ -242,7 +273,15 @@ jobs:
           sha256sum "$path" | awk '{print $1}' > "${path}.sha256"
           gh release upload "$tag" "$path" "${path}.sha256" --clobber
 
-          # Bootstrap beta (stardust-native.exe)
+          # NSIS installer (Windows only)
+          installer="stardust-native-v${version}-setup.exe"
+          if [ -f "$installer" ]; then
+            sha256sum "$installer" | awk '{print $1}' > "${installer}.sha256"
+            echo "Uploading $installer"
+            gh release upload "$tag" "$installer" "${installer}.sha256" --clobber
+          fi
+
+          # Bootstrap beta (bootstrap-beta.exe)
           bs="crates/bootstrap/target/release/bootstrap.exe"
           if [ -f "$bs" ]; then
             cp "$bs" bootstrap-beta.exe
@@ -252,8 +291,6 @@ jobs:
           fi
 
           # Генерация latest-beta.json для updater'а нативного лаунчера.
-          # Формат совместим с Tauri updater: { "version", "notes", "pub_date", "platforms" }
-          version="${tag#v}"
           pub_date="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
           cat > latest-beta.json << EOJSON
@@ -268,7 +305,7 @@ jobs:
           # Заполняем platforms для каждой платформы.
           for asset in $(gh release view "$tag" --json assets -q '.assets[].name'); do
             case "$asset" in
-              stardust-native.exe)
+              stardust-native-v*-setup.exe)
                 sha=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .sha256" 2>/dev/null || sha256sum "$asset" | awk '{print $1}')
                 url=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .url")
                 python3 -c "
@@ -276,9 +313,10 @@ jobs:
           with open('latest-beta.json') as f: d = json.load(f)
           d['platforms']['windows-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
           with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
-          " "$url" "$sha" "$(stat -c%s target/release/stardust-native.exe 2>/dev/null || stat -f%z target/release/stardust-native.exe 2>/dev/null)"
+          " "$url" "$sha" "$(stat -c%s "$asset" 2>/dev/null || stat -f%z "$asset" 2>/dev/null)"
                 ;;
-              stardust-native)
+              stardust-native-v*)
+                [[ "$asset" == *setup* ]] && continue
                 sha=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .sha256" 2>/dev/null || sha256sum "$asset" | awk '{print $1}')
                 url=$(gh release view "$tag" --json assets -q ".assets[] | select(.name==\"$asset\") | .url")
                 python3 -c "
@@ -286,7 +324,7 @@ jobs:
           with open('latest-beta.json') as f: d = json.load(f)
           d['platforms']['linux-x86_64'] = {'url': sys.argv[1], 'sha256': sys.argv[2], 'size': int(sys.argv[3])}
           with open('latest-beta.json', 'w') as f: json.dump(d, f, indent=2)
-          " "$url" "$sha" "$(stat -c%s target/release/stardust-native 2>/dev/null || stat -f%z target/release/stardust-native 2>/dev/null)"
+          " "$url" "$sha" "$(stat -c%s "$asset" 2>/dev/null || stat -f%z "$asset" 2>/dev/null)"
                 ;;
             esac
           done

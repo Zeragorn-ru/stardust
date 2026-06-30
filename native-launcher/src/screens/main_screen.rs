@@ -5,18 +5,20 @@ use iced::{
     Element, Length, Task,
 };
 
-use crate::api::{PlayerStats, ServerStatus};
+use crate::api::{PlayerProfile, PlayerStats, ServerStatus};
 use crate::progress::ProgressSnapshot;
 use crate::styles::{self, Colors};
 
 #[derive(Debug, Clone)]
 pub enum Message {
     OpenSettings,
+    OpenAccount,
     Logout,
     Play,
 }
 
 pub struct State {
+    pub profile: Option<PlayerProfile>,
     pub stats: Option<PlayerStats>,
     pub server: Option<ServerStatus>,
     pub busy: bool,
@@ -27,6 +29,7 @@ pub struct State {
 impl State {
     pub fn new() -> Self {
         Self {
+            profile: None,
             stats: None,
             server: None,
             busy: false,
@@ -41,32 +44,37 @@ impl State {
                 self.busy = true;
                 Task::none()
             }
-            Message::OpenSettings | Message::Logout => Task::none(),
+            Message::OpenSettings | Message::OpenAccount | Message::Logout => Task::none(),
         }
     }
 
     pub fn view(&self) -> Element<'_, Message> {
         // ─── Header ────────────────────────────────
-        let avatar = container(
-            text("★").size(18).color(Colors::TEXT),
-        )
-        .width(42)
-        .height(42)
-        .style(|_theme: &iced::Theme| iced::widget::container::Style {
-            background: Some(iced::Background::Gradient(styles::accent_gradient(135.0))),
-            border: iced::border::rounded(11),
-            ..Default::default()
-        });
+        let avatar = self.view_face_avatar(42);
 
-        let header_left = row![
-            avatar,
-            column![
-                text("Игрок").size(15).color(Colors::TEXT),
-                text("аккаунт").size(12).color(Colors::MUTED),
-            ].spacing(2),
-        ]
-        .spacing(12)
-        .align_y(iced::Alignment::Center);
+        let display_name = self.profile.as_ref().map(|p| p.name.as_str()).unwrap_or("Игрок");
+        let short_uuid = self.profile.as_ref().map(|p| {
+            if p.id.len() > 12 {
+                format!("{}…", &p.id[..8])
+            } else {
+                p.id.clone()
+            }
+        }).unwrap_or_default();
+
+        let header_left = button(
+            row![
+                avatar,
+                column![
+                    text(display_name).size(15).color(Colors::TEXT),
+                    text(short_uuid).size(12).color(Colors::MUTED),
+                ].spacing(2),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+        )
+        .on_press(Message::OpenAccount)
+        .padding(0)
+        .style(iced::widget::button::text);
 
         let settings_btn = button(text("Настройки").size(13))
             .on_press(Message::OpenSettings)
@@ -99,24 +107,90 @@ impl State {
             });
 
         // ─── Hero section ─────────────────────────
+        // Left: large avatar
+        let skin_col = column![
+            self.view_face_avatar(200),
+            iced::widget::vertical_space().height(8),
+        ]
+        .align_x(iced::Alignment::Center)
+        .width(260);
+
+        // Right: card + info + play
+        let hero_card = self.view_hero_card();
         let info_row = row![
             self.view_stats_card(),
             self.view_server_card(),
         ].spacing(16);
-
         let play_section = self.view_play_button();
+
+        let right_col = column![
+            hero_card,
+            iced::widget::vertical_space().height(12),
+            info_row,
+            iced::widget::vertical_space().height(12),
+            play_section,
+        ]
+        .spacing(0)
+        .width(Length::Fill);
+
+        let hero_row = row![skin_col, iced::widget::horizontal_space(), right_col]
+            .spacing(24)
+            .align_y(iced::Alignment::Start);
 
         // ─── Layout ───────────────────────────────
         let content = column![
             iced::widget::vertical_space().height(18),
-            info_row,
-            iced::widget::vertical_space().height(16),
-            play_section,
+            hero_row,
         ]
         .spacing(8)
         .padding(iced::Padding::new(0.0).left(22.0).right(22.0).bottom(22.0));
 
         column![header_container, content].into()
+    }
+
+    fn view_face_avatar(&self, size: u16) -> Element<'_, Message> {
+        // Generate a deterministic color from the UUID for the avatar
+        let (bg_r, bg_g, bg_b) = if let Some(ref profile) = self.profile {
+            let bytes = profile.id.as_bytes();
+            let hash: u32 = bytes.iter().take(8).fold(0u32, |acc, &b| acc.wrapping_mul(31).wrapping_add(b as u32));
+            let h = (hash % 360) as f32;
+            let s = 0.6;
+            let l = 0.45;
+            hsv_to_rgb(h, s, l)
+        } else {
+            (0.486, 0.361, 1.0)
+        };
+
+        let initial = self.profile.as_ref()
+            .map(|p| p.name.chars().next().unwrap_or('?'))
+            .unwrap_or('?');
+        let initial_str: String = initial.to_uppercase().collect();
+
+        container(
+            text(initial_str).size((size as f32 * 0.45) as u16).color(iced::Color::WHITE),
+        )
+        .width(size)
+        .height(size)
+        .align_x(iced::Alignment::Center)
+        .align_y(iced::Alignment::Center)
+        .style(move |_theme: &iced::Theme| iced::widget::container::Style {
+            background: Some(iced::Background::Color(iced::Color::from_rgb(bg_r, bg_g, bg_b))),
+            border: iced::border::rounded((size as f32 * 0.28) as u16),
+            ..Default::default()
+        })
+        .into()
+    }
+
+    fn view_hero_card(&self) -> Element<'_, Message> {
+        let title = text("Всё готово к приключению").size(18).color(Colors::TEXT);
+        let desc = text("Нажми «Играть» — мы всё подготовим сами и запустим игру под твоим именем. Ничего настраивать не нужно.")
+            .size(13).color(Colors::MUTED);
+
+        container(column![title, desc].spacing(6))
+            .padding(iced::Padding::new(16.0).left(18.0).right(18.0).top(14.0).bottom(14.0))
+            .width(Length::Fill)
+            .style(styles::glass_card)
+            .into()
     }
 
     fn view_stats_card(&self) -> Element<'_, Message> {
@@ -301,12 +375,33 @@ impl State {
 
             button(text(label).size(17).color(Colors::TEXT))
                 .on_press_maybe(if self.busy { None } else { Some(Message::Play) })
-                .padding(iced::Padding::new(16.0).left(48.0).right(48.0))
+                .padding(iced::Padding::new(18.0).left(48.0).right(48.0))
                 .width(Length::Fill)
+                .height(64)
                 .style(styles::btn_play)
                 .into()
         }
     }
+}
+
+fn hsv_to_rgb(h: f32, s: f32, l: f32) -> (f32, f32, f32) {
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let m = l - c / 2.0;
+    let (r, g, b) = if h < 60.0 {
+        (c, x, 0.0)
+    } else if h < 120.0 {
+        (x, c, 0.0)
+    } else if h < 180.0 {
+        (0.0, c, x)
+    } else if h < 240.0 {
+        (0.0, x, c)
+    } else if h < 300.0 {
+        (x, 0.0, c)
+    } else {
+        (c, 0.0, x)
+    };
+    (r + m, g + m, b + m)
 }
 
 fn format_bytes_per_sec(bytes_per_sec: f64) -> String {

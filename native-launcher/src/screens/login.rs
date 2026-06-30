@@ -5,7 +5,7 @@ use iced::{
     Element, Length, Task,
 };
 
-use crate::api::{self, LoginResult};
+use crate::api::{self, AuthResponse, LoginResult};
 use crate::styles::{self, Colors};
 
 #[derive(Debug, Clone)]
@@ -18,7 +18,8 @@ pub enum Message {
     PasswordlessLogin,
     ResetStart,
     ResetSubmit,
-    LoginSuccess(LoginResult),
+    LoginSuccess(AuthResponse),
+    TwoFactorStarted(String),
     Error(String),
 }
 
@@ -29,17 +30,10 @@ pub struct State {
     pub is_register: bool,
     pub busy: bool,
     pub error: Option<String>,
-    pub two_factor: Option<TwoFactorState>,
-    pub code: String,
     pub reset_mode: bool,
     pub new_password: String,
     pub new_password_confirm: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct TwoFactorState {
-    pub challenge: String,
-    pub hint: Option<String>,
+    pub two_factor: Option<String>,
 }
 
 impl State {
@@ -51,11 +45,10 @@ impl State {
             is_register: false,
             busy: false,
             error: None,
-            two_factor: None,
-            code: String::new(),
             reset_mode: false,
             new_password: String::new(),
             new_password_confirm: String::new(),
+            two_factor: None,
         }
     }
 
@@ -63,21 +56,22 @@ impl State {
         match message {
             Message::UsernameChanged(v) => {
                 self.username = v;
+                self.error = None;
                 Task::none()
             }
             Message::PasswordChanged(v) => {
                 self.password = v;
+                self.error = None;
                 Task::none()
             }
             Message::ConfirmChanged(v) => {
                 self.confirm = v;
+                self.error = None;
                 Task::none()
             }
-            Message::SwitchMode(register) => {
-                self.is_register = register;
+            Message::SwitchMode(reg) => {
+                self.is_register = reg;
                 self.error = None;
-                self.two_factor = None;
-                self.reset_mode = false;
                 Task::none()
             }
             Message::Submit => {
@@ -89,13 +83,16 @@ impl State {
                 Task::perform(
                     async move {
                         if is_register {
-                            api::register(&username, &password).await
+                            api::register(&username, &password).await.map(LoginResult::Ok)
                         } else {
                             api::login(&username, &password).await
                         }
                     },
                     |result| match result {
-                        Ok(lr) => Message::LoginSuccess(lr),
+                        Ok(LoginResult::Ok(auth)) => Message::LoginSuccess(auth),
+                        Ok(LoginResult::TwoFactorRequired { challenge, .. }) => {
+                            Message::TwoFactorStarted(challenge)
+                        }
                         Err(e) => Message::Error(e),
                     },
                 )
@@ -107,7 +104,10 @@ impl State {
                 Task::perform(
                     async move { api::login_passwordless(&username).await },
                     |result| match result {
-                        Ok(lr) => Message::LoginSuccess(lr),
+                        Ok(LoginResult::Ok(auth)) => Message::LoginSuccess(auth),
+                        Ok(LoginResult::TwoFactorRequired { challenge, .. }) => {
+                            Message::TwoFactorStarted(challenge)
+                        }
                         Err(e) => Message::Error(e),
                     },
                 )
@@ -119,7 +119,12 @@ impl State {
                 Task::perform(
                     async move { api::password_reset_start(&username).await },
                     |result| match result {
-                        Ok(()) => Message::Error("Код отправлен в Telegram".to_string()),
+                        Ok(LoginResult::Ok(_)) => {
+                            Message::Error("Пароль уже сброшен".to_string())
+                        }
+                        Ok(LoginResult::TwoFactorRequired { challenge, .. }) => {
+                            Message::TwoFactorStarted(challenge)
+                        }
                         Err(e) => Message::Error(e),
                     },
                 )
@@ -137,13 +142,18 @@ impl State {
                 Task::perform(
                     async move { api::password_reset_complete(&username, &new_pw).await },
                     |result| match result {
-                        Ok(lr) => Message::LoginSuccess(lr),
+                        Ok(()) => Message::Error("Пароль изменён. Войдите заново".to_string()),
                         Err(e) => Message::Error(e),
                     },
                 )
             }
             Message::LoginSuccess(_) => {
                 self.busy = false;
+                Task::none()
+            }
+            Message::TwoFactorStarted(challenge) => {
+                self.busy = false;
+                self.two_factor = Some(challenge);
                 Task::none()
             }
             Message::Error(e) => {
@@ -158,8 +168,8 @@ impl State {
         if self.reset_mode {
             return self.view_reset();
         }
-        if let Some(ref tf) = self.two_factor {
-            return self.view_2fa(tf);
+        if self.two_factor.is_some() {
+            return self.view_2fa();
         }
         self.view_main()
     }
@@ -174,7 +184,6 @@ impl State {
         .size(14)
         .color(Colors::MUTED);
 
-        // Tabs
         let tab_login = button(text("Вход").size(14))
             .on_press(Message::SwitchMode(false))
             .padding(iced::Padding::new(9.0).left(12.0).right(12.0))
@@ -255,92 +264,69 @@ impl State {
                     .on_press_maybe(
                         if self.busy || self.username.is_empty() { None } else { Some(Message::ResetStart) },
                     )
-                    .padding(iced::Padding::new(4.0).left(8.0).right(8.0))
+                    .padding(iced::Padding::new(8.0).left(14.0).right(14.0))
                     .style(styles::btn_ghost),
             );
         }
 
-        let form_container = container(form_col)
-            .padding(20)
-            .width(320)
+        let card = container(form_col)
+            .padding(iced::Padding::new(24.0).left(24.0).right(24.0).top(20.0).bottom(20.0))
+            .width(360)
             .style(styles::glass_card);
 
-        let layout = column![
-            title,
-            subtitle,
-            iced::widget::vertical_space().height(14),
-            tabs,
-            iced::widget::vertical_space().height(8),
-            form_container,
-        ]
-        .spacing(6)
-        .align_x(iced::Alignment::Center)
-        .max_width(360);
+        let layout = column![title, subtitle, iced::widget::vertical_space().height(8), tabs, card]
+            .spacing(8)
+            .align_x(iced::Alignment::Center)
+            .padding(iced::Padding::new(0.0).top(80.0));
 
         container(layout)
+            .width(Length::Fill)
+            .height(Length::Fill)
             .center_x(Length::Fill)
             .center_y(Length::Fill)
             .into()
     }
 
-    fn view_2fa(&self, tf: &TwoFactorState) -> Element<'_, Message> {
-        let title = text("StarDust").size(28).color(Colors::ACCENT);
-        let hint_str = tf.hint.clone().unwrap_or_else(|| "Введите код из Telegram".to_string());
-        let hint = text(hint_str)
-            .size(14).color(Colors::MUTED);
+    fn view_2fa(&self) -> Element<'_, Message> {
+        let title = text("Подтверждение").size(22).color(Colors::TEXT);
+        let subtitle = text("Введите код из Telegram").size(14).color(Colors::MUTED);
 
-        let code_input = text_input("Код подтверждения", &self.code)
-            .on_input(Message::UsernameChanged)
-            .size(14)
-            .padding(12);
+        let mut form_col = column![title, subtitle].spacing(8);
 
-        let error_text = if let Some(ref err) = self.error {
-            text(err.as_str()).size(12).color(Colors::DANGER)
-        } else {
-            text("").size(12)
-        };
+        if let Some(ref err) = self.error {
+            form_col = form_col.push(text(err.as_str()).size(12).color(Colors::DANGER));
+        }
 
-        let submit_btn = button(text("Подтвердить").size(14))
-            .on_press_maybe(if self.busy || self.code.is_empty() { None } else { Some(Message::Submit) })
-            .padding(iced::Padding::new(12.0).left(24.0).right(24.0))
+        let card = container(form_col)
+            .padding(iced::Padding::new(24.0).left(24.0).right(24.0).top(20.0).bottom(20.0))
+            .width(360)
+            .style(styles::glass_card);
+
+        container(card)
             .width(Length::Fill)
-            .style(styles::btn_primary);
-
-        let back_btn = button(text("Назад").size(12))
-            .on_press(Message::SwitchMode(false))
-            .padding(iced::Padding::new(8.0).left(14.0).right(14.0))
-            .style(styles::btn_ghost);
-
-        let form = column![code_input, error_text, submit_btn, back_btn].spacing(10);
-        let form_container = container(form).padding(20).width(320).style(styles::glass_card);
-
-        let layout = column![title, hint, iced::widget::vertical_space().height(14), form_container]
-            .spacing(6)
-            .align_x(iced::Alignment::Center)
-            .max_width(360);
-
-        container(layout).center_x(Length::Fill).center_y(Length::Fill).into()
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into()
     }
 
     fn view_reset(&self) -> Element<'_, Message> {
-        let title = text("StarDust").size(28).color(Colors::ACCENT);
-        let subtitle = text("Задайте новый пароль").size(14).color(Colors::MUTED);
+        let title = text("Сброс пароля").size(22).color(Colors::TEXT);
+        let subtitle = text("Введите новый пароль").size(14).color(Colors::MUTED);
 
-        let new_pw = text_input("Новый пароль", &self.new_password)
-            .on_input(Message::PasswordChanged)
-            .secure(true).size(14).padding(12);
+        let pw1 = text_input("Новый пароль", &self.new_password)
+            .on_input(Message::UsernameChanged)
+            .secure(true)
+            .size(14)
+            .padding(12);
 
-        let confirm_pw = text_input("Повторите пароль", &self.new_password_confirm)
+        let pw2 = text_input("Повторите пароль", &self.new_password_confirm)
             .on_input(Message::ConfirmChanged)
-            .secure(true).size(14).padding(12);
+            .secure(true)
+            .size(14)
+            .padding(12);
 
-        let error_text = if let Some(ref err) = self.error {
-            text(err.as_str()).size(12).color(Colors::DANGER)
-        } else {
-            text("").size(12)
-        };
-
-        let submit_btn = button(text("Сохранить пароль").size(14))
+        let submit = button(text("Сохранить").size(14))
             .on_press_maybe(
                 if self.busy || self.new_password.is_empty() || self.new_password_confirm.is_empty() {
                     None
@@ -352,19 +338,22 @@ impl State {
             .width(Length::Fill)
             .style(styles::btn_primary);
 
-        let back_btn = button(text("Назад").size(12))
-            .on_press(Message::SwitchMode(false))
-            .padding(iced::Padding::new(8.0).left(14.0).right(14.0))
-            .style(styles::btn_ghost);
+        let mut form_col = column![title, subtitle, pw1, pw2, submit].spacing(10);
 
-        let form = column![new_pw, confirm_pw, error_text, submit_btn, back_btn].spacing(10);
-        let form_container = container(form).padding(20).width(320).style(styles::glass_card);
+        if let Some(ref err) = self.error {
+            form_col = form_col.push(text(err.as_str()).size(12).color(Colors::DANGER));
+        }
 
-        let layout = column![title, subtitle, iced::widget::vertical_space().height(14), form_container]
-            .spacing(6)
-            .align_x(iced::Alignment::Center)
-            .max_width(360);
+        let card = container(form_col)
+            .padding(iced::Padding::new(24.0).left(24.0).right(24.0).top(20.0).bottom(20.0))
+            .width(360)
+            .style(styles::glass_card);
 
-        container(layout).center_x(Length::Fill).center_y(Length::Fill).into()
+        container(card)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into()
     }
 }

@@ -67,7 +67,7 @@ impl App {
 
         // Recover pending session from previous launch
         let token = api::load_session(&data_dir)
-            .map(|s| s.access_token.clone())
+            .map(|s| s.token.clone())
             .unwrap_or_default();
         if !token.is_empty() {
             if let Some((duration, launched_at)) = crate::game_guard::recover_pending_session(&data_dir) {
@@ -115,7 +115,7 @@ impl App {
 
 async fn restore_session(data_dir: std::path::PathBuf) -> Result<PlayerProfile, String> {
     let saved = api::load_session(&data_dir).ok_or("Нет сохранённой сессии")?;
-    api::session(&saved.access_token).await
+    api::session(&saved.token).await
 }
 
 pub fn update(state: &mut App, message: Message) -> Task<Message> {
@@ -152,23 +152,23 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
         // ─── Login ──────────────────────────────
         Message::Login(msg) => {
             let task = state.login.update(msg.clone());
-            if let login::Message::LoginSuccess(lr) = msg {
-                state.profile = Some(lr.profile.clone());
-                state.token = Some(lr.access_token.clone());
+            if let login::Message::LoginSuccess(auth) = msg {
+                state.profile = Some(auth.profile.clone());
+                state.token = Some(auth.token.clone());
                 state.screen = Screen::Main;
+                state.main.profile = Some(auth.profile.clone());
 
                 let data_dir = state.data_dir.clone();
                 let _ = api::save_session(
                     &data_dir,
                     &SavedSession {
-                        profile: lr.profile,
-                        access_token: lr.access_token.clone(),
-                        client_token: lr.client_token,
+                        profile: auth.profile,
+                        token: auth.token.clone(),
                     },
                 );
 
                 let t1 = Task::perform(
-                    load_stats_with_cache(state.data_dir.clone(), lr.access_token),
+                    load_stats_with_cache(state.data_dir.clone(), auth.token),
                     Message::StatsLoaded,
                 );
                 let t2 = Task::perform(ping_server(), Message::ServerPinged);
@@ -184,12 +184,13 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
             let saved = api::load_session(&state.data_dir);
             let token = saved
                 .as_ref()
-                .map(|s| s.access_token.clone())
+                .map(|s| s.token.clone())
                 .unwrap_or_default();
 
-            state.profile = Some(profile);
+            state.profile = Some(profile.clone());
             state.token = Some(token.clone());
             state.screen = Screen::Main;
+            state.main.profile = Some(profile);
 
             let t1 = Task::perform(
                 load_stats_with_cache(state.data_dir.clone(), token),
@@ -254,6 +255,19 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
         }
         Message::Main(main_screen::Message::OpenSettings) => {
             state.screen = Screen::Settings;
+            state.settings.section = crate::screens::settings::Section::General;
+            Task::none()
+        }
+        Message::Main(main_screen::Message::OpenAccount) => {
+            state.screen = Screen::Settings;
+            state.settings.section = crate::screens::settings::Section::Account;
+            // Trigger account data load
+            if let Some(ref token) = state.token {
+                if state.settings.account_info.is_none() {
+                    let load_task = state.settings.load_account(token);
+                    return load_task.map(Message::Settings);
+                }
+            }
             Task::none()
         }
         Message::Main(main_screen::Message::Logout) => {
@@ -369,6 +383,35 @@ pub fn update(state: &mut App, message: Message) -> Task<Message> {
             if let settings::Message::Close = msg {
                 state.screen = Screen::Main;
             }
+            // Load account info when switching to Account section
+            if let settings::Message::SwitchSection(settings::Section::Account) = &msg {
+                if state.settings.account_info.is_none() {
+                    if let Some(ref token) = state.token {
+                        let load_task = state.settings.load_account(token);
+                        return Task::batch([task.map(Message::Settings), load_task.map(Message::Settings)]);
+                    }
+                }
+            }
+            // Load mods when switching to Mods section
+            if let settings::Message::SwitchSection(settings::Section::Mods) = &msg {
+                if state.settings.mods.is_none() {
+                    if let Some(ref token) = state.token {
+                        let load_task = state.settings.load_mods(token);
+                        return Task::batch([task.map(Message::Settings), load_task.map(Message::Settings)]);
+                    }
+                }
+            }
+            // Logout after account deletion
+            if let settings::Message::LogoutAfterDelete = &msg {
+                crate::game_guard::clear_session(&state.data_dir);
+                crate::game_guard::clear(&state.data_dir);
+                api::delete_session(&state.data_dir);
+                state.profile = None;
+                state.token = None;
+                state.screen = Screen::Login;
+                state.settings = settings::State::new();
+                return Task::none();
+            }
             task.map(Message::Settings)
         }
     }
@@ -394,8 +437,8 @@ fn launch_game(state: &App) -> Task<Message> {
             crate::minecraft::launch(
                 &crate::minecraft::LaunchArgs {
                     username: profile.name.clone(),
-                    uuid: profile.uuid.clone(),
-                    access_token: token,
+                    uuid: profile.id.clone(),
+                    token,
                     client_token: String::new(),
                     memory_mb: settings.memory_mb,
                     game_dir,
@@ -415,7 +458,7 @@ pub fn view(state: &App) -> Element<'_, Message> {
     let content = match state.screen {
         Screen::Login => state.login.view().map(Message::Login),
         Screen::Main => state.main.view().map(Message::Main),
-        Screen::Settings => state.settings.view().map(Message::Settings),
+        Screen::Settings => state.settings.view(state.token.as_deref()).map(Message::Settings),
     };
 
     iced::widget::column![

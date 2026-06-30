@@ -150,3 +150,37 @@ pub fn nav_item(active: bool) -> impl Fn(&iced::Theme, iced::widget::button::Sta
         shadow: iced::Shadow::default(),
     }
 }
+
+/// Input field стиль.
+pub fn input_style(_theme: &iced::Theme, _status: iced::widget::text_input::Status) -> iced::widget::text_input::Style {
+    iced::widget::text_input::Style {
+        background: iced::Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.2)),
+        border: border::rounded(8).width(1).color(Colors::GLASS_BORDER),
+        icon: Colors::MUTED,
+        placeholder: Colors::TEXT_DIM,
+        value: Colors::TEXT,
+        selection: Color::from_rgba(0.486, 0.361, 1.0, 0.3),
+    }
+}
+
+/// Input field danger стиль (для удаления аккаунта).
+pub fn input_danger_style(_theme: &iced::Theme, _status: iced::widget::text_input::Status) -> iced::widget::text_input::Style {
+    iced::widget::text_input::Style {
+        background: iced::Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.2)),
+        border: border::rounded(8).width(1).color(Color::from_rgba(1.0, 0.42, 0.42, 0.4)),
+        icon: Colors::MUTED,
+        placeholder: Colors::TEXT_DIM,
+        value: Colors::TEXT,
+        selection: Color::from_rgba(1.0, 0.42, 0.42, 0.3),
+    }
+}
+
+/// Danger button стиль (красный градиент).
+pub fn btn_danger(_theme: &iced::Theme, _status: iced::widget::button::Status) -> iced::widget::button::Style {
+    iced::widget::button::Style {
+        background: Some(iced::Background::Color(Colors::DANGER)),
+        text_color: Color::WHITE,
+        border: border::rounded(11).width(1).color(Color::TRANSPARENT),
+        shadow: iced::Shadow::default(),
+    }
+}

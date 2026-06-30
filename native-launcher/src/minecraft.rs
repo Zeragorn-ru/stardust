@@ -44,7 +44,7 @@ const CHUNK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 pub struct LaunchArgs {
     pub username: String,
     pub uuid: String,
-    pub access_token: String,
+    pub token: String,
     pub client_token: String,
     pub memory_mb: u32,
     pub game_dir: PathBuf,
@@ -171,7 +171,7 @@ pub async fn launch(args: &LaunchArgs, progress: Arc<Progress>) -> Result<u32, S
         &version,
         &args.username,
         &args.uuid,
-        &args.access_token,
+        &args.token,
     ));
     jvm_args.extend(modloader_game_args(&loader));
 
@@ -890,7 +890,7 @@ fn game_args(
     version: &VersionJson,
     username: &str,
     uuid: &str,
-    access_token: &str,
+    token: &str,
 ) -> Vec<String> {
     let assets_dir = root.join("assets");
     let mut args = if let Some(arguments) = version.arguments.as_ref() {
@@ -916,7 +916,7 @@ fn game_args(
         ("${assets_root}", assets_dir.to_string_lossy().to_string()),
         ("${assets_index_name}", version.asset_index.id.clone()),
         ("${auth_uuid}", uuid.to_string()),
-        ("${auth_access_token}", access_token.to_string()),
+        ("${auth_access_token}", token.to_string()),
         ("${user_type}", "msa".to_string()),
         ("${version_type}", version.version_type.clone()),
         ("${clientid}", "".to_string()),

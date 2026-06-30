@@ -15,15 +15,30 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerProfile {
+    pub id: String,
     pub name: String,
-    pub uuid: String,
 }
 
+/// Успешный ответ на логин/регистрацию (без 2FA).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LoginResult {
+pub struct AuthResponse {
     pub profile: PlayerProfile,
-    pub access_token: String,
-    pub client_token: String,
+    pub token: String,
+}
+
+/// Результат входа: либо сессия, либо требование второго фактора.
+/// Сервер возвращает `{"status":"ok",...}` или `{"status":"two_factor_required",...}`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum LoginResult {
+    Ok(AuthResponse),
+    TwoFactorRequired {
+        challenge: String,
+        #[serde(default)]
+        hint: Option<String>,
+        #[serde(rename = "buttonApproval", default)]
+        button_approval: bool,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -34,13 +49,14 @@ pub struct SessionResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SavedSession {
     pub profile: PlayerProfile,
-    pub access_token: String,
-    pub client_token: String,
+    pub token: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerStats {
+    #[serde(rename = "playtimeSeconds")]
     pub playtime_seconds: u64,
+    #[serde(rename = "lastLaunchedAt")]
     pub last_launched: Option<chrono::DateTime<chrono::Utc>>,
 }
 
@@ -57,6 +73,36 @@ pub struct LauncherSettings {
     pub memory_mb: u32,
     pub download_concurrency: u32,
     pub show_3d_model: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountInfo {
+    pub profile: PlayerProfile,
+    #[serde(rename = "telegramLinked")]
+    pub telegram_linked: bool,
+    #[serde(rename = "isAdmin")]
+    pub is_admin: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramLinkResponse {
+    pub code: String,
+    #[serde(rename = "botUsername", default)]
+    pub bot_username: Option<String>,
+    #[serde(rename = "deepLink", default)]
+    pub deep_link: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OptionalMod {
+    #[serde(rename = "modId")]
+    pub mod_id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub enabled: bool,
+    #[serde(default)]
+    pub size: u64,
 }
 
 impl Default for LauncherSettings {
@@ -175,7 +221,7 @@ pub async fn login(username: &str, password: &str) -> Result<LoginResult, String
     resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
 }
 
-pub async fn register(username: &str, password: &str) -> Result<LoginResult, String> {
+pub async fn register(username: &str, password: &str) -> Result<AuthResponse, String> {
     let http = build_client();
     let resp = http
         .post(format!("{AUTH_BASE}/api/register"))
@@ -188,13 +234,13 @@ pub async fn register(username: &str, password: &str) -> Result<LoginResult, Str
         let text = resp.text().await.unwrap_or_default();
         return Err(text);
     }
-    resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
+    resp.json::<AuthResponse>().await.map_err(|e| format!("Парсинг: {e}"))
 }
 
 pub async fn login_passwordless(username: &str) -> Result<LoginResult, String> {
     let http = build_client();
     let resp = http
-        .post(format!("{AUTH_BASE}/api/passwordless/login"))
+        .post(format!("{AUTH_BASE}/api/login/passwordless"))
         .json(&serde_json::json!({ "username": username }))
         .send()
         .await
@@ -207,10 +253,10 @@ pub async fn login_passwordless(username: &str) -> Result<LoginResult, String> {
     resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
 }
 
-pub async fn password_reset_start(username: &str) -> Result<(), String> {
+pub async fn password_reset_start(username: &str) -> Result<LoginResult, String> {
     let http = build_client();
     let resp = http
-        .post(format!("{AUTH_BASE}/api/password-reset/start"))
+        .post(format!("{AUTH_BASE}/api/password/reset"))
         .json(&serde_json::json!({ "username": username }))
         .send()
         .await
@@ -220,13 +266,13 @@ pub async fn password_reset_start(username: &str) -> Result<(), String> {
         let text = resp.text().await.unwrap_or_default();
         return Err(text);
     }
-    Ok(())
+    resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
 }
 
-pub async fn password_reset_complete(username: &str, new_password: &str) -> Result<LoginResult, String> {
+pub async fn password_reset_complete(username: &str, new_password: &str) -> Result<(), String> {
     let http = build_client();
     let resp = http
-        .post(format!("{AUTH_BASE}/api/password-reset/complete"))
+        .post(format!("{AUTH_BASE}/api/password/reset/confirm"))
         .json(&serde_json::json!({ "username": username, "newPassword": new_password }))
         .send()
         .await
@@ -236,7 +282,7 @@ pub async fn password_reset_complete(username: &str, new_password: &str) -> Resu
         let text = resp.text().await.unwrap_or_default();
         return Err(text);
     }
-    resp.json::<LoginResult>().await.map_err(|e| format!("Парсинг: {e}"))
+    Ok(())
 }
 
 pub async fn session(token: &str) -> Result<PlayerProfile, String> {
@@ -301,6 +347,153 @@ pub async fn get_skin(uuid: &str) -> Result<Vec<u8>, String> {
         return Err(format!("HTTP {}", resp.status()));
     }
     resp.bytes().await.map(|b| b.to_vec()).map_err(|e| format!("Чтение: {e}"))
+}
+
+// ─── Account API ───────────────────────────────────────────
+
+pub async fn account_info(token: &str) -> Result<AccountInfo, String> {
+    let http = build_client();
+    let resp = http
+        .get(format!("{AUTH_BASE}/api/account"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    resp.json::<AccountInfo>().await.map_err(|e| format!("Парсинг: {e}"))
+}
+
+pub async fn change_username(token: &str, new_username: &str) -> Result<PlayerProfile, String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/account/username"))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "newUsername": new_username }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    resp.json::<PlayerProfile>().await.map_err(|e| format!("Парсинг: {e}"))
+}
+
+pub async fn change_password(
+    token: &str,
+    current_password: &str,
+    new_password: &str,
+) -> Result<(), String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/account/password"))
+        .bearer_auth(token)
+        .json(&serde_json::json!({
+            "currentPassword": current_password,
+            "newPassword": new_password,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    Ok(())
+}
+
+pub async fn telegram_link_start(token: &str) -> Result<TelegramLinkResponse, String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/account/telegram/start"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    resp.json::<TelegramLinkResponse>().await.map_err(|e| format!("Парсинг: {e}"))
+}
+
+pub async fn telegram_unlink(token: &str) -> Result<(), String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/account/telegram/unlink"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    Ok(())
+}
+
+pub async fn delete_account(token: &str, password: &str) -> Result<(), String> {
+    let http = build_client();
+    let resp = http
+        .post(format!("{AUTH_BASE}/api/account/delete"))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "password": password }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    Ok(())
+}
+
+// ─── Admin API ─────────────────────────────────────────────
+
+pub async fn list_optional_mods(token: &str) -> Result<Vec<OptionalMod>, String> {
+    let http = build_client();
+    let resp = http
+        .get(format!("{ADMIN_BASE}/api/optional-mods"))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    resp.json::<Vec<OptionalMod>>().await.map_err(|e| format!("Парсинг: {e}"))
+}
+
+pub async fn set_mod_enabled(
+    token: &str,
+    mod_id: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    let http = build_client();
+    let resp = http
+        .put(format!("{ADMIN_BASE}/api/optional-mods/{mod_id}/enabled"))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "enabled": enabled }))
+        .send()
+        .await
+        .map_err(|e| format!("Сеть: {e}"))?;
+
+    if !resp.status().is_success() {
+        let text = resp.text().await.unwrap_or_default();
+        return Err(text);
+    }
+    Ok(())
 }
 
 // ─── Manifest (Admin) ──────────────────────────────────────
