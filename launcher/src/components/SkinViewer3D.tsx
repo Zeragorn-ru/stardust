@@ -8,30 +8,6 @@ import { useMotion } from "../motion";
 
 use(WebGLRendererPlugin);
 
-registerAnimation({
-  name: "float",
-  duration: 5,
-  loop: true,
-  tracks: [
-    {
-      boneIndex: BoneIndex.RightArm,
-      keyframes: [
-        { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)) },
-        { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)), easing: easeInOutSine },
-        { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)), easing: easeInOutSine },
-      ],
-    },
-    {
-      boneIndex: BoneIndex.LeftArm,
-      keyframes: [
-        { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)) },
-        { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)), easing: easeInOutSine },
-        { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)), easing: easeInOutSine },
-      ],
-    },
-  ],
-});
-
 interface Props {
   /** data-URL PNG скина, либо null — тогда грузим встроенный дефолт (стив). */
   dataUrl: string | null;
@@ -152,6 +128,30 @@ const SkinViewer3D = memo(function SkinViewer3D({
       setWebglFailed(true);
       return;
     }
+
+    registerAnimation({
+      name: "float",
+      duration: 5,
+      loop: true,
+      tracks: [
+        {
+          boneIndex: BoneIndex.RightArm,
+          keyframes: [
+            { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)) },
+            { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)), easing: easeInOutSine },
+            { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)), easing: easeInOutSine },
+          ],
+        },
+        {
+          boneIndex: BoneIndex.LeftArm,
+          keyframes: [
+            { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)) },
+            { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)), easing: easeInOutSine },
+            { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)), easing: easeInOutSine },
+          ],
+        },
+      ],
+    });
 
     let disposed = false;
 
