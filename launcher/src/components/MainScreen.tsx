@@ -47,6 +47,7 @@ export default function MainScreen({
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
   const [serverMax, setServerMax] = useState<number | null>(null);
   const [serverPing, setServerPing] = useState<number | null>(null);
+  const [windowFocused, setWindowFocused] = useState(true);
 
   // Загружаем статистику и настройки при монтировании.
   useEffect(() => {
@@ -60,6 +61,25 @@ export default function MainScreen({
       getStats().then(setStats).catch(() => undefined);
     }
   }, [running]);
+
+  // Слушаем фокус окна Tauri — скрываем модель при сворачивании.
+  useEffect(() => {
+    let unlistenFn: (() => void) | null = null;
+    async function setup() {
+      try {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const win = getCurrentWindow();
+        const unlisten = await win.onFocusChanged(({ payload: focused }) => {
+          setWindowFocused(focused);
+        });
+        unlistenFn = unlisten;
+      } catch {
+        // Не Tauri — пропускаем.
+      }
+    }
+    void setup();
+    return () => unlistenFn?.();
+  }, []);
 
   // Слушаем фоновое обновление статистики с бэкенда (каждые 15 мин).
   useEffect(() => {
@@ -150,6 +170,7 @@ export default function MainScreen({
               capeUrl={skin.capeUrl}
               width={240}
               height={340}
+              visible={windowFocused && !running}
             />
           ) : (
             <FaceAvatar dataUrl={skin.dataUrl} size={240} />

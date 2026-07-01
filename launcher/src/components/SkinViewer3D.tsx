@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { SkinViewer, WalkingAnimation, IdleAnimation } from "skinview3d";
+import { use, createSkinViewer } from "@daidr/minecraft-skin-renderer";
+import type { SkinViewer } from "@daidr/minecraft-skin-renderer";
+import { WebGLRendererPlugin } from "@daidr/minecraft-skin-renderer/webgl";
 import type { SkinModel } from "../types";
 import { animationsEnabled } from "../preferences";
 import { useMotion } from "../motion";
+
+use(WebGLRendererPlugin);
 
 interface Props {
   /** data-URL PNG скина, либо null — тогда грузим встроенный дефолт (стив). */
@@ -12,6 +16,11 @@ interface Props {
   capeUrl?: string | null;
   width?: number;
   height?: number;
+  /**
+   * Когда false — канвас скрыт (display:none) и рендер приостановлен.
+   * Используется при сворачивании лаунчера или когда запущен Minecraft.
+   */
+  visible?: boolean;
 }
 
 const DEFAULT_SKIN =
@@ -31,13 +40,12 @@ function isWebGLAvailable(): boolean {
 }
 
 /**
- * 3D-модель скина (three.js под капотом, через skinview3d).
- * Вращается мышью; при включённых анимациях персонаж «дышит»/идёт.
+ * 3D-модель скина (@daidr/minecraft-skin-renderer — zero-dep, WebGL2).
  *
  * Автопауза:
- *  - Окно не в фокусе → пауза рендера
+ *  - Окно не в фокусе или запущен MC (visible=false) → канвас скрыт, рендер выключен
  *  - Нет движения мыши > 8 с → пауза рендера
- *  - При возврате фокуса/движении мыши → возобновление
+ *  - При возврате visible/движении мыши → возобновление
  */
 export default function SkinViewer3D({
   dataUrl,
@@ -45,42 +53,32 @@ export default function SkinViewer3D({
   capeUrl = null,
   width = 260,
   height = 360,
+  visible = true,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<SkinViewer | null>(null);
   const { animations } = useMotion();
   const [webglFailed, setWebglFailed] = useState(false);
 
-  // Флаги паузы.
-  const pausedRef = useRef(false);       // окно не в фокусе
-  const idleRef = useRef(false);         // нет активности > IDLE_TIMEOUT_MS
-  const rafRef = useRef<number>(0);      // handle requestAnimationFrame
+  const visibleRef = useRef(visible);
+  const idleRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** Запустить цикл рендера (если не запущен и нет паузы). */
-  function startLoop() {
-    if (rafRef.current) return; // уже работает
-    const viewer = viewerRef.current;
-    if (!viewer) return;
+  // Кэш для skin/cape чтобы не перезагружать одно и то же.
+  const lastSkinRef = useRef<string>("");
+  const lastModelRef = useRef<SkinModel>("classic");
+  const lastCapeRef = useRef<string | null>(null);
 
-    function frame() {
-      if (!viewerRef.current) return;
-      if (pausedRef.current || idleRef.current) {
-        rafRef.current = 0;
-        return;
-      }
-      viewerRef.current.render();
-      rafRef.current = requestAnimationFrame(frame);
-    }
-    rafRef.current = requestAnimationFrame(frame);
+  /** Запустить встроенный цикл рендера (если не на паузе и visible). */
+  function startLoop() {
+    const v = viewerRef.current;
+    if (!v || idleRef.current || !visibleRef.current) return;
+    v.startRenderLoop();
   }
 
   /** Остановить цикл рендера. */
   function stopLoop() {
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = 0;
-    }
+    viewerRef.current?.stopRenderLoop();
   }
 
   /** Сбросить таймер бездействия. */
@@ -106,66 +104,58 @@ export default function SkinViewer3D({
       return;
     }
 
-    let viewer: SkinViewer;
-    try {
-      viewer = new SkinViewer({ canvas, width, height });
-    } catch {
-      setWebglFailed(true);
-      return;
-    }
+    let disposed = false;
 
-    viewer.controls.enableZoom = false;
-    viewer.controls.enablePan = false;
-    viewer.fov = 40;
-    viewer.zoom = 0.9;
-    // Супер-сэмплинг: рендерим в 2× плотности и даунскейлим. Кап в 3 для HiDPI.
-    // При выключенных анимациях — без супер-сэмплинга (1×) для экономии GPU.
-    viewer.pixelRatio = animationsEnabled()
-      ? Math.min((window.devicePixelRatio || 1) * 2, 3)
-      : 1;
-    viewerRef.current = viewer;
-
-    // Первый кадр.
-    viewer.render();
+    createSkinViewer({
+      canvas,
+      preferredBackend: "webgl",
+      antialias: true,
+      pixelRatio: animationsEnabled()
+        ? Math.min((window.devicePixelRatio || 1) * 2, 3)
+        : 1,
+      enableRotate: true,
+      enableZoom: false,
+      autoRotate: false,
+      fov: 40,
+      zoom: 55,
+    })
+      .then((viewer) => {
+        if (disposed) {
+          viewer.dispose();
+          return;
+        }
+        viewer.resize(width, height);
+        viewerRef.current = viewer;
+        if (visibleRef.current) startLoop();
+      })
+      .catch(() => setWebglFailed(true));
 
     return () => {
+      disposed = true;
       stopLoop();
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      viewer.dispose();
+      viewerRef.current?.dispose();
       viewerRef.current = null;
     };
   }, []);
 
-  // Слушаем фокус/потерю фокуса окна Tauri.
+  // Скрытие/показ по пропу visible (сворачивание / запуск MC).
   useEffect(() => {
-    let unlistenFn: (() => void) | null = null;
-
-    async function setup() {
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const win = getCurrentWindow();
-
-        // onFocusChanged возвращает unlisten функцию.
-        const unlisten = await win.onFocusChanged(({ payload: focused }) => {
-          pausedRef.current = !focused;
-          if (focused) {
-            resetIdleTimer();
-            startLoop();
-          } else {
-            stopLoop();
-          }
-        });
-        unlistenFn = unlisten;
-      } catch {
-        // Не Tauri окно — пропускаем.
+    visibleRef.current = visible;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (visible) {
+      canvas.style.removeProperty("display");
+      resetIdleTimer();
+      startLoop();
+    } else {
+      canvas.style.display = "none";
+      stopLoop();
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
       }
     }
-    void setup();
-
-    return () => {
-      unlistenFn?.();
-    };
-  }, []);
+  }, [visible]);
 
   // Отслеживаем движение мыши на canvas для idle-timeout.
   useEffect(() => {
@@ -177,7 +167,6 @@ export default function SkinViewer3D({
     }
 
     canvas.addEventListener("mousemove", onMouseMove);
-    // Инициализируем таймер сразу.
     resetIdleTimer();
 
     return () => {
@@ -190,21 +179,30 @@ export default function SkinViewer3D({
     const viewer = viewerRef.current;
     if (!viewer) return;
     const src = dataUrl ?? DEFAULT_SKIN;
-    viewer
-      .loadSkin(src, { model: model === "slim" ? "slim" : "default" })
-      .catch(() => {
-        viewer.loadSkin(DEFAULT_SKIN);
-      });
+    if (src === lastSkinRef.current && model === lastModelRef.current) return;
+    lastSkinRef.current = src;
+    lastModelRef.current = model;
+
+    viewer.setSlim(model === "slim");
+    viewer.setSkin(src).catch(() => {
+      viewer.setSkin(DEFAULT_SKIN);
+    });
   }, [dataUrl, model]);
 
   // Плащ.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
+    if (capeUrl === lastCapeRef.current) return;
+    lastCapeRef.current = capeUrl;
+
     if (capeUrl) {
-      viewer.loadCape(capeUrl).catch(() => viewer.resetCape());
+      viewer.setCape(capeUrl).catch(() => {
+        viewer.setBackEquipment("none");
+      });
+      viewer.setBackEquipment("cape");
     } else {
-      viewer.resetCape();
+      viewer.setBackEquipment("none");
     }
   }, [capeUrl]);
 
@@ -213,16 +211,9 @@ export default function SkinViewer3D({
     const viewer = viewerRef.current;
     if (!viewer) return;
     if (animations) {
-      const walk = new WalkingAnimation();
-      walk.speed = 0.6;
-      viewer.animation = walk;
+      viewer.playAnimation("walk", { speed: 0.6 });
     } else {
-      viewer.animation = new IdleAnimation();
-      viewer.animation.paused = true;
-    }
-    // Перерисовать после смены анимации.
-    if (!pausedRef.current && !idleRef.current) {
-      viewer.render();
+      viewer.stopAnimation();
     }
   }, [animations]);
 
