@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { use, createSkinViewer } from "@daidr/minecraft-skin-renderer";
+import { use, createSkinViewer, registerAnimation, BoneIndex, quatFromEuler, degToRad, easeInOutSine } from "@daidr/minecraft-skin-renderer";
 import type { SkinViewer } from "@daidr/minecraft-skin-renderer";
 import { WebGLRendererPlugin } from "@daidr/minecraft-skin-renderer/webgl";
 import type { SkinModel } from "../types";
@@ -7,6 +7,30 @@ import { animationsEnabled } from "../preferences";
 import { useMotion } from "../motion";
 
 use(WebGLRendererPlugin);
+
+registerAnimation({
+  name: "float",
+  duration: 5,
+  loop: true,
+  tracks: [
+    {
+      boneIndex: BoneIndex.RightArm,
+      keyframes: [
+        { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)) },
+        { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)), easing: easeInOutSine },
+        { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)), easing: easeInOutSine },
+      ],
+    },
+    {
+      boneIndex: BoneIndex.LeftArm,
+      keyframes: [
+        { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)) },
+        { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(15)), easing: easeInOutSine },
+        { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(-15)), easing: easeInOutSine },
+      ],
+    },
+  ],
+});
 
 interface Props {
   /** data-URL PNG скина, либо null — тогда грузим встроенный дефолт (стив). */
@@ -209,7 +233,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     const viewer = viewerRef.current;
     if (!viewer) return;
     if (animations) {
-      viewer.playAnimation("idle", { amplitude: 0.5 });
+      viewer.playAnimation("float");
     } else {
       viewer.stopAnimation();
     }
