@@ -210,7 +210,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     const viewer = viewerRef.current;
     if (!viewer) return;
     if (animations) {
-      viewer.playAnimation("walk", { speed: 0.6 });
+      viewer.playAnimation("idle");
     } else {
       viewer.stopAnimation();
     }
