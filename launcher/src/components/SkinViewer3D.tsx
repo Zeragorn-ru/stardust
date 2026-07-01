@@ -175,6 +175,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
         viewer.resize(width, height);
         viewerRef.current = viewer;
         loadCurrent();
+        if (animations) viewer.playAnimation("float");
         if (visibleRef.current) startLoop();
       })
       .catch(() => setWebglFailed(true));
