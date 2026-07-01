@@ -138,6 +138,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
       pixelRatio: animationsEnabled()
         ? Math.min((window.devicePixelRatio || 1) * 2, 3)
         : 1,
+      fov: 55,
       enableRotate: true,
       enableZoom: false,
       autoRotate: false,
@@ -237,7 +238,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     );
   }
 
-  return <canvas ref={canvasRef} className="skin-viewer-3d" />;
+  return <canvas ref={canvasRef} className="skin-viewer-3d" style={{ width, height }} />;
 });
 
 export default SkinViewer3D;
