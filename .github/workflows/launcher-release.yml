@@ -155,9 +155,19 @@ jobs:
             fi
           done
 
+
+      - name: Upload bootstrap
+        if: startsWith(github.ref, 'refs/tags/') && matrix.platform == 'windows-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
           bs="launcher/src-tauri/nsis/bootstrap.exe"
           if [ -f "$bs" ]; then
             sha256sum "$bs" | awk '{print $1}' > "${bs}.sha256"
             echo "Uploading bootstrap.exe"
             gh release upload "$tag" "$bs" "${bs}.sha256" --clobber
+          else
+            echo "bootstrap.exe not found, skipping"
           fi
