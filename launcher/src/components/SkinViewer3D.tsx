@@ -94,6 +94,31 @@ const SkinViewer3D = memo(function SkinViewer3D({
     }, IDLE_TIMEOUT_MS);
   }
 
+  function loadCurrent() {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    const src = dataUrl ?? DEFAULT_SKIN;
+    if (src !== lastSkinRef.current || model !== lastModelRef.current) {
+      lastSkinRef.current = src;
+      lastModelRef.current = model;
+      viewer.setSlim(model === "slim");
+      viewer.setSkin(src).catch(() => {
+        if (src !== DEFAULT_SKIN) viewer.setSkin(DEFAULT_SKIN);
+      });
+    }
+    if (capeUrl !== lastCapeRef.current) {
+      lastCapeRef.current = capeUrl;
+      if (capeUrl) {
+        viewer.setCape(capeUrl).catch(() => {
+          viewer.setBackEquipment("none");
+        });
+        viewer.setBackEquipment("cape");
+      } else {
+        viewer.setBackEquipment("none");
+      }
+    }
+  }
+
   // Создаём вьюер один раз.
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -126,6 +151,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
         }
         viewer.resize(width, height);
         viewerRef.current = viewer;
+        loadCurrent();
         if (visibleRef.current) startLoop();
       })
       .catch(() => setWebglFailed(true));
@@ -174,37 +200,10 @@ const SkinViewer3D = memo(function SkinViewer3D({
     };
   }, []);
 
-  // Грузим скин при изменении источника/модели.
+  // Грузим скин/плащ при изменении пропсов.
   useEffect(() => {
-    const viewer = viewerRef.current;
-    if (!viewer) return;
-    const src = dataUrl ?? DEFAULT_SKIN;
-    if (src === lastSkinRef.current && model === lastModelRef.current) return;
-    lastSkinRef.current = src;
-    lastModelRef.current = model;
-
-    viewer.setSlim(model === "slim");
-    viewer.setSkin(src).catch(() => {
-      if (src !== DEFAULT_SKIN) viewer.setSkin(DEFAULT_SKIN);
-    });
-  }, [dataUrl, model]);
-
-  // Плащ.
-  useEffect(() => {
-    const viewer = viewerRef.current;
-    if (!viewer) return;
-    if (capeUrl === lastCapeRef.current) return;
-    lastCapeRef.current = capeUrl;
-
-    if (capeUrl) {
-      viewer.setCape(capeUrl).catch(() => {
-        viewer.setBackEquipment("none");
-      });
-      viewer.setBackEquipment("cape");
-    } else {
-      viewer.setBackEquipment("none");
-    }
-  }, [capeUrl]);
+    loadCurrent();
+  }, [dataUrl, model, capeUrl]);
 
   // Анимация подчиняется глобальному тумблеру «Анимации».
   useEffect(() => {
