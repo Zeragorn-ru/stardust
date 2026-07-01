@@ -63,7 +63,7 @@ jobs:
 
       - name: Install frontend deps
         working-directory: launcher
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       # Clippy: проверка перед сборкой. Компилирует зависимости в профиле
       # launcher-release — tauri-action переиспользует те же артефакты.
