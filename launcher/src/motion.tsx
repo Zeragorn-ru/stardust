@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -27,8 +28,10 @@ export function MotionProvider({ children }: { children: ReactNode }) {
     setState(on);
   }
 
+  const value = useMemo(() => ({ animations, setAnimations }), [animations, setAnimations]);
+
   return (
-    <MotionContext.Provider value={{ animations, setAnimations }}>
+    <MotionContext.Provider value={value}>
       {children}
     </MotionContext.Provider>
   );

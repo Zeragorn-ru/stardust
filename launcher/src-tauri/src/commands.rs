@@ -161,6 +161,8 @@ pub struct AppState {
     pub launch_lock: tokio::sync::Mutex<()>,
     /// Флаг: фоновый поллер статистики уже запущен.
     pub stats_poller_running: Mutex<bool>,
+    /// Кэш настроек (лениво загружается с диска).
+    pub settings: Mutex<Option<Settings>>,
 }
 
 impl Default for AppState {
@@ -182,11 +184,12 @@ impl Default for AppState {
             game: Mutex::new(None),
             launch_lock: tokio::sync::Mutex::new(()),
             stats_poller_running: Mutex::new(false),
+            settings: Mutex::new(None),
         }
     }
 }
 
-// ---------- Настройки (персист на диск) ----------
+// ---------- Настройки (персист на диск, кэш в AppState) ----------
 
 fn read_settings(app: &AppHandle) -> Settings {
     let path = paths::settings_file(app);
@@ -712,14 +715,26 @@ async fn current_profile(
 
 // ---------- Настройки ----------
 
-#[tauri::command]
-fn get_settings(app: AppHandle) -> Settings {
-    read_settings(&app)
+fn get_settings_cached(state: &State<AppState>, app: &AppHandle) -> Settings {
+    let mut cached = state.settings.lock().unwrap();
+    if let Some(ref s) = *cached {
+        return s.clone();
+    }
+    let s = read_settings(app);
+    *cached = Some(s.clone());
+    s
 }
 
 #[tauri::command]
-fn save_settings(settings: Settings, app: AppHandle) -> Result<(), String> {
-    write_settings(&app, &settings)
+fn get_settings(state: State<'_, AppState>, app: AppHandle) -> Settings {
+    get_settings_cached(&state, &app)
+}
+
+#[tauri::command]
+fn save_settings(settings: Settings, state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    write_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = Some(settings);
+    Ok(())
 }
 
 // ---------- Среда запуска ----------
@@ -776,20 +791,24 @@ async fn get_skin(state: State<'_, AppState>, app: AppHandle) -> Result<Skin, St
         });
     };
 
-    let result = match backend::get_skin(&state.http, &uuid).await? {
-        Some(fetched) => {
-            let cape_url = backend::get_cape(&state.http, &uuid)
+    let (skin_result, cape_result) = tokio::join!(
+        backend::get_skin(&state.http, &uuid),
+        async {
+            backend::get_cape(&state.http, &uuid)
                 .await
                 .ok()
                 .flatten()
-                .map(|b64| format!("data:image/png;base64,{b64}"));
-            Skin {
-                data_url: Some(format!("data:image/png;base64,{}", fetched.png_base64)),
-                model: normalize_model(&fetched.model),
-                cape_url,
-                source: fetched.source,
-            }
-        }
+                .map(|b64| format!("data:image/png;base64,{b64}"))
+        },
+    );
+
+    let result = match skin_result? {
+        Some(fetched) => Skin {
+            data_url: Some(format!("data:image/png;base64,{}", fetched.png_base64)),
+            model: normalize_model(&fetched.model),
+            cape_url: cape_result,
+            source: fetched.source,
+        },
         None => Skin {
             data_url: None,
             model: "classic".into(),
@@ -1097,7 +1116,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .unwrap()
         .clone()
         .ok_or_else(|| "Сессия не найдена, войдите снова".to_string())?;
-    let settings = read_settings(&app);
+    let settings = get_settings_cached(&state, &app);
 
     let child = minecraft::launch(
         app.clone(),
@@ -1215,6 +1234,8 @@ fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
 /// Пинг Minecraft-сервера: резолвит SRV-запись `_minecraft._tcp.<host>`,
 /// затем открывает TCP-соединение и шлёт Server List Ping (MC protocol).
 /// Возвращает `{ online: bool, players: Option<u32> }`.
+static RESOLVER: std::sync::OnceLock<hickory_resolver::TokioResolver> = std::sync::OnceLock::new();
+
 #[tauri::command]
 async fn ping_minecraft_server(host: String) -> serde_json::Value {
     use hickory_resolver::TokioResolver;
@@ -1224,10 +1245,11 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
 
     // 1. SRV-запись _minecraft._tcp.<host>
     let (target_host, target_port): (String, u16) = {
-        let resolver = match TokioResolver::builder_tokio() {
-            Ok(b) => b.build(),
-            Err(_) => return serde_json::json!({ "online": false, "players": null }),
-        };
+        let resolver = RESOLVER.get_or_init(|| {
+            TokioResolver::builder_tokio()
+                .expect("DNS resolver builder init failed")
+                .build()
+        });
         let srv_name = format!("_minecraft._tcp.{host}");
         match resolver.srv_lookup(srv_name.as_str()).await {
             Ok(lookup) => match lookup.iter().next() {

@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { closeWindow, minimizeWindow, startWindowDrag } from "../api";
 
-export default function TitleBar() {
+const TitleBar = memo(function TitleBar() {
   return (
     <div
       className="titlebar"
@@ -33,4 +34,6 @@ export default function TitleBar() {
       </div>
     </div>
   );
-}
+});
+
+export default TitleBar;

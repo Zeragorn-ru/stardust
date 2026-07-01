@@ -1,7 +1,9 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -33,10 +35,10 @@ const SkinContext = createContext<SkinContextValue>({
 export function SkinProvider({ children }: { children: ReactNode }) {
   const [skin, setSkinState] = useState<Skin>(DEFAULT_SKIN);
 
-  async function reload() {
+  const reload = useCallback(async () => {
     const s = await getSkin();
     setSkinState(s);
-  }
+  }, []);
 
   useEffect(() => {
     // Мгновенно показываем кеш с диска, затем обновляем с сервера.
@@ -47,14 +49,15 @@ export function SkinProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  async function save(dataUrl: string, model: SkinModel) {
+  const save = useCallback(async (dataUrl: string, model: SkinModel) => {
     await persistSkin(dataUrl, model);
-    // Ручная загрузка PNG отменяет плащ и синхронизацию лицензии на сервере.
     setSkinState({ dataUrl, model, capeUrl: null, source: null });
-  }
+  }, []);
+
+  const value = useMemo(() => ({ skin, reload, save }), [skin, reload, save]);
 
   return (
-    <SkinContext.Provider value={{ skin, reload, save }}>
+    <SkinContext.Provider value={value}>
       {children}
     </SkinContext.Provider>
   );

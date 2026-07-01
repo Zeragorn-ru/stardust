@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 
 interface Props {
   /** data-URL PNG скина, либо null — тогда рисуем плейсхолдер. */
@@ -15,7 +15,7 @@ const HEAD_HAT: [number, number, number, number] = [40, 8, 8, 8];
  * Аватарка из лица скина: передняя грань головы + второй слой (шляпа),
  * с пиксельным (nearest) масштабированием.
  */
-export default function FaceAvatar({ dataUrl, size = 64 }: Props) {
+const FaceAvatar = memo(function FaceAvatar({ dataUrl, size = 64 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -51,7 +51,9 @@ export default function FaceAvatar({ dataUrl, size = 64 }: Props) {
   }, [dataUrl, size]);
 
   return <canvas ref={canvasRef} className="face-avatar" style={{ width: size, height: size }} />;
-}
+});
+
+export default FaceAvatar;
 
 function drawPlaceholder(ctx: CanvasRenderingContext2D, size: number) {
   const u = size / 8;

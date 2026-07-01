@@ -1,8 +1,6 @@
-// Анимированный фон «аврора»: несколько размытых градиентных пятен,
-// медленно дрейфующих. При data-motion="off" дрейф отключается через CSS,
-// остаётся статичный градиент — дёшево для слабых машин.
+import { memo } from "react";
 
-export default function Aurora() {
+const Aurora = memo(function Aurora() {
   return (
     <div className="aurora" aria-hidden="true">
       <span className="aurora__blob aurora__blob--1" />
@@ -11,4 +9,6 @@ export default function Aurora() {
       <div className="aurora__grain" />
     </div>
   );
-}
+});
+
+export default Aurora;

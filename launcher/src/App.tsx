@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlayerProfile, Progress, UpdateInfo } from "./types";
 import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
@@ -36,6 +36,8 @@ export default function App() {
   runningRef.current = running;
   const navigatingRef = useRef(false);
 
+  const navigateRef = useRef<((next: View) => void) | null>(null);
+  navigateRef.current = navigate;
   const busy =
     running ||
     (progress != null &&
@@ -167,9 +169,18 @@ export default function App() {
     reloadSkin();
   }
 
+  const handleOpenSettings = useCallback((section?: SettingsSection) => {
+    setSettingsSection(section ?? "general");
+    navigateRef.current?.("settings");
+  }, []);
+
+  const handleCloseSettings = useCallback(() => {
+    navigateRef.current?.("main");
+  }, []);
+
   function renderScreen(v: View, cls: string, key: string) {
     return (
-      <div key={key} className={cls} style={{ position: "absolute", inset: 0 }}>
+      <div key={key} className={cls}>
         {v === "onboarding" && <OnboardingScreen onDone={finishOnboarding} />}
         {v === "login" && <LoginScreen onAuthenticated={handleAuthenticated} />}
         {v === "main" && profile && (
@@ -180,10 +191,7 @@ export default function App() {
             busy={busy}
             onProgressChange={setProgress}
             onRunningChange={setRunning}
-            onOpenSettings={(section) => {
-              setSettingsSection(section ?? "general");
-              navigate("settings");
-            }}
+            onOpenSettings={handleOpenSettings}
             onLogout={handleLogout}
           />
         )}
@@ -193,7 +201,7 @@ export default function App() {
             onProfileChange={setProfile}
             onAccountDeleted={handleAccountDeleted}
             initialSection={settingsSection}
-            onClose={() => navigate("main")}
+            onClose={handleCloseSettings}
           />
         )}
       </div>
@@ -205,7 +213,7 @@ export default function App() {
       <Aurora />
       <TitleBar />
       <ErrorBoundary>
-        <div className="app__content" style={{ position: "relative", overflow: "hidden" }}>
+        <div className="app__content">
           {!ready ? (
             <div className="app--center">
               <div className="spinner" />

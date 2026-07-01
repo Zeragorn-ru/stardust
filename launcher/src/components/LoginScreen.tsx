@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChallengeOutcome, PlayerProfile } from "../types";
 import {
   login,
@@ -209,6 +209,9 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     }
   }
 
+  const onAuthRef = useRef(onAuthenticated);
+  onAuthRef.current = onAuthenticated;
+
   // Опрос кнопочного подтверждения. Запускается, пока активно `approval`,
   // и очищается при размонтировании/смене состояния.
   useEffect(() => {
@@ -245,7 +248,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
             setResetChallenge(active.challenge);
           } else if (outcome.profile) {
             setApproval(null);
-            onAuthenticated(outcome.profile);
+            onAuthRef.current(outcome.profile);
           }
           break;
         case "denied":
@@ -266,7 +269,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [approval, onAuthenticated]);
+  }, [approval]);
 
   const isRegister = mode === "register";
 
