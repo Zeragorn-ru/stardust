@@ -141,8 +141,6 @@ const SkinViewer3D = memo(function SkinViewer3D({
       enableRotate: true,
       enableZoom: false,
       autoRotate: false,
-      fov: 40,
-      zoom: 55,
     })
       .then((viewer) => {
         if (disposed) {
@@ -210,7 +208,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     const viewer = viewerRef.current;
     if (!viewer) return;
     if (animations) {
-      viewer.playAnimation("idle");
+      viewer.playAnimation("idle", { amplitude: 0.5 });
     } else {
       viewer.stopAnimation();
     }
