@@ -137,17 +137,17 @@ const SkinViewer3D = memo(function SkinViewer3D({
         {
           boneIndex: BoneIndex.RightArm,
           keyframes: [
-            { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(8)) },
+            { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(-8)) },
             { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(0)), easing: easeInOutSine },
-            { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(8)), easing: easeInOutSine },
+            { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(-8)), easing: easeInOutSine },
           ],
         },
         {
           boneIndex: BoneIndex.LeftArm,
           keyframes: [
-            { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(-8)) },
+            { time: 0, rotation: quatFromEuler(degToRad(0), 0, degToRad(8)) },
             { time: 0.5, rotation: quatFromEuler(degToRad(0), 0, degToRad(0)), easing: easeInOutSine },
-            { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(-8)), easing: easeInOutSine },
+            { time: 1, rotation: quatFromEuler(degToRad(0), 0, degToRad(8)), easing: easeInOutSine },
           ],
         },
       ],
