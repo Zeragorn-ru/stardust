@@ -119,14 +119,6 @@ pub async fn launch(
     // плейсхолдеров. Без них BootstrapLauncher не стартует.
     args.extend(modloader_jvm_args(&root, &version, &loader));
 
-    // Прокси для сетевых соединений игры. Без этих аргументов Java-процесс
-    // не знает о прокси и пытается ходить напрямую — если сеть блокирует
-    // прямой выход, игра молча падает без окна.
-    args.push("-Dhttp.proxyHost=assets.zeragorn.xyz".into());
-    args.push("-Dhttp.proxyPort=3128".into());
-    args.push("-Dhttps.proxyHost=assets.zeragorn.xyz".into());
-    args.push("-Dhttps.proxyPort=3128".into());
-
     // authlib-injector: перенаправляет аутентификацию и текстуры на наш
     // auth-сервер, чтобы в игре отображался кастомный скин. Javaagent должен
     // идти среди JVM-аргументов (до main-класса). Если инжектор недоступен —
@@ -930,12 +922,6 @@ async fn ensure_neoforge(
             );
             let mut command = Command::new(&java_clone);
             command
-                .arg("-Dhttps.proxyHost=assets.zeragorn.xyz")
-                .arg("-Dhttps.proxyPort=3128")
-                .arg("-Dhttp.proxyHost=assets.zeragorn.xyz")
-                .arg("-Dhttp.proxyPort=3128")
-                .arg("-Dhttp.nonProxyHosts=*.mojang.com|*.minecraft.net|sessionserver.mojang.com|launchermeta.mojang.com|piston-meta.mojang.com")
-                .arg("-Dhttps.nonProxyHosts=*.mojang.com|*.minecraft.net|sessionserver.mojang.com|launchermeta.mojang.com|piston-meta.mojang.com")
                 .arg("-jar")
                 .arg(&installer_clone)
                 .arg("--install-client")

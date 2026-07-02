@@ -614,7 +614,7 @@ mod win {
 
             let title = wide("StarDust");
             let hwnd = CreateWindowExW(
-                WS_EX_TOPMOST | WS_EX_LAYERED,
+                WS_EX_LAYERED,
                 class.as_ptr(),
                 title.as_ptr(),
                 WS_POPUP | WS_VISIBLE,

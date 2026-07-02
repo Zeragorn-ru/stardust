@@ -380,41 +380,88 @@ async fn download_asset_with_progress(
 }
 
 /// Одна попытка скачивания файла с прогрессом.
+/// Поддерживает докачку (HTTP Range) если файл уже частично скачан.
 async fn download_single(params: &DownloadParams<'_>) -> Result<(), String> {
     use std::io::Write;
 
-    let mut resp = params
-        .http
-        .get(params.url)
+    let existing_size = std::fs::metadata(params.path)
+        .ok()
+        .map(|m| m.len())
+        .filter(|&s| s > 0)
+        .unwrap_or(0);
+
+    let mut req = params.http.get(params.url);
+    if existing_size > 0 {
+        req = req.header("Range", format!("bytes={existing_size}-"));
+    }
+
+    let mut resp = req
         .send()
         .await
         .map_err(|e| format!("Не удалось скачать {}: {e}", params.progress_name))?;
 
-    if !resp.status().is_success() {
+    let status = resp.status();
+
+    // 416 Range Not Satisfiable = файл уже полностью скачан
+    if status == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+        let size = existing_size;
+        emit_progress(
+            params.app,
+            &UpdateProgress {
+                phase: params.phase_name.into(),
+                label: format!("{} уже загружен", params.progress_name),
+                fraction: Some(params.fraction_end),
+                downloaded_bytes: Some(size),
+                total_bytes: Some(size),
+                speed_bytes_per_sec: None,
+                eta_seconds: None,
+            },
+        );
+        return Ok(());
+    }
+
+    let is_resume = status == reqwest::StatusCode::PARTIAL_CONTENT;
+
+    if !is_resume && !status.is_success() {
         return Err(format!(
             "{}: загрузка вернула статус {}",
             params.progress_name,
-            resp.status()
+            status
         ));
     }
 
-    let content_length = resp.content_length().unwrap_or(params.total_size);
+    // При возобновлении Content-Length — это оставшиеся байты, иначе — полный размер
+    let content_length = if is_resume {
+        existing_size + resp.content_length().unwrap_or(0)
+    } else {
+        resp.content_length().unwrap_or(params.total_size)
+    };
 
-    let mut file = std::fs::File::create(params.path)
-        .map_err(|e| format!("Не удалось создать файл {}: {e}", params.progress_name))?;
+    let offset = if is_resume { existing_size } else { 0 };
+    let mut file: std::fs::File = if is_resume {
+        std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(params.path)
+            .map_err(|e| format!("Не удалось открыть файл {}: {e}", params.progress_name))?
+    } else {
+        std::fs::File::create(params.path)
+            .map_err(|e| format!("Не удалось создать файл {}: {e}", params.progress_name))?
+    };
 
-    let mut downloaded: u64 = 0;
+    let mut downloaded: u64 = offset;
     let start = std::time::Instant::now();
     let mut last_emit = std::time::Instant::now();
 
     while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
         file.write_all(&chunk).map_err(|e| e.to_string())?;
         downloaded += chunk.len() as u64;
+        let new_bytes = downloaded - existing_size;
 
         if last_emit.elapsed() >= std::time::Duration::from_millis(250) {
             let elapsed = start.elapsed().as_secs_f64();
             let speed = if elapsed > 0.0 {
-                downloaded as f64 / elapsed
+                new_bytes as f64 / elapsed
             } else {
                 0.0
             };
@@ -422,7 +469,6 @@ async fn download_single(params: &DownloadParams<'_>) -> Result<(), String> {
                 let raw = params.fraction_start
                     + (downloaded as f64 / content_length as f64)
                         * (params.fraction_end - params.fraction_start);
-                // Защита от NaN/Inf — шлём None если что-то пошло не так.
                 if raw.is_finite() { raw } else { params.fraction_start }
             } else {
                 params.fraction_start
@@ -549,17 +595,74 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
 
     let bootstrap_asset = find_bootstrap_asset(&release.assets)
         .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
-    let bootstrap_path = download_asset_with_progress(
-        &app,
-        &http,
-        bootstrap_asset,
-        "bootstrap.exe",
-        "downloading_bootstrap",
-        0.0,
-        0.30,
-        bootstrap_asset.size,
-    )
-    .await?;
+    let bootstrap_path = {
+        let path = std::env::temp_dir().join(sanitize_filename(&bootstrap_asset.name)?);
+        let hash_path = std::path::PathBuf::from(format!("{}.sha256", path.display()));
+
+        // Проверяем кеш: файл + рядом sha256 с совпадающим хешем
+        let cached = if hash_path.exists() && path.exists() {
+            let expected = std::fs::read_to_string(&hash_path)
+                .ok()
+                .map(|s| s.trim().to_lowercase());
+            if let Some(expected) = expected {
+                let actual = tauri::async_runtime::spawn_blocking({
+                    let p = path.clone();
+                    move || compute_sha256(&p)
+                })
+                .await
+                .ok()
+                .and_then(|r| r.ok());
+                actual.is_some_and(|a| a == expected)
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if cached {
+            tracing::info!("[update] bootstrap.exe уже скачан (sha256 совпал), пропускаем");
+            emit_progress(
+                &app,
+                &UpdateProgress {
+                    phase: "downloading_bootstrap".into(),
+                    label: "Файл обновления уже загружен".into(),
+                    fraction: Some(0.30),
+                    downloaded_bytes: Some(bootstrap_asset.size),
+                    total_bytes: Some(bootstrap_asset.size),
+                    speed_bytes_per_sec: None,
+                    eta_seconds: None,
+                },
+            );
+            path
+        } else {
+            let p = download_asset_with_progress(
+                &app,
+                &http,
+                bootstrap_asset,
+                "bootstrap.exe",
+                "downloading_bootstrap",
+                0.0,
+                0.30,
+                bootstrap_asset.size,
+            )
+            .await?;
+
+            // Сохраняем sha256 для проверки при следующем обновлении
+            if let Some(hash) = tauri::async_runtime::spawn_blocking({
+                let p2 = p.clone();
+                move || compute_sha256(&p2)
+            })
+            .await
+            .ok()
+            .and_then(|r| r.ok())
+            {
+                let _ = std::fs::write(&hash_path, hash);
+            }
+
+            p
+        }
+    };
 
     // ── Фаза 2: установщик (0.30 — 0.85) ─────────────────────────────────
     let installer_path = download_asset_with_progress(
