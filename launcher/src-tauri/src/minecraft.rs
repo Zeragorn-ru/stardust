@@ -109,8 +109,20 @@ pub async fn launch(
     let classpath = build_modloader_classpath(&root, &version, &loader);
     let natives_dir = natives_dir(&root, &version.id);
 
+    let memory = settings_memory_mb;
     let mut args = Vec::<String>::new();
-    args.push(format!("-Xmx{}M", settings_memory_mb));
+    // Фиксированный heap — без этого JVM стартует с крошечной кучей и
+    // перестраивает её по мере роста, что на слабых системах вызывает
+    // длинные GC-паузы, из-за которых игрок может не успеть создаться.
+    args.push(format!("-Xms{memory}M"));
+    args.push(format!("-Xmx{memory}M"));
+    // G1GC — наилучший выбор для Minecraft: короткие паузы ценой
+    // небольшого оверхеда. На Temurin JRE default GC зависит от
+    // платформы и может быть Serial/Parallel с паузами >1 с.
+    args.push("-XX:+UseG1GC".into());
+    args.push("-XX:+ParallelRefProcEnabled".into());
+    args.push("-XX:+DisableExplicitGC".into());
+    args.push("-XX:MaxGCPauseMillis=200".into());
     args.push(format!(
         "-Djava.library.path={}",
         natives_dir.to_string_lossy()
