@@ -31,5 +31,5 @@ CREATE TABLE IF NOT EXISTS player_gradients (
 );
 
 -- Выбор игрока: активный бейдж и градиент.
-ALTER TABLE accounts ADD COLUMN active_badge_id    INT REFERENCES badges(id);
-ALTER TABLE accounts ADD COLUMN active_gradient_id INT REFERENCES gradients(id);
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS active_badge_id    INT REFERENCES badges(id);
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS active_gradient_id INT REFERENCES gradients(id);

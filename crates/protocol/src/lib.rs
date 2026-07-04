@@ -153,6 +153,7 @@ pub struct PlayerProfile {
 
 /// Бейдж — эмодзи-префикс перед ником в TAB.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Badge {
     pub id: i32,
     pub emoji: String,
@@ -162,6 +163,7 @@ pub struct Badge {
 
 /// Градиент — раскраска ника от одного цвета к другому.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Gradient {
     pub id: i32,
     pub label: String,
@@ -171,6 +173,7 @@ pub struct Gradient {
 
 /// Полная информация о кастомизации игрока для лаунчера.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerCustomization {
     pub available_badges: Vec<Badge>,
     pub available_gradients: Vec<Gradient>,
