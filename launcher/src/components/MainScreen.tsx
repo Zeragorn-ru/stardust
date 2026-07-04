@@ -147,7 +147,27 @@ export default function MainScreen({
             <FaceAvatar dataUrl={skin.dataUrl} size={42} />
           </div>
           <div className="account__info">
-            <div className="account__name">{profile.name}</div>
+            <div className="account__name nick-display">
+              {profile.activeBadge && (
+                <span className="nick-display__badge" style={{ color: profile.activeBadge.color }}>
+                  {profile.activeBadge.emoji}
+                </span>
+              )}
+              <span
+                className="nick-display__name"
+                style={
+                  profile.activeGradient
+                    ? {
+                        background: `linear-gradient(90deg, ${profile.activeGradient.colorStart}, ${profile.activeGradient.colorEnd})`,
+                        WebkitBackgroundClip: "text",
+                        WebkitTextFillColor: "transparent",
+                      }
+                    : undefined
+                }
+              >
+                {profile.name}
+              </span>
+            </div>
             <div className="account__id muted">{shortId(profile.id)}</div>
           </div>
         </button>

@@ -130,6 +130,7 @@ enum LoginOutcome {
 /// должен показать форму нового пароля и вызвать `password_reset_confirm`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
+#[allow(clippy::large_enum_variant)]
 enum ChallengeOutcome {
     /// Пользователь ещё не ответил — продолжать опрос.
     Pending,
@@ -1344,6 +1345,55 @@ async fn mc_read_varint(stream: &mut tokio::net::TcpStream) -> std::io::Result<u
     Ok(result)
 }
 
+// ─────────────────── Кастомизация ника ───────────────────
+
+#[tauri::command]
+async fn get_customization(app: tauri::AppHandle) -> Result<protocol::PlayerCustomization, String> {
+    let state = app.state::<AppState>();
+    let token = { state.token.lock().unwrap().clone() }
+        .ok_or_else(|| "Нет токена авторизации".to_string())?;
+    let base = std::env::var("LAUNCHER_AUTH_URL")
+        .unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
+    let resp = state.http
+        .get(format!("{base}/api/me/customization"))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка сети: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let msg = resp.text().await.unwrap_or_default();
+        return Err(format!("Ошибка {status}: {msg}"));
+    }
+    resp.json().await.map_err(|e| format!("Ошибка ответа: {e}"))
+}
+
+#[tauri::command]
+async fn set_active_customization(
+    app: tauri::AppHandle,
+    badge_id: Option<i32>,
+    gradient_id: Option<i32>,
+) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let token = { state.token.lock().unwrap().clone() }
+        .ok_or_else(|| "Нет токена авторизации".to_string())?;
+    let base = std::env::var("LAUNCHER_AUTH_URL")
+        .unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
+    let resp = state.http
+        .put(format!("{base}/api/me/active"))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({ "badge_id": badge_id, "gradient_id": gradient_id }))
+        .send()
+        .await
+        .map_err(|e| format!("Ошибка сети: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let msg = resp.text().await.unwrap_or_default();
+        return Err(format!("Ошибка {status}: {msg}"));
+    }
+    Ok(())
+}
+
 /// Регистрирует все команды и состояние в Tauri-приложении.
 pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder
@@ -1383,5 +1433,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             crate::update::check_update,
             crate::update::install_update,
             ping_minecraft_server,
+            get_customization,
+            set_active_customization,
         ])
 }

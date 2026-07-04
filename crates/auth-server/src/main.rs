@@ -32,7 +32,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -143,6 +143,8 @@ async fn main() {
         .route("/api/account/delete", post(delete_account))
         .route("/api/account/telegram/start", post(telegram_link_start))
         .route("/api/account/telegram/unlink", post(telegram_unlink))
+        .route("/api/me/customization", get(me_customization))
+        .route("/api/me/active", put(me_set_active))
         .route("/api/profile/:uuid", get(profile))
         .route("/api/skin/import", post(skin_import))
         .route("/api/skin/upload", post(skin_upload))
@@ -165,6 +167,7 @@ async fn main() {
             get(ygg_profile),
         )
         .route("/api/profiles/minecraft", post(ygg_profiles_by_name))
+        .route("/api/server/customization", get(server_customization))
         .route("/textures/:hash", get(texture))
         .with_state(state)
         .layer(CorsLayer::permissive());
@@ -1232,7 +1235,66 @@ async fn stats_get(
     }))
 }
 
-/// `POST /api/stats/session` — удалён, статистика читается фоновым циклом.
+// ─────────────────── Кастомизация ника ───────────────────
+
+async fn me_customization(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<protocol::PlayerCustomization>, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let available_badges = state.store.player_available_badges(&account.uuid).await?;
+    let available_gradients = state.store.player_available_gradients(&account.uuid).await?;
+    Ok(Json(protocol::PlayerCustomization {
+        available_badges,
+        available_gradients,
+        active_badge_id: account.active_badge_id,
+        active_gradient_id: account.active_gradient_id,
+    }))
+}
+
+#[derive(serde::Deserialize)]
+struct ActiveInput {
+    badge_id: Option<i32>,
+    gradient_id: Option<i32>,
+}
+
+async fn me_set_active(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<ActiveInput>,
+) -> Result<StatusCode, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    state.store.set_active_customization(&account.uuid, input.badge_id, input.gradient_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Публичный эндпоинт для серверного мода: lookup кастомизации по никам.
+/// GET /api/server/customization?players=Notch,Steve,...
+async fn server_customization(
+    State(state): State<Shared>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<std::collections::HashMap<String, protocol::ServerPlayerCustomization>>, ApiError> {
+    let names_str = params.get("players").ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "missing 'players' param"))?;
+    let names: Vec<String> = names_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+    if names.is_empty() {
+        return Ok(Json(std::collections::HashMap::new()));
+    }
+    let lookup = state.store.server_customization_lookup(&names).await?;
+    let result: std::collections::HashMap<String, protocol::ServerPlayerCustomization> = lookup
+        .into_iter()
+        .map(|(name, (badge, gradient, name_color))| {
+            let sc = protocol::ServerPlayerCustomization {
+                badge: badge.as_ref().map(|b| b.emoji.clone()),
+                badge_color: badge.map(|b| b.color),
+                name_color,
+                gradient_start: gradient.as_ref().map(|g| g.color_start.clone()),
+                gradient_end: gradient.map(|g| g.color_end.clone()),
+            };
+            (name, sc)
+        })
+        .collect();
+    Ok(Json(result))
+}
 
 /// Фоновый цикл: периодически перечитывает скины с Mojang для аккаунтов,
 /// у которых включена синхронизация (`keep_synced`).

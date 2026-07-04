@@ -501,6 +501,27 @@ export async function getStats(): Promise<PlayerStats> {
   return invoke<PlayerStats>("get_stats");
 }
 
+// ───── Кастомизация ника ─────
+
+/** Получить доступные бейджи/градиенты и активный выбор. */
+export async function getCustomization(): Promise<import("./types").PlayerCustomization> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return { availableBadges: [], availableGradients: [], activeBadgeId: null, activeGradientId: null };
+  }
+  return invoke<import("./types").PlayerCustomization>("get_customization");
+}
+
+/** Установить активные бейдж и градиент. */
+export async function setActiveCustomization(
+  badgeId: number | null,
+  gradientId: number | null,
+): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) return;
+  await invoke("set_active_customization", { badgeId, gradientId });
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

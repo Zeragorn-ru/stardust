@@ -1,3 +1,19 @@
+@font-face {
+    font-family: 'Minecraft';
+    src: url('/fonts/macsMinecraft-Regular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Minecraft';
+    src: url('/fonts/macsMinecraft-Bold.woff2') format('woff2');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
 :root {
     /* Глубокий сине-фиолетовый фон */
     --bg: #0a0b14;
@@ -2563,6 +2579,7 @@ body {
     cursor: pointer;
     transition: color var(--t-fast);
     white-space: nowrap;
+    text-align: center;
 }
 
 .customize-tab:hover:not(.is-active) { color: var(--text); }
@@ -2590,4 +2607,157 @@ body {
     justify-content: center;
     min-height: 200px;
     font-size: 14px;
+}
+
+/* --- Nick Customizer --- */
+.nick-customizer {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.nick-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+    gap: 8px;
+}
+
+.nick-preview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.nick-preview__label {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.nick-preview__name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Minecraft', 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.nick-badge {
+    font-size: 24px;
+}
+
+.nick-text {
+    color: #fff;
+}
+
+.nick-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.nick-section__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.nick-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.nick-badge-btn {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    border: 2px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.nick-badge-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.nick-badge-btn.selected {
+    border-color: var(--accent);
+    background: rgba(124, 92, 255, 0.15);
+}
+
+.nick-gradients {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.nick-gradient-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 2px solid var(--glass-border);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    text-align: left;
+}
+
+.nick-gradient-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.nick-gradient-btn.selected {
+    border-color: var(--accent);
+    background: rgba(124, 92, 255, 0.15);
+}
+
+.nick-gradient-swatch {
+    display: inline-block;
+    width: 40px;
+    height: 14px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.nick-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 8px;
+}
+
+/* --- Nick display on main screen --- */
+.nick-display {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nick-display__badge {
+    font-size: 18px;
+}
+
+.nick-display__name {
+    font-family: 'Minecraft', 'Courier New', monospace;
+    font-size: 15px;
+    font-weight: bold;
+    color: #fff;
 }

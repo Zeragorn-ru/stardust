@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import SkinModal from "./SkinModal";
+import NickCustomizer from "./NickCustomizer";
 
 type Tab = "skin" | "nick";
 
@@ -69,11 +70,8 @@ export default function CustomizeModal({ onClose }: Props) {
             <SkinModal embedded onClose={onClose} />
           </div>
         ) : (
-          <div className="customize-modal__body customize-wip">
-            <span className="muted">🔒 В разработке</span>
-            <span className="muted" style={{ fontSize: "0.85em", marginTop: "0.5em", display: "block" }}>
-              Смена ника будет доступна в следующем обновлении
-            </span>
+          <div className="customize-modal__body">
+            <NickCustomizer />
           </div>
         )}
       </div>

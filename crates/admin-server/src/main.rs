@@ -20,7 +20,7 @@ use axum::{
     extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -207,6 +207,20 @@ async fn main() {
         )
         .route("/api/accounts/:uuid/skin", get(account_skin))
         .route("/api/accounts/:uuid/stats", get(account_stats))
+        .route("/api/accounts/:uuid/customization", get(get_account_customization))
+        .route("/api/accounts/:uuid/badges", put(set_account_badges))
+        .route("/api/accounts/:uuid/gradients", put(set_account_gradients))
+        .route("/api/accounts/:uuid/active", put(set_account_active))
+        .route("/api/badges", get(list_badges).post(create_badge))
+        .route(
+            "/api/badges/:id",
+            axum::routing::patch(update_badge).delete(delete_badge),
+        )
+        .route("/api/gradients", get(list_gradients).post(create_gradient))
+        .route(
+            "/api/gradients/:id",
+            axum::routing::patch(update_gradient).delete(delete_gradient),
+        )
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
         .route("/authlib-injector.jar", get(authlib_injector))
@@ -1826,6 +1840,169 @@ async fn account_stats(
         last_launched_at: last_launched_at
             .map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
+}
+
+// ─────────────────── Бейджи и градиенты (CRUD) ───────────────────
+
+#[derive(Deserialize)]
+struct BadgeInput {
+    emoji: String,
+    label: String,
+    color: String,
+}
+
+#[derive(Deserialize)]
+struct GradientInput {
+    label: String,
+    color_start: String,
+    color_end: String,
+}
+
+#[derive(Deserialize)]
+struct IdList {
+    ids: Vec<i32>,
+}
+
+#[derive(Deserialize)]
+struct ActiveInput {
+    badge_id: Option<i32>,
+    gradient_id: Option<i32>,
+}
+
+async fn list_badges(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<protocol::Badge>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let badges = state.store.list_badges().await.map_err(map_store)?;
+    Ok(Json(badges))
+}
+
+async fn create_badge(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<BadgeInput>,
+) -> Result<Json<protocol::Badge>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let badge = state.store.create_badge(&input.emoji, &input.label, &input.color)
+        .await.map_err(map_store)?;
+    Ok(Json(badge))
+}
+
+async fn update_badge(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i32>,
+    Json(input): Json<BadgeInput>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.update_badge(id, &input.emoji, &input.label, &input.color)
+        .await.map_err(map_store)?;
+    Ok(())
+}
+
+async fn delete_badge(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i32>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.delete_badge(id).await.map_err(map_store)?;
+    Ok(())
+}
+
+async fn list_gradients(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<protocol::Gradient>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let gradients = state.store.list_gradients().await.map_err(map_store)?;
+    Ok(Json(gradients))
+}
+
+async fn create_gradient(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<GradientInput>,
+) -> Result<Json<protocol::Gradient>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let gradient = state.store.create_gradient(&input.label, &input.color_start, &input.color_end)
+        .await.map_err(map_store)?;
+    Ok(Json(gradient))
+}
+
+async fn update_gradient(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i32>,
+    Json(input): Json<GradientInput>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.update_gradient(id, &input.label, &input.color_start, &input.color_end)
+        .await.map_err(map_store)?;
+    Ok(())
+}
+
+async fn delete_gradient(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i32>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.delete_gradient(id).await.map_err(map_store)?;
+    Ok(())
+}
+
+async fn get_account_customization(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+) -> Result<Json<protocol::PlayerCustomization>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let account = state.store.find_by_uuid(&uuid).await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    let available_badges = state.store.player_available_badges(&uuid).await.map_err(map_store)?;
+    let available_gradients = state.store.player_available_gradients(&uuid).await.map_err(map_store)?;
+    Ok(Json(protocol::PlayerCustomization {
+        available_badges,
+        available_gradients,
+        active_badge_id: account.active_badge_id,
+        active_gradient_id: account.active_gradient_id,
+    }))
+}
+
+async fn set_account_badges(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(input): Json<IdList>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.set_player_badges(&uuid, &input.ids).await.map_err(map_store)?;
+    Ok(())
+}
+
+async fn set_account_gradients(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(input): Json<IdList>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.set_player_gradients(&uuid, &input.ids).await.map_err(map_store)?;
+    Ok(())
+}
+
+async fn set_account_active(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(input): Json<ActiveInput>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.set_active_customization(&uuid, input.badge_id, input.gradient_id)
+        .await.map_err(map_store)?;
+    Ok(())
 }
 
 /// Нормализует UUID для сравнения (убирает дефисы, нижний регистр).

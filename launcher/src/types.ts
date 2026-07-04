@@ -6,6 +6,34 @@ export interface PlayerProfile {
   id: string;
   /** Имя игрока. */
   name: string;
+  /** Активный бейдж (эмодзи-префикс), если выбран. */
+  activeBadge?: { id: number; emoji: string; color: string } | null;
+  /** Активный градиент (раскраска ника), если выбран. */
+  activeGradient?: { id: number; colorStart: string; colorEnd: string } | null;
+}
+
+/** Бейдж для выбора. */
+export interface Badge {
+  id: number;
+  emoji: string;
+  label: string;
+  color: string;
+}
+
+/** Градиент для выбора. */
+export interface Gradient {
+  id: number;
+  label: string;
+  colorStart: string;
+  colorEnd: string;
+}
+
+/** Информация о кастомизации игрока. */
+export interface PlayerCustomization {
+  availableBadges: Badge[];
+  availableGradients: Gradient[];
+  activeBadgeId: number | null;
+  activeGradientId: number | null;
 }
 
 /** Расширенные сведения об аккаунте владельца (вкладка «Аккаунт»). */

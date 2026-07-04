@@ -106,3 +106,25 @@ export interface DepsCheckResult {
   totalMods: number;
   problems: DepsCheckProblem[];
 }
+
+// Кастомизация ника
+export interface Badge {
+  id: number;
+  emoji: string;
+  label: string;
+  color: string;
+}
+
+export interface Gradient {
+  id: number;
+  label: string;
+  colorStart: string;
+  colorEnd: string;
+}
+
+export interface PlayerCustomization {
+  availableBadges: Badge[];
+  availableGradients: Gradient[];
+  activeBadgeId: number | null;
+  activeGradientId: number | null;
+}

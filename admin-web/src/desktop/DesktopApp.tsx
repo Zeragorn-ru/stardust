@@ -12,6 +12,7 @@ import { Login } from "../Login";
 import { BuildsPage } from "./BuildsPage";
 import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
+import { CustomizationView } from "../views/CustomizationView";
 import { IconBox, IconLogout, IconSettings, IconSmartphone, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
@@ -45,6 +46,7 @@ function Gate() {
 const NAV = [
   { to: "/builds", label: "Сборки", icon: <IconBox /> },
   { to: "/accounts", label: "Аккаунты", icon: <IconUsers /> },
+  { to: "/customization", label: "Кастомизация", icon: <span style={{ fontSize: 16 }}>🎨</span> },
   { to: "/settings", label: "Настройки", icon: <IconSettings /> },
 ];
 
@@ -93,6 +95,7 @@ function Shell() {
           <Route path="/builds" element={<BuildsPage />} />
           <Route path="/builds/:id" element={<BuildsPage />} />
           <Route path="/accounts" element={<AccountsView />} />
+          <Route path="/customization" element={<CustomizationView />} />
           <Route path="/settings" element={<SettingsView />} />
           <Route path="*" element={<Navigate to="/builds" replace />} />
         </Routes>

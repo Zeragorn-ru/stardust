@@ -2047,3 +2047,190 @@ td.num {
         max-width: none;
     }
 }
+
+/* --- Player Card Modal --- */
+.pc-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+    padding: 3px;
+    margin-bottom: 16px;
+}
+
+.pc-tab {
+    flex: 1;
+    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--ease), color var(--ease);
+}
+
+.pc-tab:hover {
+    color: var(--text);
+}
+
+.pc-tab.active {
+    background: var(--panel-3);
+    color: var(--text);
+}
+
+.pc-body {
+    min-height: 120px;
+}
+
+.pc-info-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pc-info-table td {
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+}
+
+.pc-info-table td:first-child {
+    width: 130px;
+    font-weight: 500;
+}
+
+/* Badges tab */
+.pc-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.pc-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pc-section-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--muted);
+}
+
+.pc-check-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pc-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background var(--ease);
+    font-size: 13px;
+}
+
+.pc-check:hover {
+    background: var(--panel-2);
+}
+
+.pc-check input[type="checkbox"] {
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+
+.pc-check-emoji {
+    font-size: 16px;
+    width: 22px;
+    text-align: center;
+}
+
+.pc-check-swatch {
+    display: inline-block;
+    width: 22px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.pc-check-label {
+    flex: 1;
+}
+
+.pc-active-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border-strong);
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: background var(--ease), border-color var(--ease);
+}
+
+.pc-active-dot:hover {
+    border-color: var(--accent);
+}
+
+.pc-active-dot.active {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.pc-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--panel-2);
+    border-radius: var(--radius);
+    font-size: 14px;
+}
+
+/* Actions tab */
+.pc-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.pc-action-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 13px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background var(--ease), border-color var(--ease);
+    text-align: left;
+}
+
+.pc-action-btn:hover:not(:disabled) {
+    background: var(--panel-3);
+    border-color: var(--border-strong);
+}
+
+.pc-action-btn.danger {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.pc-action-btn.danger:hover:not(:disabled) {
+    background: var(--danger-soft);
+}
+
+.pc-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

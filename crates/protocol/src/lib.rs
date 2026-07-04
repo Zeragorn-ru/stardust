@@ -143,6 +143,49 @@ pub struct PlayerProfile {
     pub id: String,
     /// Имя игрока.
     pub name: String,
+    /// Активный бейдж (эмодзи-префикс), если выбран.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_badge: Option<Badge>,
+    /// Активный градиент (раскраска ника), если выбран.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active_gradient: Option<Gradient>,
+}
+
+/// Бейдж — эмодзи-префикс перед ником в TAB.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Badge {
+    pub id: i32,
+    pub emoji: String,
+    pub label: String,
+    pub color: String,
+}
+
+/// Градиент — раскраска ника от одного цвета к другому.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Gradient {
+    pub id: i32,
+    pub label: String,
+    pub color_start: String,
+    pub color_end: String,
+}
+
+/// Полная информация о кастомизации игрока для лаунчера.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlayerCustomization {
+    pub available_badges: Vec<Badge>,
+    pub available_gradients: Vec<Gradient>,
+    pub active_badge_id: Option<i32>,
+    pub active_gradient_id: Option<i32>,
+}
+
+/// Данные кастомизации для серверного мода (TAB integration).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerPlayerCustomization {
+    pub badge: Option<String>,
+    pub badge_color: Option<String>,
+    pub name_color: Option<String>,
+    pub gradient_start: Option<String>,
+    pub gradient_end: Option<String>,
 }
 
 /// Учётные данные для входа/регистрации (логин по нику, без почты).
@@ -206,6 +249,7 @@ pub struct ChallengeStatusRequest {
 /// при сбросе пароля поле `auth` отсутствует и нужно вызвать reset-эндпоинт.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum ChallengeStatus {
     /// Пользователь ещё не ответил — продолжать опрос.
     Pending,

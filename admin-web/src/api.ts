@@ -5,12 +5,15 @@
 
 import type {
   Account,
+  Badge,
   BuildCheckResult,
   BuildDetail,
   BuildFile,
   BuildHeader,
   CreateBuildInput,
   DepsCheckResult,
+  Gradient,
+  PlayerCustomization,
   PlayerStats,
   Settings,
   UploadMeta,
@@ -305,5 +308,55 @@ export const api = {
     if (!resp.ok) throw new ApiError(resp.status, `Ошибка ${resp.status}`);
     const blob = await resp.blob();
     return URL.createObjectURL(blob);
+  },
+
+  // ───── Кастомизация ника ─────
+
+  listBadges(): Promise<Badge[]> {
+    return request("GET", "/api/badges");
+  },
+
+  createBadge(emoji: string, label: string, color: string): Promise<Badge> {
+    return request("POST", "/api/badges", { emoji, label, color });
+  },
+
+  updateBadge(id: number, emoji: string, label: string, color: string): Promise<void> {
+    return request("PATCH", `/api/badges/${id}`, { emoji, label, color });
+  },
+
+  deleteBadge(id: number): Promise<void> {
+    return request("DELETE", `/api/badges/${id}`);
+  },
+
+  listGradients(): Promise<Gradient[]> {
+    return request("GET", "/api/gradients");
+  },
+
+  createGradient(label: string, colorStart: string, colorEnd: string): Promise<Gradient> {
+    return request("POST", "/api/gradients", { label, colorStart, colorEnd });
+  },
+
+  updateGradient(id: number, label: string, colorStart: string, colorEnd: string): Promise<void> {
+    return request("PATCH", `/api/gradients/${id}`, { label, colorStart, colorEnd });
+  },
+
+  deleteGradient(id: number): Promise<void> {
+    return request("DELETE", `/api/gradients/${id}`);
+  },
+
+  getAccountCustomization(uuid: string): Promise<PlayerCustomization> {
+    return request("GET", `/api/accounts/${uuid}/customization`);
+  },
+
+  setAccountBadges(uuid: string, ids: number[]): Promise<void> {
+    return request("PUT", `/api/accounts/${uuid}/badges`, { ids });
+  },
+
+  setAccountGradients(uuid: string, ids: number[]): Promise<void> {
+    return request("PUT", `/api/accounts/${uuid}/gradients`, { ids });
+  },
+
+  setAccountActive(uuid: string, badgeId: number | null, gradientId: number | null): Promise<void> {
+    return request("PUT", `/api/accounts/${uuid}/active`, { badgeId, gradientId });
   },
 };
