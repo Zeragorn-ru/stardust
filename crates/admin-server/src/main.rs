@@ -60,6 +60,8 @@ struct AppState {
     injector: Mutex<Option<InjectorCache>>,
     /// Защита от параллельных SFTP-синхронизаций одной панели.
     sync_to_panel_running: Mutex<Option<i64>>,
+    /// Последний статус SFTP-синхронизации для polling из админки.
+    sync_to_panel_status: Mutex<SyncStatus>,
 }
 
 /// Закэшированный authlib-injector.jar с временем загрузки.
@@ -120,6 +122,7 @@ async fn main() {
             .expect("не удалось собрать HTTP-клиент"),
         injector: Mutex::new(None),
         sync_to_panel_running: Mutex::new(None),
+        sync_to_panel_status: Mutex::new(SyncStatus::default()),
     });
 
     // Фоновая задача: синхронизация статистики с SFTP каждые 15 минут.
@@ -188,6 +191,7 @@ async fn main() {
             axum::routing::patch(update_file).delete(delete_file),
         )
         .route("/api/builds/:id/sync-to-panel", post(sync_to_panel))
+        .route("/api/builds/:id/sync-to-panel/status", get(sync_to_panel_status))
         .route("/api/build-check", get(build_check))
         .route("/api/deps-check", get(deps_check))
         .route("/api/settings/sync-stats", post(sync_stats))
@@ -1102,6 +1106,49 @@ struct SyncResult {
     in_progress: bool,
 }
 
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SyncStatus {
+    build_id: Option<i64>,
+    state: SyncState,
+    phase: String,
+    current: usize,
+    total: usize,
+    uploaded: usize,
+    skipped: usize,
+    deleted: usize,
+    error: Option<String>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+}
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SyncState {
+    #[default]
+    Idle,
+    Running,
+    Success,
+    Error,
+}
+
+impl SyncStatus {
+    fn started(build_id: i64) -> Self {
+        Self {
+            build_id: Some(build_id),
+            state: SyncState::Running,
+            phase: "Подготовка".to_string(),
+            started_at: Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default()),
+            ..Self::default()
+        }
+    }
+}
+
+async fn update_sync_status(state: &Shared, update: impl FnOnce(&mut SyncStatus)) {
+    let mut status = state.sync_to_panel_status.lock().await;
+    update(&mut status);
+}
+
 /// Имя манифеста синхронизации на стороне сервера. По нему при следующей
 /// синхронизации мы понимаем, какие файлы заливали раньше, и удаляем те,
 /// что были убраны из сборки (как `managed-files.json` в лаунчере).
@@ -1198,23 +1245,46 @@ async fn sync_to_panel(
         }
         *running = Some(build_id);
     }
+    update_sync_status(&state, |status| *status = SyncStatus::started(build_id)).await;
 
     let task_state = Arc::clone(&state);
     tokio::spawn(async move {
         match do_sync_to_panel(Arc::clone(&task_state), build_id).await {
-            Ok(result) => tracing::info!(
-                build_id,
-                uploaded = result.uploaded,
-                skipped = result.skipped,
-                deleted = result.deleted,
-                "[sftp] синхронизация завершена"
-            ),
-            Err(err) => tracing::error!(
-                build_id,
-                status = %err.status,
-                error = %err.message,
-                "[sftp] синхронизация завершилась ошибкой"
-            ),
+            Ok(result) => {
+                update_sync_status(&task_state, |status| {
+                    status.state = SyncState::Success;
+                    status.phase = "Готово".to_string();
+                    status.current = status.total;
+                    status.uploaded = result.uploaded;
+                    status.skipped = result.skipped;
+                    status.deleted = result.deleted;
+                    status.error = None;
+                    status.finished_at = Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                })
+                .await;
+                tracing::info!(
+                    build_id,
+                    uploaded = result.uploaded,
+                    skipped = result.skipped,
+                    deleted = result.deleted,
+                    "[sftp] синхронизация завершена"
+                );
+            }
+            Err(err) => {
+                update_sync_status(&task_state, |status| {
+                    status.state = SyncState::Error;
+                    status.phase = "Ошибка".to_string();
+                    status.error = Some(err.message.clone());
+                    status.finished_at = Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                })
+                .await;
+                tracing::error!(
+                    build_id,
+                    status = %err.status,
+                    error = %err.message,
+                    "[sftp] синхронизация завершилась ошибкой"
+                );
+            }
         }
 
         let mut running = task_state.sync_to_panel_running.lock().await;
@@ -1232,6 +1302,20 @@ async fn sync_to_panel(
             in_progress: true,
         }),
     ))
+}
+
+async fn sync_to_panel_status(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(build_id): Path<i64>,
+) -> Result<Json<SyncStatus>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let status = state.sync_to_panel_status.lock().await.clone();
+    if status.build_id == Some(build_id) {
+        Ok(Json(status))
+    } else {
+        Ok(Json(SyncStatus::default()))
+    }
 }
 
 async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, ApiError> {
@@ -1314,15 +1398,34 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
     let mut uploaded = 0usize;
     let mut skipped = 0usize;
     let mut deleted = 0usize;
+    let mut current = 0usize;
+    let total = build.files.len() + previous.len() + 1;
+    update_sync_status(&state, |status| {
+        status.phase = "Загрузка файлов".to_string();
+        status.current = 0;
+        status.total = total.max(1);
+    })
+    .await;
     // Что должно лежать на сервере после этой синхронизации: { путь -> sha1 }.
     let mut desired: std::collections::BTreeMap<String, String> = std::collections::BTreeMap::new();
 
     for file in &build.files {
+        update_sync_status(&state, |status| {
+            status.phase = format!("Загрузка {}", file.path);
+            status.current = current;
+            status.total = total.max(1);
+            status.uploaded = uploaded;
+            status.skipped = skipped;
+            status.deleted = deleted;
+        })
+        .await;
+
         // Грузим всё, что нужно серверу (side = server | both), независимо от
         // опциональности и «включён по умолчанию» — опц. моды тоже едут.
         // Отключённые файлы пропускаем — они не должны отдаваться ни клиенту, ни серверу.
         if file.disabled || (file.side != "server" && file.side != "both") {
             skipped += 1;
+            current += 1;
             continue;
         }
 
@@ -1355,6 +1458,7 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
 
         desired.insert(target, file.sha1.clone());
         uploaded += 1;
+        current += 1;
     }
 
     // Удаляем то, что заливали раньше, но в текущей сборке этого уже нет.
@@ -1362,7 +1466,18 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
     // заливки (sha1 совпадает с записанным) — чтобы не затирать правки админа
     // сервера. Сам манифест синхронизации не трогаем.
     for (path, recorded_sha1) in &previous {
+        update_sync_status(&state, |status| {
+            status.phase = format!("Проверка удаления {path}");
+            status.current = current;
+            status.total = total.max(1);
+            status.uploaded = uploaded;
+            status.skipped = skipped;
+            status.deleted = deleted;
+        })
+        .await;
+
         if desired.contains_key(path) || path == SYNC_MANIFEST {
+            current += 1;
             continue;
         }
         let unchanged = match sftp.read(path).await {
@@ -1373,12 +1488,31 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
         if unchanged && sftp.remove_file(path).await.is_ok() {
             deleted += 1;
         }
+        current += 1;
     }
 
     // Сохраняем новый манифест синхронизации на сервере.
+    update_sync_status(&state, |status| {
+        status.phase = "Запись манифеста".to_string();
+        status.current = current;
+        status.total = total.max(1);
+        status.uploaded = uploaded;
+        status.skipped = skipped;
+        status.deleted = deleted;
+    })
+    .await;
     let manifest_bytes = serde_json::to_vec(&desired)
         .map_err(|e| internal(format!("сериализация манифеста: {e}")))?;
     write_sftp_file_atomic(&sftp, SYNC_MANIFEST, &manifest_bytes).await?;
+    current += 1;
+    update_sync_status(&state, |status| {
+        status.current = current;
+        status.total = total.max(1);
+        status.uploaded = uploaded;
+        status.skipped = skipped;
+        status.deleted = deleted;
+    })
+    .await;
 
     // Корректно завершаем SSH-сессию.
     let _ = session

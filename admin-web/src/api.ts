@@ -89,6 +89,20 @@ export interface LoginResult {
   uuid: string;
 }
 
+export interface SyncStatus {
+  buildId?: number | null;
+  state: "idle" | "running" | "success" | "error";
+  phase: string;
+  current: number;
+  total: number;
+  uploaded: number;
+  skipped: number;
+  deleted: number;
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+
 export const api = {
   async login(username: string, password: string): Promise<LoginResult> {
     const res = await request<LoginResult>("POST", "/api/login", {
@@ -267,6 +281,10 @@ export const api = {
     buildId: number,
   ): Promise<{ uploaded: number; skipped: number; deleted: number; inProgress?: boolean }> {
     return request("POST", `/api/builds/${buildId}/sync-to-panel`);
+  },
+
+  syncToPanelStatus(buildId: number): Promise<SyncStatus> {
+    return request("GET", `/api/builds/${buildId}/sync-to-panel/status`);
   },
 
   saveSettings(patch: {

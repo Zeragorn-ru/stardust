@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
+import type { SyncStatus } from "./api";
 import type {
   BuildCheckResult,
   BuildDetail as BuildDetailData,
@@ -157,7 +158,42 @@ export function BuildDetail({
   }, [load]);
 
   const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const lastSyncState = useRef<SyncStatus["state"] | null>(null);
   const [editing, setEditing] = useState(false);
+
+  const loadSyncStatus = useCallback(async () => {
+    const status = await api.syncToPanelStatus(buildId);
+    setSyncStatus(status);
+    setSyncing(status.state === "running");
+    return status;
+  }, [buildId]);
+
+  useEffect(() => {
+    loadSyncStatus().catch(() => undefined);
+  }, [loadSyncStatus]);
+
+  useEffect(() => {
+    if (syncStatus?.state !== "running") return;
+    const timer = window.setInterval(async () => {
+      try {
+        const status = await loadSyncStatus();
+        const prev = lastSyncState.current;
+        if (prev === "running" && status.state === "success") {
+          toast.success(
+            `SFTP-синхронизация завершена: ${status.uploaded} файлов · удалено: ${status.deleted} · пропущено: ${status.skipped}`,
+          );
+        }
+        if (prev === "running" && status.state === "error") {
+          toast.error(status.error ?? "SFTP-синхронизация завершилась ошибкой");
+        }
+        lastSyncState.current = status.state;
+      } catch {
+        // Следующий polling-проход повторит попытку.
+      }
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [loadSyncStatus, syncStatus?.state, toast]);
 
   // --- Проверки ---
   const [checkResults, setCheckResults] = useState<{
@@ -228,9 +264,13 @@ export function BuildDetail({
 
   async function syncToPanel() {
     setSyncing(true);
+    let startedInBackground = false;
     try {
       const res = await api.syncToPanel(buildId);
       if (res.inProgress) {
+        startedInBackground = true;
+        lastSyncState.current = "running";
+        await loadSyncStatus();
         toast.success("SFTP-синхронизация запущена в фоне");
       } else {
         toast.success(
@@ -242,7 +282,7 @@ export function BuildDetail({
         err instanceof ApiError ? err.message : "Ошибка синхронизации",
       );
     } finally {
-      setSyncing(false);
+      if (!startedInBackground) setSyncing(false);
     }
   }
 
@@ -252,6 +292,9 @@ export function BuildDetail({
     () => files.reduce((s, f) => s + f.sizeBytes, 0),
     [files],
   );
+  const syncPercent = syncStatus?.total
+    ? Math.min(100, Math.round((syncStatus.current / syncStatus.total) * 100))
+    : 0;
 
   if (loading)
     return (
@@ -312,6 +355,31 @@ export function BuildDetail({
           <Stat label="Общий размер" value={formatSize(totalSize)} />
         </div>
       </div>
+
+      {syncStatus && syncStatus.state !== "idle" && (
+        <div className={`panel sync-progress sync-progress--${syncStatus.state}`}>
+          <div className="sync-progress__head">
+            <strong>
+              {syncStatus.state === "running"
+                ? "SFTP-синхронизация"
+                : syncStatus.state === "success"
+                  ? "SFTP-синхронизация завершена"
+                  : "SFTP-синхронизация с ошибкой"}
+            </strong>
+            <span className="muted">{syncPercent}%</span>
+          </div>
+          <div className="progress sync-progress__bar">
+            <div className="progress-bar" style={{ width: `${syncPercent}%` }} />
+          </div>
+          <div className="sync-progress__meta">
+            <span>{syncStatus.phase || "Ожидание"}</span>
+            <span>
+              {syncStatus.current}/{syncStatus.total || 1} · загружено {syncStatus.uploaded} · удалено {syncStatus.deleted} · пропущено {syncStatus.skipped}
+            </span>
+          </div>
+          {syncStatus.error && <div className="q-err">{syncStatus.error}</div>}
+        </div>
+      )}
 
       <div className="panel">
         <FileManager buildId={buildId} files={files} onChanged={load} />

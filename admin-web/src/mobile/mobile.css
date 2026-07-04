@@ -217,6 +217,16 @@
     margin: 0 12px 12px;
 }
 
+.m-screen > .sync-progress {
+    padding: 12px;
+    margin-bottom: 14px;
+}
+
+.m-screen .sync-progress__meta {
+    flex-direction: column;
+    gap: 4px;
+}
+
 .m-checks-head {
     display: flex;
     align-items: center;

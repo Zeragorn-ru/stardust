@@ -27,6 +27,8 @@ import net.neoforged.fml.loading.FMLPaths;
  */
 final class StardustTabIntegration {
 
+    private static boolean bootstrapped = false;
+
     private StardustTabIntegration() {
     }
 
@@ -34,12 +36,19 @@ final class StardustTabIntegration {
      * Пытается подключиться к TAB. Безопасно для вызова, даже если TAB
      * отсутствует: {@link NoClassDefFoundError} ловится и логируется как info.
      */
-    static void tryBootstrap() {
+    static synchronized void tryBootstrap() {
+        if (bootstrapped) return;
         try {
             var configDir = FMLPaths.CONFIGDIR.get();
             register(configDir);
         } catch (LinkageError e) {
             StardustMod.LOGGER.info("Stardust: TAB не найден, интеграция таба отключена.");
+        } catch (IllegalStateException e) {
+            if (String.valueOf(e.getMessage()).contains("API instance is null")) {
+                StardustMod.LOGGER.info("Stardust: TAB API ещё не готов, интеграция таба пропущена.");
+            } else {
+                StardustMod.LOGGER.warn("Stardust: не удалось инициализировать интеграцию с TAB", e);
+            }
         } catch (RuntimeException e) {
             StardustMod.LOGGER.warn("Stardust: не удалось инициализировать интеграцию с TAB", e);
         }
@@ -79,6 +88,7 @@ final class StardustTabIntegration {
                 applyBadge(api, httpProvider, localFallback, event.getPlayer()));
 
         StardustMod.LOGGER.info("Stardust: интеграция с TAB активирована (auth-url={})", authUrl);
+        bootstrapped = true;
     }
 
     private static void applyBadge(TabAPI api, StardustHttpProvider http,

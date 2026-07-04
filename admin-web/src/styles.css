@@ -1006,6 +1006,51 @@ td.num {
     transition: width 0.15s;
 }
 
+.sync-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sync-progress--success {
+    border-color: rgba(34, 197, 94, 0.35);
+}
+
+.sync-progress--error {
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.sync-progress--success .progress-bar {
+    background: var(--ok);
+}
+
+.sync-progress--error .progress-bar {
+    background: var(--danger);
+}
+
+.sync-progress__head,
+.sync-progress__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.sync-progress__meta {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.sync-progress__meta span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sync-progress__bar {
+    margin-top: 0;
+}
+
 .queue-actions {
     display: flex;
     justify-content: flex-end;
