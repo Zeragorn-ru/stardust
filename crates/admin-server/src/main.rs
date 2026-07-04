@@ -1852,6 +1852,7 @@ struct BadgeInput {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct GradientInput {
     label: String,
     color_start: String,
@@ -1864,6 +1865,7 @@ struct IdList {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct ActiveInput {
     badge_id: Option<i32>,
     gradient_id: Option<i32>,
@@ -1961,13 +1963,19 @@ async fn get_account_customization(
     require_admin(&state, &headers).await?;
     let account = state.store.find_by_uuid(&uuid).await
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
-    let available_badges = state.store.player_available_badges(&uuid).await.map_err(map_store)?;
-    let available_gradients = state.store.player_available_gradients(&uuid).await.map_err(map_store)?;
+    let owned_badges = state.store.player_available_badges(&uuid).await.map_err(map_store)?;
+    let owned_gradients = state.store.player_available_gradients(&uuid).await.map_err(map_store)?;
+    let owned_badge_ids = owned_badges.iter().map(|b| b.id).collect();
+    let owned_gradient_ids = owned_gradients.iter().map(|g| g.id).collect();
+    let available_badges = state.store.list_badges().await.map_err(map_store)?;
+    let available_gradients = state.store.list_gradients().await.map_err(map_store)?;
     Ok(Json(protocol::PlayerCustomization {
         available_badges,
         available_gradients,
         active_badge_id: account.active_badge_id,
         active_gradient_id: account.active_gradient_id,
+        owned_badge_ids: Some(owned_badge_ids),
+        owned_gradient_ids: Some(owned_gradient_ids),
     }))
 }
 

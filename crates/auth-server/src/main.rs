@@ -1249,6 +1249,8 @@ async fn me_customization(
         available_gradients,
         active_badge_id: account.active_badge_id,
         active_gradient_id: account.active_gradient_id,
+        owned_badge_ids: None,
+        owned_gradient_ids: None,
     }))
 }
 

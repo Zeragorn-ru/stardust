@@ -186,8 +186,8 @@ function BadgesTab({
       setData({
         availableBadges: c.availableBadges,
         availableGradients: c.availableGradients,
-        ownedBadgeIds: c.activeBadgeId != null ? [c.activeBadgeId] : [],
-        ownedGradientIds: c.activeGradientId != null ? [c.activeGradientId] : [],
+        ownedBadgeIds: c.ownedBadgeIds ?? (c.activeBadgeId != null ? [c.activeBadgeId] : []),
+        ownedGradientIds: c.ownedGradientIds ?? (c.activeGradientId != null ? [c.activeGradientId] : []),
         activeBadgeId: c.activeBadgeId,
         activeGradientId: c.activeGradientId,
       });
@@ -206,7 +206,11 @@ function BadgesTab({
     const next = owned
       ? data.ownedBadgeIds.filter((x) => x !== id)
       : [...data.ownedBadgeIds, id];
-    setData({ ...data, ownedBadgeIds: next });
+    setData({
+      ...data,
+      ownedBadgeIds: next,
+      activeBadgeId: data.activeBadgeId === id && owned ? null : data.activeBadgeId,
+    });
   }
 
   async function toggleGradient(id: number) {
@@ -215,7 +219,11 @@ function BadgesTab({
     const next = owned
       ? data.ownedGradientIds.filter((x) => x !== id)
       : [...data.ownedGradientIds, id];
-    setData({ ...data, ownedGradientIds: next });
+    setData({
+      ...data,
+      ownedGradientIds: next,
+      activeGradientId: data.activeGradientId === id && owned ? null : data.activeGradientId,
+    });
   }
 
   async function save() {

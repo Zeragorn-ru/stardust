@@ -179,6 +179,10 @@ pub struct PlayerCustomization {
     pub available_gradients: Vec<Gradient>,
     pub active_badge_id: Option<i32>,
     pub active_gradient_id: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owned_badge_ids: Option<Vec<i32>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owned_gradient_ids: Option<Vec<i32>>,
 }
 
 /// Данные кастомизации для серверного мода (TAB integration).
@@ -272,6 +276,57 @@ pub enum ChallengeStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasswordlessLoginRequest {
     pub username: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Badge, Gradient, PlayerCustomization, ServerPlayerCustomization};
+
+    #[test]
+    fn player_customization_uses_camel_case_for_frontends() {
+        let dto = PlayerCustomization {
+            available_badges: vec![Badge {
+                id: 1,
+                emoji: "⭐".into(),
+                label: "VIP".into(),
+                color: "#ffd700".into(),
+            }],
+            available_gradients: vec![Gradient {
+                id: 2,
+                label: "Огонь".into(),
+                color_start: "#ff0000".into(),
+                color_end: "#ffaa00".into(),
+            }],
+            active_badge_id: Some(1),
+            active_gradient_id: Some(2),
+            owned_badge_ids: Some(vec![1]),
+            owned_gradient_ids: Some(vec![2]),
+        };
+
+        let json = serde_json::to_value(dto).unwrap();
+        assert!(json.get("availableBadges").is_some());
+        assert!(json.get("availableGradients").is_some());
+        assert_eq!(json["availableGradients"][0]["colorStart"], "#ff0000");
+        assert_eq!(json["activeBadgeId"], 1);
+        assert_eq!(json["ownedBadgeIds"][0], 1);
+        assert!(json.get("available_badges").is_none());
+    }
+
+    #[test]
+    fn server_customization_stays_snake_case_for_java_mod() {
+        let dto = ServerPlayerCustomization {
+            badge: Some("⭐".into()),
+            badge_color: Some("#ffd700".into()),
+            name_color: Some("#ffffff".into()),
+            gradient_start: Some("#ff0000".into()),
+            gradient_end: Some("#ffaa00".into()),
+        };
+
+        let json = serde_json::to_value(dto).unwrap();
+        assert_eq!(json["badge_color"], "#ffd700");
+        assert_eq!(json["gradient_start"], "#ff0000");
+        assert!(json.get("badgeColor").is_none());
+    }
 }
 
 /// Запрос на сброс пароля: ник аккаунта с привязанным Telegram. Возвращает

@@ -9,6 +9,22 @@ interface Props {
   onSaved?: () => void;
 }
 
+type RawCustomization = PlayerCustomization & {
+  available_badges?: PlayerCustomization["availableBadges"];
+  available_gradients?: PlayerCustomization["availableGradients"];
+  active_badge_id?: number | null;
+  active_gradient_id?: number | null;
+};
+
+function normalizeCustomization(raw: RawCustomization): PlayerCustomization {
+  return {
+    availableBadges: raw.availableBadges ?? raw.available_badges ?? [],
+    availableGradients: raw.availableGradients ?? raw.available_gradients ?? [],
+    activeBadgeId: raw.activeBadgeId ?? raw.active_badge_id ?? null,
+    activeGradientId: raw.activeGradientId ?? raw.active_gradient_id ?? null,
+  };
+}
+
 export default function NickCustomizer({ onSaved }: Props) {
   const [data, setData] = useState<PlayerCustomization | null>(null);
   const [loading, setLoading] = useState(true);
@@ -18,7 +34,7 @@ export default function NickCustomizer({ onSaved }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const c = await getCustomization();
+      const c = normalizeCustomization(await getCustomization() as RawCustomization);
       setData(c);
       setSelectedBadge(c.activeBadgeId);
       setSelectedGradient(c.activeGradientId);

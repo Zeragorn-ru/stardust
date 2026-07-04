@@ -127,4 +127,6 @@ export interface PlayerCustomization {
   availableGradients: Gradient[];
   activeBadgeId: number | null;
   activeGradientId: number | null;
+  ownedBadgeIds?: number[];
+  ownedGradientIds?: number[];
 }
