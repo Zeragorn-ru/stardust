@@ -124,9 +124,13 @@ export function MobileBuildDetail() {
     setSyncing(true);
     try {
       const res = await api.syncToPanel(buildId);
-      toast.success(
-        `Синхронизировано: ${res.uploaded} · удалено: ${res.deleted} · пропущено: ${res.skipped}`,
-      );
+      if (res.inProgress) {
+        toast.success("SFTP-синхронизация запущена в фоне");
+      } else {
+        toast.success(
+          `Синхронизировано: ${res.uploaded} · удалено: ${res.deleted} · пропущено: ${res.skipped}`,
+        );
+      }
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Ошибка синхронизации",

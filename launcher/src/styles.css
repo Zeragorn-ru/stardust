@@ -2668,20 +2668,43 @@ body {
     max-width: 100%;
     color: #fff;
     line-height: 1.1;
-    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
 }
 
 .minecraft-nick__badge {
     font-size: calc(var(--minecraft-nick-size, 22px) + 2px);
     flex-shrink: 0;
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
 }
 
-.minecraft-nick__name {
-    color: #fff;
+.minecraft-nick__name-wrap {
+    position: relative;
+    display: inline-block;
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.minecraft-nick__name,
+.minecraft-nick__name-shadow {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.minecraft-nick__name {
+    position: relative;
+    color: #fff;
+}
+
+.minecraft-nick__name-shadow {
+    position: absolute;
+    inset: 2px auto auto 2px;
+    max-width: 100%;
+    color: rgba(0, 0, 0, 0.55);
+    pointer-events: none;
 }
 
 .nick-section {

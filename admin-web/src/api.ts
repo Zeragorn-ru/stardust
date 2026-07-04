@@ -265,7 +265,7 @@ export const api = {
 
   syncToPanel(
     buildId: number,
-  ): Promise<{ uploaded: number; skipped: number; deleted: number }> {
+  ): Promise<{ uploaded: number; skipped: number; deleted: number; inProgress?: boolean }> {
     return request("POST", `/api/builds/${buildId}/sync-to-panel`);
   },
 

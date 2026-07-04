@@ -58,6 +58,8 @@ struct AppState {
     http: reqwest::Client,
     /// Кэш jar-файла authlib-injector (см. `INJECTOR_TTL`).
     injector: Mutex<Option<InjectorCache>>,
+    /// Защита от параллельных SFTP-синхронизаций одной панели.
+    sync_to_panel_running: Mutex<Option<i64>>,
 }
 
 /// Закэшированный authlib-injector.jar с временем загрузки.
@@ -117,6 +119,7 @@ async fn main() {
             .build()
             .expect("не удалось собрать HTTP-клиент"),
         injector: Mutex::new(None),
+        sync_to_panel_running: Mutex::new(None),
     });
 
     // Фоновая задача: синхронизация статистики с SFTP каждые 15 минут.
@@ -1095,6 +1098,8 @@ struct SyncResult {
     uploaded: usize,
     skipped: usize,
     deleted: usize,
+    #[serde(rename = "inProgress")]
+    in_progress: bool,
 }
 
 /// Имя манифеста синхронизации на стороне сервера. По нему при следующей
@@ -1180,12 +1185,56 @@ async fn sync_to_panel(
     State(state): State<Shared>,
     headers: HeaderMap,
     Path(build_id): Path<i64>,
-) -> Result<Json<SyncResult>, ApiError> {
-    use russh_sftp::protocol::OpenFlags;
-    use tokio::io::AsyncWriteExt;
-
+) -> Result<(StatusCode, Json<SyncResult>), ApiError> {
     require_admin(&state, &headers).await?;
 
+    {
+        let mut running = state.sync_to_panel_running.lock().await;
+        if let Some(active_build_id) = *running {
+            return Err(ApiError::new(
+                StatusCode::CONFLICT,
+                format!("SFTP-синхронизация уже выполняется для сборки #{active_build_id}"),
+            ));
+        }
+        *running = Some(build_id);
+    }
+
+    let task_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        match do_sync_to_panel(Arc::clone(&task_state), build_id).await {
+            Ok(result) => tracing::info!(
+                build_id,
+                uploaded = result.uploaded,
+                skipped = result.skipped,
+                deleted = result.deleted,
+                "[sftp] синхронизация завершена"
+            ),
+            Err(err) => tracing::error!(
+                build_id,
+                status = %err.status,
+                error = %err.message,
+                "[sftp] синхронизация завершилась ошибкой"
+            ),
+        }
+
+        let mut running = task_state.sync_to_panel_running.lock().await;
+        if *running == Some(build_id) {
+            *running = None;
+        }
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(SyncResult {
+            uploaded: 0,
+            skipped: 0,
+            deleted: 0,
+            in_progress: true,
+        }),
+    ))
+}
+
+async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, ApiError> {
     let host = state
         .store
         .get_setting(SETTING_SFTP_HOST)
@@ -1302,28 +1351,7 @@ async fn sync_to_panel(
             .await
             .map_err(|e| internal(format!("чтение файла {}: {e}", file.path)))?;
 
-        let mut remote = sftp
-            .open_with_flags(
-                &target,
-                OpenFlags::CREATE | OpenFlags::WRITE | OpenFlags::TRUNCATE,
-            )
-            .await
-            .map_err(|e| internal(format!("открытие {target} на сервере: {e}")))?;
-        // SFTP-серверы ограничивают размер одного WRITE-пакета (обычно 32 КБ
-        // полезной нагрузки). AsyncWrite отправляет каждый срез как отдельный
-        // пакет, поэтому пишем кусками заведомо ниже лимита, иначе сервер
-        // ответит «packet exceeds server limit».
-        const SFTP_CHUNK: usize = 30 * 1024;
-        for chunk in bytes.chunks(SFTP_CHUNK) {
-            remote
-                .write_all(chunk)
-                .await
-                .map_err(|e| internal(format!("запись {target}: {e}")))?;
-        }
-        remote
-            .shutdown()
-            .await
-            .map_err(|e| internal(format!("закрытие {target}: {e}")))?;
+        write_sftp_file_atomic(&sftp, &target, &bytes).await?;
 
         desired.insert(target, file.sha1.clone());
         uploaded += 1;
@@ -1350,37 +1378,77 @@ async fn sync_to_panel(
     // Сохраняем новый манифест синхронизации на сервере.
     let manifest_bytes = serde_json::to_vec(&desired)
         .map_err(|e| internal(format!("сериализация манифеста: {e}")))?;
-    {
-        let mut remote = sftp
-            .open_with_flags(
-                SYNC_MANIFEST,
-                OpenFlags::CREATE | OpenFlags::WRITE | OpenFlags::TRUNCATE,
-            )
-            .await
-            .map_err(|e| internal(format!("открытие {SYNC_MANIFEST} на сервере: {e}")))?;
-        const SFTP_CHUNK: usize = 30 * 1024;
-        for chunk in manifest_bytes.chunks(SFTP_CHUNK) {
-            remote
-                .write_all(chunk)
-                .await
-                .map_err(|e| internal(format!("запись {SYNC_MANIFEST}: {e}")))?;
-        }
-        remote
-            .shutdown()
-            .await
-            .map_err(|e| internal(format!("закрытие {SYNC_MANIFEST}: {e}")))?;
-    }
+    write_sftp_file_atomic(&sftp, SYNC_MANIFEST, &manifest_bytes).await?;
 
     // Корректно завершаем SSH-сессию.
     let _ = session
         .disconnect(russh::Disconnect::ByApplication, "", "en")
         .await;
 
-    Ok(Json(SyncResult {
+    Ok(SyncResult {
         uploaded,
         skipped,
         deleted,
-    }))
+        in_progress: false,
+    })
+}
+
+async fn write_sftp_file_atomic(
+    sftp: &russh_sftp::client::SftpSession,
+    target: &str,
+    bytes: &[u8],
+) -> Result<(), ApiError> {
+    use russh_sftp::protocol::OpenFlags;
+    use tokio::io::AsyncWriteExt;
+
+    let tmp = format!(
+        "{target}.stardust-upload-{}-{}.tmp",
+        std::process::id(),
+        OffsetDateTime::now_utc().unix_timestamp_nanos()
+    );
+
+    let write_result = async {
+        let mut remote = sftp
+            .open_with_flags(&tmp, OpenFlags::CREATE | OpenFlags::WRITE | OpenFlags::TRUNCATE)
+            .await
+            .map_err(|e| internal(format!("открытие временного файла {tmp} на сервере: {e}")))?;
+
+        // SFTP-серверы часто ограничивают размер WRITE-пакета примерно 32 КБ.
+        const SFTP_CHUNK: usize = 30 * 1024;
+        for chunk in bytes.chunks(SFTP_CHUNK) {
+            remote
+                .write_all(chunk)
+                .await
+                .map_err(|e| internal(format!("запись временного файла {tmp}: {e}")))?;
+        }
+        remote
+            .shutdown()
+            .await
+            .map_err(|e| internal(format!("закрытие временного файла {tmp}: {e}")))?;
+
+        Ok::<(), ApiError>(())
+    }
+    .await;
+
+    if let Err(err) = write_result {
+        let _ = sftp.remove_file(&tmp).await;
+        return Err(err);
+    }
+
+    if let Err(first_err) = sftp.rename(&tmp, target).await {
+        // Некоторые SFTP-серверы не заменяют существующий файл через rename.
+        // Временный файл уже полностью записан, поэтому целевой путь трогаем
+        // только перед финальным rename, а не в начале загрузки.
+        let _ = sftp.remove_file(target).await;
+        if let Err(second_err) = sftp.rename(&tmp, target).await {
+            let _ = sftp.remove_file(&tmp).await;
+            return Err(internal(format!(
+                "атомарная замена {target}: {first_err}; повтор после удаления: {second_err}"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 // ───────────────────────── Аккаунты ─────────────────────────
