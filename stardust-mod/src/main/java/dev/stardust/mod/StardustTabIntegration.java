@@ -150,10 +150,14 @@ final class StardustTabIntegration {
             }
         }
 
+        String result;
         if (colorStart != null && colorEnd != null) {
-            return applyHexGradient(badge, colorStart, colorEnd);
+            result = applyHexGradient(badge, colorStart, colorEnd);
+        } else {
+            result = badge;
         }
-        return badge;
+        // Сброс цвета после бейджа, чтобы ник не наследовал
+        return result + "&r";
     }
 
     // ─────────── Name ───────────
@@ -190,28 +194,29 @@ final class StardustTabIntegration {
     /**
      * Создаёт hex-градиент посимвольно.
      * Формат: {@code &#RRGGBBсимвол&#RRGGBBсимвол...}
-     * Это поддерживается Minecraft 1.16+ и TAB.
+     * Поддерживает эмодзи (surrogate pairs).
      */
     private static String applyHexGradient(String text, String startHex, String endHex) {
         if (text == null || text.isEmpty()) return "";
-        int len = text.length();
-        if (len == 1) {
-            return wrapHex(text, startHex);
-        }
-
         int[] start = parseHex(startHex);
         int[] end = parseHex(endHex);
         if (start == null || end == null) return text;
 
-        StringBuilder sb = new StringBuilder(len * 14);
-        for (int i = 0; i < len; i++) {
-            float ratio = (float) i / (len - 1);
+        // Собираем codepoints и их длину в char[]
+        int[] codepoints = text.codePoints().toArray();
+        int count = codepoints.length;
+        if (count == 0) return "";
+        if (count == 1) return wrapHex(text, startHex);
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            float ratio = (float) i / (count - 1);
             int r = Math.round(start[0] + (end[0] - start[0]) * ratio);
             int g = Math.round(start[1] + (end[1] - start[1]) * ratio);
             int b = Math.round(start[2] + (end[2] - start[2]) * ratio);
             sb.append("&#");
             sb.append(String.format("%02X%02X%02X", r, g, b));
-            sb.append(text.charAt(i));
+            sb.appendCodePoint(codepoints[i]);
         }
         return sb.toString();
     }
