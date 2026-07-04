@@ -7,12 +7,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
-import type { BuildDetail as BuildDetailData, CreateBuildInput } from "../types";
+import type {
+  BuildCheckResult,
+  BuildDetail as BuildDetailData,
+  CreateBuildInput,
+  DepsCheckResult,
+} from "../types";
 import { FileManager } from "../FileManager";
 import { formatSize } from "../format";
 import { useToast } from "../ui/feedback";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
+import { CheckResults } from "../ui/CheckResults";
 import {
+  IconCheck,
   IconChevronRight,
   IconCopy,
   IconStar,
@@ -31,6 +38,46 @@ export function MobileBuildDetail() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [editing, setEditing] = useState(false);
+
+  // --- Проверки ---
+  const [checkResults, setCheckResults] = useState<{
+    build: BuildCheckResult | null;
+    deps: DepsCheckResult | null;
+    loading: boolean;
+  }>({ build: null, deps: null, loading: false });
+
+  async function runChecks() {
+    setCheckResults((s) => ({ ...s, loading: true }));
+    try {
+      const [build, deps] = await Promise.all([
+        api.buildCheck(buildId),
+        api.depsCheck(buildId),
+      ]);
+      setCheckResults({ build, deps, loading: false });
+      const total = build.problems.length + deps.problems.length;
+      if (total === 0) {
+        toast.success("Проверки пройдены");
+      } else {
+        toast.error(`Найдено проблем: ${total}`);
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось выполнить проверку",
+      );
+      setCheckResults((s) => ({ ...s, loading: false }));
+    }
+  }
+
+  async function syncStats() {
+    try {
+      const res = await api.syncStats();
+      toast.success(`Статистика обновлена: ${res.updated} игроков`);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Ошибка синхронизации",
+      );
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -169,6 +216,24 @@ export function MobileBuildDetail() {
 
       <div className="panel m-fm-panel">
         <FileManager buildId={buildId} files={files} onChanged={load} />
+      </div>
+
+      <div className="panel m-checks-panel">
+        <div className="m-checks-head">
+          <IconCheck size={16} />
+          <strong>Проверки</strong>
+          <button
+            className="secondary"
+            disabled={checkResults.loading}
+            onClick={runChecks}
+          >
+            {checkResults.loading ? "Проверка…" : "Проверить"}
+          </button>
+          <button className="secondary" onClick={syncStats}>
+            <IconSync size={14} /> Статистика
+          </button>
+        </div>
+        <CheckResults state={checkResults} />
       </div>
 
       {editing && (

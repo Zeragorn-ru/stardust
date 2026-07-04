@@ -627,6 +627,39 @@ label {
     border: 1px dashed var(--border-strong);
 }
 
+/* --- Check results (inline in BuildDetail) --- */
+.check-results {
+    margin-top: 16px;
+    padding: 16px;
+    background: var(--panel);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.check-ok {
+    color: var(--ok);
+    font-weight: 600;
+}
+
+.check-summary {
+    margin-bottom: 12px;
+}
+
+.check-section {
+    margin-top: 12px;
+}
+
+.check-section h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.tag--green {
+    background: rgba(34, 197, 94, 0.16);
+    color: #22c55e;
+}
+
 /* --- Settings --- */
 .settings-grid {
     display: grid;

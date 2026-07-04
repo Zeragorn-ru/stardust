@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use tracing_subscriber::prelude::*;
 
 use axum::{
-    extract::{DefaultBodyLimit, Multipart, Path, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -34,6 +34,7 @@ use time::OffsetDateTime;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
+use futures_util::TryStreamExt;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
 const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
@@ -135,6 +136,35 @@ async fn main() {
         }
     });
 
+    let cors = {
+        let allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
+            .ok()
+            .map(|s| {
+                s.split(',')
+                    .map(|o| o.trim().to_string())
+                    .filter(|o| !o.is_empty())
+                    .collect::<Vec<_>>()
+            })
+            .filter(|v| !v.is_empty());
+
+        match allowed_origins {
+            Some(origins) => {
+                tracing::info!("CORS: разрешённые origins: {:?}", origins);
+                let mut cors = CorsLayer::new();
+                for origin in &origins {
+                    if let Ok(o) = origin.parse() {
+                        cors = cors.allow_origin([o]);
+                    }
+                }
+                cors
+            }
+            None => {
+                tracing::warn!("CORS: allowed origins не заданы, разрешаем все (только для разработки!)");
+                CorsLayer::permissive()
+            }
+        }
+    };
+
     let app = Router::new()
         .route("/health", get(health))
         // --- Админка (нужен токен админа) ---
@@ -183,7 +213,7 @@ async fn main() {
         .nest_service("/files", ServeDir::new(modpack_dir))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
         .with_state(state)
-        .layer(CorsLayer::permissive());
+        .layer(cors);
 
     let addr = std::env::var("ADMIN_BIND").unwrap_or_else(|_| "127.0.0.1:8081".into());
     let listener = tokio::net::TcpListener::bind(&addr)
@@ -814,7 +844,7 @@ async fn upload_file(
     }
 
     let mut meta: Option<UploadMeta> = None;
-    let mut bytes: Option<Vec<u8>> = None;
+    let mut temp_path: Option<std::path::PathBuf> = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -832,32 +862,57 @@ async fn upload_file(
                 })?);
             }
             Some("file") => {
-                let data = field
-                    .bytes()
+                // Стримим файл на диск вместо чтения в память.
+                let tp = tempfile::NamedTempFile::new_in(&state.modpack_dir)
+                    .map_err(|e| internal(format!("temp file: {e}")))?;
+                let mut file = tokio::fs::File::create(tp.path())
                     .await
-                    .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, format!("file: {e}")))?;
-                bytes = Some(data.to_vec());
+                    .map_err(|e| internal(format!("create temp: {e}")))?;
+                let mut stream = field.into_stream();
+                use tokio::io::AsyncWriteExt;
+                while let Some(chunk) = stream
+                    .try_next()
+                    .await
+                    .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, format!("file chunk: {e}")))?
+                {
+                    file.write_all(&chunk)
+                        .await
+                        .map_err(|e| internal(format!("write chunk: {e}")))?;
+                }
+                file.flush()
+                    .await
+                    .map_err(|e| internal(format!("flush: {e}")))?;
+                drop(file);
+                temp_path = Some(tp.into_temp_path().keep()
+                    .map_err(|e| internal(format!("keep temp: {e}")))?);
             }
             _ => {}
         }
     }
 
     let meta = meta.ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Нет поля meta"))?;
-    let bytes = bytes.unwrap_or_default();
+    let temp_path = temp_path.ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "Нет файла"))?;
     if meta.path.trim().is_empty() {
+        tokio::fs::remove_file(&temp_path).await.ok();
         return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой path"));
     }
 
-    let sha1 = sha1_hex(&bytes);
+    // Вычисляем SHA-1 и размер из уже записанного файла на диске.
+    let bytes = tokio::fs::read(&temp_path)
+        .await
+        .map_err(|e| internal(format!("read temp: {e}")))?;
     let size_bytes = bytes.len() as i64;
+    let sha1 = sha1_hex(&bytes);
+    drop(bytes); // освобождаем память сразу
 
-    // Пишем байты на диск под именем sha1 (контент-адресное хранилище:
-    // одинаковые файлы не дублируются). Если уже есть — не перезаписываем.
+    // Перемещаем в контент-адресное хранилище (одинаковые файлы не дублируются).
     let dest = state.modpack_dir.join(&sha1);
-    if !dest.exists() {
-        tokio::fs::write(&dest, &bytes)
+    if dest.exists() {
+        tokio::fs::remove_file(&temp_path).await.ok();
+    } else {
+        tokio::fs::rename(&temp_path, &dest)
             .await
-            .map_err(|e| internal(format!("запись файла: {e}")))?;
+            .map_err(|e| internal(format!("rename temp: {e}")))?;
     }
 
     let file = store::BuildFileInput {
@@ -1033,19 +1088,77 @@ struct SyncResult {
 /// что были убраны из сборки (как `managed-files.json` в лаунчере).
 const SYNC_MANIFEST: &str = ".stardust-sync.json";
 
-/// SSH client handler. Принимаем ключ хоста без проверки: панель/игровой сервер
-/// задаётся администратором вручную, доверенный канал тут — ответственность
-/// оператора (как и с паролем). TODO: вынести known_hosts в настройки.
-struct SftpHandler;
+/// SSH client handler. Хранит known hosts в файле `known_hosts.json` рядом с
+/// modpack-dir. При первом подключении ключ хоста сохраняется; при последующих
+/// — проверяется. Если файл отсутствует или пуст — ключ принимается и
+/// записывается (первое подключение = доверие). Смена ключа хоста = ошибка
+/// (возможная MITM-атака).
+struct SftpHandler {
+    /// Путь к файлу known_hosts.json.
+    known_hosts_path: std::path::PathBuf,
+}
+
+impl SftpHandler {
+    fn new(modpack_dir: &std::path::Path) -> Self {
+        Self {
+            known_hosts_path: modpack_dir.join("known_hosts.json"),
+        }
+    }
+
+    /// Читает known hosts из файла.
+    fn load_hosts(&self) -> std::collections::BTreeMap<String, String> {
+        std::fs::read_to_string(&self.known_hosts_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    }
+
+    /// Сохраняет known hosts в файл.
+    fn save_hosts(&self, hosts: &std::collections::BTreeMap<String, String>) {
+        if let Ok(json) = serde_json::to_string_pretty(hosts) {
+            let _ = std::fs::write(&self.known_hosts_path, json);
+        }
+    }
+}
 
 impl russh::client::Handler for SftpHandler {
     type Error = russh::Error;
 
     async fn check_server_key(
         &mut self,
-        _key: &russh::keys::ssh_key::PublicKey,
+        key: &russh::keys::ssh_key::PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(true)
+        // Fingerprint ключа для сравнения (стабильный формат).
+        let key_str = key
+            .fingerprint(russh::keys::ssh_key::HashAlg::Sha256)
+            .to_string();
+
+        // Проверяем known hosts.
+        let mut hosts = self.load_hosts();
+        let host_key = hosts.get("host_key");
+
+        match host_key {
+            Some(known) if known == &key_str => {
+                // Ключ совпал — хост известен и доверен.
+                Ok(true)
+            }
+            Some(_mismatch) => {
+                // Ключ изменился — потенциальная MITM-атака.
+                tracing::error!(
+                    "[sftp] КЛЮЧ ХОСТА ИЗМЕНИЛСЯ! Возможна MITM-атака. \
+                     Удалите known_hosts.json и подключитесь заново, \
+                     если вы уверены в безопасности канала."
+                );
+                Err(russh::Error::UnknownKey)
+            }
+            None => {
+                // Первое подключение — сохраняем ключ.
+                tracing::info!("[sftp] Первое подключение, сохраняем ключ хоста");
+                hosts.insert("host_key".to_string(), key_str);
+                self.save_hosts(&hosts);
+                Ok(true)
+            }
+        }
     }
 }
 
@@ -1100,7 +1213,7 @@ async fn sync_to_panel(
 
     // Устанавливаем SSH-сессию и аутентифицируемся паролем.
     let config = Arc::new(russh::client::Config::default());
-    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler)
+    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler::new(&state.modpack_dir))
         .await
         .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
     let auth = session
@@ -1622,7 +1735,7 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
     };
 
     let config = Arc::new(russh::client::Config::default());
-    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler)
+    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler::new(&state.modpack_dir))
         .await
         .map_err(|e| format!("SSH-подключение к {host_part}:{port}: {e}"))?;
     let auth = session
@@ -1759,13 +1872,31 @@ struct BuildCheckProblem {
     detail: String,
 }
 
-async fn build_check(State(state): State<Shared>) -> Result<Json<BuildCheckResult>, ApiError> {
-    let record = state
-        .store
-        .active_build()
-        .await
-        .map_err(internal)?
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
+/// Опциональный `build_id` для проверки конкретной сборки (не обязательно активной).
+#[derive(Deserialize)]
+struct BuildCheckQuery {
+    build_id: Option<i64>,
+}
+
+async fn build_check(
+    State(state): State<Shared>,
+    Query(q): Query<BuildCheckQuery>,
+) -> Result<Json<BuildCheckResult>, ApiError> {
+    let record = if let Some(id) = q.build_id {
+        state
+            .store
+            .get_build(id)
+            .await
+            .map_err(internal)?
+            .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Сборка не найдена"))?
+    } else {
+        state
+            .store
+            .active_build()
+            .await
+            .map_err(internal)?
+            .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?
+    };
 
     let files = state
         .store
@@ -1918,13 +2049,25 @@ fn read_neoforge_toml(jar_path: &std::path::Path) -> Option<String> {
     None
 }
 
-async fn deps_check(State(state): State<Shared>) -> Result<Json<DepsCheckResult>, ApiError> {
-    let record = state
-        .store
-        .active_build()
-        .await
-        .map_err(internal)?
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
+async fn deps_check(
+    State(state): State<Shared>,
+    Query(q): Query<BuildCheckQuery>,
+) -> Result<Json<DepsCheckResult>, ApiError> {
+    let record = if let Some(id) = q.build_id {
+        state
+            .store
+            .get_build(id)
+            .await
+            .map_err(internal)?
+            .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Сборка не найдена"))?
+    } else {
+        state
+            .store
+            .active_build()
+            .await
+            .map_err(internal)?
+            .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?
+    };
 
     let files = state
         .store

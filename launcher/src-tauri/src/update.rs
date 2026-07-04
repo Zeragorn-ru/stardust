@@ -102,29 +102,36 @@ fn api_url() -> String {
 }
 
 /// HTTP-клиент с корректным User-Agent для GitHub API.
-/// Пробует прокси; при ошибке — прямое соединение.
+/// Кэшируется через OnceLock: пул соединений переиспользуется между запросами.
 fn http_client() -> Result<reqwest::Client, String> {
-    // Сначала пробуем через прокси.
-    if let Ok(client) = reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .proxy(
-            reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
-                .map_err(|e| e.to_string())?,
-        )
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-    {
-        return Ok(client);
-    }
-    // Фоллбэк: прямое соединение без прокси.
-    tracing::warn!("[update] прокси недоступен, используем прямое соединение");
-    reqwest::Client::builder()
-        .user_agent(USER_AGENT)
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(15))
-        .build()
-        .map_err(|e| e.to_string())
+    use std::sync::OnceLock;
+    static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
+
+    CLIENT
+        .get_or_init(|| {
+            // Сначала пробуем через прокси.
+            if let Ok(client) = reqwest::Client::builder()
+                .user_agent(USER_AGENT)
+                .proxy(
+                    reqwest::Proxy::all("http://assets.zeragorn.xyz:3128").ok()?,
+                )
+                .connect_timeout(std::time::Duration::from_secs(5))
+                .timeout(std::time::Duration::from_secs(15))
+                .build()
+            {
+                return Some(client);
+            }
+            // Фоллбэк: прямое соединение без прокси.
+            tracing::warn!("[update] прокси недоступен, используем прямое соединение");
+            reqwest::Client::builder()
+                .user_agent(USER_AGENT)
+                .connect_timeout(std::time::Duration::from_secs(5))
+                .timeout(std::time::Duration::from_secs(15))
+                .build()
+                .ok()
+        })
+        .clone()
+        .ok_or_else(|| "не удалось создать HTTP-клиент".to_string())
 }
 
 /// Загружает список релизов (новые первые, до 50 штук).

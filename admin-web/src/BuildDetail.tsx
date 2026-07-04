@@ -1,11 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "./api";
-import type { BuildDetail as BuildDetailData, CreateBuildInput } from "./types";
+import type {
+  BuildCheckResult,
+  BuildDetail as BuildDetailData,
+  CreateBuildInput,
+  DepsCheckResult,
+} from "./types";
 import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
 import { useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
-import { IconCopy, IconStar, IconSync } from "./ui/icons";
+import { IconCheck, IconCopy, IconStar, IconSync } from "./ui/icons";
+import { CheckResults } from "./ui/CheckResults";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
 
@@ -153,6 +159,46 @@ export function BuildDetail({
   const [syncing, setSyncing] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // --- Проверки ---
+  const [checkResults, setCheckResults] = useState<{
+    build: BuildCheckResult | null;
+    deps: DepsCheckResult | null;
+    loading: boolean;
+  }>({ build: null, deps: null, loading: false });
+
+  async function runChecks() {
+    setCheckResults((s) => ({ ...s, loading: true }));
+    try {
+      const [build, deps] = await Promise.all([
+        api.buildCheck(buildId),
+        api.depsCheck(buildId),
+      ]);
+      setCheckResults({ build, deps, loading: false });
+      const total = build.problems.length + deps.problems.length;
+      if (total === 0) {
+        toast.success("Проверки пройдены");
+      } else {
+        toast.error(`Найдено проблем: ${total}`);
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось выполнить проверку",
+      );
+      setCheckResults((s) => ({ ...s, loading: false }));
+    }
+  }
+
+  async function syncStats() {
+    try {
+      const res = await api.syncStats();
+      toast.success(`Статистика обновлена: ${res.updated} игроков`);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Ошибка синхронизации",
+      );
+    }
+  }
+
   async function saveEdit(input: CreateBuildInput) {
     try {
       await api.updateBuild(buildId, input);
@@ -265,6 +311,25 @@ export function BuildDetail({
 
       <div className="panel">
         <FileManager buildId={buildId} files={files} onChanged={load} />
+      </div>
+
+      <div className="panel">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <IconCheck size={16} />
+          <strong>Проверки</strong>
+          <button
+            className="secondary"
+            style={{ marginLeft: "auto" }}
+            disabled={checkResults.loading}
+            onClick={runChecks}
+          >
+            {checkResults.loading ? "Проверка…" : "Проверить сборку"}
+          </button>
+          <button className="secondary" onClick={syncStats}>
+            <IconSync size={14} /> Статистика
+          </button>
+        </div>
+        <CheckResults state={checkResults} />
       </div>
 
       {editing && (

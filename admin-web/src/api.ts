@@ -280,12 +280,14 @@ export const api = {
     return request("POST", "/api/settings/sync-stats");
   },
 
-  buildCheck(): Promise<BuildCheckResult> {
-    return request("GET", "/api/build-check");
+  buildCheck(buildId?: number): Promise<BuildCheckResult> {
+    const qs = buildId != null ? `?build_id=${buildId}` : "";
+    return request("GET", `/api/build-check${qs}`);
   },
 
-  depsCheck(): Promise<DepsCheckResult> {
-    return request("GET", "/api/deps-check");
+  depsCheck(buildId?: number): Promise<DepsCheckResult> {
+    const qs = buildId != null ? `?build_id=${buildId}` : "";
+    return request("GET", `/api/deps-check${qs}`);
   },
 
   getAccountStats(uuid: string): Promise<PlayerStats> {

@@ -212,6 +212,23 @@
     padding: 12px;
 }
 
+.m-checks-panel {
+    padding: 12px;
+    margin: 0 12px 12px;
+}
+
+.m-checks-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.m-checks-head button {
+    font-size: 13px;
+    padding: 6px 10px;
+}
+
 /* --- Настройки и переиспользуемые десктопные экраны --- */
 /* Экраны Settings/Accounts рендерят десктопную вёрстку как есть; полоска
    выхода сверху и небольшой отступ дают мобильный контекст. */

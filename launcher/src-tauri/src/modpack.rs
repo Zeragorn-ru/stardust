@@ -496,9 +496,12 @@ fn file_sha1(path: &Path) -> Option<String> {
         hasher.update(&buf[..n]);
     }
     let digest = hasher.finalize();
+    // Hex-кодирование без аллокаций: lookup table вместо format!().
+    const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(40);
-    for b in digest {
-        out.push_str(&format!("{b:02x}"));
+    for &b in &digest {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
     }
     Some(out)
 }

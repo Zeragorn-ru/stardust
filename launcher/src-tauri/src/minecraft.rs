@@ -1254,22 +1254,15 @@ async fn download_inner(
             }
         };
 
-        // ── Проверяем, поддерживает ли сервер resume ──
-        let server_accepts_range = resp
-            .headers()
-            .get("accept-ranges")
-            .and_then(|v| v.to_str().ok())
-            .map(|v| v.contains("bytes"))
-            .unwrap_or(false);
+        // ── Определяем offset для resume ──
+        // 206 Partial Content — сервер принял Range, дописываем к существующему.
+        // 200 OK (или любой другой) — полный ответ, начинаем с нуля,
+        // даже если мы отправили Range (бывает сsome CDN/прокси).
         let is_partial = resp.status() == 206;
         let actual_offset = if is_partial && resume_from > 0 {
             resume_from
-        } else if resume_from > 0 && !server_accepts_range {
-            // Сервер не поддерживает Range — начинаем с нуля
-            tracing::debug!("[download] сервер не поддерживает Range, начинаем с нуля");
-            0
         } else {
-            resume_from
+            0
         };
 
         let total = resp.content_length().map(|cl| cl + actual_offset);
