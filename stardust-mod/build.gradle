@@ -49,7 +49,7 @@ neoForge {
 dependencies {
     // TAB's developer API. compileOnly: TAB is installed as a separate mod on
     // the server at runtime and provides these classes. Never shade/relocate it.
-    compileOnly 'com.github.NEZNAMY:TAB-API:6.0.0'
+    compileOnly 'com.github.NEZNAMY:TAB-API:5.2.1'
 }
 
 tasks.named('processResources', ProcessResources).configure {

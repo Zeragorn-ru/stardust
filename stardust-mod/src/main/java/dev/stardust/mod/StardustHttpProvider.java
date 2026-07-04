@@ -84,16 +84,25 @@ public final class StardustHttpProvider {
 
     /** Возвращает назначение для ника без учёта регистра, либо {@code null}. */
     public Assignment lookup(String playerName) {
-        if (playerName == null) return null;
+        if (playerName == null) {
+            StardustMod.LOGGER.info("Stardust lookup: playerName=null");
+            return null;
+        }
         String key = playerName.toLowerCase(Locale.ROOT);
         knownNames.add(playerName);
         Assignment cached = cache.get(key);
-        if (cached != null) return cached;
+        if (cached != null) {
+            StardustMod.LOGGER.info("Stardust lookup: {} → кеш={}", playerName, cached);
+            return cached;
+        }
 
         // Первый вход игрока: синхронно подтягиваем только его, чтобы TAB сразу
         // получил актуальный бейдж. Дальше значение обновляет фоновый refresh.
+        StardustMod.LOGGER.info("Stardust lookup: {} → кеш пустой, синхронный fetch", playerName);
         fetchPlayers(Set.of(playerName));
-        return cache.get(key);
+        Assignment result = cache.get(key);
+        StardustMod.LOGGER.info("Stardust lookup: {} → после fetch={}", playerName, result);
+        return result;
     }
 
     public boolean isEmpty() {
@@ -123,6 +132,7 @@ public final class StardustHttpProvider {
             if (players.isEmpty()) return;
 
             String url = authUrl + "/api/server/customization?players=" + players;
+            StardustMod.LOGGER.info("Stardust HTTP provider: запрос {} → {}", names, url);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(HTTP_TIMEOUT)
@@ -130,8 +140,9 @@ public final class StardustHttpProvider {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            StardustMod.LOGGER.info("Stardust HTTP provider: ответ {} (body length={})", response.statusCode(), response.body() != null ? response.body().length() : 0);
             if (response.statusCode() != 200) {
-                StardustMod.LOGGER.warn("Stardust HTTP provider: auth-server вернул {}", response.statusCode());
+                StardustMod.LOGGER.warn("Stardust HTTP provider: auth-server вернул {} — {}", response.statusCode(), response.body());
                 return;
             }
 
@@ -141,9 +152,12 @@ public final class StardustHttpProvider {
             );
 
             if (raw != null) {
+                StardustMod.LOGGER.info("Stardust HTTP provider: получено {} записей из auth-server", raw.size());
                 for (Map.Entry<String, ServerResponse> entry : raw.entrySet()) {
                     String name = entry.getKey();
                     ServerResponse sr = entry.getValue();
+                    StardustMod.LOGGER.info("Stardust HTTP provider: {} → badge={}, badgeColor={}, nameColor={}, gradient={}→{}",
+                            name, sr.badge, sr.badge_color, sr.name_color, sr.gradient_start, sr.gradient_end);
                     cache.put(name.toLowerCase(Locale.ROOT), new Assignment(
                             sr.badge,
                             sr.badge_color,
@@ -152,8 +166,10 @@ public final class StardustHttpProvider {
                             sr.gradient_end
                     ));
                 }
+            } else {
+                StardustMod.LOGGER.warn("Stardust HTTP provider: auth-server вернул null (body={})", response.body());
             }
-            StardustMod.LOGGER.debug("Stardust HTTP provider: обновлено {} игроков (кеш={})", names.size(), cache.size());
+            StardustMod.LOGGER.info("Stardust HTTP provider: обновлено {} игроков, кеш={}", names.size(), cache.size());
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             StardustMod.LOGGER.warn("Stardust HTTP provider: ошибка обновления ({})", e.toString());

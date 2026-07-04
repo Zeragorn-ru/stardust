@@ -1430,8 +1430,29 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
         }
 
         // Целевой путь на сервере = относительный путь файла из сборки.
-        // Создаём родительские директории по цепочке.
         let target = file.path.trim_start_matches('/').to_string();
+
+        // ─── Skip unchanged: если файл в манифесте с тем же SHA-1 и
+        // удалённый файл существует — пропускаем загрузку. ───
+        if let Some(prev_sha1) = previous.get(&target) {
+            if prev_sha1.eq_ignore_ascii_case(&file.sha1) {
+                // Проверяем, что файл реально есть на сервере.
+                match sftp.metadata(&target).await {
+                    Ok(_meta) => {
+                        // Файл на месте и хеш совпадает — пропускаем.
+                        desired.insert(target, file.sha1.clone());
+                        skipped += 1;
+                        current += 1;
+                        continue;
+                    }
+                    Err(_) => {
+                        // Файла нет на сервере (удалён вручную) — перезаливаем.
+                    }
+                }
+            }
+        }
+
+        // Создаём родительские директории по цепочке.
         if let Some(parent) = std::path::Path::new(&target).parent() {
             let mut acc = String::new();
             for comp in parent.components() {
@@ -1448,7 +1469,7 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
             }
         }
 
-        // Читаем файл с диска.
+        // Читаем файл с диска и заливаем.
         let file_path = state.modpack_dir.join(&file.storage_key);
         let bytes = tokio::fs::read(&file_path)
             .await

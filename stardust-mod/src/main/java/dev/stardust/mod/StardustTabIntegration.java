@@ -5,25 +5,31 @@ import me.neznamy.tab.api.TabPlayer;
 import me.neznamy.tab.api.event.EventBus;
 import me.neznamy.tab.api.event.player.PlayerLoadEvent;
 import me.neznamy.tab.api.event.plugin.TabLoadEvent;
-import me.neznamy.tab.api.tablist.TabListFormatManager;
+import me.neznamy.tab.api.placeholder.PlaceholderManager;
+import me.neznamy.tab.api.placeholder.PlayerPlaceholder;
 import net.neoforged.fml.loading.FMLPaths;
 
 /**
- * Интеграция Stardust с плагином/модом TAB (NEZNAMY/TAB).
+ * Интеграция Stardust с TAB (NEZNAMY/TAB).
  *
- * <p>TAB присутствует в среде выполнения как отдельный мод и предоставляет
- * классы {@code me.neznamy.tab.api.*}. Здесь они используются только для
- * компиляции ({@code compileOnly}); во время выполнения они приходят от TAB.</p>
- *
- * <p>На событии загрузки игрока ({@link PlayerLoadEvent}) выставляем:</p>
+ * <p>Регистрирует плейсхолдеры:
  * <ul>
- *   <li>tabprefix — бейдж игрока ({@link TabListFormatManager#setPrefix});</li>
- *   <li>customtabname — цветной ник с градиентом ({@link TabListFormatManager#setName}).</li>
+ *   <li>{@code %stardust_badge%} — бейдж с hex-градиентом</li>
+ *   <li>{@code %stardust_name%} — ник с hex-градиентом</li>
  * </ul>
  *
- * <p>Данные кастомизации берутся из {@link StardustHttpProvider}, который
- * периодически опрачивает auth-server. Если auth-сервер недоступен —
- * используется fallback на локальный {@code config/stardust-badges.properties}.</p>
+ * <p>Конфиг TAB ({@code groups.yml}):
+ * <pre>
+ * _DEFAULT_:
+ *   tabprefix: "%stardust_badge%"
+ *   customtabname: "%stardust_name%"
+ * </pre>
+ *
+ * <p>Конфиг TAB ({@code config.yml}):
+ * <pre>
+ * tablist-name-formatting:
+ *   enabled: true
+ * </pre>
  */
 final class StardustTabIntegration {
 
@@ -32,10 +38,6 @@ final class StardustTabIntegration {
     private StardustTabIntegration() {
     }
 
-    /**
-     * Пытается подключиться к TAB. Безопасно для вызова, даже если TAB
-     * отсутствует: {@link NoClassDefFoundError} ловится и логируется как info.
-     */
     static synchronized void tryBootstrap() {
         if (bootstrapped) return;
         try {
@@ -66,124 +68,208 @@ final class StardustTabIntegration {
             return;
         }
 
-        // HTTP-провайдер: опрачивает auth-server за кастомизацией.
-        // URL берём из системных свойств / server.properties / env.
-        String authUrl = System.getProperty("stardust.auth-url",
-                System.getenv().getOrDefault("STARDUST_AUTH_URL", "http://localhost:8080"));
-        int refreshSecs = Integer.parseInt(
-                System.getProperty("stardust.refresh-interval-seconds", "60"));
+        PlaceholderManager pm = api.getPlaceholderManager();
+        if (pm == null) {
+            StardustMod.LOGGER.warn("Stardust: TAB PlaceholderManager недоступен.");
+            return;
+        }
+
+        StardustServerConfig config = StardustServerConfig.load(configDir);
+        String authUrl = config.authUrl();
+        int refreshSecs = config.refreshIntervalSeconds();
 
         StardustHttpProvider httpProvider = new StardustHttpProvider(authUrl, refreshSecs);
         httpProvider.start();
 
-        // Fallback: локальный .properties файл на случай, если auth-server недоступен.
         StardustBadgeConfig localFallback = StardustBadgeConfig.load(configDir);
 
-        eventBus.register(TabLoadEvent.class, event -> {
-            // При перезагрузке TAB ничего специального не делаем —
-            // httpProvider продолжает работать в фоне.
+        // %stardust_badge% — бейдж с hex-градиентом
+        PlayerPlaceholder badgePlaceholder = pm.registerPlayerPlaceholder(
+                "%stardust_badge%",
+                refreshSecs * 1000,
+                player -> resolveBadge(httpProvider, localFallback, player)
+        );
+
+        // %stardust_name% — ник с hex-градиентом
+        PlayerPlaceholder namePlaceholder = pm.registerPlayerPlaceholder(
+                "%stardust_name%",
+                refreshSecs * 1000,
+                player -> resolveName(httpProvider, localFallback, player)
+        );
+
+        StardustMod.LOGGER.info("Stardust TAB: плейсхолдеры зарегистрированы");
+
+        eventBus.register(PlayerLoadEvent.class, event -> {
+            TabPlayer player = event.getPlayer();
+            if (player == null) return;
+            try {
+                badgePlaceholder.update(player);
+                namePlaceholder.update(player);
+            } catch (Exception e) {
+                StardustMod.LOGGER.warn("Stardust TAB: ошибка обновления плейсхолдеров для {}", player.getName(), e);
+            }
         });
 
-        eventBus.register(PlayerLoadEvent.class, event ->
-                applyBadge(api, httpProvider, localFallback, event.getPlayer()));
+        eventBus.register(TabLoadEvent.class, event ->
+                StardustMod.LOGGER.info("Stardust TAB: TAB перезагружен"));
 
         StardustMod.LOGGER.info("Stardust: интеграция с TAB активирована (auth-url={})", authUrl);
         bootstrapped = true;
     }
 
-    private static void applyBadge(TabAPI api, StardustHttpProvider http,
-                                   StardustBadgeConfig localFallback, TabPlayer player) {
-        if (player == null) return;
+    // ─────────── Badge ───────────
 
+    private static String resolveBadge(StardustHttpProvider http,
+                                       StardustBadgeConfig local,
+                                       TabPlayer player) {
+        if (player == null) return "";
         String name = player.getName();
-        StardustHttpProvider.Assignment httpAssignment = http.lookup(name);
-        StardustBadgeConfig.Assignment localAssignment = (httpAssignment == null || http.isEmpty())
-                ? localFallback.lookup(name)
-                : null;
+        StardustHttpProvider.Assignment h = http.lookup(name);
+        StardustBadgeConfig.Assignment l = (h == null || http.isEmpty()) ? local.lookup(name) : null;
 
-        TabListFormatManager fmt = api.getTabListFormatManager();
-        if (fmt == null) return;
+        String badge = h != null ? h.badge() : l != null ? l.badge() : null;
+        if (badge == null || badge.isEmpty()) return "";
 
-        try {
-            // ─── Бейдж (tab-prefix) ───
-            String badge = httpAssignment != null ? httpAssignment.badge()
-                    : localAssignment != null ? localAssignment.badge()
-                    : null;
-            if (badge != null && !badge.isEmpty()) {
-                fmt.setPrefix(player, badge);
+        // Бейдж раскрашиваем градиентом из badgeColor/gradientStart..gradientEnd
+        String colorStart = null;
+        String colorEnd = null;
+        if (h != null) {
+            if (h.badgeColor() != null && !h.badgeColor().isEmpty()) {
+                colorStart = h.badgeColor();
+                colorEnd = h.badgeColor();
+            } else if (h.gradientStart() != null && !h.gradientStart().isEmpty()
+                    && h.gradientEnd() != null && !h.gradientEnd().isEmpty()) {
+                colorStart = h.gradientStart();
+                colorEnd = h.gradientEnd();
             }
-
-            // ─── Цветной ник (custom-tab-name) ───
-            String coloredName = buildColoredName(name, httpAssignment, localAssignment);
-            if (coloredName != null) {
-                fmt.setName(player, coloredName);
-            }
-        } catch (RuntimeException e) {
-            StardustMod.LOGGER.warn("Stardust: не удалось применить бейдж игроку {}", name, e);
         }
+        if (l != null && l.nameColor() != null && !l.nameColor().isEmpty()) {
+            if (colorStart == null) {
+                colorStart = l.nameColor();
+                colorEnd = l.nameColor();
+            }
+        }
+
+        if (colorStart != null && colorEnd != null) {
+            return applyHexGradient(badge, colorStart, colorEnd);
+        }
+        return badge;
     }
 
-    /**
-     * Собирает строку цветного ника для TAB.
-     *
-     * <p>Pриоритет: HTTP-провайдер > локальный fallback. Если задан градиент
-     * (gradientStart + gradientEnd), формируем hex-строку вида
-     * {@code &#RRGGBBnick&#RRGGBB} для TAB v5.5+ с поддержкой hex-цветов.
-     * Если только nameColor — используем legacy-код ({@code &b}, {@code &e} и т.д.).
-     * Если ничего не задано — возвращаем {@code null} (стандартный ник).</p>
-     */
-    private static String buildColoredName(String playerName,
-                                           StardustHttpProvider.Assignment http,
-                                           StardustBadgeConfig.Assignment local) {
-        // Градиент из HTTP
-        if (http != null && http.gradientStart() != null && http.gradientEnd() != null
-                && !http.gradientStart().isEmpty() && !http.gradientEnd().isEmpty()) {
-            return formatGradient(playerName, http.gradientStart(), http.gradientEnd());
+    // ─────────── Name ───────────
+
+    private static String resolveName(StardustHttpProvider http,
+                                      StardustBadgeConfig local,
+                                      TabPlayer player) {
+        if (player == null) return "";
+        String name = player.getName();
+        StardustHttpProvider.Assignment h = http.lookup(name);
+        StardustBadgeConfig.Assignment l = (h == null || http.isEmpty()) ? local.lookup(name) : null;
+
+        // Градиент
+        if (h != null && h.gradientStart() != null && !h.gradientStart().isEmpty()
+                && h.gradientEnd() != null && !h.gradientEnd().isEmpty()) {
+            return applyHexGradient(name, h.gradientStart(), h.gradientEnd());
         }
 
-        // name_color из HTTP
-        if (http != null && http.nameColor() != null && !http.nameColor().isEmpty()) {
-            return http.nameColor() + playerName;
+        //name_color из HTTP
+        if (h != null && h.nameColor() != null && !h.nameColor().isEmpty()) {
+            return wrapWithColor(name, h.nameColor());
         }
 
         // Локальный fallback
-        if (local != null && local.nameColor() != null && !local.nameColor().isEmpty()) {
-            return local.nameColor() + playerName;
+        if (l != null && l.nameColor() != null && !l.nameColor().isEmpty()) {
+            return wrapWithColor(name, l.nameColor());
         }
 
-        return null;
+        return name;
+    }
+
+    // ─────────── Gradient engine ───────────
+
+    /**
+     * Создаёт hex-градиент посимвольно.
+     * Формат: {@code &#RRGGBBсимвол&#RRGGBBсимвол...}
+     * Это поддерживается Minecraft 1.16+ и TAB.
+     */
+    private static String applyHexGradient(String text, String startHex, String endHex) {
+        if (text == null || text.isEmpty()) return "";
+        int len = text.length();
+        if (len == 1) {
+            return wrapHex(text, startHex);
+        }
+
+        int[] start = parseHex(startHex);
+        int[] end = parseHex(endHex);
+        if (start == null || end == null) return text;
+
+        StringBuilder sb = new StringBuilder(len * 14);
+        for (int i = 0; i < len; i++) {
+            float ratio = (float) i / (len - 1);
+            int r = Math.round(start[0] + (end[0] - start[0]) * ratio);
+            int g = Math.round(start[1] + (end[1] - start[1]) * ratio);
+            int b = Math.round(start[2] + (end[2] - start[2]) * ratio);
+            sb.append("&#");
+            sb.append(String.format("%02X%02X%02X", r, g, b));
+            sb.append(text.charAt(i));
+        }
+        return sb.toString();
+    }
+
+    /** Оборачивает текст в один hex-цвет: {@code &#RRGGBBтекст} */
+    private static String wrapHex(String text, String hex) {
+        String h = normalizeHex(hex);
+        return h + text;
     }
 
     /**
-     * Форматирует градиент для TAB v5.5+.
-     *
-     * <p>TAB поддерживает hex-цвета в формате {@code &#RRGGBB} или
-     * {@code &#xAARRGGBB}. Для градиента ника используем два цвета:
-     * {@code &#RRGGBB_текст} — но TAB не поддерживает inline-градиент в одном
-     * имени напрямую. Вместо этого используем цвет начала градиента как основной
-     * цвет ника (это 가장接近 решение).</p>
-     *
-     * <p>Если TAB v5.5+ поддерживает {@code <gradient>}, используем его:
-     * {@code <gradient:#START:#END>name}</p>
+     * Оборачивает текст в цвет.
+     * Если hex (#RRGGBB) — используем {@code &#RRGGBBтекст}.
+     * Если legacy (&a, &b и т.д.) — используем {@code &кодтекст}.
      */
-    private static String formatGradient(String playerName, String start, String end) {
-        String s = normalizeHex(start);
-        String e = normalizeHex(end);
-
-        // Пытаемся использовать формат gradient TAB v5.5+
-        // формат: <gradient:startcolor:endcolor>text
-        return String.format("<gradient:%s:%s>%s</gradient>", s, e, playerName);
+    private static String wrapWithColor(String text, String color) {
+        if (color == null || color.isEmpty()) return text;
+        String c = color.trim();
+        if (c.startsWith("#")) {
+            return "&#" + c.substring(1) + text;
+        }
+        if (c.startsWith("&#")) {
+            return c + text;
+        }
+        if (c.startsWith("&") && c.length() == 2) {
+            return c + text;
+        }
+        // Попытка как hex без #
+        if (c.length() == 6 && c.chars().allMatch(ch -> "0123456789aAbBcCdDeEfF".indexOf(ch) >= 0)) {
+            return "&#" + c + text;
+        }
+        return c + text;
     }
 
-    /** Нормализует hex-цвет: убирает `#`, добавляет `#` если нужно. */
+    /** Парсит hex-строку в RGB массив [r, g, b]. Принимает #RRGGBB, RRGGBB, &#RRGGBB. */
+    private static int[] parseHex(String hex) {
+        if (hex == null) return null;
+        String h = hex.trim();
+        if (h.startsWith("&#")) h = h.substring(2);
+        else if (h.startsWith("#")) h = h.substring(1);
+        if (h.length() != 6) return null;
+        try {
+            int r = Integer.parseInt(h.substring(0, 2), 16);
+            int g = Integer.parseInt(h.substring(2, 4), 16);
+            int b = Integer.parseInt(h.substring(4, 6), 16);
+            return new int[]{r, g, b};
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** Нормализует hex: убирает #, &# и т.д., возвращает #RRGGBB. */
     private static String normalizeHex(String color) {
         if (color == null) return "#ffffff";
         String c = color.trim();
-        if (c.startsWith("#")) return c;
-        if (c.startsWith("&")) {
-            // Legacy-код → заглушка, TAB сам разберётся
-            return c;
-        }
+        if (c.startsWith("&#")) c = c.substring(2);
+        else if (c.startsWith("#")) c = c.substring(1);
+        if (c.length() != 6) return "#ffffff";
         return "#" + c;
     }
 }
