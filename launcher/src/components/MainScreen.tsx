@@ -6,6 +6,7 @@ import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
+import MinecraftNickname from "./MinecraftNickname";
 
 const SERVER_HOST = "play.stardust-mc.xyz";
 const SERVER_STATUS_INTERVAL = 60_000;
@@ -148,25 +149,11 @@ export default function MainScreen({
           </div>
           <div className="account__info">
             <div className="account__name nick-display">
-              {profile.activeBadge && (
-                <span className="nick-display__badge" style={{ color: profile.activeBadge.color }}>
-                  {profile.activeBadge.emoji}
-                </span>
-              )}
-              <span
-                className="nick-display__name"
-                style={
-                  profile.activeGradient
-                    ? {
-                        background: `linear-gradient(90deg, ${profile.activeGradient.colorStart}, ${profile.activeGradient.colorEnd})`,
-                        WebkitBackgroundClip: "text",
-                        WebkitTextFillColor: "transparent",
-                      }
-                    : undefined
-                }
-              >
-                {profile.name}
-              </span>
+              <MinecraftNickname
+                name={profile.name}
+                badge={profile.activeBadge}
+                gradient={profile.activeGradient}
+              />
             </div>
             <div className="account__id muted">{shortId(profile.id)}</div>
           </div>
@@ -338,7 +325,7 @@ export default function MainScreen({
         </div>
       </section>
 
-      {skinOpen && <CustomizeModal onClose={() => setSkinOpen(false)} />}
+      {skinOpen && <CustomizeModal playerName={profile.name} onClose={() => setSkinOpen(false)} />}
     </div>
   );
 }
@@ -377,4 +364,3 @@ function formatLastLaunch(iso: string): string {
   const yearPart = d.getFullYear() !== new Date().getFullYear() ? `.${d.getFullYear()}` : "";
   return `${day}.${mon}${yearPart} ${time}`;
 }
-

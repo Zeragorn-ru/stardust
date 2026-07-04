@@ -5,10 +5,11 @@ import NickCustomizer from "./NickCustomizer";
 type Tab = "skin" | "nick";
 
 interface Props {
+  playerName: string;
   onClose: () => void;
 }
 
-export default function CustomizeModal({ onClose }: Props) {
+export default function CustomizeModal({ playerName, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("skin");
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -71,7 +72,7 @@ export default function CustomizeModal({ onClose }: Props) {
           </div>
         ) : (
           <div className="customize-modal__body">
-            <NickCustomizer />
+            <NickCustomizer playerName={playerName} />
           </div>
         )}
       </div>

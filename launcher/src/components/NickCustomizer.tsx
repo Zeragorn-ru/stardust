@@ -4,8 +4,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { getCustomization, setActiveCustomization } from "../api";
 import type { PlayerCustomization } from "../types";
+import MinecraftNickname from "./MinecraftNickname";
 
 interface Props {
+  playerName: string;
   onSaved?: () => void;
 }
 
@@ -25,7 +27,7 @@ function normalizeCustomization(raw: RawCustomization): PlayerCustomization {
   };
 }
 
-export default function NickCustomizer({ onSaved }: Props) {
+export default function NickCustomizer({ playerName, onSaved }: Props) {
   const [data, setData] = useState<PlayerCustomization | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedBadge, setSelectedBadge] = useState<number | null>(null);
@@ -75,27 +77,12 @@ export default function NickCustomizer({ onSaved }: Props) {
       {/* Превью */}
       <div className="nick-preview">
         <span className="nick-preview__label">Превью:</span>
-        <div className="nick-preview__name">
-          {activeBadge && (
-            <span className="nick-badge" style={{ color: activeBadge.color }}>
-              {activeBadge.emoji}
-            </span>
-          )}
-          <span
-            className="nick-text"
-            style={
-              activeGradient
-                ? {
-                    background: `linear-gradient(90deg, ${activeGradient.colorStart}, ${activeGradient.colorEnd})`,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                  }
-                : undefined
-            }
-          >
-            Notch
-          </span>
-        </div>
+        <MinecraftNickname
+          className="nick-preview__name"
+          name={playerName}
+          badge={activeBadge}
+          gradient={activeGradient}
+        />
       </div>
 
       {/* Бейджи */}
@@ -103,21 +90,22 @@ export default function NickCustomizer({ onSaved }: Props) {
         <span className="nick-section__title">Бейдж</span>
         <div className="nick-badges">
           <button
-            className={"nick-badge-btn" + (selectedBadge === null ? " selected" : "")}
+            className={"nick-option-btn" + (selectedBadge === null ? " selected" : "")}
             onClick={() => setSelectedBadge(null)}
             title="Без бейджа"
           >
-            —
+            <MinecraftNickname name={playerName} gradient={activeGradient} />
           </button>
           {data.availableBadges.map((b) => (
             <button
               key={b.id}
-              className={"nick-badge-btn" + (selectedBadge === b.id ? " selected" : "")}
+              className={"nick-option-btn" + (selectedBadge === b.id ? " selected" : "")}
               onClick={() => setSelectedBadge(b.id)}
               title={b.label}
               style={{ borderColor: selectedBadge === b.id ? b.color : undefined }}
             >
-              {b.emoji}
+              <MinecraftNickname name={playerName} badge={b} gradient={activeGradient} />
+              <span className="nick-option-label">{b.label}</span>
             </button>
           ))}
         </div>
@@ -128,22 +116,24 @@ export default function NickCustomizer({ onSaved }: Props) {
         <span className="nick-section__title">Градиент</span>
         <div className="nick-gradients">
           <button
-            className={"nick-gradient-btn" + (selectedGradient === null ? " selected" : "")}
+            className={"nick-option-btn" + (selectedGradient === null ? " selected" : "")}
             onClick={() => setSelectedGradient(null)}
           >
-            Без градиента
+            <MinecraftNickname name={playerName} badge={activeBadge} />
+            <span className="nick-option-label">Без градиента</span>
           </button>
           {data.availableGradients.map((g) => (
             <button
               key={g.id}
-              className={"nick-gradient-btn" + (selectedGradient === g.id ? " selected" : "")}
+              className={"nick-option-btn" + (selectedGradient === g.id ? " selected" : "")}
               onClick={() => setSelectedGradient(g.id)}
             >
               <span
                 className="nick-gradient-swatch"
                 style={{ background: `linear-gradient(90deg, ${g.colorStart}, ${g.colorEnd})` }}
               />
-              {g.label}
+              <MinecraftNickname name={playerName} badge={activeBadge} gradient={g} />
+              <span className="nick-option-label">{g.label}</span>
             </button>
           ))}
         </div>

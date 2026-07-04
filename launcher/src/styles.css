@@ -1149,6 +1149,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 12px 18px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(10, 11, 20, 0.4);
@@ -1160,6 +1161,7 @@ body {
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
 }
 
 .account--link {
@@ -1171,6 +1173,8 @@ body {
     cursor: pointer;
     text-align: left;
     color: inherit;
+    min-width: 0;
+    max-width: min(420px, 58vw);
     transition:
         background var(--t-fast),
         transform var(--t-fast);
@@ -1224,14 +1228,22 @@ body {
     font-size: 15px;
 }
 
+.account__info {
+    min-width: 0;
+}
+
 .account__id {
     font-size: 12px;
     font-family: ui-monospace, monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .main__actions {
     display: flex;
     gap: 6px;
+    flex-shrink: 0;
 }
 
 .main__hero {
@@ -2533,6 +2545,8 @@ body {
 .customize-modal {
     width: 620px;
     max-width: 96vw;
+    max-height: calc(100vh - 32px);
+    overflow: hidden;
     box-shadow:
         0 0 80px -20px rgba(124, 92, 255, 0.12),
         0 24px 64px -16px rgba(0, 0, 0, 0.5);
@@ -2541,6 +2555,8 @@ body {
 /* Фиксируем высоту контентной зоны, чтобы смена вкладок не меняла размер */
 .customize-modal__body {
     min-height: 370px;
+    max-height: min(560px, calc(100vh - 130px));
+    overflow: auto;
     display: flex;
     flex-direction: column;
 }
@@ -2642,21 +2658,30 @@ body {
     letter-spacing: 0.5px;
 }
 
-.nick-preview__name {
+.minecraft-nick {
     display: flex;
     align-items: center;
     gap: 6px;
     font-family: 'Minecraft', 'Courier New', monospace;
-    font-size: 22px;
+    font-size: var(--minecraft-nick-size, 22px);
     font-weight: bold;
-}
-
-.nick-badge {
-    font-size: 24px;
-}
-
-.nick-text {
+    max-width: 100%;
     color: #fff;
+    line-height: 1.1;
+    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+}
+
+.minecraft-nick__badge {
+    font-size: calc(var(--minecraft-nick-size, 22px) + 2px);
+    flex-shrink: 0;
+}
+
+.minecraft-nick__name {
+    color: #fff;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .nick-section {
@@ -2672,41 +2697,21 @@ body {
 }
 
 .nick-badges {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 6px;
-}
-
-.nick-badge-btn {
-    width: 40px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    border: 2px solid var(--glass-border);
-    border-radius: 8px;
-    background: rgba(0, 0, 0, 0.2);
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-}
-
-.nick-badge-btn:hover {
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.nick-badge-btn.selected {
-    border-color: var(--accent);
-    background: rgba(124, 92, 255, 0.15);
 }
 
 .nick-gradients {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    max-height: 180px;
+    overflow: auto;
+    padding-right: 2px;
 }
 
-.nick-gradient-btn {
+.nick-option-btn {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -2719,15 +2724,32 @@ body {
     cursor: pointer;
     transition: border-color 0.2s, background 0.2s;
     text-align: left;
+    min-width: 0;
+    --minecraft-nick-size: 14px;
 }
 
-.nick-gradient-btn:hover {
+.nick-option-btn:hover {
     background: rgba(255, 255, 255, 0.05);
 }
 
-.nick-gradient-btn.selected {
+.nick-option-btn.selected {
     border-color: var(--accent);
     background: rgba(124, 92, 255, 0.15);
+}
+
+.nick-option-btn .minecraft-nick {
+    min-width: 0;
+    flex: 1;
+}
+
+.nick-option-label {
+    flex: 0 0 auto;
+    max-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
 }
 
 .nick-gradient-swatch {
@@ -2749,10 +2771,13 @@ body {
     display: flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
+    --minecraft-nick-size: 15px;
 }
 
 .nick-display__badge {
     font-size: 18px;
+    flex-shrink: 0;
 }
 
 .nick-display__name {
@@ -2760,4 +2785,7 @@ body {
     font-size: 15px;
     font-weight: bold;
     color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }

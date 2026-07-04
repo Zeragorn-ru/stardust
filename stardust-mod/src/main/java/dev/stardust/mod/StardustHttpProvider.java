@@ -5,14 +5,17 @@ import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Collections;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -42,13 +45,16 @@ public final class StardustHttpProvider {
     }
 
     private final String authUrl;
+    private final int refreshIntervalSeconds;
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
+    private final Set<String> knownNames = ConcurrentHashMap.newKeySet();
     private volatile boolean running = false;
 
     public StardustHttpProvider(String authUrl, int refreshIntervalSeconds) {
         this.authUrl = authUrl.endsWith("/") ? authUrl.substring(0, authUrl.length() - 1) : authUrl;
+        this.refreshIntervalSeconds = Math.max(10, refreshIntervalSeconds);
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_TIMEOUT)
                 .build();
@@ -66,9 +72,8 @@ public final class StardustHttpProvider {
     public void start() {
         if (running) return;
         running = true;
-        // Первый запрос — сразу, затем с интервалом.
-        scheduler.scheduleAtFixedRate(this::refresh, 0, 60, TimeUnit.SECONDS);
-        StardustMod.LOGGER.info("Stardust HTTP provider запущен (url={})", authUrl);
+        scheduler.scheduleAtFixedRate(this::refreshKnownNames, refreshIntervalSeconds, refreshIntervalSeconds, TimeUnit.SECONDS);
+        StardustMod.LOGGER.info("Stardust HTTP provider запущен (url={}, refresh={}s)", authUrl, refreshIntervalSeconds);
     }
 
     /** Останавливает фоновое обновление. */
@@ -80,7 +85,15 @@ public final class StardustHttpProvider {
     /** Возвращает назначение для ника без учёта регистра, либо {@code null}. */
     public Assignment lookup(String playerName) {
         if (playerName == null) return null;
-        return cache.get(playerName.toLowerCase(Locale.ROOT));
+        String key = playerName.toLowerCase(Locale.ROOT);
+        knownNames.add(playerName);
+        Assignment cached = cache.get(key);
+        if (cached != null) return cached;
+
+        // Первый вход игрока: синхронно подтягиваем только его, чтобы TAB сразу
+        // получил актуальный бейдж. Дальше значение обновляет фоновый refresh.
+        fetchPlayers(Set.of(playerName));
+        return cache.get(key);
     }
 
     public boolean isEmpty() {
@@ -91,12 +104,25 @@ public final class StardustHttpProvider {
         return cache.size();
     }
 
-    /** Обновляет кеш, запрашивая данные у auth-server. */
-    private void refresh() {
+    /** Обновляет кеш известных игроков. */
+    private void refreshKnownNames() {
+        if (knownNames.isEmpty()) return;
+        fetchPlayers(new HashSet<>(knownNames));
+    }
+
+    /** Запрашивает кастомизацию конкретного набора игроков у auth-server. */
+    private void fetchPlayers(Collection<String> names) {
+        if (names.isEmpty()) return;
         try {
-            // Запрашиваем всех игроков, для которых есть кеш, или пустой список.
-            // auth-server вернёт пустую карту если.players не передан.
-            String url = authUrl + "/api/server/customization";
+            String players = names.stream()
+                    .filter(name -> name != null && !name.isBlank())
+                    .map(String::trim)
+                    .map(name -> URLEncoder.encode(name, StandardCharsets.UTF_8))
+                    .reduce((a, b) -> a + "," + b)
+                    .orElse("");
+            if (players.isEmpty()) return;
+
+            String url = authUrl + "/api/server/customization?players=" + players;
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(HTTP_TIMEOUT)
@@ -114,7 +140,6 @@ public final class StardustHttpProvider {
                     new TypeToken<Map<String, ServerResponse>>() {}.getType()
             );
 
-            cache.clear();
             if (raw != null) {
                 for (Map.Entry<String, ServerResponse> entry : raw.entrySet()) {
                     String name = entry.getKey();
@@ -128,8 +153,9 @@ public final class StardustHttpProvider {
                     ));
                 }
             }
-            StardustMod.LOGGER.debug("Stardust HTTP provider: обновлено {} записей", cache.size());
+            StardustMod.LOGGER.debug("Stardust HTTP provider: обновлено {} игроков (кеш={})", names.size(), cache.size());
         } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             StardustMod.LOGGER.warn("Stardust HTTP provider: ошибка обновления ({})", e.toString());
         } catch (Exception e) {
             StardustMod.LOGGER.warn("Stardust HTTP provider: неожиданная ошибка", e);

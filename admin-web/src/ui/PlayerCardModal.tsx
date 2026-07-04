@@ -31,20 +31,23 @@ export function PlayerCardModal({ account, onClose, onUpdated, onDeleted }: Prop
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal modal-wide"
+        className="modal modal-wide player-card-modal"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Шапка */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+        <div className="pc-head">
           <SkinHead uuid={account.uuid} username={account.username} size={48} />
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 600 }}>{account.username}</div>
-            <div style={{ fontSize: 12, color: "var(--muted)", fontFamily: "monospace" }}>
+          <div className="pc-head__text">
+            <div className="pc-head__name">{account.username}</div>
+            <div className="pc-head__uuid">
               {account.uuid}
             </div>
           </div>
+          <button className="icon-only pc-close" onClick={onClose} aria-label="Закрыть">
+            ×
+          </button>
         </div>
 
         {/* Вкладки */}
@@ -233,8 +236,8 @@ function BadgesTab({
       await api.setAccountBadges(account.uuid, data.ownedBadgeIds);
       await api.setAccountGradients(account.uuid, data.ownedGradientIds);
       await api.setAccountActive(account.uuid, data.activeBadgeId, data.activeGradientId);
-    } catch {
-      // ignore
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Не удалось сохранить бейджи");
     } finally {
       setSaving(false);
     }
@@ -271,6 +274,7 @@ function BadgesTab({
                       title={active ? "Активный бейдж" : "Сделать активным"}
                       onClick={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         setData({ ...data, activeBadgeId: active ? null : b.id });
                       }}
                     />
@@ -310,6 +314,7 @@ function BadgesTab({
                       title={active ? "Активный градиент" : "Сделать активным"}
                       onClick={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         setData({ ...data, activeGradientId: active ? null : g.id });
                       }}
                     />
