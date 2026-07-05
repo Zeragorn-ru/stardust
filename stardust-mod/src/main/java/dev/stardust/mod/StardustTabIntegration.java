@@ -247,7 +247,7 @@ final class StardustTabIntegration {
         if (colorStart != null && colorEnd != null) {
             result = wrapHex(badge, colorStart);
         } else {
-            result = badge;
+            result = stripVS16(badge);
         }
         if (debug) StardustMod.LOGGER.info("Stardust badge('{}') = [{}] len={}", name, result, result.length());
         return result + "&r ";
@@ -308,7 +308,16 @@ final class StardustTabIntegration {
 
     private static String wrapHex(String text, String hex) {
         String h = normalizeHex(hex);
-        return "&" + h + text;
+        return "&" + h + stripVS16(text);
+    }
+
+    /**
+     * Убирает Variation Selector 16 (U+FE0F) из строки.
+     * Minecraft не понимает VS16 и отображает его как видимый символ "□".
+     */
+    private static String stripVS16(String s) {
+        if (s == null) return null;
+        return s.replace("\uFE0F", "");
     }
 
     private static String wrapWithColor(String text, String color) {

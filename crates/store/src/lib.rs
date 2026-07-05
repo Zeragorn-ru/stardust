@@ -8,6 +8,12 @@
 //! и теряются при перезапуске без последствий.
 
 use std::collections::HashMap;
+
+/// Убирает Variation Selector 16 (U+FE0F) из строки.
+/// Minecraft не понимает VS16 и отображает его как видимый символ "□".
+fn strip_vs16(s: &str) -> String {
+    s.chars().filter(|&c| c != '\u{FE0F}').collect()
+}
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
@@ -700,10 +706,11 @@ impl Store {
 
     /// Создать бейдж.
     pub async fn create_badge(&self, emoji: &str, label: &str, color: &str) -> Result<Badge, StoreError> {
+        let emoji = strip_vs16(emoji);
         let row = sqlx::query(
             "INSERT INTO badges (emoji, label, color) VALUES ($1, $2, $3) RETURNING id, emoji, label, color",
         )
-        .bind(emoji)
+        .bind(&emoji)
         .bind(label)
         .bind(color)
         .fetch_one(&self.pool)
@@ -718,9 +725,10 @@ impl Store {
 
     /// Обновить бейдж.
     pub async fn update_badge(&self, id: i32, emoji: &str, label: &str, color: &str) -> Result<(), StoreError> {
+        let emoji = strip_vs16(emoji);
         sqlx::query("UPDATE badges SET emoji = $2, label = $3, color = $4 WHERE id = $1")
             .bind(id)
-            .bind(emoji)
+            .bind(&emoji)
             .bind(label)
             .bind(color)
             .execute(&self.pool)
