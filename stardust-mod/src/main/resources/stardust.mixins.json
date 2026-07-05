@@ -4,7 +4,9 @@
   "package": "dev.stardust.mod.mixin",
   "compatibilityLevel": "JAVA_21",
   "refmap": "stardust.refmap.json",
-  "mixins": [],
+  "mixins": [
+    "PlayerListMixin"
+  ],
   "client": [
     "ChatListenerMixin"
   ],

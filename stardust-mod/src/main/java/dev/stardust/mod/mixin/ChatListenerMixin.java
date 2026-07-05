@@ -24,7 +24,7 @@ public abstract class ChatListenerMixin {
         // Cancelling here prevents the <name> echo for the sender.
         // We only cancel if the sender is the local player (the one who just typed).
         var mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.player != null && playerInfo.getProfile().getId().equals(mc.player.getUUID())) {
+        if (playerInfo != null && mc.player != null && playerInfo.getProfile().getId().equals(mc.player.getUUID())) {
             ci.cancel();
         }
     }
