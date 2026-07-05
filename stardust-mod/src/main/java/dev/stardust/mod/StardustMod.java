@@ -6,10 +6,13 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +39,7 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(this::onPlayerNameFormat);
+        NeoForge.EVENT_BUS.addListener(this::onServerChat);
     }
 
     private void onServerStarted(ServerStartedEvent event) {
@@ -80,5 +84,18 @@ public final class StardustMod {
                 }
             }
         }
+    }
+
+    private void onServerChat(ServerChatEvent event) {
+        ServerPlayer player = event.getPlayer();
+        Component displayName = player.getDisplayName();
+
+        MutableComponent newMessage = Component.empty()
+                .append(Component.literal("[").withStyle(ChatFormatting.GRAY))
+                .append(displayName)
+                .append(Component.literal("] ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(event.getRawText()));
+
+        event.setMessage(newMessage);
     }
 }
