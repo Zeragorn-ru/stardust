@@ -288,6 +288,7 @@ body {
     inset: 0;
     z-index: 0;
     overflow: hidden;
+    pointer-events: none;
     background: radial-gradient(
         120% 120% at 50% -10%,
         #141833 0%,
@@ -472,6 +473,30 @@ body {
 }
 :root[data-motion="off"] .skin-tab-panel {
     animation: none !important;
+}
+:root[data-motion="off"] .skin-viewer-3d {
+    animation: none !important;
+    filter: none !important;
+}
+:root[data-motion="off"] .hero__skin::before {
+    animation: none !important;
+    filter: none !important;
+}
+:root[data-motion="off"] .aurora__blob {
+    animation: none !important;
+    opacity: 0 !important;
+    will-change: auto !important;
+}
+:root[data-motion="off"] .aurora__grain {
+    display: none !important;
+}
+:root[data-motion="off"] .aurora {
+    background: radial-gradient(
+        120% 120% at 50% -10%,
+        #141833 0%,
+        var(--bg) 45%,
+        var(--bg-deep) 100%
+    ) !important;
 }
 
 .glass-in {
@@ -1659,6 +1684,7 @@ body {
     max-width: 560px;
     width: 100%;
     margin: 0 auto;
+    contain: layout style paint;
     animation: panelIn var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
