@@ -6,6 +6,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,12 +27,11 @@ public final class StardustMod {
     public StardustMod(IEventBus modEventBus, ModContainer modContainer) {
         LOGGER.info("Stardust shared mod initialized (env={})", FMLEnvironment.dist);
 
-        // TAB интеграция имеет смысл только на сервере и только если TAB
-        // действительно присутствует в classpath/среде выполнения.
-        if (FMLEnvironment.dist.isDedicatedServer()) {
-            NeoForge.EVENT_BUS.addListener(this::onServerStarted);
-            NeoForge.EVENT_BUS.addListener(this::onCommandsRegister);
-        }
+        // Регистрируем обработчики всегда — работают и на dedicated, и на integrated сервере.
+        NeoForge.EVENT_BUS.addListener(this::onServerStarted);
+        NeoForge.EVENT_BUS.addListener(this::onCommandsRegister);
+        NeoForge.EVENT_BUS.addListener(StardustSuperChallengeHealth::onAdvancementEarned);
+        NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
     }
 
     private void onServerStarted(ServerStartedEvent event) {
@@ -49,5 +49,11 @@ public final class StardustMod {
                     })
                 )
         );
+    }
+
+    private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            StardustSuperChallengeHealth.onPlayerLogin(player);
+        }
     }
 }

@@ -62,6 +62,10 @@ struct AppState {
     sync_to_panel_running: Mutex<Option<i64>>,
     /// Последний статус SFTP-синхронизации для polling из админки.
     sync_to_panel_status: Mutex<SyncStatus>,
+    /// Защита от параллельных деплоев мода.
+    deploy_mod_running: Mutex<bool>,
+    /// Последний статус деплоя мода для polling из админки.
+    deploy_mod_status: Mutex<DeployModStatus>,
 }
 
 /// Закэшированный authlib-injector.jar с временем загрузки.
@@ -123,6 +127,8 @@ async fn main() {
         injector: Mutex::new(None),
         sync_to_panel_running: Mutex::new(None),
         sync_to_panel_status: Mutex::new(SyncStatus::default()),
+        deploy_mod_running: Mutex::new(false),
+        deploy_mod_status: Mutex::new(DeployModStatus::default()),
     });
 
     // Фоновая задача: синхронизация статистики с SFTP каждые 15 минут.
@@ -228,6 +234,8 @@ async fn main() {
             "/api/gradients/:id",
             axum::routing::patch(update_gradient).delete(delete_gradient),
         )
+        .route("/api/deploy-mod", post(deploy_mod))
+        .route("/api/deploy-mod/status", get(deploy_mod_status))
         // --- Публичное для лаунчера ---
         .route("/manifest", get(manifest))
         .route("/authlib-injector.jar", get(authlib_injector))
@@ -1604,6 +1612,239 @@ async fn write_sftp_file_atomic(
     }
 
     Ok(())
+}
+
+// ───────────────────────── Деплой мода ─────────────────────────
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DeployModStatus {
+    state: SyncState,
+    phase: String,
+    version: Option<String>,
+    error: Option<String>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+async fn deploy_mod(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    require_admin(&state, &headers).await?;
+
+    {
+        let mut running = state.deploy_mod_running.lock().await;
+        if *running {
+            return Err(ApiError::new(
+                StatusCode::CONFLICT,
+                "Деплой мода уже выполняется",
+            ));
+        }
+        *running = true;
+    }
+
+    update_deploy_mod_status(&state, |status| {
+        *status = DeployModStatus {
+            state: SyncState::Running,
+            phase: "Подготовка".to_string(),
+            started_at: Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default()),
+            ..Default::default()
+        };
+    })
+    .await;
+
+    let task_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        match do_deploy_mod(Arc::clone(&task_state)).await {
+            Ok(version) => {
+                update_deploy_mod_status(&task_state, |status| {
+                    status.state = SyncState::Success;
+                    status.phase = "Готово".to_string();
+                    status.version = Some(version);
+                    status.finished_at =
+                        Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                })
+                .await;
+            }
+            Err(e) => {
+                let msg = e.message.clone();
+                tracing::warn!("deploy-mod: ошибка: {}", msg);
+                update_deploy_mod_status(&task_state, |status| {
+                    status.state = SyncState::Error;
+                    status.phase = "Ошибка".to_string();
+                    status.error = Some(msg);
+                    status.finished_at =
+                        Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                })
+                .await;
+            }
+        }
+        *task_state.deploy_mod_running.lock().await = false;
+    });
+
+    Ok((StatusCode::ACCEPTED, Json(serde_json::json!({ "inProgress": true }))))
+}
+
+async fn deploy_mod_status(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<DeployModStatus>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let status = state.deploy_mod_status.lock().await.clone();
+    Ok(Json(status))
+}
+
+async fn update_deploy_mod_status(state: &Shared, update: impl FnOnce(&mut DeployModStatus)) {
+    let mut status = state.deploy_mod_status.lock().await;
+    update(&mut status);
+}
+
+async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
+    // 1. Получаем последний релиз мода из GitHub API.
+    update_deploy_mod_status(&state, |s| s.phase = "Запрос к GitHub API".to_string()).await;
+
+    let release: GitHubRelease = {
+        let releases_url = "https://api.github.com/repos/Zeragorn-ru/stardust/releases?per_page=10";
+        let resp = state
+            .http
+            .get(releases_url)
+            .header("Accept", "application/vnd.github.v3+json")
+            .send()
+            .await
+            .map_err(|e| internal(format!("запрос списка релизов: {e}")))?;
+
+        let releases: Vec<GitHubRelease> = resp
+            .json()
+            .await
+            .map_err(|e| internal(format!("парсинг списка релизов: {e}")))?;
+
+        releases
+            .into_iter()
+            .find(|r| r.tag_name.starts_with("mod-v"))
+            .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Релизы мода (mod-v*) не найдены"))?
+    };
+
+    let version = release
+        .tag_name
+        .strip_prefix("mod-v")
+        .unwrap_or(&release.tag_name)
+        .to_string();
+
+    update_deploy_mod_status(&state, |s| {
+        s.phase = format!("Релиз: {}", release.tag_name);
+        s.version = Some(version.clone());
+    })
+    .await;
+
+    // 2. Скачиваем jar-файл.
+    let jar_asset = release
+        .assets
+        .iter()
+        .find(|a| a.name.ends_with(".jar") && !a.name.ends_with("-sources.jar"))
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::NOT_FOUND,
+                format!("jar-файл не найден в релизе {}", release.tag_name),
+            )
+        })?;
+
+    update_deploy_mod_status(&state, |s| {
+        s.phase = format!("Скачивание {}", jar_asset.name);
+    })
+    .await;
+
+    let jar_bytes = state
+        .http
+        .get(&jar_asset.browser_download_url)
+        .send()
+        .await
+        .map_err(|e| internal(format!("скачивание jar: {e}")))?
+        .bytes()
+        .await
+        .map_err(|e| internal(format!("чтение jar: {e}")))?
+        .to_vec();
+
+    let size_bytes = jar_bytes.len() as i64;
+    let sha1 = sha1_hex(&jar_bytes);
+
+    tracing::info!(
+        "deploy-mod: скачан {} ({} байт, sha1={})",
+        jar_asset.name,
+        size_bytes,
+        sha1
+    );
+
+    // 3. Сохраняем jar в контент-адресное хранилище (modpack_dir/sha1).
+    update_deploy_mod_status(&state, |s| {
+        s.phase = "Сохранение в хранилище".to_string();
+    })
+    .await;
+
+    let dest = state.modpack_dir.join(&sha1);
+    if !dest.exists() {
+        tokio::fs::write(&dest, &jar_bytes)
+            .await
+            .map_err(|e| internal(format!("запись jar в хранилище: {e}")))?;
+    }
+
+    // 4. Добавляем/обновляем файл в активной сборке.
+    update_deploy_mod_status(&state, |s| {
+        s.phase = "Добавление в сборку".to_string();
+    })
+    .await;
+
+    let build = state
+        .store
+        .active_build()
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
+
+    let file_path = format!("mods/{}", jar_asset.name);
+
+    let file_input = store::BuildFileInput {
+        path: file_path.clone(),
+        sha1: sha1.clone(),
+        size_bytes,
+        side: "server".to_string(),
+        kind: "mod".to_string(),
+        overwrite: true,
+        optional: false,
+        enabled_by_default: true,
+        disabled: false,
+        mod_id: Some("stardust".to_string()),
+        display_name: Some("Stardust Mod".to_string()),
+        description: Some(format!("Stardust server mod {version}")),
+        storage_key: sha1.clone(),
+    };
+
+    state
+        .store
+        .upsert_build_file(build.header.id, file_input)
+        .await
+        .map_err(map_store)?;
+
+    tracing::info!(
+        "deploy-mod: {} добавлен в сборку #{} (путь: {})",
+        jar_asset.name,
+        build.header.id,
+        file_path
+    );
+
+    Ok(version)
 }
 
 // ───────────────────────── Аккаунты ─────────────────────────

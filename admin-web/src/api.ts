@@ -377,4 +377,21 @@ export const api = {
   setAccountActive(uuid: string, badgeId: number | null, gradientId: number | null): Promise<void> {
     return request("PUT", `/api/accounts/${uuid}/active`, { badgeId, gradientId });
   },
+
+  // ───── Деплой мода ─────
+
+  deployMod(): Promise<{ inProgress: boolean }> {
+    return request("POST", "/api/deploy-mod");
+  },
+
+  getDeployModStatus(): Promise<{
+    state: string;
+    phase: string;
+    version: string | null;
+    error: string | null;
+    startedAt: string | null;
+    finishedAt: string | null;
+  }> {
+    return request("GET", "/api/deploy-mod/status");
+  },
 };

@@ -1,0 +1,89 @@
+# Сборка stardust-mod и публикация в GitHub Release.
+#
+# Триггер — git-тег вида mod-v1.2.3. Собирает NeoForge-мод (./gradlew build),
+# патчит версию из тега и загружает jar в GitHub Release.
+# Admin-server может затем скачать jar через GitHub API и задеплоить на сервер.
+
+name: mod-release
+
+on:
+  push:
+    tags:
+      - "mod-v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Версия из тега: mod-v0.1.0 → 0.1.0
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#mod-v}"
+          echo "MOD_VERSION=$version" >> $GITHUB_ENV
+          echo "Setting mod version to $version"
+          perl -0pi -e "s/(version\s*=\s*')[0-9]+\.[0-9]+\.[0-9]+(')/\${1}$version\${2}/" stardust-mod/build.gradle
+          if ! grep -q "$version" stardust-mod/build.gradle; then
+            echo "ERROR: version replacement failed in build.gradle"
+            exit 1
+          fi
+
+      - name: Build mod jar
+        run: ./gradlew build
+        working-directory: stardust-mod
+
+      - name: Find jar file
+        id: find-jar
+        run: |
+          jar=$(ls stardust-mod/build/libs/*.jar | grep -v sources | head -1)
+          echo "jar_path=$jar" >> $GITHUB_OUTPUT
+          echo "jar_name=$(basename $jar)" >> $GITHUB_OUTPUT
+          echo "Found jar: $jar"
+
+      - name: Create release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${MOD_VERSION:-unknown}"
+          title="Stardust Mod $tag"
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$title" --generate-notes
+            echo "Created release $tag"
+          else
+            echo "Release $tag already exists"
+          fi
+
+      - name: Upload jar to release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          jar="${{ steps.find-jar.outputs.jar_path }}"
+          name="${{ steps.find-jar.outputs.jar_name }}"
+
+          sha256sum "$jar" | awk '{print $1}' > "${jar}.sha256"
+          echo "Uploading $name"
+          gh release upload "$tag" "$jar" "${jar}.sha256" --clobber
