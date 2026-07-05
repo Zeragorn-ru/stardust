@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import type { Account, Badge, Gradient, PlayerStats } from "../types";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { SkinHead } from "../ui/SkinHead";
+import { useConfirm, useToast } from "./feedback";
 
 type Tab = "info" | "badges" | "actions";
 
@@ -172,6 +173,7 @@ function BadgesTab({
 }: {
   account: Account;
 }) {
+  const toast = useToast();
   const [data, setData] = useState<{
     availableBadges: Badge[];
     availableGradients: Gradient[];
@@ -236,8 +238,9 @@ function BadgesTab({
       await api.setAccountBadges(account.uuid, data.ownedBadgeIds);
       await api.setAccountGradients(account.uuid, data.ownedGradientIds);
       await api.setAccountActive(account.uuid, data.activeBadgeId, data.activeGradientId);
+      toast.success("Бейджи и кастомизация сохранены");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Не удалось сохранить бейджи");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось сохранить бейджи");
     } finally {
       setSaving(false);
     }
@@ -371,30 +374,37 @@ function ActionsTab({
   onUpdated: (a: Account) => void;
   onDeleted: (uuid: string) => void;
 }) {
+  const confirm = useConfirm();
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
+  const [username, setUsername] = useState(account.username);
+  const [password, setPassword] = useState("");
+  const [banReason, setBanReason] = useState("");
 
-  async function doRename() {
-    const value = prompt("Новый ник", account.username);
-    if (!value || value.trim() === account.username) return;
+  async function handleRename(e: React.FormEvent) {
+    e.preventDefault();
+    if (!username.trim() || username.trim() === account.username) return;
     setBusy(true);
     try {
-      onUpdated(await api.renameAccount(account.uuid, value.trim()));
+      onUpdated(await api.renameAccount(account.uuid, username.trim()));
+      toast.success("Ник изменен");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Ошибка");
     } finally {
       setBusy(false);
     }
   }
 
-  async function doResetPassword() {
-    const pw = prompt("Новый пароль (минимум 6 символов):");
-    if (!pw || pw.length < 6) return;
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (password.length < 6) return;
     setBusy(true);
     try {
-      await api.setPassword(account.uuid, pw);
-      alert("Пароль сброшен");
+      await api.setPassword(account.uuid, password);
+      toast.success("Пароль сброшен");
+      setPassword("");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Ошибка");
     } finally {
       setBusy(false);
     }
@@ -402,89 +412,165 @@ function ActionsTab({
 
   async function doSetRole() {
     const makeAdmin = !account.isAdmin;
-    const ok = confirm(
-      makeAdmin
-        ? `Выдать ${account.username} права админа?`
-        : `Снять с ${account.username} права админа?`,
-    );
+    const ok = await confirm({
+      title: makeAdmin ? "Выдать права администратора?" : "Снять права администратора?",
+      body: makeAdmin 
+        ? `Вы действительно хотите сделать игрока ${account.username} администратором?` 
+        : `Вы действительно хотите снять права администратора с ${account.username}?`,
+      confirmText: makeAdmin ? "Сделать админом" : "Снять права",
+      danger: !makeAdmin,
+    });
     if (!ok) return;
     setBusy(true);
     try {
       onUpdated(await api.setRole(account.uuid, makeAdmin ? "admin" : "user"));
+      toast.success(makeAdmin ? "Права администратора выданы" : "Права администратора сняты");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Ошибка");
     } finally {
       setBusy(false);
     }
   }
 
-  async function doBan() {
-    const reason = prompt("Причина бана (необязательно):") ?? "";
+  async function handleBan(e: React.FormEvent) {
+    e.preventDefault();
+    const ok = await confirm({
+      title: `Забанить игрока ${account.username}?`,
+      body: banReason ? `Причина: ${banReason}` : "Без указания причины.",
+      confirmText: "Забанить",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
-      onUpdated(await api.banAccount(account.uuid, { reason: reason || undefined }));
+      onUpdated(await api.banAccount(account.uuid, { reason: banReason.trim() || undefined }));
+      toast.success("Игрок забанен");
+      setBanReason("");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Ошибка");
     } finally {
       setBusy(false);
     }
   }
 
-  async function doUnban() {
-    const ok = confirm(`Снять бан с ${account.username}?`);
+  async function handleUnban() {
+    const ok = await confirm({
+      title: `Разбанить игрока ${account.username}?`,
+      body: "Игрок снова сможет заходить на сервер.",
+      confirmText: "Разбанить",
+    });
     if (!ok) return;
     setBusy(true);
     try {
       onUpdated(await api.unbanAccount(account.uuid));
+      toast.success("Бан снят");
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Ошибка");
     } finally {
       setBusy(false);
     }
   }
 
   async function doDelete() {
-    const ok = confirm(`Удалить ${account.username}? Это необратимо.`);
+    const ok = await confirm({
+      title: `Удалить аккаунт ${account.username}?`,
+      body: "Это действие необратимо. Будет удалена вся статистика и настройки игрока.",
+      confirmText: "Удалить навсегда",
+      danger: true,
+    });
     if (!ok) return;
     setBusy(true);
     try {
       await api.deleteAccount(account.uuid);
       onDeleted(account.uuid);
+      toast.success("Аккаунт удален");
       onClose();
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Ошибка");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="pc-actions">
-      <button className="pc-action-btn" disabled={busy} onClick={doRename}>
-        Переименовать
-      </button>
-      <button className="pc-action-btn" disabled={busy} onClick={doResetPassword}>
-        Сбросить пароль
-      </button>
-      <button className="pc-action-btn" disabled={busy} onClick={doSetRole}>
-        {account.isAdmin ? "Снять права админа" : "Сделать админом"}
-      </button>
-      {account.banned ? (
-        <button className="pc-action-btn" disabled={busy} onClick={doUnban}>
-          Снять бан
+    <div className="pc-actions-container" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Смена ника */}
+      <form onSubmit={handleRename} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Сменить ник</label>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="Новый ник"
+            disabled={busy}
+            style={{ width: "100%" }}
+          />
+        </div>
+        <button type="submit" disabled={busy || !username.trim() || username.trim() === account.username} className="primary" style={{ padding: "8px 14px", height: 38 }}>
+          Изменить
         </button>
-      ) : (
-        <button className="pc-action-btn" disabled={busy || account.isAdmin} onClick={doBan}>
-          Забанить
+      </form>
+
+      {/* Сброс пароля */}
+      <form onSubmit={handleResetPassword} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Сбросить пароль</label>
+          <input
+            type="text"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Новый пароль (от 6 символов)"
+            disabled={busy}
+            style={{ width: "100%" }}
+          />
+        </div>
+        <button type="submit" disabled={busy || password.length < 6} className="primary" style={{ padding: "8px 14px", height: 38 }}>
+          Сбросить
         </button>
+      </form>
+
+      {/* Управление правами и банами */}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+        <button className="secondary" disabled={busy} onClick={doSetRole} style={{ flex: 1, minWidth: 140, justifyContent: "center" }}>
+          {account.isAdmin ? "Снять права админа" : "Сделать админом"}
+        </button>
+
+        {account.banned ? (
+          <button className="secondary" disabled={busy} onClick={handleUnban} style={{ flex: 1, minWidth: 140, justifyContent: "center" }}>
+            Снять бан
+          </button>
+        ) : null}
+      </div>
+
+      {!account.banned && (
+        <form onSubmit={handleBan} style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Забанить игрока</label>
+            <input
+              value={banReason}
+              onChange={(e) => setBanReason(e.target.value)}
+              placeholder="Причина бана (необязательно)"
+              disabled={busy || account.isAdmin}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <button type="submit" disabled={busy || account.isAdmin} className="danger-solid" style={{ padding: "8px 14px", height: 38 }}>
+            Забанить
+          </button>
+        </form>
       )}
-      <button
-        className="pc-action-btn danger"
-        disabled={busy || account.isAdmin}
-        onClick={doDelete}
-      >
-        Удалить аккаунт
-      </button>
+
+      {/* Удаление аккаунта */}
+      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 12 }}>
+        <button
+          className="danger-solid"
+          disabled={busy || account.isAdmin}
+          onClick={doDelete}
+          style={{ width: "100%", justifyContent: "center" }}
+        >
+          Удалить аккаунт
+        </button>
+      </div>
     </div>
   );
 }
