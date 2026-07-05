@@ -72,18 +72,23 @@ public final class StardustMod {
     }
 
     private void onServerChat(ServerChatEvent event) {
+        event.setCanceled(true);
+
         ServerPlayer player = event.getPlayer();
         String name = player.getGameProfile().getName();
         String badge = StardustTabIntegration.resolveBadgeForName(name);
         String coloredName = StardustTabIntegration.resolveNameForChat(name);
         Component styled = StardustChatNotifications.parseFormattedString(badge + coloredName);
 
-        MutableComponent newMessage = Component.empty()
+        MutableComponent chatMessage = Component.empty()
                 .append(Component.literal("[").withStyle(ChatFormatting.GRAY))
                 .append(styled != null && !styled.getString().isEmpty() ? styled : Component.literal(name))
                 .append(Component.literal("] ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal(event.getRawText()));
 
-        event.setMessage(newMessage);
+        var server = player.getServer();
+        if (server != null) {
+            server.getPlayerList().broadcastSystemMessage(chatMessage, false);
+        }
     }
 }
