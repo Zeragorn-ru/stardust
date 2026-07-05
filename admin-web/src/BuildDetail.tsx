@@ -11,7 +11,7 @@ import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
 import { useToast, useConfirm } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
-import { IconCheck, IconCopy, IconDownload, IconStar, IconSync } from "./ui/icons";
+import { IconCheck, IconClose, IconCopy, IconDownload, IconStar, IconSync, IconPencil, IconChart } from "./ui/icons";
 import { CheckResults } from "./ui/CheckResults";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
@@ -355,61 +355,96 @@ export function BuildDetail({
 
   return (
     <div className="detail">
-      <div className="panel detail-head">
-        <div className="detail-title">
-          <h1>
-            {detail.name} <span className="muted">v{detail.version}</span>
-          </h1>
-          <div className="detail-actions">
-            {!detail.isActive && (
-              <button className="primary" onClick={activate}>
-                Сделать активной
-              </button>
-            )}
-            {detail.isActive && (
+      <div className="panel detail-head-compact">
+        <div className="detail-header-top">
+          <div className="detail-title">
+            <h2>{detail.name}</h2>
+            <span className="detail-version muted">v{detail.version}</span>
+            {detail.isActive ? (
               <span className="badge active">
                 <IconStar size={12} /> активная
               </span>
+            ) : (
+              <button className="link-btn activate-btn" onClick={activate}>
+                Сделать активной
+              </button>
             )}
-            <button className="secondary" onClick={() => setEditing(true)}>
-              Редактировать
+          </div>
+          <div className="detail-actions-toolbar">
+            <button className="secondary compact" onClick={() => setEditing(true)} title="Редактировать параметры сборки">
+              <IconPencil size={14} /> Редактировать
             </button>
             {onClone && (
               <button
-                className="secondary icon-btn"
+                className="secondary compact"
                 onClick={() => onClone(buildId)}
                 title="Создать копию сборки со всеми файлами"
               >
-                <IconCopy size={15} />
-                Клонировать
+                <IconCopy size={14} /> Клонировать
               </button>
             )}
             <button
-              className="secondary icon-btn"
+              className="secondary compact"
               disabled={syncing}
               onClick={syncToPanel}
               title="Загрузить серверные файлы сборки на сервер по SFTP"
             >
-              <IconSync size={15} />
+              <IconSync size={14} className={syncing ? "spin" : ""} />
               {syncing ? "Синхронизация…" : "Синхр. по SFTP"}
             </button>
             <button
-              className="secondary icon-btn"
+              className="secondary compact"
               disabled={deploying}
               onClick={deployMod}
               title="Скачать мод из GitHub и добавить в сборку"
             >
-              <IconDownload size={15} />
+              <IconDownload size={14} />
               {deploying ? "Загрузка мода…" : "Загрузить мод"}
+            </button>
+            <button
+              className="secondary compact"
+              disabled={checkResults.loading}
+              onClick={runChecks}
+              title="Выполнить проверку файлов и зависимостей сборок"
+            >
+              <IconCheck size={14} />
+              {checkResults.loading ? "Проверка…" : "Проверить"}
+            </button>
+            <button
+              className="secondary compact"
+              onClick={syncStats}
+              title="Обновить статистику игроков на сервере"
+            >
+              <IconChart size={14} />
+              Статистика
             </button>
           </div>
         </div>
-        <div className="detail-stats">
-          <Stat label="Загрузчик" value={detail.loaderKind} />
-          <Stat label="Minecraft" value={detail.mcVersion} />
-          <Stat label="Версия загрузчика" value={detail.loaderVersion || "—"} />
-          <Stat label="Файлов" value={String(files.length)} />
-          <Stat label="Общий размер" value={formatSize(totalSize)} />
+
+        <div className="detail-meta-row">
+          <span className="meta-item">
+            <span className="meta-label">Загрузчик:</span> <strong>{detail.loaderKind}</strong>
+          </span>
+          <span className="meta-sep">·</span>
+          <span className="meta-item">
+            <span className="meta-label">Minecraft:</span> <strong>{detail.mcVersion}</strong>
+          </span>
+          {detail.loaderVersion && (
+            <>
+              <span className="meta-sep">·</span>
+              <span className="meta-item">
+                <span className="meta-label">Версия загрузчика:</span> <strong>{detail.loaderVersion}</strong>
+              </span>
+            </>
+          )}
+          <span className="meta-sep">·</span>
+          <span className="meta-item">
+            <span className="meta-label">Файлов:</span> <strong>{files.length}</strong>
+          </span>
+          <span className="meta-sep">·</span>
+          <span className="meta-item">
+            <span className="meta-label">Общий размер:</span> <strong>{formatSize(totalSize)}</strong>
+          </span>
         </div>
       </div>
 
@@ -438,10 +473,6 @@ export function BuildDetail({
         </div>
       )}
 
-      <div className="panel">
-        <FileManager buildId={buildId} files={files} onChanged={load} />
-      </div>
-
       {deployStatus && (
         <div className={`panel sync-progress sync-progress--${deployStatus.state === "success" ? "success" : deployStatus.state === "error" ? "error" : "running"}`}>
           <div className="sync-progress__head">
@@ -461,23 +492,32 @@ export function BuildDetail({
         </div>
       )}
 
-      <div className="panel">
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <IconCheck size={16} />
-          <strong>Проверки</strong>
-          <button
-            className="secondary"
-            style={{ marginLeft: "auto" }}
-            disabled={checkResults.loading}
-            onClick={runChecks}
-          >
-            {checkResults.loading ? "Проверка…" : "Проверить сборку"}
-          </button>
-          <button className="secondary" onClick={syncStats}>
-            <IconSync size={14} /> Статистика
-          </button>
+      {checkResults.loading && (
+        <div className="panel checks-loading">
+          <span className="spinner" /> Выполняется проверка файлов и зависимостей сборки...
         </div>
-        <CheckResults state={checkResults} />
+      )}
+
+      {(checkResults.build || checkResults.deps) && !checkResults.loading && (
+        <div className="panel check-results-panel">
+          <div className="check-results-header">
+            <strong>
+              <IconCheck size={14} /> Результаты проверки
+            </strong>
+            <button
+              className="icon-only close-btn"
+              title="Скрыть результаты"
+              onClick={() => setCheckResults({ build: null, deps: null, loading: false })}
+            >
+              <IconClose size={14} />
+            </button>
+          </div>
+          <CheckResults state={checkResults} />
+        </div>
+      )}
+
+      <div className="panel">
+        <FileManager buildId={buildId} files={files} onChanged={load} />
       </div>
 
       {editing && (
@@ -493,15 +533,6 @@ export function BuildDetail({
           onClose={() => setEditing(false)}
         />
       )}
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="stat">
-      <span className="stat-label">{label}</span>
-      <span className="stat-value">{value}</span>
     </div>
   );
 }
