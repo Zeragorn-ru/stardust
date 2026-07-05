@@ -692,6 +692,12 @@ body {
     left: 130%;
 }
 
+.btn--success {
+    background: #2d9b5a;
+    border-color: transparent;
+    color: #fff;
+}
+
 .btn--ghost {
     background: rgba(255, 255, 255, 0.06);
     border-color: var(--glass-border);
@@ -2621,7 +2627,9 @@ body {
     cursor: pointer;
     transition: color var(--t-fast);
     white-space: nowrap;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .customize-tab:hover:not(.is-active) { color: var(--text); }

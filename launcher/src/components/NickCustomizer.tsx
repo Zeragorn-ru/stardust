@@ -33,6 +33,7 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
   const [selectedBadge, setSelectedBadge] = useState<number | null>(null);
   const [selectedGradient, setSelectedGradient] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -54,9 +55,12 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
 
   async function handleSave() {
     setSaving(true);
+    setSaved(false);
     try {
       await setActiveCustomization(selectedBadge, selectedGradient);
+      setSaved(true);
       onSaved?.();
+      setTimeout(() => setSaved(false), 2000);
     } catch {
       // ignore
     } finally {
@@ -141,8 +145,8 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
 
       {/* Сохранить */}
       <div className="nick-actions">
-        <button className="btn btn--primary" onClick={handleSave} disabled={saving}>
-          {saving ? "Сохранение…" : "Сохранить"}
+        <button className={"btn" + (saved ? " btn--success" : " btn--primary")} onClick={handleSave} disabled={saving}>
+          {saving ? "Сохранение…" : saved ? "✓ Сохранено" : "Сохранить"}
         </button>
       </div>
     </div>
