@@ -66,40 +66,78 @@ final class StardustChatNotifications {
     }
 
     /**
-     * Парсит строку с {@code &#RRGGBB} цветовыми кодами в {@link Component}.
+     * Парсит строку с {@code &#RRGGBB} и legacy цветовыми кодами в {@link Component}.
      */
-    private static Component parseFormattedString(String formatted) {
+    static Component parseFormattedString(String formatted) {
         if (formatted == null || formatted.isEmpty()) return Component.empty();
 
         MutableComponent result = Component.empty();
-        Matcher m = HEX_PATTERN.matcher(formatted);
-        int lastEnd = 0;
+        StringBuilder currentSegment = new StringBuilder();
+        Style currentStyle = Style.EMPTY;
 
-        while (m.find()) {
-            if (m.start() > lastEnd) {
-                result.append(Component.literal(formatted.substring(lastEnd, m.start())));
-            }
-            String hex = m.group(1).substring(2);
-            TextColor color = TextColor.parseColor("#" + hex).result().orElse(null);
-            int segStart = m.end();
-            int segEnd = formatted.length();
-            Matcher next = HEX_PATTERN.matcher(formatted);
-            if (next.find(segStart)) {
-                segEnd = next.start();
-            }
-            String segment = formatted.substring(segStart, segEnd);
-            if (color != null) {
-                result.append(Component.literal(segment).withStyle(Style.EMPTY.withColor(color)));
-            } else {
-                result.append(Component.literal(segment));
-            }
-            lastEnd = segEnd;
-        }
+        int length = formatted.length();
+        int i = 0;
+        while (i < length) {
+            char c = formatted.charAt(i);
+            if ((c == '&' || c == '§') && i + 1 < length) {
+                if (formatted.charAt(i + 1) == '#' && i + 7 < length) {
+                    String hex = formatted.substring(i + 2, i + 8);
+                    if (isHex(hex)) {
+                        flushSegment(result, currentSegment, currentStyle);
+                        TextColor color = TextColor.parseColor("#" + hex).result().orElse(null);
+                        if (color != null) {
+                            currentStyle = Style.EMPTY.withColor(color);
+                        }
+                        i += 8;
+                        continue;
+                    }
+                }
 
-        if (lastEnd < formatted.length()) {
-            result.append(Component.literal(formatted.substring(lastEnd)));
+                char code = Character.toLowerCase(formatted.charAt(i + 1));
+                if ("0123456789abcdefklmnor".indexOf(code) >= 0) {
+                    flushSegment(result, currentSegment, currentStyle);
+                    if (code == 'r') {
+                        currentStyle = Style.EMPTY;
+                    } else if ((code >= '0' && code <= '9') || (code >= 'a' && code <= 'f')) {
+                        ChatFormatting format = ChatFormatting.getByCode(code);
+                        if (format != null) {
+                            currentStyle = Style.EMPTY.withColor(TextColor.fromLegacyFormat(format));
+                        }
+                    } else {
+                        if (code == 'k') currentStyle = currentStyle.withObfuscated(true);
+                        else if (code == 'l') currentStyle = currentStyle.withBold(true);
+                        else if (code == 'm') currentStyle = currentStyle.withStrikethrough(true);
+                        else if (code == 'n') currentStyle = currentStyle.withUnderlined(true);
+                        else if (code == 'o') currentStyle = currentStyle.withItalic(true);
+                    }
+                    i += 2;
+                    continue;
+                }
+            }
+
+            currentSegment.append(c);
+            i++;
         }
+        flushSegment(result, currentSegment, currentStyle);
 
         return result;
+    }
+
+    private static void flushSegment(MutableComponent result, StringBuilder segment, Style style) {
+        if (segment.length() > 0) {
+            result.append(Component.literal(segment.toString()).withStyle(style));
+            segment.setLength(0);
+        }
+    }
+
+    private static boolean isHex(String s) {
+        if (s.length() != 6) return false;
+        for (int i = 0; i < 6; i++) {
+            char c = s.charAt(i);
+            if (Character.digit(c, 16) == -1) {
+                return false;
+            }
+        }
+        return true;
     }
 }

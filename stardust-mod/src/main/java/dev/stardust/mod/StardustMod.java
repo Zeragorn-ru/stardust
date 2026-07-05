@@ -8,6 +8,8 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.network.chat.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +35,7 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(StardustSuperChallengeHealth::onAdvancementEarned);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
+        NeoForge.EVENT_BUS.addListener(this::onPlayerNameFormat);
     }
 
     private void onServerStarted(ServerStartedEvent event) {
@@ -62,6 +65,20 @@ public final class StardustMod {
     private void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             StardustChatNotifications.onPlayerQuit(player);
+        }
+    }
+
+    private void onPlayerNameFormat(PlayerEvent.NameFormat event) {
+        if (event.getEntity() instanceof ServerPlayer player) {
+            String name = player.getGameProfile().getName();
+            String badge = StardustTabIntegration.resolveBadgeForName(name);
+            String coloredName = StardustTabIntegration.resolveNameForChat(name);
+            if ((badge != null && !badge.isEmpty()) || (coloredName != null && !coloredName.equals(name))) {
+                Component parsed = StardustChatNotifications.parseFormattedString(badge + coloredName);
+                if (parsed != null && !parsed.getString().isEmpty()) {
+                    event.setDisplayname(parsed);
+                }
+            }
         }
     }
 }
