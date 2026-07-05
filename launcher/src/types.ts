@@ -86,6 +86,7 @@ export interface Settings {
   downloadConcurrency: number;
   /** Показывать 3D-модель скина на главном экране. */
   show3dModel: boolean;
+  proxyType: "system" | "builtin" | "none";
 }
 
 /** Режим запуска лаунчера. */

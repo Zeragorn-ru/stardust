@@ -204,6 +204,7 @@ export async function passwordResetStatus(
 /** Установка нового пароля после подтверждения сброса в Telegram. */
 export async function passwordResetConfirm(
   challenge: string,
+  code: string,
   newPassword: string,
 ): Promise<void> {
   const invoke = await getInvoke();
@@ -212,7 +213,7 @@ export async function passwordResetConfirm(
     if (newPassword.length < 6) throw new Error("Пароль: минимум 6 символов");
     return;
   }
-  await invoke<void>("password_reset_confirm", { challenge, newPassword });
+  await invoke<void>("password_reset_confirm", { challenge, code, newPassword });
 }
 
 /** Регистрация нового аккаунта. */

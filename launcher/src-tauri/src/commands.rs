@@ -18,6 +18,20 @@ use crate::backend;
 use crate::minecraft;
 use crate::paths;
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ProxyType {
+    System,
+    Builtin,
+    None,
+}
+
+impl Default for ProxyType {
+    fn default() -> Self {
+        ProxyType::Builtin
+    }
+}
+
 /// Настройки лаунчера, сохраняемые между запусками.
 ///
 /// Папку игры намеренно не храним: каталог принадлежит лаунчеру и
@@ -34,6 +48,8 @@ pub struct Settings {
     /// Показывать 3D-модель скина на главном экране.
     #[serde(rename = "show3dModel", default = "default_true")]
     pub show_3d_model: bool,
+    #[serde(rename = "proxyType", default)]
+    pub proxy_type: ProxyType,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -55,6 +71,7 @@ impl Default for Settings {
             memory_mb: 4096,
             download_concurrency: default_concurrency(),
             show_3d_model: true,
+            proxy_type: ProxyType::default(),
         }
     }
 }
@@ -94,6 +111,11 @@ pub struct Skin {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+struct DiskSession {
+    profile: PlayerProfile,
+}
+
+#[derive(Debug, Clone)]
 struct SavedSession {
     profile: PlayerProfile,
     token: String,
@@ -145,6 +167,27 @@ enum ChallengeOutcome {
     Expired,
 }
 
+fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
+    let mut builder = reqwest::Client::builder()
+        .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(20));
+
+    match proxy_type {
+        ProxyType::System => {}
+        ProxyType::Builtin => {
+            if let Ok(p) = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128") {
+                builder = builder.proxy(p);
+            }
+        }
+        ProxyType::None => {
+            builder = builder.no_proxy();
+        }
+    }
+
+    builder.build().expect("не удалось создать HTTP-клиент")
+}
+
 /// Состояние приложения, разделяемое между командами.
 pub struct AppState {
     pub profile: Mutex<Option<PlayerProfile>>,
@@ -153,7 +196,7 @@ pub struct AppState {
     /// безопасную долгую сессию.
     pub token: Mutex<Option<String>>,
     /// HTTP-клиент к auth-серверу (переиспользуется между запросами).
-    pub http: reqwest::Client,
+    pub http: Mutex<reqwest::Client>,
     /// Запущенный процесс игры, если он есть. Не даём запустить вторую копию,
     /// пока предыдущая не завершилась.
     pub game: Mutex<Option<Child>>,
@@ -168,25 +211,21 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        let http = reqwest::Client::builder()
-            .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
-            .proxy(
-                reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
-                    .expect("прокси URL невалиден"),
-            )
-            .connect_timeout(std::time::Duration::from_secs(5))
-            .timeout(std::time::Duration::from_secs(20))
-            .build()
-            .expect("не удалось создать HTTP-клиент");
         Self {
             profile: Mutex::new(None),
             token: Mutex::new(None),
-            http,
+            http: Mutex::new(create_http_client(&ProxyType::default())),
             game: Mutex::new(None),
             launch_lock: tokio::sync::Mutex::new(()),
             stats_poller_running: Mutex::new(false),
             settings: Mutex::new(None),
         }
+    }
+}
+
+impl AppState {
+    pub fn http(&self) -> reqwest::Client {
+        self.http.lock().unwrap().clone()
     }
 }
 
@@ -218,17 +257,37 @@ fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
 }
 
 fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
-    std::fs::read_to_string(paths::session_file(app))
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
+    let path = paths::session_file(app);
+    let s = std::fs::read_to_string(&path).ok()?;
+    let disk: DiskSession = serde_json::from_str(&s).ok()?;
+    let entry = keyring::Entry::new("com.stardust.launcher", &disk.profile.id).ok()?;
+    let token = entry.get_password().ok()?;
+    Some(SavedSession {
+        profile: disk.profile,
+        token,
+    })
 }
 
 fn write_saved_session(app: &AppHandle, session: &SavedSession) -> Result<(), String> {
-    let json = serde_json::to_string_pretty(session).map_err(|e| e.to_string())?;
-    std::fs::write(paths::session_file(app), json).map_err(|e| e.to_string())
+    if let Ok(entry) = keyring::Entry::new("com.stardust.launcher", &session.profile.id) {
+        entry.set_password(&session.token).map_err(|e| format!("Keyring error: {e}"))?;
+    } else {
+        return Err("Failed to open keyring entry".to_string());
+    }
+    let disk = DiskSession {
+        profile: session.profile.clone(),
+    };
+    let path = paths::session_file(app);
+    let json = serde_json::to_string_pretty(&disk).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
 }
 
 fn remove_saved_session(app: &AppHandle) {
+    if let Some(saved) = read_saved_session(app) {
+        if let Ok(entry) = keyring::Entry::new("com.stardust.launcher", &saved.profile.id) {
+            let _ = entry.delete_password();
+        }
+    }
     let _ = std::fs::remove_file(paths::session_file(app));
 }
 
@@ -294,6 +353,9 @@ pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
     if !settings_path.exists() {
         write_settings(app, &Settings::default())?;
     }
+    let settings = read_settings(app);
+    let state = app.state::<AppState>();
+    *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
     Ok(())
 }
 
@@ -318,7 +380,7 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
             return;
         }
     };
-    let http = state.http.clone();
+    let http = state.http().clone();
     let launched_at_str = pending.launched_at.clone();
     tauri::async_runtime::spawn(async move {
         let duration = time::OffsetDateTime::parse(
@@ -417,7 +479,7 @@ async fn login(
         return Err("Введите логин и пароль".into());
     }
 
-    match backend::login(&state.http, username.trim(), &password).await? {
+    match backend::login(&state.http(), username.trim(), &password).await? {
         protocol::LoginResult::Ok(auth) => {
             persist_session(&state, &app, auth.profile.clone(), auth.token)?;
             Ok(LoginOutcome::Ok {
@@ -448,7 +510,7 @@ async fn login_2fa(
     if code.trim().is_empty() {
         return Err("Введите код из Telegram".into());
     }
-    let auth = backend::login_2fa(&state.http, &challenge, code.trim()).await?;
+    let auth = backend::login_2fa(&state.http(), &challenge, code.trim()).await?;
     persist_session(&state, &app, auth.profile.clone(), auth.token)?;
     Ok(auth.profile)
 }
@@ -484,7 +546,7 @@ async fn login_2fa_status(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<ChallengeOutcome, String> {
-    let status = backend::login_2fa_status(&state.http, &challenge).await?;
+    let status = backend::login_2fa_status(&state.http(), &challenge).await?;
     apply_login_challenge_status(&state, &app, status)
 }
 
@@ -500,7 +562,7 @@ async fn passwordless_login(
     if trimmed.is_empty() {
         return Err("Введите логин".into());
     }
-    match backend::passwordless_login(&state.http, trimmed).await? {
+    match backend::passwordless_login(&state.http(), trimmed).await? {
         protocol::LoginResult::Ok(auth) => {
             persist_session(&state, &app, auth.profile.clone(), auth.token)?;
             Ok(LoginOutcome::Ok {
@@ -526,7 +588,7 @@ async fn passwordless_status(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<ChallengeOutcome, String> {
-    let status = backend::passwordless_status(&state.http, &challenge).await?;
+    let status = backend::passwordless_status(&state.http(), &challenge).await?;
     apply_login_challenge_status(&state, &app, status)
 }
 
@@ -542,7 +604,7 @@ async fn password_reset_start(
     if trimmed.is_empty() {
         return Err("Введите логин".into());
     }
-    match backend::password_reset_start(&state.http, trimmed).await? {
+    match backend::password_reset_start(&state.http(), trimmed).await? {
         protocol::LoginResult::Ok(auth) => {
             persist_session(&state, &app, auth.profile.clone(), auth.token)?;
             Ok(LoginOutcome::Ok {
@@ -569,7 +631,7 @@ async fn password_reset_status(
     challenge: String,
     state: State<'_, AppState>,
 ) -> Result<ChallengeOutcome, String> {
-    match backend::password_reset_status(&state.http, &challenge).await? {
+    match backend::password_reset_status(&state.http(), &challenge).await? {
         protocol::ChallengeStatus::Pending => Ok(ChallengeOutcome::Pending),
         protocol::ChallengeStatus::Approved { .. } => {
             Ok(ChallengeOutcome::Approved { profile: None })
@@ -584,13 +646,17 @@ async fn password_reset_status(
 #[tauri::command]
 async fn password_reset_confirm(
     challenge: String,
+    code: String,
     new_password: String,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     if new_password.len() < 6 {
         return Err("Пароль: минимум 6 символов".into());
     }
-    backend::password_reset_confirm(&state.http, &challenge, &new_password).await
+    if code.trim().is_empty() {
+        return Err("Введите код подтверждения".into());
+    }
+    backend::password_reset_confirm(&state.http(), &challenge, &code, &new_password).await
 }
 
 /// Регистрация нового аккаунта на auth-сервере.
@@ -612,7 +678,7 @@ async fn register(
         return Err("Пароль: минимум 6 символов".into());
     }
 
-    let auth = backend::register(&state.http, trimmed, &password).await?;
+    let auth = backend::register(&state.http(), trimmed, &password).await?;
     persist_session(&state, &app, auth.profile.clone(), auth.token)?;
     Ok(auth.profile)
 }
@@ -625,7 +691,7 @@ async fn logout(state: State<'_, AppState>, app: AppHandle) -> Result<(), String
     remove_saved_session(&app);
     if let Some(token) = token {
         // Если сервер уже недоступен — локально всё равно считаем, что вышли.
-        let _ = backend::logout(&state.http, &token).await;
+        let _ = backend::logout(&state.http(), &token).await;
     }
     Ok(())
 }
@@ -641,7 +707,7 @@ fn spawn_stats_poller(app: &AppHandle, state: &AppState) {
     *running = true;
     drop(running);
 
-    let http = state.http.clone();
+    let http = state.http().clone();
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let data_dir = crate::paths::data_dir(&app);
@@ -694,7 +760,7 @@ async fn current_profile(
         return Ok(None);
     };
 
-    match backend::session(&state.http, &saved.token).await {
+    match backend::session(&state.http(), &saved.token).await {
         Ok(profile) => {
             set_runtime_session(&state, profile.clone(), saved.token);
             recover_pending_session(&app, &state);
@@ -734,6 +800,7 @@ fn get_settings(state: State<'_, AppState>, app: AppHandle) -> Settings {
 #[tauri::command]
 fn save_settings(settings: Settings, state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
     write_settings(&app, &settings)?;
+    *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
     *state.settings.lock().unwrap() = Some(settings);
     Ok(())
 }
@@ -792,16 +859,19 @@ async fn get_skin(state: State<'_, AppState>, app: AppHandle) -> Result<Skin, St
         });
     };
 
-    let (skin_result, cape_result) = tokio::join!(
-        backend::get_skin(&state.http, &uuid),
-        async {
-            backend::get_cape(&state.http, &uuid)
-                .await
-                .ok()
-                .flatten()
-                .map(|b64| format!("data:image/png;base64,{b64}"))
-        },
-    );
+    let (skin_result, cape_result) = {
+        let http = state.http();
+        tokio::join!(
+            backend::get_skin(&http, &uuid),
+            async {
+                backend::get_cape(&http, &uuid)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|b64| format!("data:image/png;base64,{b64}"))
+            },
+        )
+    };
 
     let result = match skin_result? {
         Some(fetched) => Skin {
@@ -872,7 +942,7 @@ async fn set_skin(
     } else {
         protocol::SkinModel::Classic
     };
-    backend::upload_skin(&state.http, &token, &uuid, b64, skin_model).await
+    backend::upload_skin(&state.http(), &token, &uuid, b64, skin_model).await
 }
 
 /// Импортировать скин и плащ с лицензионного аккаунта Mojang.
@@ -890,7 +960,7 @@ async fn import_skin_from_license(
         return Err("Укажите ник или UUID лицензии".into());
     }
     let (uuid, token) = current_session(&state)?;
-    backend::import_skin(&state.http, &token, &uuid, source, keep_synced).await
+    backend::import_skin(&state.http(), &token, &uuid, source, keep_synced).await
 }
 
 /// Приводит произвольную строку модели к "slim"/"classic".
@@ -908,7 +978,7 @@ fn normalize_model(model: &str) -> String {
 #[tauri::command]
 async fn account_info(state: State<'_, AppState>) -> Result<protocol::AccountInfo, String> {
     let (_uuid, token) = current_session(&state)?;
-    backend::account_info(&state.http, &token).await
+    backend::account_info(&state.http(), &token).await
 }
 
 /// Запросить код привязки Telegram (для включения 2FA).
@@ -917,15 +987,14 @@ async fn telegram_link_start(
     state: State<'_, AppState>,
 ) -> Result<protocol::TelegramLinkResponse, String> {
     let (_uuid, token) = current_session(&state)?;
-    backend::telegram_link_start(&state.http, &token).await
+    backend::telegram_link_start(&state.http(), &token).await
 }
 
 /// Открыть ссылку во внешнем приложении (браузер, Telegram).
 ///
 /// Окно Tauri не открывает внешние ссылки само (нет navigation на http/https,
 /// а плагина opener в сборке нет). Поэтому передаём URL системному
-/// обработчику. Разрешаем только безопасные схемы и санизуем URL для Windows,
-/// где `cmd /C start` подвержен инъекции через метасимволы.
+/// обработчику. Разрешаем только безопасные схемы.
 #[tauri::command]
 async fn open_external(url: String) -> Result<(), String> {
     let allowed =
@@ -934,83 +1003,51 @@ async fn open_external(url: String) -> Result<(), String> {
         return Err("недопустимая схема ссылки".into());
     }
 
-    // На Windows `cmd /C start "" <url>` ретокенизирует аргументы через
-    // внутренние правила cmd.exe. Метасимволы `& | < > ^ %` и кавычки в
-    // URL могут вырваться за пределы `start`. Отвергаем такие URL.
-    #[cfg(target_os = "windows")]
-    {
-        if url.contains(['&', '|', '<', '>', '^', '%', '"', '`', '\n', '\r']) {
-            return Err("URL содержит недопустимые символы".into());
-        }
-        // CREATE_NO_WINDOW (0x08000000), чтобы консольное окно cmd.exe не
-        // мелькало при открытии внешней ссылки — как и прочие spawn на Windows.
-        use std::os::windows::process::CommandExt;
-        let result = std::process::Command::new("cmd")
-            .args(["/C", "start", "", &url])
-            .creation_flags(0x0800_0000)
-            .spawn();
-        result
-            .map(|_| ())
-            .map_err(|e| format!("не удалось открыть ссылку: {e}"))
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let result = std::process::Command::new("open").arg(&url).spawn();
-        result
-            .map(|_| ())
-            .map_err(|e| format!("не удалось открыть ссылку: {e}"))
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        let result = std::process::Command::new("xdg-open").arg(&url).spawn();
-        result
-            .map(|_| ())
-            .map_err(|e| format!("не удалось открыть ссылку: {e}"))
-    }
+    open::that(&url)
+        .map_err(|e| format!("не удалось открыть ссылку: {e}"))
 }
 
 /// Открыть папку в файловом менеджере.
 #[tauri::command]
-async fn open_path(path: String) -> Result<(), String> {
-    let p = std::path::Path::new(&path);
-    if !p.exists() {
-        return Err("путь не существует".into());
+async fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    if path.contains("..") {
+        return Err("путь содержит недопустимые элементы".into());
     }
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        std::process::Command::new("explorer")
-            .arg(&path)
-            .creation_flags(0x0800_0000)
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| format!("не удалось открыть папку: {e}"))
+    if path.starts_with("\\\\") || path.starts_with("//") {
+        return Err("открытие сетевых путей запрещено".into());
     }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| format!("не удалось открыть папку: {e}"))
+
+    let target = std::path::Path::new(&path);
+    let target_canonical = match target.canonicalize() {
+        Ok(c) => c,
+        Err(_) => return Err("путь не существует или недоступен".into()),
+    };
+
+    let data_dir = paths::data_dir(&app);
+    let data_dir_canonical = match data_dir.canonicalize() {
+        Ok(c) => c,
+        Err(_) => return Err("ошибка получения папки данных".into()),
+    };
+
+    let game_dir = game_dir(&app);
+    let game_dir_canonical = game_dir.canonicalize().ok();
+
+    let is_descendant = target_canonical.starts_with(&data_dir_canonical)
+        || game_dir_canonical.map(|gd| target_canonical.starts_with(gd)).unwrap_or(false);
+
+    if !is_descendant {
+        return Err("доступ к указанному пути запрещен".into());
     }
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&path)
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| format!("не удалось открыть папку: {e}"))
-    }
+
+    open::that(&target_canonical)
+        .map_err(|e| format!("не удалось открыть папку: {e}"))
 }
 
 /// Отвязать Telegram (отключить 2FA).
 #[tauri::command]
 async fn telegram_unlink(state: State<'_, AppState>) -> Result<(), String> {
     let (_uuid, token) = current_session(&state)?;
-    backend::telegram_unlink(&state.http, &token).await
+    backend::telegram_unlink(&state.http(), &token).await
 }
 
 /// Смена ника. Обновляет runtime- и сохранённую сессию.
@@ -1025,7 +1062,7 @@ async fn change_username(
         return Err("Имя игрока: минимум 3 символа".into());
     }
     let (_uuid, token) = current_session(&state)?;
-    let profile = backend::change_username(&state.http, &token, trimmed).await?;
+    let profile = backend::change_username(&state.http(), &token, trimmed).await?;
     // Обновляем сохранённую и runtime-сессию новым ником.
     write_saved_session(
         &app,
@@ -1049,7 +1086,7 @@ async fn change_password(
         return Err("Пароль: минимум 6 символов".into());
     }
     let (_uuid, token) = current_session(&state)?;
-    backend::change_password(&state.http, &token, &current_password, &new_password).await
+    backend::change_password(&state.http(), &token, &current_password, &new_password).await
 }
 
 /// Само-удаление аккаунта (требует пароль). После успеха локально выходит.
@@ -1060,7 +1097,7 @@ async fn delete_account(
     app: AppHandle,
 ) -> Result<(), String> {
     let (_uuid, token) = current_session(&state)?;
-    backend::delete_account(&state.http, &token, &password).await?;
+    backend::delete_account(&state.http(), &token, &password).await?;
     clear_runtime_session(&state);
     remove_saved_session(&app);
     Ok(())
@@ -1121,7 +1158,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
 
     let child = minecraft::launch(
         app.clone(),
-        &state.http,
+        &state.http(),
         paths::data_dir(&app),
         settings.memory_mb.clamp(512, 32768),
         settings.download_concurrency as usize,
@@ -1142,19 +1179,93 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     *state.game.lock().unwrap() = Some(child);
 
     // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
-    let http = state.http.clone();
+    let http = state.http().clone();
     let data_dir2 = data_dir.clone();
+    let app_handle = app.clone();
     tokio::spawn(async move {
-        // Ждём завершения процесса, опрашивая каждые 2 секунды.
+        let mut exit_status = None;
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            if !crate::game_guard::is_running(&data_dir2) {
+
+            let state2 = app_handle.state::<AppState>();
+            let mut guard = state2.game.lock().unwrap();
+            if let Some(child) = guard.as_mut() {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        exit_status = Some(status);
+                        *guard = None;
+                        crate::game_guard::clear(&data_dir2);
+                        break;
+                    }
+                    Ok(None) => {}
+                    Err(_) => {
+                        *guard = None;
+                        crate::game_guard::clear(&data_dir2);
+                        break;
+                    }
+                }
+            } else {
                 break;
             }
         }
 
         let duration = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds().max(0);
         crate::game_guard::clear_session(&data_dir2);
+
+        let is_crash = if let Some(status) = exit_status {
+            !status.success()
+        } else {
+            false
+        };
+
+        if is_crash {
+            let game_dir = data_dir2.join("minecraft").join("game");
+            let latest_log_path = game_dir.join("logs").join("latest.log");
+            let log_content = std::fs::read_to_string(&latest_log_path)
+                .unwrap_or_else(|_| "Не удалось прочитать latest.log".to_string());
+
+            let mut crash_content = None;
+            let crash_reports_dir = game_dir.join("crash-reports");
+            if let Ok(entries) = std::fs::read_dir(crash_reports_dir) {
+                let mut latest_file = None;
+                let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
+                for entry in entries.flatten() {
+                    if let Ok(metadata) = entry.metadata() {
+                        if metadata.is_file() {
+                            if let Ok(modified) = metadata.modified() {
+                                if modified > latest_time {
+                                    latest_time = modified;
+                                    latest_file = Some(entry.path());
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(path) = latest_file {
+                    if let Ok(duration) = std::time::SystemTime::now().duration_since(latest_time) {
+                        if duration.as_secs() < 15 {
+                            if let Ok(content) = std::fs::read_to_string(path) {
+                                crash_content = Some(content);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let exit_code = exit_status.and_then(|s| s.code());
+            if let Err(e) = backend::report_crash(
+                &http,
+                &token,
+                exit_code,
+                &log_content,
+                crash_content.as_deref(),
+            )
+            .await
+            {
+                tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
+            }
+        }
+
         if duration > 0 {
             if let Err(e) =
                 backend::record_session(&http, &token, duration, &launched_at_str).await
@@ -1175,7 +1286,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
 #[tauri::command]
 async fn get_stats(state: State<'_, AppState>) -> Result<protocol::PlayerStats, String> {
     let (_uuid, token) = current_session(&state)?;
-    backend::get_stats(&state.http, &token).await
+    backend::get_stats(&state.http(), &token).await
 }
 
 // ---------- Сборка (модпак) ----------
@@ -1191,7 +1302,7 @@ async fn list_optional_mods(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Vec<crate::modpack::OptionalMod>, String> {
-    crate::modpack::list_optional_mods(&state.http, &paths::data_dir(&app), &game_dir(&app)).await
+    crate::modpack::list_optional_mods(&state.http(), &paths::data_dir(&app), &game_dir(&app)).await
 }
 
 /// Включить/выключить опциональный мод. Сохраняет выбор и, если файл уже
@@ -1204,7 +1315,7 @@ async fn set_mod_enabled(
     app: AppHandle,
 ) -> Result<(), String> {
     crate::modpack::set_mod_enabled(
-        &state.http,
+        &state.http(),
         &paths::data_dir(&app),
         &game_dir(&app),
         mod_id,
@@ -1354,7 +1465,7 @@ async fn get_customization(app: tauri::AppHandle) -> Result<protocol::PlayerCust
         .ok_or_else(|| "Нет токена авторизации".to_string())?;
     let base = std::env::var("LAUNCHER_AUTH_URL")
         .unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
-    let resp = state.http
+    let resp = state.http()
         .get(format!("{base}/api/me/customization"))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -1379,7 +1490,7 @@ async fn set_active_customization(
         .ok_or_else(|| "Нет токена авторизации".to_string())?;
     let base = std::env::var("LAUNCHER_AUTH_URL")
         .unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
-    let resp = state.http
+    let resp = state.http()
         .put(format!("{base}/api/me/active"))
         .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({ "badge_id": badge_id, "gradient_id": gradient_id }))

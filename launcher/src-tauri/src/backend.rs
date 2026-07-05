@@ -320,10 +320,12 @@ pub async fn password_reset_status(
 pub async fn password_reset_confirm(
     client: &reqwest::Client,
     challenge: &str,
+    code: &str,
     new_password: &str,
 ) -> Result<(), String> {
     let req = PasswordResetConfirm {
         challenge: challenge.to_string(),
+        code: code.to_string(),
         new_password: new_password.to_string(),
     };
     let resp = client
@@ -702,5 +704,40 @@ pub async fn record_session(
     match resp.json::<ErrorBody>().await {
         Ok(body) => Err(body.error),
         Err(_) => Err("Не удалось записать сессию".to_string()),
+    }
+}
+
+#[derive(serde::Serialize)]
+struct ReportCrashRequest {
+    exit_code: Option<i32>,
+    log: String,
+    crash_report: Option<String>,
+}
+
+pub async fn report_crash(
+    client: &reqwest::Client,
+    token: &str,
+    exit_code: Option<i32>,
+    log: &str,
+    crash_report: Option<&str>,
+) -> Result<(), String> {
+    let req = ReportCrashRequest {
+        exit_code,
+        log: log.to_string(),
+        crash_report: crash_report.map(|s| s.to_string()),
+    };
+    let resp = client
+        .post(format!("{}/api/report-crash", base_url()))
+        .bearer_auth(token)
+        .json(&req)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return Ok(());
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось отправить отчет о краше".to_string()),
     }
 }

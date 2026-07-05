@@ -82,7 +82,9 @@ export default function SettingsScreen({
     settings != null &&
     initialSettings != null &&
     (settings.memoryMb !== initialSettings.memoryMb ||
-      settings.downloadConcurrency !== initialSettings.downloadConcurrency);
+      settings.downloadConcurrency !== initialSettings.downloadConcurrency ||
+      settings.show3dModel !== initialSettings.show3dModel ||
+      settings.proxyType !== initialSettings.proxyType);
 
   function handleClose() {
     if (isDirty && !window.confirm("Есть несохранённые изменения. Покинуть настройки?")) {
@@ -388,10 +390,34 @@ export default function SettingsScreen({
               </div>
             )}
 
+            {settings && (
+              <div className="toggle-row stagger-item">
+                <div className="toggle-row__text">
+                  <span className="toggle-row__title">Прокси-сервер</span>
+                  <span className="muted toggle-row__desc">
+                    Использовать системные настройки, встроенный прокси или отключить его.
+                  </span>
+                </div>
+                <select
+                  value={settings.proxyType}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      proxyType: e.target.value as "system" | "builtin" | "none",
+                    })
+                  }
+                >
+                  <option value="system">Системный прокси</option>
+                  <option value="builtin">Встроенный прокси</option>
+                  <option value="none">Без прокси</option>
+                </select>
+              </div>
+            )}
+
             <button
               type="button"
               className="btn btn--ghost stagger-item"
-              onClick={() => setSettings({ memoryMb: 4096, downloadConcurrency: 6, show3dModel: true })}
+              onClick={() => setSettings({ memoryMb: 4096, downloadConcurrency: 6, show3dModel: true, proxyType: "builtin" })}
             >
               Сбросить настройки по умолчанию
             </button>

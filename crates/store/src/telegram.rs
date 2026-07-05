@@ -57,6 +57,8 @@ pub struct OutboxMessage {
     /// Режим разметки Telegram (`HTML`), если текст содержит разметку.
     /// `None` — обычный текст.
     pub parse_mode: Option<String>,
+    pub document_name: Option<String>,
+    pub document_content: Option<Vec<u8>>,
 }
 
 /// Итог опроса challenge лаунчером (polling статуса подтверждения).
@@ -252,6 +254,7 @@ impl Store {
         &self,
         uuid: &str,
         purpose: &str,
+        client_ip: Option<&str>,
     ) -> Result<Option<String>, StoreError> {
         let uuid = normalize_uuid(uuid);
         let row: Option<(Option<String>, String)> =
@@ -293,37 +296,39 @@ impl Store {
         let code = random_numeric_code(6);
         let expires = now + CODE_2FA_TTL;
         sqlx::query(
-            "INSERT INTO telegram_2fa_codes (challenge, account_uuid, code, expires_at, purpose, status)
-             VALUES ($1, $2, $3, $4, $5, 'pending')",
+            "INSERT INTO telegram_2fa_codes (challenge, account_uuid, code, expires_at, purpose, status, client_ip)
+             VALUES ($1, $2, $3, $4, $5, 'pending', $6)",
         )
         .bind(&challenge)
         .bind(&uuid)
         .bind(&code)
         .bind(expires)
         .bind(purpose)
+        .bind(client_ip)
         .execute(&self.pool)
         .await?;
 
-        let action = match purpose {
-            CHALLENGE_PASSWORD_RESET => "сброса пароля",
-            _ => "входа",
+        let (text, markup) = if purpose == CHALLENGE_PASSWORD_RESET {
+            let t = format!(
+                "Запрос сброса пароля в аккаунт <code>{nick}</code>.\nКод подтверждения: <code>{code}</code>\nДействует 5 минут. Если вы не запрашивали сброс пароля, проигнорируйте это сообщение.",
+                nick = html_escape(&username)
+            );
+            (t, None)
+        } else {
+            let t = format!(
+                "Запрос входа в аккаунт <code>{nick}</code>.\nЕсли это вы — нажмите «✅ Это я».\nКод (если нужно ввести вручную): <code>{code}</code>\nДействует 5 минут. Если это не вы — нажмите «🚫 Это не я».",
+                nick = html_escape(&username)
+            );
+            (t, Some(approval_markup(&challenge)))
         };
-        // Текст содержит HTML-разметку Telegram: ник и код обёрнуты в <code>
-        // (моноширинный, удобно копировать в один тап). Ник пользователя
-        // экранируем — он может содержать символы < > &.
-        let text = format!(
-            "Запрос {action} в аккаунт <code>{nick}</code>.\nЕсли это вы — нажмите «✅ Это я».\nКод (если нужно ввести вручную): <code>{code}</code>\nДействует 5 минут. Если это не вы — нажмите «🚫 Это не я».",
-            nick = html_escape(&username),
-        );
-        let markup = approval_markup(&challenge);
-        self.enqueue_message_full(&chat_id, &text, Some(&markup), Some("HTML"))
+        self.enqueue_message_full(&chat_id, &text, markup.as_deref(), Some("HTML"))
             .await?;
         Ok(Some(challenge))
     }
 
     /// Совместимость: запуск 2FA при входе по паролю.
-    pub async fn start_2fa(&self, uuid: &str) -> Result<Option<String>, StoreError> {
-        self.start_challenge(uuid, CHALLENGE_LOGIN_2FA).await
+    pub async fn start_2fa(&self, uuid: &str, client_ip: Option<&str>) -> Result<Option<String>, StoreError> {
+        self.start_challenge(uuid, CHALLENGE_LOGIN_2FA, client_ip).await
     }
 
     /// Проверяет код challenge по `challenge` для входа (выдача сессии). При
@@ -587,6 +592,63 @@ impl Store {
         }
     }
 
+    /// Проверяет 6-значный код сброса пароля, сопоставляет IP-адрес клиента и возвращает UUID аккаунта при успехе.
+    pub async fn verify_reset_challenge(
+        &self,
+        challenge: &str,
+        code: &str,
+        client_ip: &str,
+    ) -> Result<String, StoreError> {
+        let now = OffsetDateTime::now_utc();
+        let row = sqlx::query(
+            "SELECT account_uuid, code, expires_at, purpose, client_ip
+             FROM telegram_2fa_codes WHERE challenge = $1",
+        )
+        .bind(challenge)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(StoreError::NotFound)?;
+
+        let account_uuid: String = row.get("account_uuid");
+        let expected_code: String = row.get("code");
+        let expires_at: OffsetDateTime = row.get("expires_at");
+        let purpose: String = row.get("purpose");
+        let stored_ip: Option<String> = row.get("client_ip");
+
+        if expires_at <= now || purpose != CHALLENGE_PASSWORD_RESET {
+            sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
+                .bind(challenge)
+                .execute(&self.pool)
+                .await?;
+            return Err(StoreError::NotFound);
+        }
+
+        if stored_ip.as_deref() != Some(client_ip) {
+            sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
+                .bind(challenge)
+                .execute(&self.pool)
+                .await?;
+            return Err(StoreError::NotFound);
+        }
+
+        if !crate::constant_time_eq(code.trim().as_bytes(), expected_code.as_bytes()) {
+            sqlx::query(
+                "UPDATE telegram_2fa_codes SET attempts = attempts + 1 WHERE challenge = $1",
+            )
+            .bind(challenge)
+            .execute(&self.pool)
+            .await?;
+            return Err(StoreError::BadPassword);
+        }
+
+        sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
+            .bind(challenge)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(account_uuid)
+    }
+
     // ───────────────── Вход без пароля / сброс пароля ─────────────────
 
     /// Находит UUID аккаунта по нику, если у него привязан Telegram. Используется
@@ -652,6 +714,11 @@ impl Store {
     /// Рассылает уведомление всем админам с привязанным Telegram (фан-аут в
     /// outbox). Ошибки доставки конкретному админу не влияют на остальных.
     pub async fn notify_admins(&self, text: &str) -> Result<(), StoreError> {
+        self.notify_admins_full(text, None).await
+    }
+
+    /// Рассылает уведомление всем админам с привязанным Telegram с поддержкой parse_mode.
+    pub async fn notify_admins_full(&self, text: &str, parse_mode: Option<&str>) -> Result<(), StoreError> {
         let chat_ids: Vec<String> = sqlx::query_scalar(
             "SELECT telegram_chat_id FROM accounts
              WHERE role = 'admin' AND telegram_chat_id IS NOT NULL",
@@ -659,7 +726,41 @@ impl Store {
         .fetch_all(&self.pool)
         .await?;
         for chat_id in chat_ids {
-            self.enqueue_message(&chat_id, text).await?;
+            self.enqueue_message_full(&chat_id, text, None, parse_mode).await?;
+        }
+        Ok(())
+    }
+
+    /// Кладёт документ в очередь на отправку.
+    pub async fn enqueue_document(
+        &self,
+        chat_id: &str,
+        caption: &str,
+        doc_name: &str,
+        doc_content: &[u8],
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO telegram_outbox (chat_id, text, document_name, document_content) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(chat_id)
+        .bind(caption)
+        .bind(doc_name)
+        .bind(doc_content)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Рассылает документ всем админам с привязанным Telegram.
+    pub async fn notify_admins_with_document(&self, caption: &str, doc_name: &str, doc_content: &[u8]) -> Result<(), StoreError> {
+        let chat_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT telegram_chat_id FROM accounts
+             WHERE role = 'admin' AND telegram_chat_id IS NOT NULL",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        for chat_id in chat_ids {
+            self.enqueue_document(&chat_id, caption, doc_name, doc_content).await?;
         }
         Ok(())
     }
@@ -667,7 +768,7 @@ impl Store {
     /// Забирает до `limit` ожидающих сообщений (для отправки ботом).
     pub async fn pending_messages(&self, limit: i64) -> Result<Vec<OutboxMessage>, StoreError> {
         let rows = sqlx::query(
-            "SELECT id, chat_id, text, reply_markup, parse_mode FROM telegram_outbox
+            "SELECT id, chat_id, text, reply_markup, parse_mode, document_name, document_content FROM telegram_outbox
              WHERE status = 'pending' ORDER BY created_at LIMIT $1",
         )
         .bind(limit)
@@ -681,6 +782,8 @@ impl Store {
                 text: r.get("text"),
                 reply_markup: r.get("reply_markup"),
                 parse_mode: r.get("parse_mode"),
+                document_name: r.get("document_name"),
+                document_content: r.get("document_content"),
             })
             .collect())
     }

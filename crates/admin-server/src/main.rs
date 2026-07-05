@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use tracing_subscriber::prelude::*;
 
 use axum::{
-    extract::{DefaultBodyLimit, Multipart, Path, Query, State},
+    extract::{DefaultBodyLimit, Multipart, Path, Query, State, ConnectInfo},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -337,6 +337,29 @@ struct LoginResponse {
     uuid: String,
 }
 
+fn get_client_ip(
+    headers: &HeaderMap,
+    addr: std::net::SocketAddr,
+) -> std::net::IpAddr {
+    if let Some(forwarded_for) = headers.get("x-forwarded-for") {
+        if let Ok(val) = forwarded_for.to_str() {
+            if let Some(first_ip) = val.split(',').next() {
+                if let Ok(ip) = first_ip.trim().parse::<std::net::IpAddr>() {
+                    return ip;
+                }
+            }
+        }
+    }
+    if let Some(real_ip) = headers.get("x-real-ip") {
+        if let Ok(val) = real_ip.to_str() {
+            if let Ok(ip) = val.trim().parse::<std::net::IpAddr>() {
+                return ip;
+            }
+        }
+    }
+    addr.ip()
+}
+
 async fn health() -> &'static str {
     "ok"
 }
@@ -344,8 +367,17 @@ async fn health() -> &'static str {
 /// Вход в админку: логин/пароль + обязательная роль `admin`.
 async fn login(
     State(state): State<Shared>,
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, ApiError> {
+    let ip = get_client_ip(&headers, addr);
+    if state.store.check_rate_limit(ip, 5, 60) {
+        return Err(ApiError::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Слишком много попыток входа. Пожалуйста, попробуйте позже.",
+        ));
+    }
     let profile = state
         .store
         .login(&req.username, &req.password)
@@ -924,6 +956,26 @@ async fn upload_file(
     if meta.path.trim().is_empty() {
         tokio::fs::remove_file(&temp_path).await.ok();
         return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой path"));
+    }
+
+    let path_str = meta.path.trim();
+    let p = std::path::Path::new(path_str);
+    for comp in p.components() {
+        match comp {
+            std::path::Component::Prefix(_) => {
+                tokio::fs::remove_file(&temp_path).await.ok();
+                return Err(ApiError::new(StatusCode::BAD_REQUEST, "Недопустимый префикс пути"));
+            }
+            std::path::Component::RootDir => {
+                tokio::fs::remove_file(&temp_path).await.ok();
+                return Err(ApiError::new(StatusCode::BAD_REQUEST, "Абсолютный путь запрещен"));
+            }
+            std::path::Component::ParentDir => {
+                tokio::fs::remove_file(&temp_path).await.ok();
+                return Err(ApiError::new(StatusCode::BAD_REQUEST, "Выход за пределы директории запрещен"));
+            }
+            _ => {}
+        }
     }
 
     // Вычисляем SHA-1 и размер из уже записанного файла на диске.

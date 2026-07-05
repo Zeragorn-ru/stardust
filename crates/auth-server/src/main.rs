@@ -151,6 +151,7 @@ async fn main() {
         .route("/api/skin/:uuid", get(skin))
         .route("/api/cape/:uuid", get(cape))
         .route("/api/stats", get(stats_get))
+        .route("/api/report-crash", post(report_crash))
         // --- Yggdrasil / authlib-injector ---
         .route("/", get(ygg_meta))
         .route("/authserver/authenticate", post(ygg_authenticate))
@@ -312,6 +313,7 @@ async fn ensure_not_banned(state: &Shared, uuid: &str) -> Result<(), ApiError> {
 
 async fn login(
     State(state): State<Shared>,
+    headers: HeaderMap,
     Json(creds): Json<Credentials>,
 ) -> Result<Json<LoginResult>, ApiError> {
     let profile = state
@@ -323,7 +325,8 @@ async fn login(
     // Если у аккаунта привязан Telegram — требуем второй фактор: генерируем
     // код, кладём его в outbox на доставку ботом и возвращаем challenge.
     // start_2fa возвращает None, если Telegram не привязан (2FA неприменима).
-    match state.store.start_2fa(&profile.id).await? {
+    let client_ip = get_client_ip(&headers);
+    match state.store.start_2fa(&profile.id, Some(&client_ip)).await? {
         Some(challenge) => Ok(Json(LoginResult::TwoFactorRequired {
             challenge,
             hint: Some("Подтвердите вход в Telegram или введите код".to_string()),
@@ -396,6 +399,7 @@ async fn login_passwordless_status(
 /// Telegram: при отсутствии любого из условий возвращаем единый отказ.
 async fn login_passwordless(
     State(state): State<Shared>,
+    headers: HeaderMap,
     Json(req): Json<PasswordlessLoginRequest>,
 ) -> Result<Json<LoginResult>, ApiError> {
     let unavailable = || {
@@ -410,9 +414,10 @@ async fn login_passwordless(
         .await?
         .ok_or_else(unavailable)?;
     ensure_not_banned(&state, &uuid).await?;
+    let client_ip = get_client_ip(&headers);
     let challenge = state
         .store
-        .start_challenge(&uuid, CHALLENGE_PASSWORDLESS)
+        .start_challenge(&uuid, CHALLENGE_PASSWORDLESS, Some(&client_ip))
         .await?
         .ok_or_else(unavailable)?;
     Ok(Json(LoginResult::TwoFactorRequired {
@@ -426,6 +431,7 @@ async fn login_passwordless(
 /// с кнопкой подтверждения и возвращает challenge.
 async fn password_reset_start(
     State(state): State<Shared>,
+    headers: HeaderMap,
     Json(req): Json<PasswordResetRequest>,
 ) -> Result<Json<LoginResult>, ApiError> {
     let unavailable = || {
@@ -439,9 +445,10 @@ async fn password_reset_start(
         .uuid_for_telegram_login(req.username.trim())
         .await?
         .ok_or_else(unavailable)?;
+    let client_ip = get_client_ip(&headers);
     let challenge = state
         .store
-        .start_challenge(&uuid, CHALLENGE_PASSWORD_RESET)
+        .start_challenge(&uuid, CHALLENGE_PASSWORD_RESET, Some(&client_ip))
         .await?
         .ok_or_else(unavailable)?;
     Ok(Json(LoginResult::TwoFactorRequired {
@@ -477,6 +484,7 @@ async fn password_reset_status(
 /// а все активные сессии аккаунта аннулируются.
 async fn password_reset_confirm(
     State(state): State<Shared>,
+    headers: HeaderMap,
     Json(req): Json<PasswordResetConfirm>,
 ) -> Result<StatusCode, ApiError> {
     if req.new_password.len() < 6 {
@@ -485,14 +493,19 @@ async fn password_reset_confirm(
             "Пароль: минимум 6 символов",
         ));
     }
+    let client_ip = get_client_ip(&headers);
     let uuid = state
         .store
-        .consume_approved_challenge(&req.challenge, CHALLENGE_PASSWORD_RESET)
+        .verify_reset_challenge(&req.challenge, &req.code, &client_ip)
         .await
         .map_err(|e| match e {
             StoreError::NotFound => ApiError::new(
                 StatusCode::UNAUTHORIZED,
-                "Запрос не подтверждён или истёк, начните заново",
+                "Запрос не подтверждён, не совпадает IP или истёк, начните заново",
+            ),
+            StoreError::BadPassword => ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Неверный код подтверждения",
             ),
             other => other.into(),
         })?;
@@ -566,6 +579,21 @@ async fn profile(
         .await
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
     Ok(Json(account.profile()))
+}
+
+fn get_client_ip(headers: &HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|h| h.to_str().ok())
+                .map(|s| s.trim().to_string())
+        })
+        .unwrap_or_else(|| "127.0.0.1".to_string())
 }
 
 /// Разрешает беарер-сессию в аккаунт владельца.
@@ -1233,6 +1261,61 @@ async fn stats_get(
         last_launched_at: last_launched_at
             .map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
+}
+
+#[derive(serde::Deserialize)]
+struct ReportCrashRequest {
+    exit_code: Option<i32>,
+    log: String,
+    crash_report: Option<String>,
+}
+
+async fn report_crash(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<ReportCrashRequest>,
+) -> Result<StatusCode, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let username = &account.username;
+    
+    let exit_code_str = match req.exit_code {
+        Some(code) => format!("Код выхода: {code}"),
+        None => "Код выхода: неизвестен".to_string(),
+    };
+
+    let caption = format!(
+        "⚠️ Minecraft у игрока «{username}» вылетел/крашнулся!\n{exit_code_str}"
+    );
+
+    // Send latest.log
+    if !req.log.trim().is_empty() {
+        state
+            .store
+            .notify_admins_with_document(&caption, "latest.log", req.log.as_bytes())
+            .await?;
+    } else {
+        // If log is empty, just notify text-only
+        state
+            .store
+            .notify_admins(&caption)
+            .await?;
+    }
+
+    // Send crash-report if present
+    if let Some(crash) = req.crash_report {
+        if !crash.trim().is_empty() {
+            state
+                .store
+                .notify_admins_with_document(
+                    &format!("📄 Краш-репорт игрока «{username}»"),
+                    "crash-report.txt",
+                    crash.as_bytes(),
+                )
+                .await?;
+        }
+    }
+
+    Ok(StatusCode::OK)
 }
 
 // ─────────────────── Кастомизация ника ───────────────────

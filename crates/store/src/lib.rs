@@ -210,6 +210,7 @@ pub struct Store {
     pool: PgPool,
     /// Записи `join`: serverId -> запись. Кратковременные (см. `JOIN_TTL`).
     joins: RwLock<HashMap<String, JoinRecord>>,
+    rate_limiter: std::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
 }
 
 impl Store {
@@ -231,12 +232,32 @@ impl Store {
         Ok(Self {
             pool,
             joins: RwLock::new(HashMap::new()),
+            rate_limiter: std::sync::Mutex::new(HashMap::new()),
         })
     }
 
     /// Доступ к пулу — нужен admin-серверу для запросов сборки.
     pub fn pool(&self) -> &PgPool {
         &self.pool
+    }
+
+    /// Проверяет лимит запросов для IP-адреса.
+    /// Возвращает true, если лимит превышен (надо вернуть TooMany), false если всё ок.
+    pub fn check_rate_limit(&self, ip: std::net::IpAddr, max_requests: usize, window_secs: u64) -> bool {
+        let mut reqs = self.rate_limiter.lock().unwrap();
+        let now = std::time::Instant::now();
+        let window = std::time::Duration::from_secs(window_secs);
+        let list = reqs.entry(ip).or_insert_with(Vec::new);
+        
+        // Удаляем устаревшие метки времени
+        list.retain(|&t| now.duration_since(t) < window);
+        
+        if list.len() >= max_requests {
+            true
+        } else {
+            list.push(now);
+            false
+        }
     }
 
     // ───────────────────────── Аккаунты ─────────────────────────
@@ -593,8 +614,9 @@ impl Store {
     /// Создаёт сессию для аккаунта и возвращает bearer-токен.
     pub async fn create_session(&self, uuid: &str) -> Result<String, StoreError> {
         let token = random_token();
+        let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         sqlx::query("INSERT INTO sessions (token, account_uuid) VALUES ($1, $2)")
-            .bind(&token)
+            .bind(&token_hash)
             .bind(normalize_uuid(uuid))
             .execute(&self.pool)
             .await?;
@@ -603,8 +625,9 @@ impl Store {
 
     /// Проверяет bearer-токен и возвращает UUID аккаунта, если сессия жива.
     pub async fn validate_session(&self, token: &str) -> Option<String> {
+        let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         sqlx::query_scalar("SELECT account_uuid FROM sessions WHERE token = $1")
-            .bind(token)
+            .bind(&token_hash)
             .fetch_optional(&self.pool)
             .await
             .ok()
@@ -613,8 +636,9 @@ impl Store {
 
     /// Удаляет сессию (logout).
     pub async fn destroy_session(&self, token: &str) -> Result<(), StoreError> {
+        let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         sqlx::query("DELETE FROM sessions WHERE token = $1")
-            .bind(token)
+            .bind(&token_hash)
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -1017,29 +1041,29 @@ fn random_token() -> String {
     to_hex(&bytes)
 }
 
-/// SHA-256 пароля со случайной солью; формат `salt_hex:hash_hex`.
+/// Хеширует пароль с помощью Argon2id. Возвращает валидный PHC-хеш.
 fn hash_password(password: &str) -> String {
-    use rand::RngCore;
-    let mut salt = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
-    let salt_hex = to_hex(&salt);
-    let hash = digest_with_salt(password, &salt_hex);
-    format!("{salt_hex}:{hash}")
+    use argon2::{
+        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
+        Argon2,
+    };
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    argon2
+        .hash_password(password.as_bytes(), &salt)
+        .expect("failed to hash password")
+        .to_string()
 }
 
 fn verify_password(password: &str, stored: &str) -> bool {
-    let Some((salt_hex, expected)) = stored.split_once(':') else {
-        return false;
+    use argon2::{password_hash::PasswordHash, Argon2, PasswordVerifier};
+    let parsed_hash = match PasswordHash::new(stored) {
+        Ok(h) => h,
+        Err(_) => return false,
     };
-    let actual = digest_with_salt(password, salt_hex);
-    constant_time_eq(actual.as_bytes(), expected.as_bytes())
-}
-
-fn digest_with_salt(password: &str, salt_hex: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(salt_hex.as_bytes());
-    hasher.update(password.as_bytes());
-    to_hex(&hasher.finalize())
+    Argon2::default()
+        .verify_password(password.as_bytes(), &parsed_hash)
+        .is_ok()
 }
 
 fn to_hex(bytes: &[u8]) -> String {

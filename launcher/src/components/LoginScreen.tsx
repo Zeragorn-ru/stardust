@@ -165,11 +165,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     try {
       const result = await passwordResetStart(username.trim());
       if (result.status === "twoFactorRequired") {
-        setApproval({
-          kind: "passwordReset",
-          challenge: result.challenge,
-          hint: result.hint,
-        });
+        setResetChallenge(result.challenge);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -187,6 +183,10 @@ export default function LoginScreen({ onAuthenticated }: Props) {
   async function handleResetConfirm(e: React.FormEvent) {
     e.preventDefault();
     if (!resetChallenge) return;
+    if (!code.trim()) {
+      setError("Введите код подтверждения");
+      return;
+    }
     if (newPassword !== newPasswordConfirm) {
       setError("Пароли не совпадают");
       return;
@@ -194,9 +194,10 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     setBusy(true);
     setError(null);
     try {
-      await passwordResetConfirm(resetChallenge, newPassword);
+      await passwordResetConfirm(resetChallenge, code.trim(), newPassword);
       // Пароль сменён; возвращаемся к форме входа с предзаполненным ником.
       setResetChallenge(null);
+      setCode("");
       setNewPassword("");
       setNewPasswordConfirm("");
       setPassword("");
@@ -341,9 +342,21 @@ export default function LoginScreen({ onAuthenticated }: Props) {
 
         <form className="login__form" onSubmit={handleResetConfirm}>
           <label className="field">
+            <span>Код подтверждения из Telegram</span>
+            <input
+              type="text"
+              autoFocus
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="123456"
+              disabled={busy}
+            />
+          </label>
+          <label className="field">
             <span>Новый пароль</span>
             <PasswordInput
-              autoFocus
               value={newPassword}
               onChange={setNewPassword}
               disabled={busy}

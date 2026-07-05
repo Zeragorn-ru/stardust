@@ -107,16 +107,29 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
         };
 
         for msg in messages {
-            match send_message(
-                &http,
-                &token,
-                &msg.chat_id,
-                &msg.text,
-                msg.reply_markup.as_deref(),
-                msg.parse_mode.as_deref(),
-            )
-            .await
-            {
+            let result = if let (Some(doc_name), Some(doc_content)) = (&msg.document_name, &msg.document_content) {
+                send_document(
+                    &http,
+                    &token,
+                    &msg.chat_id,
+                    &msg.text,
+                    doc_name,
+                    doc_content,
+                )
+                .await
+            } else {
+                send_message(
+                    &http,
+                    &token,
+                    &msg.chat_id,
+                    &msg.text,
+                    msg.reply_markup.as_deref(),
+                    msg.parse_mode.as_deref(),
+                )
+                .await
+            };
+
+            match result {
                 Ok(()) => {
                     if let Err(e) = store.mark_message_sent(msg.id).await {
                         tracing::error!(?e, id = msg.id, "не удалось пометить сообщение отправленным");
@@ -133,6 +146,40 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
                 }
             }
         }
+    }
+}
+
+/// Отправляет документ (файл) через Telegram Bot API.
+async fn send_document(
+    http: &reqwest::Client,
+    token: &str,
+    chat_id: &str,
+    caption: &str,
+    doc_name: &str,
+    doc_content: &[u8],
+) -> Result<(), String> {
+    let url = format!("https://api.telegram.org/bot{token}/sendDocument");
+    let part = reqwest::multipart::Part::bytes(doc_content.to_vec())
+        .file_name(doc_name.to_string());
+    
+    let form = reqwest::multipart::Form::new()
+        .text("chat_id", chat_id.to_string())
+        .text("caption", caption.to_string())
+        .part("document", part);
+
+    let resp = http
+        .post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("запрос sendDocument: {e}"))?;
+
+    if resp.status().is_success() {
+        Ok(())
+    } else {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        Err(format!("sendDocument вернул {status}: {body}"))
     }
 }
 

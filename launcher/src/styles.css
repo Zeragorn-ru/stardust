@@ -2846,3 +2846,25 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+select {
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
+    font-size: 14px;
+    color: var(--text);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.18);
+}
+
+select option {
+    background: #0f101b;
+    color: var(--text);
+}

@@ -340,6 +340,7 @@ pub struct PasswordResetRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PasswordResetConfirm {
     pub challenge: String,
+    pub code: String,
     #[serde(rename = "newPassword")]
     pub new_password: String,
 }
