@@ -9,9 +9,9 @@ import type {
 } from "./types";
 import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
-import { useToast } from "./ui/feedback";
+import { useToast, useConfirm } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
-import { IconCheck, IconCopy, IconStar, IconSync } from "./ui/icons";
+import { IconCheck, IconCopy, IconDownload, IconStar, IconSync } from "./ui/icons";
 import { CheckResults } from "./ui/CheckResults";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
@@ -137,6 +137,7 @@ export function BuildDetail({
   onClone?: (buildId: number) => void | Promise<void>;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -161,6 +162,13 @@ export function BuildDetail({
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const lastSyncState = useRef<SyncStatus["state"] | null>(null);
   const [editing, setEditing] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [deployStatus, setDeployStatus] = useState<{
+    state: string;
+    phase: string;
+    version: string | null;
+    error: string | null;
+  } | null>(null);
 
   const loadSyncStatus = useCallback(async () => {
     const status = await api.syncToPanelStatus(buildId);
@@ -286,6 +294,46 @@ export function BuildDetail({
     }
   }
 
+  async function deployMod() {
+    const ok = await confirm({
+      title: "Добавить мод в сборку?",
+      body: "Будет скачан последний релиз mod-v* из GitHub и добавлен в эту сборку. При следующей синхронизации мод попадёт на сервер.",
+      confirmText: "Добавить",
+    });
+    if (!ok) return;
+
+    setDeploying(true);
+    setDeployStatus(null);
+    try {
+      await api.deployMod();
+      const poll = setInterval(async () => {
+        try {
+          const s = await api.getDeployModStatus();
+          setDeployStatus(s);
+          if (s.state === "success" || s.state === "error") {
+            clearInterval(poll);
+            setDeploying(false);
+            if (s.state === "success") {
+              toast.success(`Мод ${s.version ?? "?"} добавлен в сборку. Синхронизируйте сервер.`);
+              await load();
+              onChanged();
+            } else {
+              toast.error(`Ошибка деплоя: ${s.error ?? "неизвестная ошибка"}`);
+            }
+          }
+        } catch {
+          clearInterval(poll);
+          setDeploying(false);
+        }
+      }, 2000);
+    } catch (err) {
+      setDeploying(false);
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось запустить деплой мода",
+      );
+    }
+  }
+
   const files = detail?.files ?? [];
 
   const totalSize = useMemo(
@@ -345,6 +393,15 @@ export function BuildDetail({
               <IconSync size={15} />
               {syncing ? "Синхронизация…" : "Синхр. по SFTP"}
             </button>
+            <button
+              className="secondary icon-btn"
+              disabled={deploying}
+              onClick={deployMod}
+              title="Скачать мод из GitHub и добавить в сборку"
+            >
+              <IconDownload size={15} />
+              {deploying ? "Загрузка мода…" : "Загрузить мод"}
+            </button>
           </div>
         </div>
         <div className="detail-stats">
@@ -384,6 +441,25 @@ export function BuildDetail({
       <div className="panel">
         <FileManager buildId={buildId} files={files} onChanged={load} />
       </div>
+
+      {deployStatus && (
+        <div className={`panel sync-progress sync-progress--${deployStatus.state === "success" ? "success" : deployStatus.state === "error" ? "error" : "running"}`}>
+          <div className="sync-progress__head">
+            <strong>
+              {deployStatus.state === "running"
+                ? "Загрузка мода"
+                : deployStatus.state === "success"
+                  ? "Мод добавлен в сборку"
+                  : "Ошибка загрузки мода"}
+            </strong>
+          </div>
+          <div className="sync-progress__meta">
+            <span>{deployStatus.phase}</span>
+            {deployStatus.version && <span>Версия: {deployStatus.version}</span>}
+          </div>
+          {deployStatus.error && <div className="q-err">{deployStatus.error}</div>}
+        </div>
+      )}
 
       <div className="panel">
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>

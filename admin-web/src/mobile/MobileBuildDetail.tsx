@@ -16,13 +16,14 @@ import type {
 } from "../types";
 import { FileManager } from "../FileManager";
 import { formatSize } from "../format";
-import { useToast } from "../ui/feedback";
+import { useToast, useConfirm } from "../ui/feedback";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { CheckResults } from "../ui/CheckResults";
 import {
   IconCheck,
   IconChevronRight,
   IconCopy,
+  IconDownload,
   IconStar,
   IconSync,
 } from "../ui/icons";
@@ -33,6 +34,7 @@ export function MobileBuildDetail() {
   const params = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
   const buildId = Number(params.id);
 
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
@@ -41,6 +43,13 @@ export function MobileBuildDetail() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const lastSyncState = useRef<SyncStatus["state"] | null>(null);
   const [editing, setEditing] = useState(false);
+  const [deploying, setDeploying] = useState(false);
+  const [deployStatus, setDeployStatus] = useState<{
+    state: string;
+    phase: string;
+    version: string | null;
+    error: string | null;
+  } | null>(null);
 
   const loadSyncStatus = useCallback(async () => {
     const status = await api.syncToPanelStatus(buildId);
@@ -180,6 +189,45 @@ export function MobileBuildDetail() {
     }
   }
 
+  async function deployMod() {
+    const ok = await confirm({
+      title: "Добавить мод в сборку?",
+      body: "Будет скачан последний релиз mod-v* из GitHub и добавлен в эту сборку.",
+      confirmText: "Добавить",
+    });
+    if (!ok) return;
+
+    setDeploying(true);
+    setDeployStatus(null);
+    try {
+      await api.deployMod();
+      const poll = setInterval(async () => {
+        try {
+          const s = await api.getDeployModStatus();
+          setDeployStatus(s);
+          if (s.state === "success" || s.state === "error") {
+            clearInterval(poll);
+            setDeploying(false);
+            if (s.state === "success") {
+              toast.success(`Мод ${s.version ?? "?"} добавлен. Синхронизируйте сервер.`);
+              await load();
+            } else {
+              toast.error(`Ошибка: ${s.error ?? "неизвестная"}`);
+            }
+          }
+        } catch {
+          clearInterval(poll);
+          setDeploying(false);
+        }
+      }, 2000);
+    } catch (err) {
+      setDeploying(false);
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось запустить деплой",
+      );
+    }
+  }
+
   async function saveEdit(input: CreateBuildInput) {
     try {
       await api.updateBuild(buildId, input);
@@ -251,6 +299,14 @@ export function MobileBuildDetail() {
           <IconSync size={15} />
           {syncing ? "Синхр…" : "SFTP"}
         </button>
+        <button
+          className="secondary icon-btn"
+          disabled={deploying}
+          onClick={deployMod}
+        >
+          <IconDownload size={15} />
+          {deploying ? "Мод…" : "Мод"}
+        </button>
       </div>
 
       <div className="m-stats">
@@ -289,6 +345,25 @@ export function MobileBuildDetail() {
       <div className="panel m-fm-panel">
         <FileManager buildId={buildId} files={files} onChanged={load} />
       </div>
+
+      {deployStatus && (
+        <div className={`panel sync-progress sync-progress--${deployStatus.state === "success" ? "success" : deployStatus.state === "error" ? "error" : "running"}`}>
+          <div className="sync-progress__head">
+            <strong>
+              {deployStatus.state === "running"
+                ? "Загрузка мода"
+                : deployStatus.state === "success"
+                  ? "Мод добавлен"
+                  : "Ошибка загрузки"}
+            </strong>
+          </div>
+          <div className="sync-progress__meta">
+            <span>{deployStatus.phase}</span>
+            {deployStatus.version && <span>v{deployStatus.version}</span>}
+          </div>
+          {deployStatus.error && <div className="q-err">{deployStatus.error}</div>}
+        </div>
+      )}
 
       <div className="panel m-checks-panel">
         <div className="m-checks-head">

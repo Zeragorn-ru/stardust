@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Settings } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
-import { IconDownload, IconKey, IconSettings, IconTelegram } from "../ui/icons";
+import { IconKey, IconSettings, IconTelegram } from "../ui/icons";
 
 export function SettingsView() {
   const toast = useToast();
@@ -19,15 +19,6 @@ export function SettingsView() {
   const [sftpStatsPath, setSftpStatsPath] = useState("");
   const [savingPanel, setSavingPanel] = useState(false);
   const [syncingStats, setSyncingStats] = useState(false);
-
-  // Deploy mod
-  const [deploying, setDeploying] = useState(false);
-  const [deployStatus, setDeployStatus] = useState<{
-    state: string;
-    phase: string;
-    version: string | null;
-    error: string | null;
-  } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -135,45 +126,6 @@ export function SettingsView() {
       );
     } finally {
       setSyncingStats(false);
-    }
-  }
-
-  async function deployMod() {
-    const ok = await confirm({
-      title: "Обновить мод в сборке?",
-      body: "Будет скачан последний релиз mod-* из GitHub и добавлен в активную сборку. При следующей синхронизации мод попадёт на сервер.",
-      confirmText: "Обновить",
-    });
-    if (!ok) return;
-
-    setDeploying(true);
-    setDeployStatus(null);
-    try {
-      await api.deployMod();
-      // Poll status
-      const poll = setInterval(async () => {
-        try {
-          const s = await api.getDeployModStatus();
-          setDeployStatus(s);
-          if (s.state === "success" || s.state === "error") {
-            clearInterval(poll);
-            setDeploying(false);
-            if (s.state === "success") {
-              toast.success(`Мод ${s.version ?? "?"} добавлен в сборку. Синхронизируйте сервер.`);
-            } else {
-              toast.error(`Ошибка деплоя: ${s.error ?? "неизвестная ошибка"}`);
-            }
-          }
-        } catch {
-          clearInterval(poll);
-          setDeploying(false);
-        }
-      }, 2000);
-    } catch (err) {
-      setDeploying(false);
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось запустить деплой мода",
-      );
     }
   }
 
@@ -367,47 +319,8 @@ export function SettingsView() {
             href="/authlib-injector.jar"
             download="authlib-injector.jar"
           >
-            <IconDownload /> Скачать authlib-injector.jar
+            Скачать authlib-injector.jar
           </a>
-        </section>
-
-        <section className="panel settings-card">
-          <div className="settings-card-head">
-            <IconDownload />
-            <div>
-              <h2>Stardust Mod</h2>
-              <p className="muted">
-                Обновление серверного мода из последнего релиза GitHub (теги mod-v*).
-                Мод добавляется в активную сборку и попадает на сервер при синхронизации.
-              </p>
-            </div>
-          </div>
-
-          <div className="settings-status">
-            {deployStatus ? (
-              deployStatus.state === "success" ? (
-                <span className="badge admin">
-                  добавлен в сборку ({deployStatus.version ?? "?"})
-                </span>
-              ) : deployStatus.state === "error" ? (
-                <span className="badge danger">
-                  ошибка: {deployStatus.error ?? "неизвестная"}
-                </span>
-              ) : (
-                <span className="badge">
-                  <span className="spinner" /> {deployStatus.phase}
-                </span>
-              )
-            ) : (
-              <span className="muted">нет активного деплоя</span>
-            )}
-          </div>
-
-          <div className="modal-actions">
-            <button className="primary" disabled={deploying} onClick={deployMod}>
-              {deploying ? "Обновление…" : "Обновить мод на сервере"}
-            </button>
-          </div>
         </section>
       </div>
     </div>
