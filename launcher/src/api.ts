@@ -42,6 +42,7 @@ const FALLBACK_SETTINGS: Settings = {
   memoryMb: 4096,
   downloadConcurrency: 6,
   show3dModel: true,
+  proxyType: "builtin",
 };
 
 // Ключи для dev-фолбэка в браузере.

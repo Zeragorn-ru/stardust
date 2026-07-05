@@ -162,13 +162,11 @@ async fn main() {
         match allowed_origins {
             Some(origins) => {
                 tracing::info!("CORS: разрешённые origins: {:?}", origins);
-                let mut cors = CorsLayer::new();
-                for origin in &origins {
-                    if let Ok(o) = origin.parse() {
-                        cors = cors.allow_origin([o]);
-                    }
-                }
-                cors
+                let origins = origins
+                    .iter()
+                    .filter_map(|origin| origin.parse().ok())
+                    .collect::<Vec<_>>();
+                CorsLayer::new().allow_origin(origins)
             }
             None => {
                 tracing::warn!("CORS: allowed origins не заданы, разрешаем все (только для разработки!)");
@@ -250,7 +248,7 @@ async fn main() {
         .unwrap_or_else(|e| panic!("не удалось привязаться к {addr}: {e}"));
     tracing::info!("admin-server слушает на http://{addr}");
 
-    axum::serve(listener, app)
+    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("ошибка сервера");
