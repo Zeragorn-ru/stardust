@@ -210,6 +210,65 @@ final class StardustTabIntegration {
 
     // ─────────── Badge ───────────
 
+    static StardustHttpProvider getHttpProvider() {
+        return httpProvider;
+    }
+
+    static StardustBadgeConfig getLocalFallback() {
+        return localFallback;
+    }
+
+    /** Форматирует бейдж для имени игрока (для чат-уведомлений). */
+    static String resolveBadgeForName(String playerName) {
+        StardustHttpProvider http = httpProvider;
+        StardustBadgeConfig local = localFallback;
+        if (http == null) return "";
+
+        StardustHttpProvider.Assignment h = http.lookup(playerName);
+        StardustBadgeConfig.Assignment l = (h == null || http.isEmpty()) ? local.lookup(playerName) : null;
+
+        String badge = h != null ? h.badge() : l != null ? l.badge() : null;
+        if (badge == null || badge.isBlank()) return "";
+
+        String color = null;
+        if (h != null) {
+            if (h.badgeColor() != null && !h.badgeColor().isEmpty()) {
+                color = h.badgeColor();
+            } else if (h.gradientStart() != null && !h.gradientStart().isEmpty()) {
+                color = h.gradientStart();
+            }
+        }
+        if (color == null && l != null && l.nameColor() != null && !l.nameColor().isEmpty()) {
+            color = l.nameColor();
+        }
+
+        String stripped = stripVS16(badge);
+        if (color != null) {
+            return wrapHex(stripped, color) + "&r ";
+        }
+        return stripped + " ";
+    }
+
+    /** Форматирует имя игрока для чат-уведомлений (цвет или градиент). */
+    static String resolveNameForChat(String playerName) {
+        StardustHttpProvider http = httpProvider;
+        StardustBadgeConfig local = localFallback;
+        if (http == null) return playerName;
+
+        StardustHttpProvider.Assignment h = http.lookup(playerName);
+        StardustBadgeConfig.Assignment l = (h == null || http.isEmpty()) ? local.lookup(playerName) : null;
+
+        if (h != null && h.gradientStart() != null && !h.gradientStart().isEmpty()
+                && h.gradientEnd() != null && !h.gradientEnd().isEmpty()) {
+            return applyHexGradient(playerName, h.gradientStart(), h.gradientEnd());
+        } else if (h != null && h.nameColor() != null && !h.nameColor().isEmpty()) {
+            return wrapWithColor(playerName, h.nameColor());
+        } else if (l != null && l.nameColor() != null && !l.nameColor().isEmpty()) {
+            return wrapWithColor(playerName, l.nameColor());
+        }
+        return playerName;
+    }
+
     private static String resolveBadge(StardustHttpProvider http,
                                        StardustBadgeConfig local,
                                        TabPlayer player) {
