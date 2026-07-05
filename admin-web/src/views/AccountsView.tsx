@@ -3,7 +3,7 @@ import { api, ApiError } from "../api";
 import type { Account } from "../types";
 import { useToast } from "../ui/feedback";
 import { SkinHead } from "../ui/SkinHead";
-import { IconSearch } from "../ui/icons";
+import { IconSearch, IconSync } from "../ui/icons";
 import { PlayerCardModal } from "../ui/PlayerCardModal";
 
 function normalizeUuid(uuid: string): string {
@@ -17,6 +17,21 @@ export function AccountsView() {
   const [query, setQuery] = useState("");
   const [selfUuid, setSelfUuid] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  async function syncStats() {
+    setSyncing(true);
+    try {
+      const res = await api.syncStats();
+      toast.success(`Статистика обновлена: ${res.updated} игроков`);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Ошибка синхронизации",
+      );
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -67,17 +82,22 @@ export function AccountsView() {
         <div>
           <h1>Аккаунты</h1>
           <p className="muted">
-            {accounts.length} всего · {adminCount} админ(ов) · {bannedCount} в
-            бане
+            {accounts.length} всего · {adminCount} админ(ов) · {bannedCount} в бане
           </p>
         </div>
-        <div className="search">
-          <IconSearch />
-          <input
-            placeholder="Поиск по нику или UUID"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button className="secondary icon-btn" onClick={syncStats} disabled={syncing}>
+            <IconSync size={14} className={syncing ? "spin" : ""} />
+            {syncing ? "Синхронизация..." : "Синхр. статистики"}
+          </button>
+          <div className="search">
+            <IconSearch />
+            <input
+              placeholder="Поиск по нику или UUID"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
         </div>
       </header>
 

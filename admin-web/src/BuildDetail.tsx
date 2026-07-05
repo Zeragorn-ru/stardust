@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "./api";
 import type { SyncStatus } from "./api";
 import type {
@@ -11,7 +12,7 @@ import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
 import { useToast, useConfirm } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
-import { IconCheck, IconClose, IconCopy, IconDownload, IconStar, IconSync, IconPencil, IconChart } from "./ui/icons";
+import { IconCheck, IconClose, IconCopy, IconDownload, IconStar, IconSync, IconPencil, IconTrash } from "./ui/icons";
 import { CheckResults } from "./ui/CheckResults";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
@@ -128,18 +129,16 @@ function EditBuildModal({
 export function BuildDetail({
   buildId,
   onChanged,
-  onClone,
 }: {
   buildId: number;
   onChanged: () => void;
-  // Необязательный обработчик клонирования: если задан, в шапке появляется
-  // кнопка «Клонировать». Возвращает id созданной копии (для перехода).
-  onClone?: (buildId: number) => void | Promise<void>;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [busyClone, setBusyClone] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -232,13 +231,40 @@ export function BuildDetail({
     }
   }
 
-  async function syncStats() {
+  async function cloneBuild() {
+    if (!detail) return;
+    setBusyClone(true);
     try {
-      const res = await api.syncStats();
-      toast.success(`Статистика обновлена: ${res.updated} игроков`);
+      const res = await api.cloneBuild(buildId);
+      toast.success(`Создана копия «${detail.name}»`);
+      window.dispatchEvent(new Event("builds-updated"));
+      navigate(`/builds/${res.id}`);
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "Ошибка синхронизации",
+        err instanceof ApiError ? err.message : "Не удалось клонировать сборку",
+      );
+    } finally {
+      setBusyClone(false);
+    }
+  }
+
+  async function removeBuild() {
+    if (!detail) return;
+    const ok = await confirm({
+      title: `Удалить сборку «${detail.name}»?`,
+      body: "Будут удалены все её файлы из манифеста. Действие необратимо.",
+      confirmText: "Удалить",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deleteBuild(buildId);
+      toast.success("Сборка удалена");
+      window.dispatchEvent(new Event("builds-updated"));
+      navigate("/builds");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось удалить сборку",
       );
     }
   }
@@ -374,15 +400,14 @@ export function BuildDetail({
             <button className="secondary compact" onClick={() => setEditing(true)} title="Редактировать параметры сборки">
               <IconPencil size={14} /> Редактировать
             </button>
-            {onClone && (
-              <button
-                className="secondary compact"
-                onClick={() => onClone(buildId)}
-                title="Создать копию сборки со всеми файлами"
-              >
-                <IconCopy size={14} /> Клонировать
-              </button>
-            )}
+            <button
+              className="secondary compact"
+              disabled={busyClone}
+              onClick={cloneBuild}
+              title="Создать копию сборки со всеми файлами"
+            >
+              <IconCopy size={14} /> Клонировать
+            </button>
             <button
               className="secondary compact"
               disabled={syncing}
@@ -411,12 +436,11 @@ export function BuildDetail({
               {checkResults.loading ? "Проверка…" : "Проверить"}
             </button>
             <button
-              className="secondary compact"
-              onClick={syncStats}
-              title="Обновить статистику игроков на сервере"
+              className="danger compact"
+              onClick={removeBuild}
+              title="Удалить сборку"
             >
-              <IconChart size={14} />
-              Статистика
+              <IconTrash size={14} /> Удалить
             </button>
           </div>
         </div>

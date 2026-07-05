@@ -304,6 +304,66 @@ label {
     background: var(--accent);
 }
 
+/* --- Sidebar sub navigation for builds --- */
+.sidebar-sub-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-left: 12px;
+    margin-top: 2px;
+    margin-bottom: 8px;
+    border-left: 1px solid var(--border);
+    margin-left: 20px;
+}
+
+.sub-nav-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 8px;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    border-radius: var(--radius-sm);
+    min-width: 0;
+}
+
+.sub-nav-item:hover {
+    background: var(--panel-2);
+    color: var(--text);
+}
+
+.sub-nav-item.active {
+    background: var(--panel-3);
+    color: var(--text);
+    font-weight: 500;
+}
+
+.sub-nav-text {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sub-nav-star {
+    color: var(--warn);
+    flex-shrink: 0;
+}
+
+.sub-nav-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.sub-nav-add-btn:hover {
+    color: var(--accent-2);
+}
+
 .sidebar-foot {
     margin-top: auto;
     border-top: 1px solid var(--border);
@@ -447,6 +507,17 @@ label {
 }
 
 /* --- Builds master-detail --- */
+.builds-layout-compact {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+}
+
+.builds-main-full {
+    width: 100%;
+}
+
 .builds-layout {
     display: grid;
     grid-template-columns: 290px 1fr;

@@ -5,7 +5,8 @@
 // открытая сборка адресуется ссылкой `/builds/:id`. Слой данных (api/типы) и
 // проверенная логика управления файлами переиспользуются как есть.
 
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { FeedbackProvider } from "../ui/feedback";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { Login } from "../Login";
@@ -13,8 +14,10 @@ import { BuildsPage } from "./BuildsPage";
 import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
 import { CustomizationView } from "../views/CustomizationView";
-import { IconBox, IconLogout, IconSettings, IconSmartphone, IconUsers } from "../ui/icons";
+import { IconBox, IconLogout, IconSettings, IconSmartphone, IconUsers, IconStar, IconPlus } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
+import { api } from "../api";
+import type { BuildHeader } from "../types";
 
 export function DesktopApp() {
   return (
@@ -43,15 +46,25 @@ function Gate() {
   return <Shell />;
 }
 
-const NAV = [
-  { to: "/builds", label: "Сборки", icon: <IconBox /> },
-  { to: "/accounts", label: "Аккаунты", icon: <IconUsers /> },
-  { to: "/customization", label: "Кастомизация", icon: <span style={{ fontSize: 16 }}>🎨</span> },
-  { to: "/settings", label: "Настройки", icon: <IconSettings /> },
-];
-
 function Shell() {
   const { username, logout } = useAuth();
+  const location = useLocation();
+  const [builds, setBuilds] = useState<BuildHeader[]>([]);
+
+  const loadBuilds = useCallback(async () => {
+    try {
+      const list = await api.listBuilds();
+      setBuilds(list);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    loadBuilds();
+    window.addEventListener("builds-updated", loadBuilds);
+    return () => window.removeEventListener("builds-updated", loadBuilds);
+  }, [loadBuilds]);
+
+  const onBuildsRoute = location.pathname.startsWith("/builds");
 
   return (
     <div className="app">
@@ -61,17 +74,69 @@ function Shell() {
           StarDust
         </div>
         <nav className="nav">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                `nav-item${isActive ? " active" : ""}`
-              }
-            >
-              {item.icon} {item.label}
-            </NavLink>
-          ))}
+          <NavLink
+            to="/builds"
+            className={({ isActive }) =>
+              `nav-item${isActive ? " active" : ""}`
+            }
+          >
+            <IconBox /> Сборки
+          </NavLink>
+
+          {onBuildsRoute && (
+            <div className="sidebar-sub-nav">
+              {builds.map((b) => (
+                <NavLink
+                  key={b.id}
+                  to={`/builds/${b.id}`}
+                  className={({ isActive }) =>
+                    `sub-nav-item${isActive ? " active" : ""}`
+                  }
+                >
+                  <span className="sub-nav-text" title={b.name}>
+                    {b.name}
+                  </span>
+                  {b.isActive && (
+                    <IconStar size={10} className="sub-nav-star" />
+                  )}
+                </NavLink>
+              ))}
+              <NavLink
+                to="/builds/new"
+                className={({ isActive }) =>
+                  `sub-nav-item sub-nav-add-btn${isActive ? " active" : ""}`
+                }
+              >
+                <IconPlus size={12} />
+                <span>Создать</span>
+              </NavLink>
+            </div>
+          )}
+
+          <NavLink
+            to="/accounts"
+            className={({ isActive }) =>
+              `nav-item${isActive ? " active" : ""}`
+            }
+          >
+            <IconUsers /> Аккаунты
+          </NavLink>
+          <NavLink
+            to="/customization"
+            className={({ isActive }) =>
+              `nav-item${isActive ? " active" : ""}`
+            }
+          >
+            <span style={{ fontSize: 16 }}>🎨</span> Кастомизация
+          </NavLink>
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `nav-item${isActive ? " active" : ""}`
+            }
+          >
+            <IconSettings /> Настройки
+          </NavLink>
         </nav>
         <div className="sidebar-foot">
           {username && (
