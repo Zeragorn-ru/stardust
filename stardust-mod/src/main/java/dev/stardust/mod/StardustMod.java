@@ -38,7 +38,6 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(StardustSuperChallengeHealth::onAdvancementEarned);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
-        NeoForge.EVENT_BUS.addListener(this::onPlayerNameFormat);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
     }
 
@@ -72,27 +71,16 @@ public final class StardustMod {
         }
     }
 
-    private void onPlayerNameFormat(PlayerEvent.NameFormat event) {
-        if (event.getEntity() instanceof ServerPlayer player) {
-            String name = player.getGameProfile().getName();
-            String badge = StardustTabIntegration.resolveBadgeForName(name);
-            String coloredName = StardustTabIntegration.resolveNameForChat(name);
-            if ((badge != null && !badge.isEmpty()) || (coloredName != null && !coloredName.equals(name))) {
-                Component parsed = StardustChatNotifications.parseFormattedString(badge + coloredName);
-                if (parsed != null && !parsed.getString().isEmpty()) {
-                    event.setDisplayname(parsed);
-                }
-            }
-        }
-    }
-
     private void onServerChat(ServerChatEvent event) {
         ServerPlayer player = event.getPlayer();
-        Component displayName = player.getDisplayName();
+        String name = player.getGameProfile().getName();
+        String badge = StardustTabIntegration.resolveBadgeForName(name);
+        String coloredName = StardustTabIntegration.resolveNameForChat(name);
+        Component styled = StardustChatNotifications.parseFormattedString(badge + coloredName);
 
         MutableComponent newMessage = Component.empty()
                 .append(Component.literal("[").withStyle(ChatFormatting.GRAY))
-                .append(displayName)
+                .append(styled != null && !styled.getString().isEmpty() ? styled : Component.literal(name))
                 .append(Component.literal("] ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal(event.getRawText()));
 
