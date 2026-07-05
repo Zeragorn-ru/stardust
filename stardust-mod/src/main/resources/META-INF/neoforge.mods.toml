@@ -34,3 +34,5 @@ type = "optional"
 versionRange = "*"
 ordering = "AFTER"
 side = "SERVER"
+
+mixins = ["stardust.mixins.json"]

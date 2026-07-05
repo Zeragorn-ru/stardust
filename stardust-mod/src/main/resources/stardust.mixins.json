@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "dev.stardust.mod.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "refmap": "stardust.refmap.json",
+  "mixins": [],
+  "client": [
+    "ChatListenerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
