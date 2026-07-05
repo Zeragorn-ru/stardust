@@ -1813,18 +1813,43 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
         .map_err(internal)?
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
 
+    // 4.1 Сохраняем настройки стороны и т.д. из старого мода и удаляем его из сборки.
+    let mut old_side = "server".to_string();
+    let mut old_overwrite = true;
+    let mut old_optional = false;
+    let mut old_enabled_by_default = true;
+    let mut old_disabled = false;
+    let mut old_files_to_delete = Vec::new();
+
+    for f in &build.files {
+        let is_stardust_mod = f.mod_id.as_deref() == Some("stardust")
+            || (f.path.starts_with("mods/") && f.path.contains("stardust") && f.path.ends_with(".jar"));
+        if is_stardust_mod {
+            old_side = f.side.clone();
+            old_overwrite = f.overwrite;
+            old_optional = f.optional;
+            old_enabled_by_default = f.enabled_by_default;
+            old_disabled = f.disabled;
+            old_files_to_delete.push(f.id);
+        }
+    }
+
+    for file_id in old_files_to_delete {
+        state.store.delete_build_file(file_id).await.map_err(map_store)?;
+    }
+
     let file_path = format!("mods/{}", jar_asset.name);
 
     let file_input = store::BuildFileInput {
         path: file_path.clone(),
         sha1: sha1.clone(),
         size_bytes,
-        side: "server".to_string(),
+        side: old_side,
         kind: "mod".to_string(),
-        overwrite: true,
-        optional: false,
-        enabled_by_default: true,
-        disabled: false,
+        overwrite: old_overwrite,
+        optional: old_optional,
+        enabled_by_default: old_enabled_by_default,
+        disabled: old_disabled,
         mod_id: Some("stardust".to_string()),
         display_name: Some("Stardust Mod".to_string()),
         description: Some(format!("Stardust server mod {version}")),

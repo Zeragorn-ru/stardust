@@ -37,15 +37,16 @@ final class StardustTabIntegration {
     }
 
     static synchronized void tryBootstrap() {
-        try {
-            var configDir = FMLPaths.CONFIGDIR.get();
-            StardustServerConfig config = StardustServerConfig.load(configDir);
-            authUrl = config.authUrl();
-            refreshSecs = config.refreshIntervalSeconds();
-            debug = config.debug();
+        var configDir = FMLPaths.CONFIGDIR.get();
+        StardustServerConfig config = StardustServerConfig.load(configDir);
+        authUrl = config.authUrl();
+        refreshSecs = config.refreshIntervalSeconds();
+        debug = config.debug();
 
-            httpProvider = new StardustHttpProvider(authUrl, refreshSecs, debug);
-            httpProvider.setOnlinePlayersProvider(() -> {
+        // httpProvider работает всегда — и для TAB, и для чат-уведомлений, и в одиночке.
+        httpProvider = new StardustHttpProvider(authUrl, refreshSecs, debug);
+        httpProvider.setOnlinePlayersProvider(() -> {
+            try {
                 TabAPI a = TabAPI.getInstance();
                 if (a == null) return java.util.List.of();
                 TabPlayer[] players = a.getOnlinePlayers();
@@ -54,14 +55,20 @@ final class StardustTabIntegration {
                     if (p != null && p.getName() != null) names.add(p.getName());
                 }
                 return names;
-            });
-            httpProvider.start();
+            } catch (LinkageError e) {
+                return java.util.List.of();
+            }
+        });
+        httpProvider.start();
 
-            localFallback = StardustBadgeConfig.load(configDir);
+        localFallback = StardustBadgeConfig.load(configDir);
+        StardustMod.LOGGER.info("Stardust: httpProvider запущен (url={}, refresh={}s)", authUrl, refreshSecs);
+
+        // TAB-интеграция — опциональна.
+        try {
             registerTabLoadListener();
-
         } catch (LinkageError e) {
-            StardustMod.LOGGER.info("Stardust: TAB не найден, интеграция отключена.");
+            StardustMod.LOGGER.info("Stardust: TAB не найден, интеграция TAB отключена.");
         } catch (IllegalStateException e) {
             if (String.valueOf(e.getMessage()).contains("API instance is null")) {
                 StardustMod.LOGGER.info("Stardust: TAB API ещё не готов.");

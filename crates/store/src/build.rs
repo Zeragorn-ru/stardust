@@ -399,6 +399,15 @@ impl Store {
         }
         Ok(())
     }
+
+    pub async fn delete_build_files_by_mod_id(&self, build_id: i64, mod_id: &str) -> Result<u64, StoreError> {
+        let result = sqlx::query("DELETE FROM build_files WHERE build_id = $1 AND mod_id = $2")
+            .bind(build_id)
+            .bind(mod_id)
+            .execute(self.pool())
+            .await?;
+        Ok(result.rows_affected())
+    }
 }
 
 impl BuildRecord {
