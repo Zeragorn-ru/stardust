@@ -592,6 +592,39 @@ impl Store {
         }
     }
 
+fn ip_equal(ip1: &str, ip2: &str) -> bool {
+    let parse_ip = |s: &str| -> Option<std::net::IpAddr> {
+        if let Ok(ip) = s.parse::<std::net::IpAddr>() {
+            return Some(ip);
+        }
+        if let Ok(addr) = s.parse::<std::net::SocketAddr>() {
+            return Some(addr.ip());
+        }
+        if let Some(pos) = s.rfind(':') {
+            let part = &s[..pos];
+            let clean = part.trim_matches(|c| c == '[' || c == ']');
+            if let Ok(ip) = clean.parse::<std::net::IpAddr>() {
+                return Some(ip);
+            }
+        }
+        None
+    };
+
+    let parsed1 = parse_ip(ip1);
+    let parsed2 = parse_ip(ip2);
+
+    match (parsed1, parsed2) {
+        (Some(i1), Some(i2)) => {
+            if i1.is_loopback() && i2.is_loopback() {
+                true
+            } else {
+                i1 == i2
+            }
+        }
+        _ => ip1.trim() == ip2.trim(),
+    }
+}
+
     /// Проверяет 6-значный код сброса пароля, сопоставляет IP-адрес клиента и возвращает UUID аккаунта при успехе.
     pub async fn verify_reset_challenge(
         &self,
@@ -623,7 +656,12 @@ impl Store {
             return Err(StoreError::NotFound);
         }
 
-        if stored_ip.as_deref() != Some(client_ip) {
+        let ip_matched = match &stored_ip {
+            Some(stored) => Self::ip_equal(stored, client_ip),
+            None => true,
+        };
+
+        if !ip_matched {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)
                 .execute(&self.pool)

@@ -18,18 +18,13 @@ use crate::backend;
 use crate::minecraft;
 use crate::paths;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ProxyType {
     System,
+    #[default]
     Builtin,
     None,
-}
-
-impl Default for ProxyType {
-    fn default() -> Self {
-        ProxyType::Builtin
-    }
 }
 
 /// Настройки лаунчера, сохраняемые между запусками.
