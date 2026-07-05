@@ -453,8 +453,8 @@ async fn password_reset_start(
         .ok_or_else(unavailable)?;
     Ok(Json(LoginResult::TwoFactorRequired {
         challenge,
-        hint: Some("Подтвердите сброс пароля в Telegram".to_string()),
-        button_approval: true,
+        hint: Some("Введите код подтверждения из Telegram".to_string()),
+        button_approval: false,
     }))
 }
 

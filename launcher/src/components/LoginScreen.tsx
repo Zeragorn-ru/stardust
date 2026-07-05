@@ -8,7 +8,6 @@ import {
   passwordlessStatus,
   passwordResetConfirm,
   passwordResetStart,
-  passwordResetStatus,
   register,
 } from "../api";
 import PasswordInput from "./PasswordInput";
@@ -23,7 +22,7 @@ type Mode = "login" | "register";
 const POLL_INTERVAL_MS = 2000;
 
 /** Какой сценарий подтверждается кнопкой — влияет на эндпоинт опроса. */
-type ApprovalKind = "login2fa" | "passwordless" | "passwordReset";
+type ApprovalKind = "login2fa" | "passwordless";
 
 /** Состояние ожидания кода 2FA: challenge из ответа login + подсказка. */
 interface TwoFactorState {
@@ -154,7 +153,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     }
   }
 
-  /** Старт сброса пароля: по нику, подтверждается кнопкой в Telegram. */
+  /** Старт сброса пароля: по нику, бот отправляет код подтверждения. */
   async function handleResetStart() {
     if (!username.trim()) {
       setError("Введите логин для сброса пароля");
@@ -166,6 +165,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
       const result = await passwordResetStart(username.trim());
       if (result.status === "twoFactorRequired") {
         setResetChallenge(result.challenge);
+        setCode("");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -224,13 +224,9 @@ export default function LoginScreen({ onAuthenticated }: Props) {
       const active = approval!;
       let outcome: ChallengeOutcome;
       try {
-        if (active.kind === "login2fa") {
-          outcome = await login2faStatus(active.challenge);
-        } else if (active.kind === "passwordless") {
-          outcome = await passwordlessStatus(active.challenge);
-        } else {
-          outcome = await passwordResetStatus(active.challenge);
-        }
+        outcome = active.kind === "login2fa"
+          ? await login2faStatus(active.challenge)
+          : await passwordlessStatus(active.challenge);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : String(err));
@@ -243,11 +239,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         case "pending":
           break;
         case "approved":
-          if (active.kind === "passwordReset") {
-            // Подтверждено: переходим к вводу нового пароля.
-            setApproval(null);
-            setResetChallenge(active.challenge);
-          } else if (outcome.profile) {
+          if (outcome.profile) {
             setApproval(null);
             onAuthRef.current(outcome.profile);
           }
@@ -276,14 +268,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
 
   // Экран ожидания кнопочного подтверждения в Telegram.
   if (approval) {
-    const title =
-      approval.kind === "passwordReset"
-        ? "Подтвердите сброс пароля"
-        : "Подтвердите вход";
-    // Для входа (2FA/без пароля) код подтверждения можно ввести вручную —
-    // это альтернатива кнопке «Это я». При сбросе пароля сессия не выдаётся,
-    // поэтому ручной ввод кода здесь не предлагаем.
-    const allowManualCode = approval.kind !== "passwordReset";
+    const title = "Подтвердите вход";
     return (
       <div className="login">
         <div className="login__brand">
@@ -295,29 +280,27 @@ export default function LoginScreen({ onAuthenticated }: Props) {
 
         <div className="login__approval">
           <p className="login__approval-waiting">{title}: ожидаем ответ из Telegram…</p>
-          {allowManualCode && (
-            <form className="login__form" onSubmit={handleVerify}>
-              <label className="field">
-                <span>Или введите код из Telegram</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="123456"
-                  disabled={busy}
-                />
-              </label>
-              <button
-                className="btn btn--primary"
-                type="submit"
-                disabled={busy || !code.trim()}
-              >
-                {busy ? "Проверка…" : "Подтвердить кодом"}
-              </button>
-            </form>
-          )}
+          <form className="login__form" onSubmit={handleVerify}>
+            <label className="field">
+              <span>Или введите код из Telegram</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="123456"
+                disabled={busy}
+              />
+            </label>
+            <button
+              className="btn btn--primary"
+              type="submit"
+              disabled={busy || !code.trim()}
+            >
+              {busy ? "Проверка…" : "Подтвердить кодом"}
+            </button>
+          </form>
           {error && <div className="alert alert--error">{error}</div>}
           <button
             className="btn btn--ghost"

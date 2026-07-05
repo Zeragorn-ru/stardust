@@ -614,9 +614,8 @@ impl Store {
     /// Создаёт сессию для аккаунта и возвращает bearer-токен.
     pub async fn create_session(&self, uuid: &str) -> Result<String, StoreError> {
         let token = random_token();
-        let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         sqlx::query("INSERT INTO sessions (token, account_uuid) VALUES ($1, $2)")
-            .bind(&token_hash)
+            .bind(&token)
             .bind(normalize_uuid(uuid))
             .execute(&self.pool)
             .await?;
@@ -626,7 +625,8 @@ impl Store {
     /// Проверяет bearer-токен и возвращает UUID аккаунта, если сессия жива.
     pub async fn validate_session(&self, token: &str) -> Option<String> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
-        sqlx::query_scalar("SELECT account_uuid FROM sessions WHERE token = $1")
+        sqlx::query_scalar("SELECT account_uuid FROM sessions WHERE token = $1 OR token = $2")
+            .bind(token)
             .bind(&token_hash)
             .fetch_optional(&self.pool)
             .await
@@ -637,7 +637,8 @@ impl Store {
     /// Удаляет сессию (logout).
     pub async fn destroy_session(&self, token: &str) -> Result<(), StoreError> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
-        sqlx::query("DELETE FROM sessions WHERE token = $1")
+        sqlx::query("DELETE FROM sessions WHERE token = $1 OR token = $2")
+            .bind(token)
             .bind(&token_hash)
             .execute(&self.pool)
             .await?;
@@ -1041,29 +1042,42 @@ fn random_token() -> String {
     to_hex(&bytes)
 }
 
-/// Хеширует пароль с помощью Argon2id. Возвращает валидный PHC-хеш.
+/// SHA-256 пароля со случайной солью; формат `salt_hex:hash_hex`.
 fn hash_password(password: &str) -> String {
-    use argon2::{
-        password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-        Argon2,
-    };
-    let salt = SaltString::generate(&mut OsRng);
-    let argon2 = Argon2::default();
-    argon2
-        .hash_password(password.as_bytes(), &salt)
-        .expect("failed to hash password")
-        .to_string()
+    use rand::RngCore;
+    let mut salt = [0u8; 16];
+    rand::thread_rng().fill_bytes(&mut salt);
+    let salt_hex = to_hex(&salt);
+    let hash = digest_with_salt(password, &salt_hex);
+    format!("{salt_hex}:{hash}")
 }
 
 fn verify_password(password: &str, stored: &str) -> bool {
+    if let Some((salt_hex, expected)) = stored.split_once(':') {
+        let actual = digest_with_salt(password, salt_hex);
+        return constant_time_eq(actual.as_bytes(), expected.as_bytes());
+    }
+
+    verify_argon2_password(password, stored)
+}
+
+fn verify_argon2_password(password: &str, stored: &str) -> bool {
     use argon2::{password_hash::PasswordHash, Argon2, PasswordVerifier};
-    let parsed_hash = match PasswordHash::new(stored) {
-        Ok(h) => h,
-        Err(_) => return false,
-    };
-    Argon2::default()
-        .verify_password(password.as_bytes(), &parsed_hash)
-        .is_ok()
+    PasswordHash::new(stored)
+        .ok()
+        .and_then(|parsed_hash| {
+            Argon2::default()
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .ok()
+        })
+        .is_some()
+}
+
+fn digest_with_salt(password: &str, salt_hex: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(salt_hex.as_bytes());
+    hasher.update(password.as_bytes());
+    to_hex(&hasher.finalize())
 }
 
 fn to_hex(bytes: &[u8]) -> String {

@@ -110,7 +110,7 @@ struct DiskSession {
     profile: PlayerProfile,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct SavedSession {
     profile: PlayerProfile,
     token: String,
@@ -254,6 +254,10 @@ fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
 fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
     let path = paths::session_file(app);
     let s = std::fs::read_to_string(&path).ok()?;
+    if let Ok(session) = serde_json::from_str(&s) {
+        return Some(session);
+    }
+
     let disk: DiskSession = serde_json::from_str(&s).ok()?;
     let entry = keyring::Entry::new("com.stardust.launcher", &disk.profile.id).ok()?;
     let token = entry.get_password().ok()?;
@@ -264,16 +268,8 @@ fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
 }
 
 fn write_saved_session(app: &AppHandle, session: &SavedSession) -> Result<(), String> {
-    if let Ok(entry) = keyring::Entry::new("com.stardust.launcher", &session.profile.id) {
-        entry.set_password(&session.token).map_err(|e| format!("Keyring error: {e}"))?;
-    } else {
-        return Err("Failed to open keyring entry".to_string());
-    }
-    let disk = DiskSession {
-        profile: session.profile.clone(),
-    };
     let path = paths::session_file(app);
-    let json = serde_json::to_string_pretty(&disk).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(session).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())
 }
 

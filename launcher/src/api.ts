@@ -172,7 +172,7 @@ export async function passwordlessStatus(
   return invoke<ChallengeOutcome>("passwordless_status", { challenge });
 }
 
-/** Запуск сброса пароля по нику: подтверждается кнопкой в Telegram. */
+/** Запуск сброса пароля по нику: бот присылает код подтверждения. */
 export async function passwordResetStart(
   username: string,
 ): Promise<LoginOutcome> {
@@ -183,8 +183,8 @@ export async function passwordResetStart(
     return {
       status: "twoFactorRequired",
       challenge: "dev-challenge",
-      hint: "Подтвердите сброс пароля в Telegram",
-      buttonApproval: true,
+      hint: "Введите код подтверждения из Telegram",
+      buttonApproval: false,
     };
   }
   return invoke<LoginOutcome>("password_reset_start", { username });
