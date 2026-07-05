@@ -1,4 +1,5 @@
 import type { Badge, Gradient } from "../types";
+import { getBadgeIcon } from "../badge-icons";
 
 interface Props {
   name: string;
@@ -16,11 +17,20 @@ export default function MinecraftNickname({ name, badge, gradient, className }: 
       }
     : undefined;
 
+  const badgeSvg = badge ? getBadgeIcon(badge.emoji) : null;
+
   return (
     <span className={"minecraft-nick" + (className ? ` ${className}` : "")}>
       {badge && (
         <span className="minecraft-nick__badge" style={{ color: badge.color }}>
-          {badge.emoji}
+          {badgeSvg ? (
+            <span
+              className="minecraft-nick__badge-icon"
+              dangerouslySetInnerHTML={{ __html: badgeSvg }}
+            />
+          ) : (
+            badge.emoji
+          )}
         </span>
       )}
       <span className="minecraft-nick__name-wrap">
