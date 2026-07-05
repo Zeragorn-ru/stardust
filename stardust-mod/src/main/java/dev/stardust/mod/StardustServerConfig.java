@@ -17,10 +17,12 @@ public final class StardustServerConfig {
 
     private final String authUrl;
     private final int refreshIntervalSeconds;
+    private final boolean debug;
 
-    private StardustServerConfig(String authUrl, int refreshIntervalSeconds) {
+    private StardustServerConfig(String authUrl, int refreshIntervalSeconds, boolean debug) {
         this.authUrl = authUrl;
         this.refreshIntervalSeconds = refreshIntervalSeconds;
+        this.debug = debug;
     }
 
     public String authUrl() {
@@ -29,6 +31,10 @@ public final class StardustServerConfig {
 
     public int refreshIntervalSeconds() {
         return refreshIntervalSeconds;
+    }
+
+    public boolean debug() {
+        return debug;
     }
 
     public static StardustServerConfig load(Path configDir) {
@@ -61,13 +67,21 @@ public final class StardustServerConfig {
                 String.valueOf(DEFAULT_REFRESH_SECONDS)
         ));
 
-        return new StardustServerConfig(authUrl, refresh);
+        boolean debug = parseBoolean(firstNonBlank(
+                System.getProperty("stardust.debug"),
+                System.getenv("STARDUST_DEBUG"),
+                props.getProperty("stardust.debug"),
+                "false"
+        ));
+
+        return new StardustServerConfig(authUrl, refresh, debug);
     }
 
     private static void writeDefault(Path file) throws IOException {
         Properties props = new Properties();
         props.setProperty("stardust.auth-url", DEFAULT_AUTH_URL);
         props.setProperty("stardust.refresh-interval-seconds", String.valueOf(DEFAULT_REFRESH_SECONDS));
+        props.setProperty("stardust.debug", "false");
         try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
             props.store(writer, "Stardust server config");
         }
@@ -89,5 +103,9 @@ public final class StardustServerConfig {
         } catch (Exception e) {
             return DEFAULT_REFRESH_SECONDS;
         }
+    }
+
+    private static boolean parseBoolean(String raw) {
+        return "true".equalsIgnoreCase(raw.trim()) || "1".equals(raw.trim());
     }
 }

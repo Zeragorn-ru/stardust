@@ -5,6 +5,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,10 +30,24 @@ public final class StardustMod {
         // действительно присутствует в classpath/среде выполнения.
         if (FMLEnvironment.dist.isDedicatedServer()) {
             NeoForge.EVENT_BUS.addListener(this::onServerStarted);
+            NeoForge.EVENT_BUS.addListener(this::onCommandsRegister);
         }
     }
 
     private void onServerStarted(ServerStartedEvent event) {
         StardustTabIntegration.tryBootstrap();
+    }
+
+    private void onCommandsRegister(RegisterCommandsEvent event) {
+        event.getDispatcher().register(
+            net.minecraft.commands.Commands.literal("stardust")
+                .then(net.minecraft.commands.Commands.literal("refresh")
+                    .executes(ctx -> {
+                        StardustTabIntegration.refreshNow();
+                        ctx.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("§aStardust: кеш кастомизации обновлён."), true);
+                        return 1;
+                    })
+                )
+        );
     }
 }

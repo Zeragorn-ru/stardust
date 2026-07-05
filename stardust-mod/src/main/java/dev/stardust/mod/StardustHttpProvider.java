@@ -20,19 +20,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * HTTP-провайдер кастомизации ника для серверного мода Stardust.
  *
  * <p>Периодически запрашивает {@code GET /api/server/customization?players=...}
- * у auth-server и кеширует результат. Используется интеграцией с TAB для
- * выставления бейджа (tab-префикс) и цветного градиента ника.</p>
- *
- * <p>Конфигурация (в {@code server.properties} или через env):
- * <ul>
- *   <li>{@code stardust.auth-url} — базовый URL auth-server (без слэша на конце)</li>
- *   <li>{@code stardust.refresh-interval-seconds} — интервал обновления (по умолчанию 60)</li>
- * </ul>
+ * у auth-server и кеширует результат. Обновляет только онлайн-игроков.</p>
  */
 public final class StardustHttpProvider {
 
@@ -46,15 +40,18 @@ public final class StardustHttpProvider {
 
     private final String authUrl;
     private final int refreshIntervalSeconds;
+    private final boolean debug;
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
     private final Set<String> knownNames = ConcurrentHashMap.newKeySet();
+    private volatile Supplier<Collection<String>> onlinePlayersProvider;
     private volatile boolean running = false;
 
-    public StardustHttpProvider(String authUrl, int refreshIntervalSeconds) {
+    public StardustHttpProvider(String authUrl, int refreshIntervalSeconds, boolean debug) {
         this.authUrl = authUrl.endsWith("/") ? authUrl.substring(0, authUrl.length() - 1) : authUrl;
         this.refreshIntervalSeconds = Math.max(10, refreshIntervalSeconds);
+        this.debug = debug;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_TIMEOUT)
                 .build();
@@ -65,61 +62,63 @@ public final class StardustHttpProvider {
         });
     }
 
-    /**
-     * Запускает фоновое обновление кеша.
-     * Вызывается при старте сервера (или при загрузке TAB).
-     */
+    /** Устанавливает провайдер онлайн-игроков (вызывается из TAB интеграции). */
+    public void setOnlinePlayersProvider(Supplier<Collection<String>> provider) {
+        this.onlinePlayersProvider = provider;
+    }
+
     public void start() {
         if (running) return;
         running = true;
-        scheduler.scheduleAtFixedRate(this::refreshKnownNames, refreshIntervalSeconds, refreshIntervalSeconds, TimeUnit.SECONDS);
-        StardustMod.LOGGER.info("Stardust HTTP provider запущен (url={}, refresh={}s)", authUrl, refreshIntervalSeconds);
+        scheduler.scheduleAtFixedRate(this::refreshOnline, refreshIntervalSeconds, refreshIntervalSeconds, TimeUnit.SECONDS);
+        StardustMod.LOGGER.info("Stardust HTTP provider запущен (url={}, refresh={}s, debug={})", authUrl, refreshIntervalSeconds, debug);
     }
 
-    /** Останавливает фоновое обновление. */
     public void stop() {
         running = false;
         scheduler.shutdownNow();
     }
 
-    /** Возвращает назначение для ника без учёта регистра, либо {@code null}. */
     public Assignment lookup(String playerName) {
-        if (playerName == null) {
-            StardustMod.LOGGER.info("Stardust lookup: playerName=null");
-            return null;
-        }
+        if (playerName == null) return null;
         String key = playerName.toLowerCase(Locale.ROOT);
         knownNames.add(playerName);
         Assignment cached = cache.get(key);
-        if (cached != null) {
-            StardustMod.LOGGER.info("Stardust lookup: {} → кеш={}", playerName, cached);
-            return cached;
-        }
+        if (cached != null) return cached;
 
-        // Первый вход игрока: синхронно подтягиваем только его, чтобы TAB сразу
-        // получил актуальный бейдж. Дальше значение обновляет фоновый refresh.
-        StardustMod.LOGGER.info("Stardust lookup: {} → кеш пустой, синхронный fetch", playerName);
+        // Первый вход: синхронный fetch только этого игрока
+        if (debug) StardustMod.LOGGER.info("Stardust lookup: {} → кеш пустой, fetch", playerName);
         fetchPlayers(Set.of(playerName));
-        Assignment result = cache.get(key);
-        StardustMod.LOGGER.info("Stardust lookup: {} → после fetch={}", playerName, result);
-        return result;
+        return cache.get(key);
     }
 
     public boolean isEmpty() {
         return cache.isEmpty();
     }
 
-    public int size() {
-        return cache.size();
+    /**
+     * Принудительно очищает кеш и перезапрашивает данные для всех известных онлайн-игроков.
+     * Вызывается командой /stardust refresh.
+     */
+    public void refreshNow() {
+        cache.clear();
+        Supplier<Collection<String>> provider = this.onlinePlayersProvider;
+        if (provider == null) return;
+        Collection<String> online = provider.get();
+        if (online == null || online.isEmpty()) return;
+        fetchPlayers(online);
     }
 
-    /** Обновляет кеш известных игроков. */
-    private void refreshKnownNames() {
-        if (knownNames.isEmpty()) return;
-        fetchPlayers(new HashSet<>(knownNames));
+    /** Обновляет кеш только для онлайн-игроков. */
+    private void refreshOnline() {
+        Supplier<Collection<String>> provider = this.onlinePlayersProvider;
+        if (provider == null) return;
+        Collection<String> online = provider.get();
+        if (online == null || online.isEmpty()) return;
+        fetchPlayers(online);
     }
 
-    /** Запрашивает кастомизацию конкретного набора игроков у auth-server. */
+    /** Запрашивает кастомизацию у auth-server. */
     private void fetchPlayers(Collection<String> names) {
         if (names.isEmpty()) return;
         try {
@@ -132,7 +131,7 @@ public final class StardustHttpProvider {
             if (players.isEmpty()) return;
 
             String url = authUrl + "/api/server/customization?players=" + players;
-            StardustMod.LOGGER.info("Stardust HTTP provider: запрос {} → {}", names, url);
+            if (debug) StardustMod.LOGGER.info("Stardust HTTP: → {}", url);
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
                     .timeout(HTTP_TIMEOUT)
@@ -140,9 +139,8 @@ public final class StardustHttpProvider {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            StardustMod.LOGGER.info("Stardust HTTP provider: ответ {} (body length={})", response.statusCode(), response.body() != null ? response.body().length() : 0);
             if (response.statusCode() != 200) {
-                StardustMod.LOGGER.warn("Stardust HTTP provider: auth-server вернул {} — {}", response.statusCode(), response.body());
+                StardustMod.LOGGER.warn("Stardust HTTP: auth-server {}", response.statusCode());
                 return;
             }
 
@@ -152,12 +150,11 @@ public final class StardustHttpProvider {
             );
 
             if (raw != null) {
-                StardustMod.LOGGER.info("Stardust HTTP provider: получено {} записей из auth-server", raw.size());
                 for (Map.Entry<String, ServerResponse> entry : raw.entrySet()) {
                     String name = entry.getKey();
                     ServerResponse sr = entry.getValue();
-                    StardustMod.LOGGER.info("Stardust HTTP provider: {} → badge={}, badgeColor={}, nameColor={}, gradient={}→{}",
-                            name, sr.badge, sr.badge_color, sr.name_color, sr.gradient_start, sr.gradient_end);
+                    if (debug) StardustMod.LOGGER.info("Stardust HTTP: {} → badge={}, color={}, gradient={}→{}",
+                            name, sr.badge, sr.name_color, sr.gradient_start, sr.gradient_end);
                     cache.put(name.toLowerCase(Locale.ROOT), new Assignment(
                             sr.badge,
                             sr.badge_color,
@@ -166,19 +163,16 @@ public final class StardustHttpProvider {
                             sr.gradient_end
                     ));
                 }
-            } else {
-                StardustMod.LOGGER.warn("Stardust HTTP provider: auth-server вернул null (body={})", response.body());
             }
-            StardustMod.LOGGER.info("Stardust HTTP provider: обновлено {} игроков, кеш={}", names.size(), cache.size());
+            if (debug) StardustMod.LOGGER.info("Stardust HTTP: обновлено {}, кеш={}", names.size(), cache.size());
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
-            StardustMod.LOGGER.warn("Stardust HTTP provider: ошибка обновления ({})", e.toString());
+            StardustMod.LOGGER.warn("Stardust HTTP: ошибка ({})", e.toString());
         } catch (Exception e) {
-            StardustMod.LOGGER.warn("Stardust HTTP provider: неожиданная ошибка", e);
+            StardustMod.LOGGER.warn("Stardust HTTP: ошибка", e);
         }
     }
 
-    /** Внутренний DTO для десериализации ответа auth-server. */
     private static class ServerResponse {
         String badge;
         String badge_color;
