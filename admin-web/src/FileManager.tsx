@@ -30,6 +30,7 @@ import {
   IconPencil,
   IconPlus,
   IconSearch,
+  IconSettings,
   IconTrash,
 } from "./ui/icons";
 
@@ -973,11 +974,11 @@ function FileRow({
           </button>
         )}
         <button
-          className={`link-btn${active ? " active" : ""}`}
+          className={`icon-only fm-props-btn${active ? " active" : ""}`}
           title="Свойства файла"
           onClick={onEditProps}
         >
-          свойства
+          <IconSettings size={15} />
         </button>
         <a
           className="icon-only"
@@ -999,9 +1000,8 @@ function FileRow({
   );
 }
 
-// Выезжающая сбоку панель свойств файла. Раньше это был ряд контролов прямо
-// внутри строки файла, но по ширине он не помещался даже на ПК. Теперь
-// настройки (сторона, тип, опциональность и т.д.) разложены вертикально.
+// Модальное окно свойств файла: настройки разложены вертикально, чтобы не
+// ломать строку файла и не уезжать вбок на узких экранах.
 function FileSettingsDrawer({
   file,
   onClose,
@@ -1075,15 +1075,19 @@ function FileSettingsDrawer({
   return (
     <div className="fm-drawer-backdrop" onClick={onClose}>
       <aside
-        className="fm-drawer"
+        className="fm-drawer fm-properties-sheet"
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
         <header className="fm-drawer-head">
-          <div className="fm-drawer-title">
-            <span className="fm-drawer-eyebrow muted">Свойства файла</span>
-            <strong title={file.path}>{baseName(file.path)}</strong>
+          <div className="fm-drawer-title fm-properties-title">
+            <span className="fm-file-avatar"><IconFile size={18} /></span>
+            <div>
+              <span className="fm-drawer-eyebrow muted">Свойства файла</span>
+              <strong title={file.path}>{baseName(file.path)}</strong>
+              <small className="muted" title={file.path}>{file.path}</small>
+            </div>
           </div>
           <button className="icon-only" title="Закрыть" onClick={onClose}>
             <IconClose size={16} />
@@ -1091,117 +1095,138 @@ function FileSettingsDrawer({
         </header>
 
         <div className="fm-drawer-body">
-          <div className="fm-drawer-field">
-            <span className="fm-edit-label muted">Сторона</span>
-            <div className="seg">
-              {SIDES.map((s) => (
-                <button
-                  key={s}
-                  className={`seg-btn${side === s ? " active" : ""}`}
-                  onClick={() => setSide(s)}
-                >
-                  {sideLabel(s)}
-                </button>
-              ))}
+          <section className="fm-properties-section">
+            <div className="fm-properties-section-head">
+              <strong>Доставка</strong>
+              <span className="muted">куда и как отдавать файл</span>
             </div>
-          </div>
 
-          <div className="fm-drawer-field">
-            <span className="fm-edit-label muted">Тип</span>
-            <div className="seg">
-              {KINDS.map((k) => (
-                <button
-                  key={k}
-                  className={`seg-btn${kind === k ? " active" : ""}`}
-                  onClick={() => setKind(k)}
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <label className="fm-edit-check">
-            <input
-              type="checkbox"
-              checked={optional}
-              onChange={(e) => {
-                const v = e.target.checked;
-                setOptional(v);
-                // Подставляем modId из имени файла при включении, если пусто.
-                if (v && !modId.trim()) setModId(slugifyModId(file.path));
-              }}
-            />
-            <span>Опциональный</span>
-          </label>
-
-          <label className="fm-edit-check">
-            <input
-              type="checkbox"
-              checked={disabled}
-              onChange={(e) => setDisabled(e.target.checked)}
-            />
-            <span>Отключён (не отдаётся клиенту)</span>
-          </label>
-
-          <label
-            className={`fm-edit-check${optional ? "" : " disabled"}`}
-            title={optional ? "" : "Только для опциональных"}
-          >
-            <input
-              type="checkbox"
-              checked={enabledByDefault}
-              disabled={!optional}
-              onChange={(e) => setEnabledByDefault(e.target.checked)}
-            />
-            <span>Вкл. по умолчанию</span>
-          </label>
-
-          {optional && (
             <div className="fm-drawer-field">
-              <span
-                className="fm-edit-label muted"
-                title="Стабильный идентификатор мода. По нему лаунчер запоминает выбор игрока — выбор не сбросится при обновлении/переименовании файла. Обычно modid или slug."
-              >
-                modId
-              </span>
+              <span className="fm-edit-label muted">Сторона</span>
+              <div className="seg">
+                {SIDES.map((s) => (
+                  <button
+                    key={s}
+                    className={`seg-btn${side === s ? " active" : ""}`}
+                    onClick={() => setSide(s)}
+                  >
+                    {sideLabel(s)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="fm-drawer-field">
+              <span className="fm-edit-label muted">Тип</span>
+              <div className="seg">
+                {KINDS.map((k) => (
+                  <button
+                    key={k}
+                    className={`seg-btn${kind === k ? " active" : ""}`}
+                    onClick={() => setKind(k)}
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <label className="fm-edit-check">
+              <input
+                type="checkbox"
+                checked={overwrite}
+                onChange={(e) => setOverwrite(e.target.checked)}
+              />
+              <span>Перезаписывать</span>
+            </label>
+          </section>
+
+          <section className="fm-properties-section">
+            <div className="fm-properties-section-head">
+              <strong>Опциональность</strong>
+              <span className="muted">выбор игрока в лаунчере</span>
+            </div>
+
+            <label className="fm-edit-check">
+              <input
+                type="checkbox"
+                checked={optional}
+                onChange={(e) => {
+                  const v = e.target.checked;
+                  setOptional(v);
+                  // Подставляем modId из имени файла при включении, если пусто.
+                  if (v && !modId.trim()) setModId(slugifyModId(file.path));
+                }}
+              />
+              <span>Опциональный</span>
+            </label>
+
+            <label
+              className={`fm-edit-check${optional ? "" : " disabled"}`}
+              title={optional ? "" : "Только для опциональных"}
+            >
+              <input
+                type="checkbox"
+                checked={enabledByDefault}
+                disabled={!optional}
+                onChange={(e) => setEnabledByDefault(e.target.checked)}
+              />
+              <span>Вкл. по умолчанию</span>
+            </label>
+
+            {optional && (
+              <div className="fm-drawer-field">
+                <span
+                  className="fm-edit-label muted"
+                  title="Стабильный идентификатор мода. По нему лаунчер запоминает выбор игрока — выбор не сбросится при обновлении/переименовании файла. Обычно modid или slug."
+                >
+                  modId
+                </span>
+                <input
+                  className="fm-edit-input"
+                  placeholder="напр. sodium"
+                  value={modId}
+                  onChange={(e) => setModId(e.target.value)}
+                />
+              </div>
+            )}
+          </section>
+
+          <section className="fm-properties-section">
+            <div className="fm-properties-section-head">
+              <strong>Витрина</strong>
+              <span className="muted">название и описание для клиента</span>
+            </div>
+
+            <label className="fm-edit-check">
+              <input
+                type="checkbox"
+                checked={disabled}
+                onChange={(e) => setDisabled(e.target.checked)}
+              />
+              <span>Отключён (не отдаётся клиенту)</span>
+            </label>
+
+            <div className="fm-drawer-field">
+              <span className="fm-edit-label muted">Имя</span>
               <input
                 className="fm-edit-input"
-                placeholder="напр. sodium"
-                value={modId}
-                onChange={(e) => setModId(e.target.value)}
+                placeholder="Отображаемое имя"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
               />
             </div>
-          )}
 
-          <label className="fm-edit-check">
-            <input
-              type="checkbox"
-              checked={overwrite}
-              onChange={(e) => setOverwrite(e.target.checked)}
-            />
-            <span>Перезаписывать</span>
-          </label>
-
-          <div className="fm-drawer-field">
-            <span className="fm-edit-label muted">Имя</span>
-            <input
-              className="fm-edit-input"
-              placeholder="Отображаемое имя"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </div>
-
-          <div className="fm-drawer-field">
-            <span className="fm-edit-label muted">Описание</span>
-            <input
-              className="fm-edit-input"
-              placeholder="Короткое описание"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
+            <div className="fm-drawer-field">
+              <span className="fm-edit-label muted">Описание</span>
+              <input
+                className="fm-edit-input"
+                placeholder="Короткое описание"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+          </section>
         </div>
 
         <footer className="fm-drawer-foot">
