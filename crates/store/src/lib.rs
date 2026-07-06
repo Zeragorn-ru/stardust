@@ -17,11 +17,11 @@ fn strip_vs16(s: &str) -> String {
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
-use protocol::{Badge, Gradient, PlayerProfile, SkinModel};
+use protocol::{Badge, BanInfo, Gradient, PlayerProfile, SkinModel};
 use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
-use time::OffsetDateTime;
+use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 mod build;
 mod telegram;
@@ -159,7 +159,21 @@ impl Account {
             name: self.username.clone(),
             active_badge: None,
             active_gradient: None,
+            ban: self.active_ban_info(),
         }
+    }
+
+    fn active_ban_info(&self) -> Option<BanInfo> {
+        let ban = self.ban.as_ref()?;
+        if ban.is_expired(OffsetDateTime::now_utc()) {
+            return None;
+        }
+        Some(BanInfo {
+            banned_until: ban
+                .until
+                .map(|until| until.format(&Rfc3339).unwrap_or_else(|_| until.to_string())),
+            reason: ban.reason.clone(),
+        })
     }
 
     pub fn is_admin(&self) -> bool {
@@ -293,6 +307,7 @@ impl Store {
             name: username.to_string(),
             active_badge: None,
             active_gradient: None,
+            ban: None,
         })
     }
 
@@ -379,6 +394,7 @@ impl Store {
             name: new_username.to_string(),
             active_badge: None,
             active_gradient: None,
+            ban: None,
         })
     }
 
@@ -458,8 +474,9 @@ impl Store {
         Ok(())
     }
 
-    /// Блокирует аккаунт. `until = None` — бан навсегда; иначе временный бан
-    /// до указанного момента. Сессии аккаунта удаляются, чтобы выкинуть его.
+    /// Блокирует аккаунт для входа на Minecraft-сервер. `until = None` — бан
+    /// навсегда; иначе временный бан до указанного момента. Сессии лаунчера
+    /// сохраняются, чтобы игрок видел причину и срок бана.
     pub async fn ban_account(
         &self,
         uuid: &str,
@@ -479,11 +496,6 @@ impl Store {
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
-        // Активные сессии забаненного больше не должны работать.
-        sqlx::query("DELETE FROM sessions WHERE account_uuid = $1")
-            .bind(&uuid)
-            .execute(&self.pool)
-            .await?;
         Ok(())
     }
 

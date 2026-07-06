@@ -149,6 +149,20 @@ pub struct PlayerProfile {
     /// Активный градиент (раскраска ника), если выбран.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_gradient: Option<Gradient>,
+    /// Активная блокировка входа на Minecraft-сервер. Лаунчер всё ещё доступен.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ban: Option<BanInfo>,
+}
+
+/// Информация об активном бане, которую можно показать игроку в лаунчере.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BanInfo {
+    /// `None` — бан навсегда.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banned_until: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// Бейдж — эмодзи-префикс перед ником в TAB.
@@ -220,6 +234,7 @@ pub struct AuthResponse {
 /// `ok` сразу (2FA неприменима).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum LoginResult {
     /// Вход завершён, выдана сессия.
     Ok(AuthResponse),
@@ -374,6 +389,9 @@ pub struct AccountInfo {
     /// Имеет ли аккаунт права администратора.
     #[serde(rename = "isAdmin")]
     pub is_admin: bool,
+    /// Активный бан на подключение к Minecraft-серверу.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ban: Option<BanInfo>,
 }
 
 /// Запрос смены ника.

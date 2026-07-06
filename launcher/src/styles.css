@@ -1395,6 +1395,38 @@ body {
     font-weight: 800;
 }
 
+.ban-banner {
+    display: grid;
+    gap: 5px;
+    padding: 14px 16px;
+    border: 1px solid rgba(248, 113, 113, 0.28);
+    border-radius: var(--radius);
+    background:
+        radial-gradient(circle at 0 0, rgba(248, 113, 113, 0.14), transparent 16rem),
+        rgba(80, 20, 24, 0.28);
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.24);
+}
+
+.ban-banner__eyebrow {
+    color: #fca5a5;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.ban-banner strong {
+    color: #fecaca;
+    font-size: 17px;
+}
+
+.ban-banner p {
+    margin: 0;
+    color: rgba(254, 226, 226, 0.82);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
 .hero__info-row {
     display: flex;
     gap: 12px;

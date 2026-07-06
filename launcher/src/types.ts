@@ -10,6 +10,14 @@ export interface PlayerProfile {
   activeBadge?: { id: number; emoji: string; color: string } | null;
   /** Активный градиент (раскраска ника), если выбран. */
   activeGradient?: { id: number; colorStart: string; colorEnd: string } | null;
+  /** Активный бан на подключение к Minecraft-серверу. Лаунчер доступен. */
+  ban?: BanInfo | null;
+}
+
+export interface BanInfo {
+  /** null/undefined — бан навсегда. */
+  bannedUntil?: string | null;
+  reason?: string | null;
 }
 
 /** Бейдж для выбора. */
@@ -45,6 +53,8 @@ export interface AccountInfo {
   telegramLinked: boolean;
   /** Имеет ли аккаунт права администратора. */
   isAdmin: boolean;
+  /** Активный бан на подключение к Minecraft-серверу. */
+  ban?: BanInfo | null;
 }
 
 /** Результат входа: либо сессия (профиль), либо требование второго фактора. */

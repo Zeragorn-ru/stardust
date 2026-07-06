@@ -380,6 +380,9 @@ function ActionsTab({
   const [username, setUsername] = useState(account.username);
   const [password, setPassword] = useState("");
   const [banReason, setBanReason] = useState("");
+  const [banMode, setBanMode] = useState<"forever" | "temporary">("forever");
+  const [banDuration, setBanDuration] = useState("1");
+  const [banDurationUnit, setBanDurationUnit] = useState<"hours" | "days" | "weeks">("days");
 
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
@@ -434,18 +437,27 @@ function ActionsTab({
 
   async function handleBan(e: React.FormEvent) {
     e.preventDefault();
+    const durationSecs = banMode === "temporary" ? banDurationSeconds(banDuration, banDurationUnit) : undefined;
+    if (banMode === "temporary" && !durationSecs) {
+      toast.error("Укажите срок бана больше нуля");
+      return;
+    }
+    const durationText = durationSecs ? `Срок: ${banDuration} ${unitLabel(banDurationUnit)}.` : "Бан навсегда.";
     const ok = await confirm({
       title: `Забанить игрока ${account.username}?`,
-      body: banReason ? `Причина: ${banReason}` : "Без указания причины.",
+      body: `${durationText} ${banReason ? `Причина: ${banReason}` : "Без указания причины."}`,
       confirmText: "Забанить",
       danger: true,
     });
     if (!ok) return;
     setBusy(true);
     try {
-      onUpdated(await api.banAccount(account.uuid, { reason: banReason.trim() || undefined }));
+      onUpdated(await api.banAccount(account.uuid, { durationSecs, reason: banReason.trim() || undefined }));
       toast.success("Игрок забанен");
       setBanReason("");
+      setBanMode("forever");
+      setBanDuration("1");
+      setBanDurationUnit("days");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Ошибка");
     } finally {
@@ -543,7 +555,59 @@ function ActionsTab({
       </div>
 
       {!account.banned && (
-        <form onSubmit={handleBan} style={{ display: "flex", gap: 8, alignItems: "flex-end", marginTop: 8 }}>
+        <form onSubmit={handleBan} style={{ display: "grid", gap: 10, marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <label className="checkbox-row" style={{ flex: "0 0 auto", margin: 0 }}>
+              <input
+                type="radio"
+                checked={banMode === "forever"}
+                onChange={() => setBanMode("forever")}
+                disabled={busy || account.isAdmin}
+              />
+              <span>Навсегда</span>
+            </label>
+            <label className="checkbox-row" style={{ flex: "0 0 auto", margin: 0 }}>
+              <input
+                type="radio"
+                checked={banMode === "temporary"}
+                onChange={() => setBanMode("temporary")}
+                disabled={busy || account.isAdmin}
+              />
+              <span>Временно</span>
+            </label>
+          </div>
+
+          {banMode === "temporary" && (
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Срок</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={banDuration}
+                  onChange={(e) => setBanDuration(e.target.value)}
+                  disabled={busy || account.isAdmin}
+                  style={{ width: "100%" }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Единицы</label>
+                <select
+                  value={banDurationUnit}
+                  onChange={(e) => setBanDurationUnit(e.target.value as "hours" | "days" | "weeks")}
+                  disabled={busy || account.isAdmin}
+                  style={{ width: "100%" }}
+                >
+                  <option value="hours">часов</option>
+                  <option value="days">дней</option>
+                  <option value="weeks">недель</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Забанить игрока</label>
             <input
@@ -557,6 +621,7 @@ function ActionsTab({
           <button type="submit" disabled={busy || account.isAdmin} className="danger-solid" style={{ padding: "8px 14px", height: 38 }}>
             Забанить
           </button>
+          </div>
         </form>
       )}
 
@@ -573,4 +638,15 @@ function ActionsTab({
       </div>
     </div>
   );
+}
+
+function banDurationSeconds(value: string, unit: "hours" | "days" | "weeks"): number | undefined {
+  const amount = Number.parseInt(value, 10);
+  if (!Number.isFinite(amount) || amount <= 0) return undefined;
+  const multiplier = unit === "hours" ? 3600 : unit === "days" ? 86_400 : 604_800;
+  return amount * multiplier;
+}
+
+function unitLabel(unit: "hours" | "days" | "weeks"): string {
+  return unit === "hours" ? "час(ов)" : unit === "days" ? "день/дней" : "неделя/недель";
 }

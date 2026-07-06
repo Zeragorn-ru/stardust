@@ -256,6 +256,7 @@ export async function accountInfo(): Promise<AccountInfo> {
       profile: { id: "0".repeat(32), name: "dev" },
       telegramLinked: false,
       isAdmin: false,
+      ban: null,
     };
   }
   return invoke<AccountInfo>("account_info");

@@ -1948,14 +1948,18 @@ impl From<store::Account> for AccountDto {
         let is_admin = a.is_admin();
         let telegram_chat_id = a.telegram_chat_id.clone();
         let telegram_linked = telegram_chat_id.is_some();
-        let (banned, banned_until, ban_reason) = match a.ban {
-            Some(ban) => (
-                true,
-                ban.until
-                    .map(|u| u.format(&Rfc3339).unwrap_or_else(|_| u.to_string())),
-                ban.reason,
-            ),
-            None => (false, None, None),
+        let (banned, banned_until, ban_reason) = if a.is_banned() {
+            match a.ban {
+                Some(ban) => (
+                    true,
+                    ban.until
+                        .map(|u| u.format(&Rfc3339).unwrap_or_else(|_| u.to_string())),
+                    ban.reason,
+                ),
+                None => (false, None, None),
+            }
+        } else {
+            (false, None, None)
         };
         AccountDto {
             uuid: a.uuid,

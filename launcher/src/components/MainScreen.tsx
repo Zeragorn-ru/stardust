@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { getSettings, getStats, onStatsUpdated, playGame } from "../api";
+import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
+import { accountInfo, getSettings, getStats, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -10,6 +10,7 @@ import MinecraftNickname from "./MinecraftNickname";
 
 const SERVER_HOST = "play.stardust-mc.xyz";
 const SERVER_STATUS_INTERVAL = 60_000;
+const ACCOUNT_STATUS_INTERVAL = 60_000;
 
 /** Цвет индикатора пинга: зелёный <80мс, жёлтый <200мс, красный иначе. */
 function pingColor(ping: number | null): string {
@@ -50,11 +51,30 @@ export default function MainScreen({
   const [serverPing, setServerPing] = useState<number | null>(null);
   const [serverSample, setServerSample] = useState<{name: string, id: string}[]>([]);
   const [windowFocused, setWindowFocused] = useState(true);
+  const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
 
   // Загружаем статистику и настройки при монтировании.
   useEffect(() => {
     getStats().then(setStats).catch(() => undefined);
     getSettings().then(setSettings).catch(() => undefined);
+    accountInfo().then((info) => setBan(info.ban ?? info.profile.ban ?? null)).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    setBan(profile.ban ?? null);
+  }, [profile.ban]);
+
+  useEffect(() => {
+    async function refreshAccountStatus() {
+      try {
+        const info = await accountInfo();
+        setBan(info.ban ?? info.profile.ban ?? null);
+      } catch {
+        // Не мешаем запуску лаунчера, если статус временно недоступен.
+      }
+    }
+    const id = setInterval(refreshAccountStatus, ACCOUNT_STATUS_INTERVAL);
+    return () => clearInterval(id);
   }, []);
 
   // Обновляем статистику после завершения сессии.
@@ -116,6 +136,10 @@ export default function MainScreen({
   }, []);
 
   async function handlePlay() {
+    if (ban) {
+      onProgressChange({ phase: "error", label: banPlayMessage(ban), fraction: null });
+      return;
+    }
     onProgressChange({ phase: "checking", label: "Готовим игру…", fraction: null });
     try {
       await playGame();
@@ -190,14 +214,21 @@ export default function MainScreen({
             Кастомизация
           </button>
         </div>
-        <div className="hero__launch-card stagger stagger-item">
-          <div className="hero__card stagger-item">
-            <h2>Всё готово к приключению</h2>
+          <div className="hero__launch-card stagger stagger-item">
+            <div className="hero__card stagger-item">
+              <h2>Всё готово к приключению</h2>
             <p className="muted">
               Нажми «Играть» — мы всё подготовим сами и запустим игру под твоим
               именем. Ничего настраивать не нужно.
-            </p>
-          </div>
+              </p>
+            </div>
+          {ban && (
+            <div className="ban-banner stagger-item" role="status">
+              <div className="ban-banner__eyebrow">Доступ к серверу ограничен</div>
+              <strong>{banUntilLabel(ban)}</strong>
+              <p>{ban.reason?.trim() ? ban.reason : "Причина не указана."}</p>
+            </div>
+          )}
           <div className="hero__info-row stagger-item">
               <div className="hero__stats">
                 <div className="hero__stats-title">Статистика</div>
@@ -289,11 +320,11 @@ export default function MainScreen({
             <button
               className="btn btn--play stagger-item"
               onClick={handlePlay}
-              disabled={busy}
+              disabled={busy || !!ban}
             >
               <span className="play-button__top">
                 <span>
-                  {running ? "Игра запущена" : busy ? "Подготовка…" : "Играть"}
+                  {ban ? "Сервер недоступен" : running ? "Игра запущена" : busy ? "Подготовка…" : "Играть"}
                 </span>
                 {progress && (
                   <span className="play-button__percent">
@@ -349,6 +380,24 @@ export default function MainScreen({
 
 function hasDownloadMeta(progress: Progress): boolean {
   return progress.downloadedBytes != null || progress.totalBytes != null;
+}
+
+function banUntilLabel(ban: BanInfo): string {
+  if (!ban.bannedUntil) return "Бан навсегда";
+  const date = new Date(ban.bannedUntil);
+  if (Number.isNaN(date.getTime())) return `Бан до ${ban.bannedUntil}`;
+  return `Бан до ${date.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
+
+function banPlayMessage(ban: BanInfo): string {
+  const reason = ban.reason?.trim();
+  return reason ? `${banUntilLabel(ban)}: ${reason}` : banUntilLabel(ban);
 }
 
 function formatEta(seconds: number): string {

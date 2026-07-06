@@ -129,6 +129,7 @@ fn session_entry(profile_id: &str) -> Result<keyring::Entry, String> {
 /// с тем же `challenge`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "camelCase")]
+#[allow(clippy::large_enum_variant)]
 enum LoginOutcome {
     Ok {
         profile: PlayerProfile,
