@@ -1368,6 +1368,34 @@ td.num {
     white-space: nowrap;
 }
 
+.fm-file-text {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+
+.fm-file-headline,
+.fm-file-subline,
+.fm-file-note {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.fm-file-subline,
+.fm-file-note {
+    overflow: hidden;
+    font-size: 12px;
+}
+
+.fm-file-note span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .fm-row.folder .fm-name {
     font-weight: 600;
 }

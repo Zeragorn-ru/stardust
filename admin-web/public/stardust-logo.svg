@@ -1,0 +1,23 @@
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" style="background: #000000;">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <path d="M 110 190 L 190 110 L 410 110 L 490 190 L 490 410 L 410 490 L 190 490 L 110 410 Z" fill="none" stroke="#ffffff" stroke-width="32" stroke-linejoin="round" filter="url(#glow)" opacity="0.22"/>
+  <path d="M 110 190 L 190 110 L 410 110 L 490 190 L 490 410 L 410 490 L 190 490 L 110 410 Z" fill="none" stroke="#ffffff" stroke-width="24" stroke-linejoin="round" filter="url(#glow)" opacity="0.35"/>
+  <path d="M 110 190 L 190 110 L 410 110 L 490 190 L 490 410 L 410 490 L 190 490 L 110 410 Z" fill="none" stroke="#ffffff" stroke-width="11" stroke-linejoin="round"/>
+  <g transform="translate(300 300)">
+    <circle r="138" fill="none" stroke="#ffffff" stroke-width="19" opacity="0.13"/>
+    <circle r="122" fill="none" stroke="#ffffff" stroke-width="21" opacity="0.20"/>
+    <circle r="102" fill="none" stroke="#ffffff" stroke-width="29" opacity="0.48"/>
+    <circle r="85" fill="none" stroke="#ffffff" stroke-width="26" opacity="0.72"/>
+    <circle r="67" fill="none" stroke="#f0f0ff" stroke-width="19" opacity="0.92"/>
+    <circle r="46" fill="none" stroke="#ffffff" stroke-width="14" opacity="0.98"/>
+    <circle r="24" fill="#050505"/>
+  </g>
+</svg>

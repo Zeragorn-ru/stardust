@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
-import type { Account } from "../types";
+import type { Account, PlayerStats } from "../types";
 import { useToast } from "../ui/feedback";
 import { SkinHead } from "../ui/SkinHead";
 import { IconSearch, IconSync } from "../ui/icons";
@@ -8,6 +8,22 @@ import { PlayerCardModal } from "../ui/PlayerCardModal";
 
 function normalizeUuid(uuid: string): string {
   return uuid.replace(/-/g, "").toLowerCase();
+}
+
+function formatPlaytime(seconds?: number): string {
+  if (seconds == null) return "—";
+  if (seconds < 60) return String(seconds) + "с";
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h === 0) return String(m) + "м";
+  return String(h) + "ч " + String(m) + "м";
+}
+
+function formatLastJoin(iso?: string): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 export function AccountsView() {
@@ -18,6 +34,7 @@ export function AccountsView() {
   const [selfUuid, setSelfUuid] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [accountStats, setAccountStats] = useState<Record<string, PlayerStats>>({});
 
   async function syncStats() {
     setSyncing(true);
@@ -35,7 +52,22 @@ export function AccountsView() {
 
   const load = useCallback(async () => {
     try {
-      setAccounts(await api.listAccounts());
+      const nextAccounts = await api.listAccounts();
+      setAccounts(nextAccounts);
+
+      const statsEntries = await Promise.allSettled(
+        nextAccounts.map(async (account) => [
+          account.uuid,
+          await api.getAccountStats(account.uuid),
+        ] as const),
+      );
+      const nextStats: Record<string, PlayerStats> = {};
+      for (const result of statsEntries) {
+        if (result.status === "fulfilled") {
+          nextStats[normalizeUuid(result.value[0])] = result.value[1];
+        }
+      }
+      setAccountStats(nextStats);
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Не удалось загрузить аккаунты",
@@ -127,14 +159,16 @@ export function AccountsView() {
               <tr>
                 <th>Игрок</th>
                 <th>UUID</th>
-                <th>Роль</th>
-                <th>TG</th>
+                <th>В игре</th>
+                <th>Последний вход</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((a) => {
-                const isSelf = selfUuid === normalizeUuid(a.uuid);
+                const uuid = normalizeUuid(a.uuid);
+                const isSelf = selfUuid === uuid;
+                const stats = accountStats[uuid];
                 return (
                   <tr
                     key={a.uuid}
@@ -163,19 +197,11 @@ export function AccountsView() {
                     <td className="mono muted" data-label="UUID">
                       {a.uuid}
                     </td>
-                    <td data-label="Роль">
-                      {a.isAdmin ? (
-                        <span className="badge admin">админ</span>
-                      ) : (
-                        <span className="badge">игрок</span>
-                      )}
+                    <td data-label="В игре">
+                      <span className="account-stat-value">{formatPlaytime(stats?.playtimeSeconds)}</span>
                     </td>
-                    <td data-label="TG">
-                      {a.telegramLinked ? (
-                        <span className="badge admin">привязан</span>
-                      ) : (
-                        <span className="badge muted">нет</span>
-                      )}
+                    <td data-label="Последний вход">
+                      <span className="account-stat-value">{formatLastJoin(stats?.lastJoinedAt)}</span>
                     </td>
                     <td>
                       <span className="row-arrow">→</span>

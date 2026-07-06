@@ -929,36 +929,38 @@ function FileRow({
         <input type="checkbox" checked={selected} onChange={onToggle} />
       </label>
       <div className="fm-main static">
-        <IconFile size={16} className="fm-icon file" />
-        <span className="fm-name">{baseName(file.path)}</span>
-        <span className={`tag kind-${file.kind}`}>{file.kind}</span>
-        {onOpenDir && parentDir(file.path) && (
-          <button
-            className="fm-path-link muted"
-            onClick={() => onOpenDir(parentDir(file.path))}
-            title="Открыть папку"
-          >
-            {parentDir(file.path)}/
-          </button>
-        )}
-        {file.optional && (
-          <span className="tag">опц.{file.enabledByDefault ? "✓" : "✗"}</span>
-        )}
-        {file.disabled && <span className="tag tag--disabled">откл.</span>}
-        {!file.overwrite && <span className="tag">no-ow</span>}
-        {file.displayName && (
-          <span className="fm-disp muted">{file.displayName}</span>
-        )}
-        {file.description && (
-          <span className="fm-disp muted" title={file.description}>
-            — {file.description}
-          </span>
-        )}
-        <span className="fm-meta muted">{file.side}</span>
-        <span className="mono muted fm-sha" title={file.sha1}>
-          {shortSha(file.sha1)}
-        </span>
-        <span className="fm-size num">{formatSize(file.sizeBytes)}</span>
+        <IconFile size={15} className="fm-icon file" />
+        <div className="fm-file-text">
+          <div className="fm-file-headline">
+            <span className="fm-name">{baseName(file.path)}</span>
+            <span className="fm-size num">{formatSize(file.sizeBytes)}</span>
+          </div>
+          <div className="fm-file-subline">
+            <span className={`tag kind-${file.kind}`}>{file.kind}</span>
+            <span className="fm-meta muted">{sideLabel(file.side)}</span>
+            {file.optional && <span className="tag">опц.{file.enabledByDefault ? "✓" : "✗"}</span>}
+            {file.disabled && <span className="tag tag--disabled">откл.</span>}
+            {!file.overwrite && <span className="tag">no-ow</span>}
+            {onOpenDir && parentDir(file.path) && (
+              <button
+                className="fm-path-link muted"
+                onClick={() => onOpenDir(parentDir(file.path))}
+                title="Открыть папку"
+              >
+                {parentDir(file.path)}/
+              </button>
+            )}
+            <span className="mono muted fm-sha" title={file.sha1}>
+              {shortSha(file.sha1)}
+            </span>
+          </div>
+          {(file.displayName || file.description) && (
+            <div className="fm-file-note muted">
+              {file.displayName && <span>{file.displayName}</span>}
+              {file.description && <span title={file.description}>{file.description}</span>}
+            </div>
+          )}
+        </div>
       </div>
       <div className="fm-actions">
         {editable && (
