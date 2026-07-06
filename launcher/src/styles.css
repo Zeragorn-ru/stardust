@@ -1452,6 +1452,42 @@ body {
 .hero__stat-value--muted  { opacity: 0.4; }
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
 
+.hero__stat-facepile {
+  display: flex;
+  margin-top: 8px;
+}
+
+.hero__stat-facepile > * {
+  margin-right: -8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: transform 0.2s;
+  background: var(--bg-surface);
+}
+
+.hero__stat-facepile > *:hover {
+  transform: translateY(-2px);
+}
+
+.facepile-img {
+  width: 24px;
+  height: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.facepile-more {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
 .play-error {
     display: flex;
     flex-direction: column;

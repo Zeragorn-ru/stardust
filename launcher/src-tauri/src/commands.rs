@@ -1406,17 +1406,27 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
 
     match ping {
         Ok(Ok((json, ping_ms))) => {
-            let players = json
-                .get("players")
+            let players_obj = json.get("players");
+            let players = players_obj
                 .and_then(|p| p.get("online"))
                 .and_then(|v| v.as_u64());
-            let max = json
-                .get("players")
+            let max = players_obj
                 .and_then(|p| p.get("max"))
                 .and_then(|v| v.as_u64());
-            serde_json::json!({ "online": true, "players": players, "max": max, "ping": ping_ms })
+            let sample = players_obj
+                .and_then(|p| p.get("sample"))
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!([]));
+                
+            serde_json::json!({ 
+                "online": true, 
+                "players": players, 
+                "max": max, 
+                "ping": ping_ms,
+                "sample": sample
+            })
         }
-        _ => serde_json::json!({ "online": false, "players": null }),
+        _ => serde_json::json!({ "online": false, "players": null, "sample": [] }),
     }
 }
 

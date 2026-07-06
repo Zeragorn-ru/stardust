@@ -48,6 +48,7 @@ export default function MainScreen({
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
   const [serverMax, setServerMax] = useState<number | null>(null);
   const [serverPing, setServerPing] = useState<number | null>(null);
+  const [serverSample, setServerSample] = useState<{name: string, id: string}[]>([]);
   const [windowFocused, setWindowFocused] = useState(true);
 
   // Загружаем статистику и настройки при монтировании.
@@ -94,7 +95,7 @@ export default function MainScreen({
     async function checkServer() {
       try {
         const mod = await import("@tauri-apps/api/core");
-        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null; max: number | null; ping: number | null }>)(
+        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null; max: number | null; ping: number | null; sample: {name: string, id: string}[] }>)(
           "ping_minecraft_server",
           { host: SERVER_HOST },
         );
@@ -102,9 +103,11 @@ export default function MainScreen({
         setServerPlayers(result.players);
         setServerMax(result.max);
         setServerPing(result.ping ?? null);
+        setServerSample(result.sample || []);
       } catch {
         setServerOnline(null);
         setServerPlayers(null);
+        setServerSample([]);
       }
     }
     checkServer();
@@ -247,6 +250,24 @@ export default function MainScreen({
                         {serverMax != null ? <span className="hero__stat-max">/{serverMax}</span> : null}
                       </span>
                       <span className="hero__stat-label">игроков</span>
+                      {serverSample.length > 0 && (
+                        <div className="hero__stat-facepile" title={serverSample.map(s => s.name).join(", ")}>
+                          {serverSample.slice(0, 5).map((player, i) => (
+                            <img 
+                              key={player.id} 
+                              src={`https://crafatar.com/avatars/${player.id}?size=24&overlay=true`} 
+                              alt={player.name}
+                              className="facepile-img"
+                              style={{ zIndex: 10 - i }}
+                            />
+                          ))}
+                          {serverSample.length > 5 && (
+                            <div className="facepile-more" style={{ zIndex: 0 }}>
+                              +{serverSample.length - 5}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (

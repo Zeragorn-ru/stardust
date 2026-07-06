@@ -43,6 +43,12 @@ pub async fn launch(
     profile: PlayerProfile,
     access_token: String,
 ) -> Result<Child, String> {
+    if let Err(cheat_name) = crate::game_guard::scan_for_cheats() {
+        return Err(format!(
+            "Обнаружена запрещённая программа: {cheat_name}. Закройте её перед запуском игры."
+        ));
+    }
+
     let root = data_dir.join("minecraft");
     let version_id =
         std::env::var("LAUNCHER_MC_VERSION").unwrap_or_else(|_| DEFAULT_VERSION.into());
@@ -1341,20 +1347,29 @@ async fn download_inner(
         let mut hasher = Sha1::new();
         // Если resume — нужно учесть уже скачанные байты в хеше.
         if actual_offset > 0 {
-            let existing = tauri::async_runtime::spawn_blocking({
+            hasher = tauri::async_runtime::spawn_blocking({
                 let tmp = tmp.clone();
-                move || -> Result<Vec<u8>, String> {
+                move || -> Result<Sha1, String> {
                     let mut f = fs::File::open(&tmp)
                         .map_err(|e| format!("Не удалось прочитать файл для хеша: {e}"))?;
-                    let mut buf = vec![0u8; actual_offset as usize];
-                    f.read_exact(&mut buf)
-                        .map_err(|e| format!("Не удалось прочитать файл для хеша: {e}"))?;
-                    Ok(buf)
+                    
+                    let mut temp_hasher = Sha1::new();
+                    let mut remaining = actual_offset;
+                    let mut buf = vec![0u8; 64 * 1024]; // 64 KB chunk
+                    
+                    while remaining > 0 {
+                        let to_read = std::cmp::min(remaining, buf.len() as u64) as usize;
+                        let slice = &mut buf[..to_read];
+                        f.read_exact(slice)
+                            .map_err(|e| format!("Не удалось прочитать файл для хеша (resume): {e}"))?;
+                        temp_hasher.update(slice);
+                        remaining -= to_read as u64;
+                    }
+                    Ok(temp_hasher)
                 }
             })
             .await
             .map_err(|e| format!("Ошибка потока: {e}"))??;
-            hasher.update(&existing);
         }
 
         let started = Instant::now();
