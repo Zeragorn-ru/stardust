@@ -21,7 +21,8 @@
     position: sticky;
     top: 0;
     z-index: 35;
-    height: 64px;
+    min-height: 64px;
+    height: auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -742,24 +743,34 @@
 }
 
 .m-screen-reuse tr {
-    margin-bottom: 10px;
-    padding: 12px;
+    margin-bottom: 8px;
+    padding: 10px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 10px;
     border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
+    border-radius: 12px;
     background: rgba(255, 255, 255, 0.028);
+}
+
+.m-screen-reuse td:first-child {
+    grid-column: 1 / -1;
+    margin-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 8px;
 }
 
 .m-screen-reuse td {
     min-height: 0;
     height: auto;
-    padding: 7px 0;
+    padding: 5px 0;
     border-bottom: none;
 }
 
 .m-screen-reuse td[data-label]::before {
     content: attr(data-label);
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
     color: var(--faint);
     font-size: 10px;
     font-weight: 850;

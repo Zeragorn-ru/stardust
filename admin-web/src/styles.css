@@ -2185,10 +2185,9 @@ td.num {
         flex-wrap: wrap;
     }
 
-    /* Модалки почти на весь экран. */
+    /* Модалки: оставляем по центру, чтобы не перекрывала клавиатура */
     .modal-backdrop {
-        padding: 12px;
-        place-items: end center;
+        padding: 16px;
     }
     .modal {
         max-width: 100%;
