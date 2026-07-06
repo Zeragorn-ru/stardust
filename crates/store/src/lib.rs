@@ -247,7 +247,7 @@ impl Store {
         let mut reqs = self.rate_limiter.lock().unwrap();
         let now = std::time::Instant::now();
         let window = std::time::Duration::from_secs(window_secs);
-        let list = reqs.entry(ip).or_insert_with(Vec::new);
+        let list = reqs.entry(ip).or_default();
         
         // Удаляем устаревшие метки времени
         list.retain(|&t| now.duration_since(t) < window);
