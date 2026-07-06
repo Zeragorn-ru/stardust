@@ -108,6 +108,7 @@ pub async fn sync(
         inactive: PathBuf,
         active_key: String,
         sha1: String,
+        size: u64,
         rel_key: String,
         label: String,
     }
@@ -145,8 +146,7 @@ pub async fn sync(
         };
 
         let matches = |path: &Path| {
-            file_sha1(path)
-                .map(|h| h.eq_ignore_ascii_case(&entry.sha1))
+            file_matches(path, &entry.sha1, entry.size)
                 .unwrap_or(false)
         };
 
@@ -195,6 +195,7 @@ pub async fn sync(
             inactive,
             active_key,
             sha1: entry.sha1.clone(),
+            size: entry.size,
             rel_key,
             label,
         });
@@ -208,25 +209,20 @@ pub async fn sync(
         let http = http.clone();
         let version = version.clone();
         async move {
-            download_to_counted(progress, &http, &job.url, &job.active, &job.label, None, None).await?;
-            match file_sha1(&job.active) {
-                Some(got) if got.eq_ignore_ascii_case(&job.sha1) => {}
-                Some(got) => {
-                    return Err(format!(
-                        "Контрольная сумма {} не совпала (ожидалась {}, получена {got})",
-                        job.rel_key, job.sha1
-                    ));
-                }
-                None => {
-                    return Err(format!(
-                        "Не удалось прочитать скачанный файл {}",
-                        job.rel_key
-                    ))
-                }
-            }
+            download_to_counted(
+                progress,
+                &http,
+                &job.url,
+                &job.active,
+                &job.label,
+                Some(&job.sha1),
+                Some(job.size),
+            )
+            .await?;
+            verify_file(&job.active, &job.rel_key, &job.sha1, job.size)?;
             remove_if_exists(&job.inactive);
             progress.item_done(format!("Сборка {version}: {}", job.rel_key));
-            Ok((job.active_key, job.sha1))
+            Ok::<_, String>((job.active_key, job.sha1))
         }
     }))
     .buffer_unordered(concurrency.max(1));
@@ -385,6 +381,66 @@ fn disabled_variant(p: &Path) -> PathBuf {
 fn remove_if_exists(path: &Path) {
     if path.exists() {
         let _ = std::fs::remove_file(path);
+    }
+}
+
+fn file_matches(path: &Path, expected_sha1: &str, expected_size: u64) -> Result<bool, String> {
+    if !path.exists() {
+        return Ok(false);
+    }
+
+    let actual_size = std::fs::metadata(path)
+        .map_err(|e| format!("Не удалось проверить размер {}: {e}", path.display()))?
+        .len();
+    if actual_size != expected_size {
+        tracing::warn!(
+            "[modpack] размер {} не совпал: {actual_size} != {expected_size}, перекачиваем",
+            path.display()
+        );
+        let _ = std::fs::remove_file(path);
+        return Ok(false);
+    }
+
+    match file_sha1(path) {
+        Some(actual) if actual.eq_ignore_ascii_case(expected_sha1) => Ok(true),
+        Some(actual) => {
+            tracing::warn!(
+                "[modpack] SHA-1 {} не совпал: {actual} != {expected_sha1}, перекачиваем",
+                path.display()
+            );
+            let _ = std::fs::remove_file(path);
+            Ok(false)
+        }
+        None => {
+            let _ = std::fs::remove_file(path);
+            Ok(false)
+        }
+    }
+}
+
+fn verify_file(path: &Path, rel_key: &str, expected_sha1: &str, expected_size: u64) -> Result<(), String> {
+    let actual_size = std::fs::metadata(path)
+        .map_err(|e| format!("Не удалось проверить размер {rel_key}: {e}"))?
+        .len();
+    if actual_size != expected_size {
+        let _ = std::fs::remove_file(path);
+        return Err(format!(
+            "Размер {rel_key} не совпал (ожидалось {expected_size}, получено {actual_size})"
+        ));
+    }
+
+    match file_sha1(path) {
+        Some(actual) if actual.eq_ignore_ascii_case(expected_sha1) => Ok(()),
+        Some(actual) => {
+            let _ = std::fs::remove_file(path);
+            Err(format!(
+                "Контрольная сумма {rel_key} не совпала (ожидалась {expected_sha1}, получена {actual})"
+            ))
+        }
+        None => {
+            let _ = std::fs::remove_file(path);
+            Err(format!("Не удалось прочитать скачанный файл {rel_key}"))
+        }
     }
 }
 

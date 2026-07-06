@@ -353,10 +353,10 @@ async fn ensure_client(
 ) -> Result<(), String> {
     progress.begin(Stage::Client, "downloading", "Скачиваем клиент Minecraft…");
     let path = client_jar(root, &version.id);
-    if !path.exists() {
-        let Some(client) = version.downloads.get("client") else {
-            return Err("В version json нет client jar".into());
-        };
+    let Some(client) = version.downloads.get("client") else {
+        return Err("В version json нет client jar".into());
+    };
+    if !file_matches(&path, client.sha1.as_deref(), client.size)? {
         download_to(progress, http, &client.url, &path, "client jar", client.sha1.as_deref(), client.size).await?;
     }
     progress.set_stage_fraction(1.0);
@@ -393,7 +393,9 @@ async fn download_libraries(
     for lib in libraries.iter().filter(|lib| rules_allow(&lib.rules)) {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             let path = root.join("libraries").join(&artifact.path);
-            if !path.exists() && !artifact.url.is_empty() {
+            if !artifact.url.is_empty()
+                && !file_matches(&path, artifact.sha1.as_deref(), artifact.size)?
+            {
                 jobs.push(DownloadJob {
                     url: artifact.url.clone(),
                     path,
@@ -407,7 +409,9 @@ async fn download_libraries(
             if let Some(native_key) = native_classifier(lib) {
                 if let Some(artifact) = classifiers.get(&native_key) {
                     let path = root.join("libraries").join(&artifact.path);
-                    if !path.exists() && !artifact.url.is_empty() {
+                    if !artifact.url.is_empty()
+                        && !file_matches(&path, artifact.sha1.as_deref(), artifact.size)?
+                    {
                         jobs.push(DownloadJob {
                             url: artifact.url.clone(),
                             path,
@@ -435,15 +439,15 @@ async fn ensure_assets(
     let indexes = root.join("assets").join("indexes");
     fs::create_dir_all(&indexes).map_err(|e| e.to_string())?;
     let index_path = indexes.join(format!("{}.json", version.asset_index.id));
-    if !index_path.exists() {
+    if !file_matches(&index_path, version.asset_index.sha1.as_deref(), version.asset_index.size)? {
         download_to(
             progress,
             http,
             &version.asset_index.url,
             &index_path,
             "asset index",
-            None,
-            None,
+            version.asset_index.sha1.as_deref(),
+            version.asset_index.size,
         )
         .await?;
     }
@@ -470,7 +474,7 @@ async fn ensure_assets(
             .join("objects")
             .join(prefix)
             .join(&object.hash);
-        if !path.exists() {
+        if !file_matches(&path, Some(&object.hash), object.size)? {
             let url = format!(
                 "https://resources.download.minecraft.net/{prefix}/{}",
                 object.hash
@@ -480,7 +484,7 @@ async fn ensure_assets(
                 path,
                 label: "assets".to_string(),
                 expected_sha1: Some(object.hash.clone()),
-                expected_size: None,
+                expected_size: object.size,
             });
         }
     }
@@ -494,6 +498,44 @@ struct DownloadJob {
     label: String,
     expected_sha1: Option<String>,
     expected_size: Option<u64>,
+}
+
+fn file_matches(
+    path: &Path,
+    expected_sha1: Option<&str>,
+    expected_size: Option<u64>,
+) -> Result<bool, String> {
+    if !path.exists() {
+        return Ok(false);
+    }
+
+    if let Some(expected) = expected_size {
+        let actual = fs::metadata(path)
+            .map_err(|e| format!("Не удалось проверить размер {}: {e}", path.display()))?
+            .len();
+        if actual != expected {
+            tracing::warn!(
+                "[integrity] размер {} не совпал: {actual} != {expected}, перекачиваем",
+                path.display()
+            );
+            let _ = fs::remove_file(path);
+            return Ok(false);
+        }
+    }
+
+    if let Some(expected) = expected_sha1.filter(|s| !s.trim().is_empty()) {
+        let actual = compute_sha1(path)?;
+        if !actual.eq_ignore_ascii_case(expected) {
+            tracing::warn!(
+                "[integrity] SHA-1 {} не совпал: {actual} != {expected}, перекачиваем",
+                path.display()
+            );
+            let _ = fs::remove_file(path);
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }
 
 /// Параллельно скачивает набор файлов с ограничением по числу одновременных
@@ -1448,7 +1490,6 @@ async fn http_get_with_retry(
     Err(last_err)
 }
 
-#[cfg(test)]
 fn compute_sha1(path: &Path) -> Result<String, String> {
     use sha1::{Digest, Sha1};
     let bytes =
@@ -1526,6 +1567,10 @@ struct DownloadInfo {
 struct AssetIndexInfo {
     id: String,
     url: String,
+    #[serde(default)]
+    sha1: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1536,6 +1581,8 @@ struct AssetIndex {
 #[derive(Debug, Deserialize)]
 struct AssetObject {
     hash: String,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
