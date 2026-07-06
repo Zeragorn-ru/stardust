@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import type { Settings } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
 import { IconKey, IconSettings, IconTelegram } from "../ui/icons";
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
 
 export function SettingsView() {
   const toast = useToast();
@@ -131,17 +132,17 @@ export function SettingsView() {
       </div>
 
       <div className="settings-grid">
-        <section className="panel panel-flat settings-card">
-          <div className="settings-card-head">
+        <Card className="settings-card">
+          <CardHeader className="settings-card-head">
             <IconTelegram />
             <div>
-              <h2>Telegram-бот</h2>
-              <p className="muted">
+              <CardTitle>Telegram-бот</CardTitle>
+              <CardDescription>
                 Токен от @BotFather. Используется для привязки аккаунтов и
                 восстановления доступа.
-              </p>
+              </CardDescription>
             </div>
-          </div>
+          </CardHeader>
 
           {loading ? (
             <p className="muted">
@@ -149,17 +150,17 @@ export function SettingsView() {
               Загрузка…
             </p>
           ) : (
-            <>
+            <CardContent>
               <div className="settings-status">
                 {settings?.telegramTokenSet ? (
-                  <span className="badge admin">
+                  <Badge variant="secondary">
                     подключён
                     {settings.telegramBotUsername
                       ? ` · @${settings.telegramBotUsername}`
                       : ""}
-                  </span>
+                  </Badge>
                 ) : (
-                  <span className="badge">не настроен</span>
+                  <Badge variant="outline">не настроен</Badge>
                 )}
               </div>
 
@@ -184,36 +185,35 @@ export function SettingsView() {
 
               <div className="modal-actions">
                 {settings?.telegramTokenSet && (
-                  <button
-                    className="danger"
+                  <Button
+                    variant="destructive"
                     disabled={saving}
                     onClick={clearToken}
                   >
                     Отключить бота
-                  </button>
+                  </Button>
                 )}
-                <button
-                  className="primary"
+                <Button
                   disabled={!token.trim() || saving}
                   onClick={saveToken}
                 >
                   Сохранить токен
-                </button>
+                </Button>
               </div>
-            </>
+            </CardContent>
           )}
-        </section>
+        </Card>
 
-        <section className="panel panel-flat settings-card">
-          <div className="settings-card-head">
+        <Card className="settings-card">
+          <CardHeader className="settings-card-head">
             <IconSettings />
             <div>
-              <h2>Minecraft-сервер</h2>
-              <p className="muted">
+              <CardTitle>Minecraft-сервер</CardTitle>
+              <CardDescription>
                 Подключение по SFTP для загрузки файлов сборки на сервер.
-              </p>
+              </CardDescription>
             </div>
-          </div>
+          </CardHeader>
 
           {loading ? (
             <p className="muted">
@@ -221,12 +221,12 @@ export function SettingsView() {
               Загрузка…
             </p>
           ) : (
-            <>
+            <CardContent>
               <div className="settings-status">
                 {settings?.sftpPasswordSet ? (
-                  <span className="badge admin">пароль установлен</span>
+                  <Badge variant="secondary">пароль установлен</Badge>
                 ) : (
-                  <span className="badge">не настроено</span>
+                  <Badge variant="outline">не настроено</Badge>
                 )}
               </div>
 
@@ -277,29 +277,28 @@ export function SettingsView() {
               </label>
 
               <div className="modal-actions">
-                <button
-                  className="primary"
+                <Button
                   disabled={savingPanel}
                   onClick={savePanel}
                 >
                   Сохранить
-                </button>
+                </Button>
               </div>
-            </>
+            </CardContent>
           )}
-        </section>
+        </Card>
 
-        <section className="panel panel-flat settings-card">
-          <div className="settings-card-head">
+        <Card className="settings-card">
+          <CardHeader className="settings-card-head">
             <IconKey />
             <div>
-              <h2>authlib-injector</h2>
-              <p className="muted">
+              <CardTitle>authlib-injector</CardTitle>
+              <CardDescription>
                 Агент для подмены сервиса авторизации в Minecraft. Скачайте и
                 добавьте в JVM-аргументы лаунчера.
-              </p>
+              </CardDescription>
             </div>
-          </div>
+          </CardHeader>
           <a
             className="btn-download"
             href="/authlib-injector.jar"
@@ -307,7 +306,7 @@ export function SettingsView() {
           >
             Скачать authlib-injector.jar
           </a>
-        </section>
+        </Card>
       </div>
     </div>
   );

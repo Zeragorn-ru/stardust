@@ -5,6 +5,7 @@ import { api, ApiError } from "../api";
 import type { Account, BuildHeader, Settings } from "../types";
 import { IconBox, IconPlus, IconSettings, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
+import { Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
 
 export function OverviewView() {
   const toast = useToast();
@@ -72,10 +73,10 @@ export function OverviewView() {
           <Link className="button primary" to="/builds/new">
             <IconPlus size={15} /> Новая сборка
           </Link>
-          <button className="secondary" onClick={syncStats} disabled={syncing}>
+          <Button variant="secondary" onClick={syncStats} disabled={syncing}>
             <IconSync size={15} className={syncing ? "spin" : ""} />
             {syncing ? "Синхронизация" : "Синхр. статистики"}
-          </button>
+          </Button>
         </div>
       </section>
 
@@ -87,15 +88,16 @@ export function OverviewView() {
       </section>
 
       <section className="overview-columns">
-        <div className="panel panel-flat">
-          <div className="section-head">
+        <Card className="panel-flat">
+          <CardHeader>
             <div>
               <span className="eyebrow">Deployment pipeline</span>
-              <h2>Сборки</h2>
+              <CardTitle>Сборки</CardTitle>
+              <CardDescription>Последние сборки и активный релиз.</CardDescription>
             </div>
-            <Link className="link-action" to="/builds">Открыть</Link>
-          </div>
-          <div className="compact-list">
+            <CardAction><Link className="link-action" to="/builds">Открыть</Link></CardAction>
+          </CardHeader>
+          <CardContent className="compact-list">
             {builds.slice(0, 5).map((build) => (
               <Link key={build.id} className="compact-row" to={`/builds/${build.id}`}>
                 <span className="row-icon"><IconBox size={15} /></span>
@@ -107,18 +109,19 @@ export function OverviewView() {
               </Link>
             ))}
             {!loading && builds.length === 0 && <p className="muted">Сборок пока нет.</p>}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="panel panel-flat">
-          <div className="section-head">
+        <Card className="panel-flat">
+          <CardHeader>
             <div>
               <span className="eyebrow">Service status</span>
-              <h2>Сервисы</h2>
+              <CardTitle>Сервисы</CardTitle>
+              <CardDescription>Auth, Telegram и серверная статистика.</CardDescription>
             </div>
-            <Link className="link-action" to="/accounts">Открыть</Link>
-          </div>
-          <div className="compact-list">
+            <CardAction><Link className="link-action" to="/accounts">Открыть</Link></CardAction>
+          </CardHeader>
+          <CardContent className="compact-list">
             <InfoLine icon={<IconUsers size={15} />} label="Auth / аккаунты" value={`${accounts.length} игроков`} />
             <InfoLine icon={<IconUsers size={15} />} label="Telegram linked" value={`${totals.linked}/${accounts.length}`} />
             <InfoLine icon={<IconUsers size={15} />} label="Администраторы" value={String(totals.admins)} />
@@ -130,8 +133,8 @@ export function OverviewView() {
                 <small>Telegram, SFTP, authlib-injector</small>
               </span>
             </Link>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </section>
     </div>
   );

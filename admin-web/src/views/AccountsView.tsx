@@ -5,6 +5,7 @@ import { useToast } from "../ui/feedback";
 import { SkinHead } from "../ui/SkinHead";
 import { IconSearch, IconSync } from "../ui/icons";
 import { PlayerCardModal } from "../ui/PlayerCardModal";
+import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
 
 function normalizeUuid(uuid: string): string {
   return uuid.replace(/-/g, "").toLowerCase();
@@ -119,10 +120,10 @@ export function AccountsView() {
           </p>
         </div>
         <div className="head-actions">
-          <button className="secondary icon-btn" onClick={syncStats} disabled={syncing}>
+          <Button variant="secondary" onClick={syncStats} disabled={syncing}>
             <IconSync size={14} className={syncing ? "spin" : ""} />
             {syncing ? "Синхронизация..." : "Синхр. статистики"}
-          </button>
+          </Button>
           <div className="search">
             <IconSearch />
             <input
@@ -154,28 +155,28 @@ export function AccountsView() {
               : "Ничего не найдено."}
           </p>
         ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>Игрок</th>
-                <th>UUID</th>
-                <th>В игре</th>
-                <th>Последний вход</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Игрок</TableHead>
+                <TableHead>UUID</TableHead>
+                <TableHead>В игре</TableHead>
+                <TableHead>Последний вход</TableHead>
+                <TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filtered.map((a) => {
                 const uuid = normalizeUuid(a.uuid);
                 const isSelf = selfUuid === uuid;
                 const stats = accountStats[uuid];
                 return (
-                  <tr
+                  <TableRow
                     key={a.uuid}
                     className="clickable-row account-row"
                     onClick={() => setSelectedAccount(a)}
                   >
-                    <td>
+                    <TableCell>
                       <div className="cell-main">
                         <SkinHead
                           uuid={a.uuid}
@@ -183,34 +184,34 @@ export function AccountsView() {
                           size={32}
                         />
                         <strong>{a.username}</strong>
-                        {isSelf && <span className="badge">вы</span>}
+                        {isSelf && <Badge variant="outline">вы</Badge>}
                         {a.banned && (
-                          <span
-                            className="badge banned"
+                          <Badge
+                            variant="destructive"
                             title={a.banReason || undefined}
                           >
                             бан
-                          </span>
+                          </Badge>
                         )}
                       </div>
-                    </td>
-                    <td className="mono muted" data-label="UUID">
+                    </TableCell>
+                    <TableCell className="mono muted" data-label="UUID">
                       {a.uuid}
-                    </td>
-                    <td data-label="В игре">
+                    </TableCell>
+                    <TableCell data-label="В игре">
                       <span className="account-stat-value">{formatPlaytime(stats?.playtimeSeconds)}</span>
-                    </td>
-                    <td data-label="Последний вход">
+                    </TableCell>
+                    <TableCell data-label="Последний вход">
                       <span className="account-stat-value">{formatLastJoin(stats?.lastJoinedAt)}</span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="row-arrow">→</span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </div>
 
@@ -231,4 +232,3 @@ export function AccountsView() {
     </div>
   );
 }
-
