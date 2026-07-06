@@ -101,42 +101,34 @@ fn api_url() -> String {
         .unwrap_or_else(|| RELEASES_API.to_string())
 }
 
-/// HTTP-клиент с корректным User-Agent для GitHub API.
-/// Кэшируется через OnceLock: пул соединений переиспользуется между запросами.
-fn http_client() -> Result<reqwest::Client, String> {
-    use std::sync::OnceLock;
-    static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
+/// HTTP-клиент с теми же proxy-настройками, что и у основного лаунчера.
+fn http_client(app: &AppHandle) -> Result<reqwest::Client, String> {
+    let settings = crate::commands::read_settings(app);
+    let mut builder = reqwest::Client::builder()
+        .user_agent(USER_AGENT)
+        .connect_timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(15));
 
-    CLIENT
-        .get_or_init(|| {
-            // Сначала пробуем через прокси.
-            if let Ok(client) = reqwest::Client::builder()
-                .user_agent(USER_AGENT)
-                .proxy(
-                    reqwest::Proxy::all("http://assets.zeragorn.xyz:3128").ok()?,
-                )
-                .connect_timeout(std::time::Duration::from_secs(5))
-                .timeout(std::time::Duration::from_secs(15))
-                .build()
-            {
-                return Some(client);
-            }
-            // Фоллбэк: прямое соединение без прокси.
-            tracing::warn!("[update] прокси недоступен, используем прямое соединение");
-            reqwest::Client::builder()
-                .user_agent(USER_AGENT)
-                .connect_timeout(std::time::Duration::from_secs(5))
-                .timeout(std::time::Duration::from_secs(15))
-                .build()
-                .ok()
-        })
-        .clone()
-        .ok_or_else(|| "не удалось создать HTTP-клиент".to_string())
+    match settings.proxy_type {
+        crate::commands::ProxyType::System => {}
+        crate::commands::ProxyType::Builtin => {
+            let proxy = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
+                .map_err(|e| format!("не удалось настроить встроенный прокси: {e}"))?;
+            builder = builder.proxy(proxy);
+        }
+        crate::commands::ProxyType::None => {
+            builder = builder.no_proxy();
+        }
+    }
+
+    builder
+        .build()
+        .map_err(|e| format!("не удалось создать HTTP-клиент: {e}"))
 }
 
 /// Загружает список релизов (новые первые, до 50 штук).
-async fn fetch_releases() -> Result<Vec<GhRelease>, String> {
-    let resp = http_client()?
+async fn fetch_releases(app: &AppHandle) -> Result<Vec<GhRelease>, String> {
+    let resp = http_client(app)?
         .get(api_url())
         .header("Accept", "application/vnd.github+json")
         .query(&[("per_page", "50")])
@@ -162,8 +154,11 @@ fn is_release_ready(release: &GhRelease) -> bool {
 
 /// Ищет первый релиз, который новее текущей версии и готов к скачиванию
 /// (есть установщик + bootstrap.exe). Релизы идут от нового к старому.
-async fn find_update_release(current_version: &str) -> Result<Option<GhRelease>, String> {
-    let releases = fetch_releases().await?;
+async fn find_update_release(
+    app: &AppHandle,
+    current_version: &str,
+) -> Result<Option<GhRelease>, String> {
+    let releases = fetch_releases(app).await?;
     for release in releases {
         let tag = normalize(&release.tag_name);
         if is_newer(tag, current_version) && is_release_ready(&release) {
@@ -558,7 +553,7 @@ fn launch_bootstrap(
 #[tauri::command]
 pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
     let current_version = app.package_info().version.to_string();
-    match find_update_release(&current_version).await? {
+    match find_update_release(&app, &current_version).await? {
         Some(release) => {
             let version = normalize(&release.tag_name).to_string();
             Ok(UpdateInfo {
@@ -587,7 +582,7 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
     let current_version = app.package_info().version.to_string();
-    let release = find_update_release(&current_version)
+    let release = find_update_release(&app, &current_version)
         .await?
         .ok_or_else(|| "Нет доступного обновления".to_string())?;
 
@@ -595,7 +590,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         .ok_or_else(|| "В релизе нет подходящего установщика".to_string())?;
     let installer_size = installer_asset.size;
 
-    let http = http_client()?;
+    let http = http_client(&app)?;
 
     // ── Фаза 1: bootstrap (0.00 — 0.30) ──────────────────────────────────
     let _data_dir = crate::paths::data_dir(&app);

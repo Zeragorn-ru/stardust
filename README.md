@@ -1,63 +1,61 @@
-# Minecraft Launcher & Auth Platform
+# Minecraft Launcher & Server Platform
 
-Приватная экосистема для Minecraft-сервера: кастомный лаунчер, собственная
-авторизация (Yggdrasil-совместимая) и веб-админка для управления сборкой.
+Приватная платформа для Minecraft-сервера: кастомный лаунчер, собственная
+авторизация, доставка модпака, веб-админка и общий серверный/клиентский мод.
 
-## Компоненты (монорепо)
+Репозиторий уже содержит рабочие сервисы, а не только каркас: лаунчер умеет
+логинить игрока, синхронизировать сборку и запускать игру; `auth-server`
+обслуживает как launcher API, так и Yggdrasil/sessionserver-эндпоинты;
+`admin-server` и `admin-web` управляют сборками, аккаунтами и кастомизацией.
 
-| Папка          | Что это                                                            | Стек              |
-| -------------- | ------------------------------------------------------------------ | ----------------- |
-| `launcher/`    | Десктоп-лаунчер: логин, обновление сборки, запуск игры             | Tauri (Rust + TS) |
-| `auth-server/` | Yggdrasil-совместимый сервер авторизации                          | Rust (Axum)       |
-| `admin/`       | Admin API: управление сборкой, статистика, пользователи            | Rust (Axum)       |
-| `admin-web/`   | Веб-админка                                                         | React + TS        |
-| `file-server/` | Раздача файлов сборки и манифеста                                  | nginx             |
-| `mc-server/`   | Контейнер Minecraft-сервера с authlib-injector                    | Docker + Java     |
-| `stardust-mod/` | Общий Fabric-мод, один jar для клиента и сервера                  | Java + Fabric     |
-| `crates/`      | Общий Rust-код (типы протокола и манифеста)                        | Rust              |
-| `docs/`        | Архитектура и протоколы                                            | —                 |
+## Компоненты
 
-## Как это работает (кратко)
+| Путь | Что это | Стек |
+| --- | --- | --- |
+| `launcher/` | Десктоп-лаунчер: логин, 2FA, обновление сборки, запуск Minecraft, самообновление | Tauri 2, Rust, React, TypeScript |
+| `crates/auth-server/` | Auth API + Yggdrasil/sessionserver + скины/плащи/статистика | Rust, Axum, PostgreSQL |
+| `crates/admin-server/` | Admin API: сборки, файлы, аккаунты, бейджи, градиенты, SFTP-синхронизация | Rust, Axum, PostgreSQL |
+| `admin-web/` | Веб-админка для сборок, аккаунтов и настроек инфраструктуры | React, TypeScript, Vite |
+| `stardust-mod/` | Общий NeoForge-мод для клиента и сервера, интеграция с TAB и кастомизацией | Java 21, NeoForge |
+| `crates/store/` | Общий storage-слой: аккаунты, сессии, сборки, challenge'ы, кастомизация | Rust, sqlx |
+| `crates/protocol/` | Общие типы API и формата `manifest.json` | Rust, serde |
+| `crates/telegram-bot/` | Telegram-бот для 2FA-кодов и системных уведомлений | Rust |
+| `docs/` | Архитектура и дорожная карта | Markdown |
 
-1. **Авторизация.** Лаунчер логинит игрока на `auth-server` (а не на Mojang).
-   И клиент, и MC-сервер используют `authlib-injector`, перенаправляющий
-   проверку сессий на наш `auth-server`. Сервер остаётся в `online-mode=true`.
+## Что уже реализовано
 
-2. **Сборка — единый источник правды.** Все моды/конфиги лежат в общем volume
-   `modpack-data`. У каждого файла есть «сторона» (`client` / `server` / `both`).
-   Админка редактирует сборку → пересобирается `manifest.json`.
+1. **Лаунчер.**
+   Есть реальные вход/регистрация, Telegram 2FA, вход без пароля, сброс пароля,
+   сессия, профиль со скином/плащом, настройки, список опциональных модов,
+   прогресс загрузок, самообновление и запуск Minecraft 1.21.1 через NeoForge.
 
-3. **Доставка обновлений.** Лаунчер скачивает `manifest.json`, сравнивает SHA-1
-   хеши с локальными файлами и докачивает только изменённое. MC-сервер монтирует
-   свою (`server` + `both`) часть из того же volume.
+2. **Авторизация и игровые сессии.**
+   `auth-server` отдаёт `register/login/session/account`, загрузку и импорт
+   скинов, статистику, crash-отчёты, а также Yggdrasil-совместимые
+   `authenticate/refresh/validate/invalidate`, `join/hasJoined` и profile/textures.
 
-Подробнее — в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+3. **Модпак и доставка файлов.**
+   `admin-server` хранит метаданные сборок в PostgreSQL, раздаёт публичный
+   `GET /manifest` и `/files`, а лаунчер синхронизирует клиентские файлы по SHA-1,
+   не затирая пользовательские конфиги с `overwrite: false`.
 
-## Порядок разработки
+4. **Админка.**
+   `admin-web` и `admin-server` уже покрывают логин администратора, CRUD сборок,
+   загрузку файлов, активацию сборки, проверку зависимостей, управление
+   аккаунтами, банами, ролями, Telegram-привязкой, бейджами и градиентами.
 
-Идём от клиента к серверу, чтобы на каждом шаге был запускаемый результат:
+5. **Серверная кастомизация.**
+   `stardust-mod` и `auth-server` уже умеют отдавать кастомизацию игроков для TAB:
+   бейджи, цвет ника и градиенты.
 
-1. **Лаунчер: интерфейс** — экраны входа/регистрации, профиль, скин (3D),
-   настройки, прогресс. *(готово, на заглушках)*
-2. **Бекенд: аккаунты и авторизация** — регистрация/вход без почты, случайный
-   UUID на сервере, bearer-сессии с проверкой `/api/session`, серверное
-   хранение скинов по аккаунтам, импорт скина с лицензии Mojang и дальнейшая
-   Yggdrasil-совместимость.
-3. **Лаунчер: updater + запуск** — манифест, докачка по SHA-1, менеджер JRE,
-   подготовка vanilla Minecraft, передача ника/UUID/accessToken и запуск JVM.
-   Для настоящих серверных скинов следующим шагом подключается
-   authlib-injector + Yggdrasil/sessionserver endpoints на `auth-server`.
-4. *(позже)* **Веб-админка и управление сервером** — CRUD сборки и генерация
-   манифеста, статистика, аккаунты. Серверную панель либо пишем свою, либо
-   берём готовую (напр. [Catalyst](https://catalystctl.com)). **Пока не делаем.**
-
-Подробная разбивка по задачам — в [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Подробнее — в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) и
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Разработка
 
-Backend и shared-код — это Cargo workspace (см. корневой `Cargo.toml`).
-Сейчас в воркспейсе есть общий crate `protocol`, `auth-server` и Tauri-бэкенд
-лаунчера (`launcher/src-tauri`).
+Backend и shared-код живут в Cargo workspace (см. корневой `Cargo.toml`).
+Сейчас в воркспейсе: `protocol`, `store`, `auth-server`, `admin-server`,
+`telegram-bot` и Tauri-бэкенд лаунчера (`launcher/src-tauri`).
 
 ### Запуск auth-сервера
 
@@ -77,11 +75,22 @@ AUTH_BIND=127.0.0.1:8090 cargo run -p auth-server
 LAUNCHER_AUTH_URL=http://127.0.0.1:8090 npm run tauri dev
 ```
 
+### Запуск admin-server
+
+```sh
+ADMIN_BIND=127.0.0.1:8081 DATABASE_URL=postgres://... cargo run -p admin-server
+```
+
+По умолчанию публичный `files`-префикс строится как
+`http://127.0.0.1:8081/files`. При необходимости можно переопределить через
+`FILES_BASE_URL`.
+
 ### Сборка backend (Rust)
 
 ```sh
 cargo build            # собрать весь воркспейс
 cargo build -p auth-server
+cargo build -p admin-server
 cargo build -p protocol
 ```
 
@@ -92,6 +101,25 @@ cd launcher
 npm install            # один раз
 npm run tauri dev      # запускает Vite + Tauri-окно
 ```
+
+Для локальной разработки обычно нужны оба backend-сервиса:
+
+```sh
+cargo run -p auth-server
+ADMIN_BIND=127.0.0.1:8081 DATABASE_URL=postgres://... cargo run -p admin-server
+LAUNCHER_AUTH_URL=http://127.0.0.1:8080 LAUNCHER_ADMIN_URL=http://127.0.0.1:8081 npm run tauri dev
+```
+
+### Запуск admin-web
+
+```sh
+cd admin-web
+npm install
+npm run dev
+```
+
+Dev-сервер поднимается на `http://localhost:1430` и проксирует API на
+`admin-server`.
 
 ### Самообновление лаунчера
 
@@ -164,4 +192,8 @@ npm run tauri build
 > тихо, выбор удаления данных не показывается, а после установки лаунчер
 > открывается обратно.
 
-> Статус: каркас проекта. Сервисы реализуются по шагам (см. `docs/ROADMAP.md`).
+## Текущее состояние
+
+Проект уже рабочий как внутренний контур платформы, но остаются заметные зоны
+развития: безопасность хранения локальной сессии, покрытие тестами фронтенда,
+инфраструктурная сборка и полировка серверной интеграции вокруг мода.

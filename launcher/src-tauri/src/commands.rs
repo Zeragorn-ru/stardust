@@ -116,10 +116,15 @@ struct SavedSession {
     token: String,
 }
 
+fn session_entry(profile_id: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new("com.stardust.launcher", profile_id)
+        .map_err(|e| format!("не удалось открыть keyring: {e}"))
+}
+
 /// Результат входа, отдаваемый фронтенду.
 ///
 /// Зеркалит `protocol::LoginResult`, но `Ok`-ветка несёт уже сам профиль
-/// (токен оседает в runtime/`session.json` и наружу не выходит). При
+/// (токен оседает в runtime и в keyring, наружу не выходит). При
 /// `twoFactorRequired` UI показывает поле ввода кода и затем зовёт `login_2fa`
 /// с тем же `challenge`.
 #[derive(Debug, Clone, Serialize)]
@@ -162,7 +167,7 @@ enum ChallengeOutcome {
     Expired,
 }
 
-fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
+pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(5))
@@ -186,9 +191,8 @@ fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
 /// Состояние приложения, разделяемое между командами.
 pub struct AppState {
     pub profile: Mutex<Option<PlayerProfile>>,
-    /// Bearer-токен текущей API-сессии. Сейчас сохраняется в `session.json`
-    /// для автологина; когда появятся refresh-токены, заменим схему на более
-    /// безопасную долгую сессию.
+    /// Bearer-токен текущей API-сессии. Для автологина хранится в keyring,
+    /// а на диске в `session.json` остаётся только публичный профиль.
     pub token: Mutex<Option<String>>,
     /// HTTP-клиент к auth-серверу (переиспользуется между запросами).
     pub http: Mutex<reqwest::Client>,
@@ -226,7 +230,7 @@ impl AppState {
 
 // ---------- Настройки (персист на диск, кэш в AppState) ----------
 
-fn read_settings(app: &AppHandle) -> Settings {
+pub(crate) fn read_settings(app: &AppHandle) -> Settings {
     let path = paths::settings_file(app);
     match std::fs::read_to_string(&path) {
         Ok(s) => match serde_json::from_str(&s) {
@@ -254,12 +258,20 @@ fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
 fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
     let path = paths::session_file(app);
     let s = std::fs::read_to_string(&path).ok()?;
-    if let Ok(session) = serde_json::from_str(&s) {
-        return Some(session);
+
+    // Старый формат (`profile` + `token` в открытом виде) — надмножество
+    // полей нового `DiskSession`, поэтому serde успешно распознает старый
+    // JSON и как `DiskSession`, просто отбросив `token`. Чтобы миграция
+    // отрабатывала, старый формат нужно проверять первым.
+    if let Ok(legacy) = serde_json::from_str::<SavedSession>(&s) {
+        if let Err(e) = write_saved_session(app, &legacy) {
+            tracing::warn!("[session] не удалось мигрировать session.json в keyring: {e}");
+        }
+        return Some(legacy);
     }
 
     let disk: DiskSession = serde_json::from_str(&s).ok()?;
-    let entry = keyring::Entry::new("com.stardust.launcher", &disk.profile.id).ok()?;
+    let entry = session_entry(&disk.profile.id).ok()?;
     let token = entry.get_password().ok()?;
     Some(SavedSession {
         profile: disk.profile,
@@ -268,14 +280,32 @@ fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
 }
 
 fn write_saved_session(app: &AppHandle, session: &SavedSession) -> Result<(), String> {
+    let entry = session_entry(&session.profile.id)?;
+    entry
+        .set_password(&session.token)
+        .map_err(|e| format!("не удалось сохранить токен в keyring: {e}"))?;
+
     let path = paths::session_file(app);
-    let json = serde_json::to_string_pretty(session).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&DiskSession {
+        profile: session.profile.clone(),
+    })
+    .map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())
 }
 
 fn remove_saved_session(app: &AppHandle) {
-    if let Some(saved) = read_saved_session(app) {
-        if let Ok(entry) = keyring::Entry::new("com.stardust.launcher", &saved.profile.id) {
+    if let Ok(s) = std::fs::read_to_string(paths::session_file(app)) {
+        if let Ok(disk) = serde_json::from_str::<DiskSession>(&s) {
+            if let Ok(entry) = session_entry(&disk.profile.id) {
+                let _ = entry.delete_password();
+            }
+        } else if let Ok(saved) = serde_json::from_str::<SavedSession>(&s) {
+            if let Ok(entry) = session_entry(&saved.profile.id) {
+                let _ = entry.delete_password();
+            }
+        }
+    } else if let Some(saved) = read_saved_session(app) {
+        if let Ok(entry) = session_entry(&saved.profile.id) {
             let _ = entry.delete_password();
         }
     }
@@ -292,7 +322,7 @@ fn clear_runtime_session(state: &State<AppState>) {
     *state.profile.lock().unwrap() = None;
 }
 
-/// Сохраняет сессию и на диск (для автологина), и в runtime-состояние.
+/// Сохраняет сессию в keyring, профиль на диск и обновляет runtime-состояние.
 fn persist_session(
     state: &State<AppState>,
     app: &AppHandle,

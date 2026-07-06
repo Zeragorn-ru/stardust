@@ -96,7 +96,7 @@ pub struct Account {
     /// UUID без дефисов — сгенерирован сервером при регистрации.
     pub uuid: String,
     pub username: String,
-    /// `salt:hash` в hex (SHA-256).
+    /// Хеш пароля. Исторически мог быть `salt:sha256`, новые записи идут в Argon2.
     password_hash: String,
     pub skin: Option<StoredSkin>,
     /// Привязка Telegram для 2FA.
@@ -303,6 +303,7 @@ impl Store {
             .await
             .ok_or(StoreError::NotFound)?;
         if verify_password(password, &account.password_hash) {
+            self.migrate_password_hash_if_needed(&account, password).await?;
             Ok(account.profile())
         } else {
             Err(StoreError::BadPassword)
@@ -320,6 +321,7 @@ impl Store {
         if !verify_password(current, &account.password_hash) {
             return Err(StoreError::BadPassword);
         }
+        self.migrate_password_hash_if_needed(&account, current).await?;
         sqlx::query("UPDATE accounts SET password_hash = $1 WHERE uuid = $2")
             .bind(hash_password(new_password))
             .bind(&account.uuid)
@@ -435,7 +437,25 @@ impl Store {
         if !verify_password(password, &account.password_hash) {
             return Err(StoreError::BadPassword);
         }
+        self.migrate_password_hash_if_needed(&account, password).await?;
         self.delete_account(&account.uuid).await
+    }
+
+    async fn migrate_password_hash_if_needed(
+        &self,
+        account: &Account,
+        password: &str,
+    ) -> Result<(), StoreError> {
+        if !is_legacy_sha256_hash(&account.password_hash) {
+            return Ok(());
+        }
+
+        sqlx::query("UPDATE accounts SET password_hash = $1 WHERE uuid = $2")
+            .bind(hash_password(password))
+            .bind(&account.uuid)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     /// Блокирует аккаунт. `until = None` — бан навсегда; иначе временный бан
@@ -1042,23 +1062,40 @@ fn random_token() -> String {
     to_hex(&bytes)
 }
 
-/// SHA-256 пароля со случайной солью; формат `salt_hex:hash_hex`.
+/// Хеш пароля через Argon2id.
 fn hash_password(password: &str) -> String {
-    use rand::RngCore;
-    let mut salt = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut salt);
-    let salt_hex = to_hex(&salt);
-    let hash = digest_with_salt(password, &salt_hex);
-    format!("{salt_hex}:{hash}")
+    use argon2::{
+        password_hash::{rand_core::OsRng, SaltString},
+        Argon2, PasswordHasher,
+    };
+
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .expect("argon2 hashing should not fail")
+        .to_string()
 }
 
 fn verify_password(password: &str, stored: &str) -> bool {
-    if let Some((salt_hex, expected)) = stored.split_once(':') {
+    if is_legacy_sha256_hash(stored) {
+        let (salt_hex, expected) = stored
+            .split_once(':')
+            .expect("legacy sha256 hash must contain ':'");
         let actual = digest_with_salt(password, salt_hex);
         return constant_time_eq(actual.as_bytes(), expected.as_bytes());
     }
 
     verify_argon2_password(password, stored)
+}
+
+fn is_legacy_sha256_hash(stored: &str) -> bool {
+    let Some((salt_hex, hash_hex)) = stored.split_once(':') else {
+        return false;
+    };
+    salt_hex.len() == 32
+        && hash_hex.len() == 64
+        && salt_hex.chars().all(|c| c.is_ascii_hexdigit())
+        && hash_hex.chars().all(|c| c.is_ascii_hexdigit())
 }
 
 fn verify_argon2_password(password: &str, stored: &str) -> bool {
