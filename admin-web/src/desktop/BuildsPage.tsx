@@ -2,12 +2,13 @@
 // здесь отображаются детали выбранной сборки и менеджер файлов.
 
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import { useToast } from "../ui/feedback";
-import { IconPlus } from "../ui/icons";
+import { IconBox, IconPlus, IconStar } from "../ui/icons";
 import { BuildDetail } from "../BuildDetail";
 import { CreateBuildForm } from "../CreateBuildForm";
+import type { BuildHeader } from "../types";
 
 export function BuildsPage() {
   const toast = useToast();
@@ -17,6 +18,7 @@ export function BuildsPage() {
   const creating = params.id === "new";
 
   const [loading, setLoading] = useState(true);
+  const [builds, setBuilds] = useState<BuildHeader[]>([]);
 
   const select = useCallback(
     (id: number | null) => {
@@ -28,12 +30,12 @@ export function BuildsPage() {
   const load = useCallback(async () => {
     try {
       const list = await api.listBuilds();
-      // Если URL не указывает на существующую сборку — выбираем активную/первую.
+      setBuilds(list);
+      // Если URL указывает на несуществующую сборку — возвращаем в хаб сборок.
       const validSelection =
         selected !== null && list.some((b) => b.id === selected);
-      if (!validSelection && !creating) {
-        const fallback = list.find((b) => b.isActive)?.id ?? list[0]?.id ?? null;
-        if (fallback !== selected) select(fallback);
+      if (selected !== null && !validSelection && !creating) {
+        select(null);
       }
     } catch (err) {
       toast.error(
@@ -68,12 +70,7 @@ export function BuildsPage() {
             onChanged={load}
           />
         ) : (
-          <div className="empty-state">
-            <p className="muted">Сборок пока нет или выберите сборку в меню слева.</p>
-            <button className="primary" onClick={() => navigate("/builds/new")} style={{ marginTop: 12 }}>
-              <IconPlus size={14} /> Создать сборку
-            </button>
-          </div>
+          <BuildsHub builds={builds} onCreate={() => navigate("/builds/new")} />
         )}
       </div>
 
@@ -85,6 +82,57 @@ export function BuildsPage() {
             navigate(`/builds/${id}`);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+function BuildsHub({ builds, onCreate }: { builds: BuildHeader[]; onCreate: () => void }) {
+  const active = builds.find((b) => b.isActive);
+  return (
+    <div className="builds-hub">
+      <header className="view-head page-head">
+        <div>
+          <span className="eyebrow">Modpack pipeline</span>
+          <h1>Сборки</h1>
+          <p className="muted">
+            {builds.length} сборок · {active ? `активна «${active.name}»` : "активная сборка не выбрана"}
+          </p>
+        </div>
+        <button className="primary" onClick={onCreate}>
+          <IconPlus size={15} /> Создать сборку
+        </button>
+      </header>
+
+      {builds.length === 0 ? (
+        <div className="empty-state empty-state-redesigned">
+          <IconBox size={34} />
+          <strong>Сборок пока нет</strong>
+          <p>Создайте первую сборку, загрузите файлы и активируйте её для лаунчера.</p>
+          <button className="primary" onClick={onCreate}>
+            <IconPlus size={15} /> Создать сборку
+          </button>
+        </div>
+      ) : (
+        <div className="build-card-grid">
+          {builds.map((build) => (
+            <Link key={build.id} className={`build-card${build.isActive ? " build-card--active" : ""}`} to={`/builds/${build.id}`}>
+              <div className="build-card-orb"><IconBox size={18} /></div>
+              <div className="build-card-main">
+                <div className="build-card-title">
+                  <strong>{build.name}</strong>
+                  {build.isActive && <span className="badge active"><IconStar size={11} /> active</span>}
+                </div>
+                <span className="muted">v{build.version}</span>
+              </div>
+              <div className="build-card-meta">
+                <span>{build.loaderKind}</span>
+                <span>MC {build.mcVersion}</span>
+                {build.loaderVersion && <span>{build.loaderVersion}</span>}
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
     </div>
   );

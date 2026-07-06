@@ -115,16 +115,23 @@ export function SettingsView() {
   }
 
   return (
-    <div className="view">
-      <header className="view-head">
+    <div className="view settings-view">
+      <header className="view-head page-head">
         <div>
+          <span className="eyebrow">Infrastructure</span>
           <h1>Настройки</h1>
-          <p className="muted">Параметры сервера и вспомогательные файлы</p>
+          <p className="muted">Интеграции, доставка файлов и вспомогательные артефакты.</p>
         </div>
       </header>
 
+      <div className="settings-status-row">
+        <div className="metric-card metric-card--blue"><span>Telegram</span><strong>{settings?.telegramTokenSet ? "online" : "off"}</strong><small>{settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "бот не подключён"}</small></div>
+        <div className="metric-card metric-card--green"><span>SFTP</span><strong>{settings?.sftpPasswordSet ? "ready" : "setup"}</strong><small>{settings?.sftpHost || "host не задан"}</small></div>
+        <div className="metric-card metric-card--yellow"><span>Stats path</span><strong>{settings?.sftpStatsPath ? "set" : "empty"}</strong><small>{settings?.sftpStatsPath || "путь к stats не задан"}</small></div>
+      </div>
+
       <div className="settings-grid">
-        <section className="panel settings-card">
+        <section className="panel panel-flat settings-card">
           <div className="settings-card-head">
             <IconTelegram />
             <div>
@@ -197,7 +204,7 @@ export function SettingsView() {
           )}
         </section>
 
-        <section className="panel settings-card">
+        <section className="panel panel-flat settings-card">
           <div className="settings-card-head">
             <IconSettings />
             <div>
@@ -282,7 +289,7 @@ export function SettingsView() {
           )}
         </section>
 
-        <section className="panel settings-card">
+        <section className="panel panel-flat settings-card">
           <div className="settings-card-head">
             <IconKey />
             <div>

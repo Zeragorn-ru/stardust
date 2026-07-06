@@ -10,13 +10,101 @@
     min-height: 100dvh;
     display: flex;
     flex-direction: column;
-    background: var(--bg);
+    background:
+        radial-gradient(circle at 20% 0%, rgba(115, 215, 255, 0.12), transparent 18rem),
+        radial-gradient(circle at 92% 6%, rgba(157, 124, 255, 0.1), transparent 18rem),
+        #030406;
 }
 
 .m-content {
     flex: 1;
     /* Запас снизу под таб-бар + safe-area домашней полоски. */
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+}
+
+.m-shell-head {
+    position: sticky;
+    top: 0;
+    z-index: 35;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(3, 4, 6, 0.78);
+    backdrop-filter: blur(18px);
+}
+
+.m-shell-brand {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.m-shell-brand strong,
+.m-shell-brand small {
+    display: block;
+    line-height: 1.1;
+}
+
+.m-shell-brand small {
+    margin-top: 3px;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+}
+
+.m-brand-mark {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(135deg, rgba(115, 215, 255, 0.16), rgba(157, 124, 255, 0.18));
+}
+
+.m-brand-mark span {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 16px #73d7ff, 0 0 26px #9d7cff;
+}
+
+.m-shell-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.m-shell-link {
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.035);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.m-shell-logout {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    border-radius: 999px;
+    padding: 0;
 }
 
 /* --- Нижняя навигация --- */
@@ -26,20 +114,30 @@
     right: 0;
     bottom: 0;
     z-index: 40;
-    display: flex;
-    background: var(--panel);
-    border-top: 1px solid var(--border);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+    margin: 0 10px 10px;
+    padding: 8px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    background: rgba(8, 11, 16, 0.9);
+    backdrop-filter: blur(18px);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.48);
 }
 
 .m-tab {
-    flex: 1;
+    min-width: 0;
+    min-height: 54px;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 9px 4px;
-    font-size: 11px;
+    justify-content: center;
+    padding: 7px 4px;
+    border-radius: 17px;
+    font-size: 10.5px;
     color: var(--muted);
     text-decoration: none;
     background: none;
@@ -49,6 +147,8 @@
 
 .m-tab.active {
     color: var(--accent);
+    background: rgba(115, 215, 255, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(115, 215, 255, 0.12);
 }
 
 .m-tab:active {
@@ -57,24 +157,175 @@
 
 /* --- Экран и его шапка --- */
 .m-screen {
-    padding: 14px 12px;
+    padding: 16px 12px 8px;
 }
 
 .m-head {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
 }
 
 .m-head h1 {
-    font-size: 20px;
+    font-size: 28px;
+    letter-spacing: -0.055em;
     margin: 0;
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.m-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    min-height: 16px;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.16em;
+    line-height: 1;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.m-hero-card,
+.m-section-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018));
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.3);
+}
+
+.m-hero-card {
+    padding: 22px;
+    margin-bottom: 14px;
+}
+
+.m-hero-card h1 {
+    margin: 0;
+    font-size: 34px;
+    letter-spacing: -0.06em;
+}
+
+.m-hero-card p {
+    margin: 10px 0 0;
+    color: var(--muted);
+    line-height: 1.55;
+}
+
+.m-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.m-metric {
+    min-height: 116px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.028);
+}
+
+.m-metric span,
+.m-metric small {
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-metric strong {
+    font-size: 28px;
+    line-height: 1;
+    letter-spacing: -0.055em;
+}
+
+.m-metric--blue { box-shadow: inset 0 -54px 70px rgba(115, 215, 255, 0.055); }
+.m-metric--green { box-shadow: inset 0 -54px 70px rgba(95, 240, 167, 0.05); }
+.m-metric--yellow { box-shadow: inset 0 -54px 70px rgba(255, 209, 102, 0.045); }
+
+.m-section-card {
+    padding: 14px;
+    margin-bottom: 14px;
+}
+
+.m-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.m-section-head h2 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.m-section-head a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 800;
+    font-size: 13px;
+}
+
+.m-service-row,
+.m-wide-action {
+    width: 100%;
+    min-height: 62px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 18px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.025);
+    text-decoration: none;
+}
+
+.m-wide-action + .m-wide-action {
+    margin-top: 8px;
+}
+
+.m-row-icon {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    color: var(--accent);
+    background: rgba(115, 215, 255, 0.09);
+}
+
+.m-row-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: left;
+}
+
+.m-row-main strong,
+.m-row-main small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-row-main small {
+    color: var(--muted);
 }
 
 /* --- Список сборок: карточки --- */
@@ -91,10 +342,11 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 14px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    min-height: 92px;
+    padding: 14px;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 22px;
     cursor: pointer;
     transition:
         border-color var(--ease),
@@ -102,8 +354,8 @@
 }
 
 .m-card:active {
-    background: var(--panel-3);
-    border-color: var(--border-strong);
+    background: rgba(115, 215, 255, 0.06);
+    border-color: rgba(115, 215, 255, 0.22);
 }
 
 .m-card-body {
@@ -118,6 +370,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
 }
 
 .m-card-title strong {
@@ -133,7 +386,7 @@
 .m-card-actions {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 5px;
     flex: none;
 }
 
@@ -146,15 +399,15 @@
 .m-fab {
     position: fixed;
     right: 16px;
-    bottom: calc(64px + 16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(82px + 16px + env(safe-area-inset-bottom, 0px));
     z-index: 35;
     width: 52px;
     height: 52px;
     padding: 0;
     border-radius: var(--radius-pill);
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #fff;
+    background: linear-gradient(135deg, #6bd7ff, #8a7cff 58%, #c084fc);
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #020304;
     box-shadow: var(--shadow-md);
     justify-content: center;
 }
@@ -201,20 +454,41 @@
     margin-bottom: 14px;
 }
 
+.m-detail-actions button,
+.m-detail-actions .badge {
+    min-height: 36px;
+}
+
 .m-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 14px;
 }
 
-.m-fm-panel {
+.m-stats .stat {
+    min-height: 82px;
     padding: 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.028);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.m-stats .stat-value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-fm-panel {
+    padding: 10px;
+    border-radius: 22px;
 }
 
 .m-checks-panel {
     padding: 12px;
-    margin: 0 12px 12px;
+    margin: 0 0 12px;
+    border-radius: 22px;
 }
 
 .m-screen > .sync-progress {
@@ -243,25 +517,125 @@
 /* Экраны Settings/Accounts рендерят десктопную вёрстку как есть; полоска
    выхода сверху и небольшой отступ дают мобильный контекст. */
 .m-screen-reuse .view-head {
-    margin-top: 4px;
+    margin-top: 0;
 }
 
-.m-logout-bar {
+.m-screen-reuse .view {
+    max-width: none;
+}
+
+.m-screen-reuse .page-head,
+.m-screen-reuse .view-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.m-screen-reuse .page-head h1,
+.m-screen-reuse .view-head h1 {
+    font-size: 30px;
+}
+
+.m-screen-reuse .head-actions {
     width: 100%;
-    justify-content: center;
-    margin-bottom: 14px;
 }
 
-/* Верхняя полоска переиспользуемых экранов: слева переход на полную версию,
-   справа выход. Делим ширину поровну. */
+.m-screen-reuse .head-actions .search,
+.m-screen-reuse .head-actions button {
+    width: 100%;
+}
+
+.m-screen-reuse .ops-grid,
+.m-screen-reuse .settings-status-row,
+.m-screen-reuse .settings-grid,
+.m-screen-reuse .cosmetics-grid,
+.m-screen-reuse .overview-columns {
+    grid-template-columns: 1fr;
+}
+
+.m-screen-reuse .metric-card {
+    min-height: 104px;
+    padding: 14px;
+}
+
+.m-screen-reuse .metric-card strong {
+    font-size: 26px;
+}
+
+.m-screen-reuse .cosmetics-preview {
+    align-items: stretch;
+}
+
+.m-screen-reuse .nickname-preview-row {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+}
+
+.m-screen-reuse .gradient-name-preview {
+    min-width: 0;
+    font-size: 22px;
+}
+
+.m-screen-reuse .cosmetic-actions {
+    grid-template-columns: 1fr;
+}
+
+.m-screen-reuse .cosmetic-actions button {
+    width: 100%;
+}
+
+.m-screen-reuse .table-panel {
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.m-screen-reuse table,
+.m-screen-reuse thead,
+.m-screen-reuse tbody,
+.m-screen-reuse tr,
+.m-screen-reuse th,
+.m-screen-reuse td {
+    display: block;
+}
+
+.m-screen-reuse thead {
+    display: none;
+}
+
+.m-screen-reuse tr {
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.028);
+}
+
+.m-screen-reuse td {
+    min-height: 0;
+    height: auto;
+    padding: 7px 0;
+    border-bottom: none;
+}
+
+.m-screen-reuse td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: var(--faint);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+/* Верхняя полоска переиспользуемых экранов: служебные быстрые ссылки. */
 .m-top-bar {
     display: flex;
     gap: 8px;
     margin-bottom: 14px;
-}
-
-.m-top-bar .m-logout-bar {
-    margin-bottom: 0;
 }
 
 .m-top-bar > * {
@@ -277,9 +651,9 @@
     font-size: 13px;
     color: var(--text);
     text-decoration: none;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.035);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
 }
 
 .m-top-link:active {
@@ -302,9 +676,9 @@
     flex-direction: column;
     gap: 14px;
     padding: 22px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
     box-shadow: var(--shadow-md);
 }
 
@@ -313,8 +687,8 @@
 /* Вторичная кнопка: как обычная, но с явным «тихим» фоном. На десктопе её
    нет, а мобильные действия-в-ряд читаются лучше с единым стилем. */
 button.secondary {
-    background: var(--panel-2);
-    border-color: var(--border);
+    background: rgba(255, 255, 255, 0.035);
+    border-color: rgba(255, 255, 255, 0.08);
 }
 
 button.secondary:hover:not(:disabled) {
@@ -325,4 +699,90 @@ button.secondary:hover:not(:disabled) {
 /* Кнопка с иконкой и подписью (в отличие от .icon-only — без обрезки до квадрата). */
 .icon-btn {
     gap: 6px;
+}
+
+.m-screen .badge,
+.m-screen .tag {
+    min-height: 24px;
+    line-height: 1;
+    align-items: center;
+    justify-content: center;
+}
+
+.m-screen .modal {
+    width: calc(100vw - 24px);
+    max-width: none;
+    max-height: calc(100dvh - 24px);
+    overflow: auto;
+    border-radius: 24px;
+}
+
+.m-screen .fm-toolbar,
+.m-screen .files-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+}
+
+.m-screen .fm-toolbar .search,
+.m-screen .files-toolbar .search,
+.m-screen .fm-toolbar .seg,
+.m-screen .files-toolbar .seg {
+    width: 100%;
+}
+
+.m-screen .seg {
+    display: grid;
+    grid-auto-flow: column;
+}
+
+.m-screen .seg-btn {
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 8px;
+}
+
+.m-screen .fm-row {
+    min-height: 58px;
+    border-radius: 14px;
+    margin-bottom: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+
+.m-screen .fm-list {
+    border: none;
+    gap: 0;
+}
+
+.m-screen .fm-actions {
+    gap: 2px;
+}
+
+.m-screen .fm-actions .icon-only,
+.m-screen .fm-actions a.icon-only {
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+}
+
+@media (max-width: 390px) {
+    .m-tab span {
+        display: none;
+    }
+
+    .m-tab {
+        min-height: 48px;
+    }
+
+    .m-shell-link {
+        display: none;
+    }
+
+    .m-metric-grid {
+        gap: 8px;
+    }
+
+    .m-card-actions button.icon-only {
+        display: none;
+    }
 }

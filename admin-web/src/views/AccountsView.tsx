@@ -77,15 +77,16 @@ export function AccountsView() {
   const bannedCount = accounts.filter((a) => a.banned).length;
 
   return (
-    <div className="view">
-      <header className="view-head">
+    <div className="view accounts-view">
+      <header className="view-head page-head">
         <div>
+          <span className="eyebrow">Player directory</span>
           <h1>Аккаунты</h1>
           <p className="muted">
             {accounts.length} всего · {adminCount} админ(ов) · {bannedCount} в бане
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="head-actions">
           <button className="secondary icon-btn" onClick={syncStats} disabled={syncing}>
             <IconSync size={14} className={syncing ? "spin" : ""} />
             {syncing ? "Синхронизация..." : "Синхр. статистики"}
@@ -101,7 +102,14 @@ export function AccountsView() {
         </div>
       </header>
 
-      <div className="panel">
+      <div className="ops-grid accounts-metrics">
+        <div className="metric-card metric-card--blue"><span>Всего</span><strong>{accounts.length}</strong><small>зарегистрированных игроков</small></div>
+        <div className="metric-card metric-card--green"><span>Админы</span><strong>{adminCount}</strong><small>расширенный доступ</small></div>
+        <div className="metric-card metric-card--yellow"><span>Telegram</span><strong>{accounts.filter((a) => a.telegramLinked).length}</strong><small>аккаунтов привязано</small></div>
+        <div className="metric-card metric-card--red"><span>Баны</span><strong>{bannedCount}</strong><small>ограниченный доступ</small></div>
+      </div>
+
+      <div className="panel panel-flat table-panel">
         {loading ? (
           <p className="muted">
             <span className="spinner" />
@@ -130,9 +138,8 @@ export function AccountsView() {
                 return (
                   <tr
                     key={a.uuid}
-                    className="clickable-row"
+                    className="clickable-row account-row"
                     onClick={() => setSelectedAccount(a)}
-                    style={{ cursor: "pointer" }}
                   >
                     <td>
                       <div className="cell-main">
@@ -171,7 +178,7 @@ export function AccountsView() {
                       )}
                     </td>
                     <td>
-                      <span className="muted" style={{ fontSize: 12 }}>→</span>
+                      <span className="row-arrow">→</span>
                     </td>
                   </tr>
                 );
@@ -198,5 +205,4 @@ export function AccountsView() {
     </div>
   );
 }
-
 

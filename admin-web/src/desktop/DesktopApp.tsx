@@ -5,19 +5,17 @@
 // открытая сборка адресуется ссылкой `/builds/:id`. Слой данных (api/типы) и
 // проверенная логика управления файлами переиспользуются как есть.
 
-import { useCallback, useEffect, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { FeedbackProvider } from "../ui/feedback";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { Login } from "../Login";
 import { BuildsPage } from "./BuildsPage";
+import { OverviewView } from "../views/OverviewView";
 import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
 import { CustomizationView } from "../views/CustomizationView";
-import { IconBox, IconLogout, IconSettings, IconSmartphone, IconUsers, IconStar, IconPlus } from "../ui/icons";
+import { IconBox, IconChart, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
-import { api } from "../api";
-import type { BuildHeader } from "../types";
 
 export function DesktopApp() {
   return (
@@ -49,31 +47,31 @@ function Gate() {
 function Shell() {
   const { username, logout } = useAuth();
   const location = useLocation();
-  const [builds, setBuilds] = useState<BuildHeader[]>([]);
-
-  const loadBuilds = useCallback(async () => {
-    try {
-      const list = await api.listBuilds();
-      setBuilds(list);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    loadBuilds();
-    window.addEventListener("builds-updated", loadBuilds);
-    return () => window.removeEventListener("builds-updated", loadBuilds);
-  }, [loadBuilds]);
-
-  const onBuildsRoute = location.pathname.startsWith("/builds");
+  const section = location.pathname.split("/")[1] || "overview";
 
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-dot" />
-          StarDust
+        <div className="brand brand-redesigned">
+          <span className="brand-mark">
+            <span />
+          </span>
+          <div>
+            <strong>StarDust</strong>
+            <small>Control room</small>
+          </div>
         </div>
         <nav className="nav">
+          <span className="nav-group">Overview</span>
+          <NavLink
+            to="/overview"
+            className={({ isActive }) =>
+              `nav-item${isActive ? " active" : ""}`
+            }
+          >
+            <IconChart /> Обзор
+          </NavLink>
+          <span className="nav-group">Infrastructure</span>
           <NavLink
             to="/builds"
             className={({ isActive }) =>
@@ -82,37 +80,15 @@ function Shell() {
           >
             <IconBox /> Сборки
           </NavLink>
-
-          {onBuildsRoute && (
-            <div className="sidebar-sub-nav">
-              {builds.map((b) => (
-                <NavLink
-                  key={b.id}
-                  to={`/builds/${b.id}`}
-                  className={({ isActive }) =>
-                    `sub-nav-item${isActive ? " active" : ""}`
-                  }
-                >
-                  <span className="sub-nav-text" title={b.name}>
-                    {b.name}
-                  </span>
-                  {b.isActive && (
-                    <IconStar size={10} className="sub-nav-star" />
-                  )}
-                </NavLink>
-              ))}
-              <NavLink
-                to="/builds/new"
-                className={({ isActive }) =>
-                  `sub-nav-item sub-nav-add-btn${isActive ? " active" : ""}`
-                }
-              >
-                <IconPlus size={12} />
-                <span>Создать</span>
-              </NavLink>
-            </div>
-          )}
-
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `nav-item${isActive ? " active" : ""}`
+            }
+          >
+            <IconSettings /> Интеграции
+          </NavLink>
+          <span className="nav-group">Operations</span>
           <NavLink
             to="/accounts"
             className={({ isActive }) =>
@@ -127,15 +103,7 @@ function Shell() {
               `nav-item${isActive ? " active" : ""}`
             }
           >
-            <span style={{ fontSize: 16 }}>🎨</span> Кастомизация
-          </NavLink>
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              `nav-item${isActive ? " active" : ""}`
-            }
-          >
-            <IconSettings /> Настройки
+            <IconStar /> Кастомизация
           </NavLink>
         </nav>
         <div className="sidebar-foot">
@@ -155,16 +123,44 @@ function Shell() {
           </button>
         </div>
       </aside>
-      <main className="content">
-        <Routes>
-          <Route path="/builds" element={<BuildsPage />} />
-          <Route path="/builds/:id" element={<BuildsPage />} />
-          <Route path="/accounts" element={<AccountsView />} />
-          <Route path="/customization" element={<CustomizationView />} />
-          <Route path="/settings" element={<SettingsView />} />
-          <Route path="*" element={<Navigate to="/builds" replace />} />
-        </Routes>
-      </main>
+      <div className="workspace">
+        <header className="topbar">
+          <div>
+            <span className="topbar-eyebrow">/{section}</span>
+            <strong>{sectionTitle(section)}</strong>
+          </div>
+          <div className="topbar-status">
+            <span className="status-dot status-dot--online" />
+            API connected
+          </div>
+        </header>
+        <main className="content">
+          <Routes>
+            <Route path="/overview" element={<OverviewView />} />
+            <Route path="/builds" element={<BuildsPage />} />
+            <Route path="/builds/:id" element={<BuildsPage />} />
+            <Route path="/accounts" element={<AccountsView />} />
+            <Route path="/customization" element={<CustomizationView />} />
+            <Route path="/settings" element={<SettingsView />} />
+            <Route path="*" element={<Navigate to="/overview" replace />} />
+          </Routes>
+        </main>
+      </div>
     </div>
   );
+}
+
+function sectionTitle(section: string): string {
+  switch (section) {
+    case "builds":
+      return "Сборки и файлы";
+    case "accounts":
+      return "Игроки и доступ";
+    case "customization":
+      return "Косметика";
+    case "settings":
+      return "Инфраструктура";
+    default:
+      return "Панель управления";
+  }
 }

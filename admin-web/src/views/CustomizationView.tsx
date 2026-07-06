@@ -1,9 +1,11 @@
 // Управление бейджами и градиентами для кастомизации ника.
 import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { api, ApiError } from "../api";
 import type { Badge, Gradient } from "../types";
 import { useToast, useConfirm } from "../ui/feedback";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
+import { IconPlus, IconTrash, IconPencil } from "../ui/icons";
 
 export function CustomizationView() {
   const toast = useToast();
@@ -98,98 +100,124 @@ export function CustomizationView() {
     }
   }
 
-  if (loading) {
-    return <div className="panel muted"><span className="spinner" /> Загрузка…</div>;
-  }
-
   return (
-    <div className="view">
-      <header className="view-head">
-        <h1>Кастомизация ника</h1>
+    <div className="view customization-view">
+      <header className="view-head page-head">
+        <div>
+          <span className="eyebrow">Cosmetics studio</span>
+          <h1>Кастомизация ника</h1>
+          <p className="muted">Бейджи и градиенты, которые увидят игроки в TAB и лаунчере.</p>
+        </div>
       </header>
 
-      {/* Бейджи */}
-      <div className="panel" style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <h2 style={{ margin: 0 }}>Бейджи</h2>
-          <button className="primary" onClick={() => setBadgeModal({ mode: "create" })}>+ Создать</button>
+      <section className="cosmetics-preview panel panel-flat">
+        <div>
+          <span className="eyebrow">Preview</span>
+          <h2>Как это выглядит</h2>
         </div>
-        {badges.length === 0 ? (
-          <p className="muted">Бейджей пока нет.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ width: 50 }}></th>
-                <th>Название</th>
-                <th>Цвет</th>
-                <th style={{ width: 120 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {badges.map((b) => (
-                <tr key={b.id}>
-                  <td style={{ fontSize: 20, textAlign: "center" }}>{b.emoji}</td>
-                  <td>{b.label}</td>
-                  <td>
-                    <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 3, background: b.color, verticalAlign: "middle", marginRight: 6 }} />
-                    <span className="mono muted">{b.color}</span>
-                  </td>
-                  <td>
-                    <button className="secondary" onClick={() => setBadgeModal({ mode: "edit", badge: b })}>Ред.</button>
-                    <button className="danger" onClick={() => handleDeleteBadge(b)}>Уд.</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+        <div className="nickname-preview-row">
+          <span className="badge-sample" style={{ "--badge-color": badges[0]?.color ?? "#7dd3fc" } as CSSProperties}>
+            <span className="badge-sample-emoji">{badges[0]?.emoji ?? "✦"}</span>
+            <span>{badges[0]?.label ?? "VIP"}</span>
+          </span>
+          <strong
+            className="gradient-name-preview"
+            style={{
+              "--grad-start": gradients[0]?.colorStart ?? "#7dd3fc",
+              "--grad-end": gradients[0]?.colorEnd ?? "#a78bfa",
+            } as CSSProperties}
+          >
+            StardustPlayer
+          </strong>
+        </div>
+      </section>
 
-      {/* Градиенты */}
-      <div className="panel">
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          <h2 style={{ margin: 0 }}>Градиенты</h2>
-          <button className="primary" onClick={() => setGradientModal({ mode: "create" })}>+ Создать</button>
-        </div>
-        {gradients.length === 0 ? (
-          <p className="muted">Градиентов пока нет.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Название</th>
-                <th>Превью</th>
-                <th style={{ width: 120 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {gradients.map((g) => (
-                <tr key={g.id}>
-                  <td>{g.label}</td>
-                  <td>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 120,
-                        height: 20,
-                        borderRadius: 4,
-                        background: `linear-gradient(90deg, ${g.colorStart}, ${g.colorEnd})`,
-                      }}
-                    />
-                    <span className="mono muted" style={{ marginLeft: 8, fontSize: 12 }}>
-                      {g.colorStart} → {g.colorEnd}
-                    </span>
-                  </td>
-                  <td>
-                    <button className="secondary" onClick={() => setGradientModal({ mode: "edit", gradient: g })}>Ред.</button>
-                    <button className="danger" onClick={() => handleDeleteGradient(g)}>Уд.</button>
-                  </td>
-                </tr>
+      <div className="cosmetics-grid">
+        <section className="panel panel-flat cosmetics-section">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">Badges</span>
+              <h2>Бейджи</h2>
+            </div>
+            <button className="primary" onClick={() => setBadgeModal({ mode: "create" })}>
+              <IconPlus size={15} /> Создать
+            </button>
+          </div>
+          {loading ? (
+            <p className="muted"><span className="spinner" /> Загрузка…</p>
+          ) : badges.length === 0 ? (
+            <p className="muted">Бейджей пока нет.</p>
+          ) : (
+            <div className="cosmetic-card-grid">
+              {badges.map((b) => (
+                <article className="cosmetic-card" key={b.id}>
+                  <div className="badge-sample" style={{ "--badge-color": b.color } as CSSProperties}>
+                    <span className="badge-sample-emoji">{b.emoji}</span>
+                    <span>{b.label}</span>
+                  </div>
+                  <div className="cosmetic-meta">
+                    <span className="color-swatch" style={{ background: b.color }} />
+                    <span className="mono muted">{b.color}</span>
+                  </div>
+                  <div className="cosmetic-actions">
+                    <button className="secondary icon-btn" onClick={() => setBadgeModal({ mode: "edit", badge: b })}>
+                      <IconPencil size={14} /> Редактировать
+                    </button>
+                    <button className="danger icon-btn" onClick={() => handleDeleteBadge(b)}>
+                      <IconTrash size={14} /> Удалить
+                    </button>
+                  </div>
+                </article>
               ))}
-            </tbody>
-          </table>
-        )}
+            </div>
+          )}
+        </section>
+
+        <section className="panel panel-flat cosmetics-section">
+          <div className="section-head">
+            <div>
+              <span className="eyebrow">Gradients</span>
+              <h2>Градиенты</h2>
+            </div>
+            <button className="primary" onClick={() => setGradientModal({ mode: "create" })}>
+              <IconPlus size={15} /> Создать
+            </button>
+          </div>
+          {loading ? (
+            <p className="muted"><span className="spinner" /> Загрузка…</p>
+          ) : gradients.length === 0 ? (
+            <p className="muted">Градиентов пока нет.</p>
+          ) : (
+            <div className="cosmetic-card-grid">
+              {gradients.map((g) => (
+                <article className="cosmetic-card" key={g.id}>
+                  <strong
+                    className="gradient-name-preview gradient-name-preview--card"
+                    style={{
+                      "--grad-start": g.colorStart,
+                      "--grad-end": g.colorEnd,
+                    } as CSSProperties}
+                  >
+                    {g.label}
+                  </strong>
+                  <div className="gradient-strip" style={{ background: `linear-gradient(90deg, ${g.colorStart}, ${g.colorEnd})` }} />
+                  <div className="cosmetic-meta cosmetic-meta--split">
+                    <span className="mono muted">{g.colorStart}</span>
+                    <span className="mono muted">{g.colorEnd}</span>
+                  </div>
+                  <div className="cosmetic-actions">
+                    <button className="secondary icon-btn" onClick={() => setGradientModal({ mode: "edit", gradient: g })}>
+                      <IconPencil size={14} /> Редактировать
+                    </button>
+                    <button className="danger icon-btn" onClick={() => handleDeleteGradient(g)}>
+                      <IconTrash size={14} /> Удалить
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
       {badgeModal && (

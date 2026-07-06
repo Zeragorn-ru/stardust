@@ -6,12 +6,10 @@ import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { BuildHeader } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
-import { useAuth } from "../app/useAuth";
 import { CreateBuildForm } from "../CreateBuildForm";
 import {
   IconChevronRight,
   IconCopy,
-  IconLogout,
   IconPlus,
   IconStar,
   IconTrash,
@@ -21,7 +19,6 @@ export function MobileBuilds() {
   const toast = useToast();
   const confirm = useConfirm();
   const navigate = useNavigate();
-  const { logout } = useAuth();
   const [builds, setBuilds] = useState<BuildHeader[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -83,10 +80,10 @@ export function MobileBuilds() {
   return (
     <div className="m-screen">
       <header className="m-head">
-        <h1>Сборки</h1>
-        <button className="icon-only" title="Выйти" onClick={logout}>
-          <IconLogout size={20} />
-        </button>
+        <div>
+          <span className="m-eyebrow">Deployment</span>
+          <h1>Сборки</h1>
+        </div>
       </header>
 
       {loading ? (
