@@ -1836,11 +1836,12 @@ td.num {
     margin-bottom: 12px;
     border: 1px solid var(--accent-2);
     border-radius: var(--radius);
-    background: var(--surface);
+    background: rgba(8, 11, 16, 0.94);
+    backdrop-filter: blur(18px) saturate(1.12);
     position: sticky;
     top: 8px;
     z-index: 20;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
 }
 
 .fm-bulk-count {

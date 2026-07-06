@@ -54,7 +54,7 @@ export interface Settings {
 
 export interface PlayerStats {
   playtimeSeconds: number;
-  lastLaunchedAt?: string;
+  lastJoinedAt?: string;
 }
 
 export interface CreateBuildInput {

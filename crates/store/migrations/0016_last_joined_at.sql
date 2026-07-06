@@ -1,0 +1,2 @@
+ALTER TABLE accounts
+    ADD COLUMN IF NOT EXISTS last_joined_at TIMESTAMPTZ;

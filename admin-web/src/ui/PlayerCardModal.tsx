@@ -151,10 +151,10 @@ function InfoTab({ account }: { account: Account }) {
                 <td>{formatPlaytime(stats.playtimeSeconds)}</td>
               </tr>
               <tr>
-                <td className="muted">Последний запуск</td>
+                <td className="muted">Последний заход</td>
                 <td>
-                  {stats.lastLaunchedAt
-                    ? new Date(stats.lastLaunchedAt).toLocaleString()
+                  {stats.lastJoinedAt
+                    ? new Date(stats.lastJoinedAt).toLocaleString()
                     : "—"}
                 </td>
               </tr>

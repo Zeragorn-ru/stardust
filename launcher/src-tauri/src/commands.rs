@@ -1303,7 +1303,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
 
 // ---------- Статистика ----------
 
-/// Получить статистику игрока с сервера (playtime, last_launched_at).
+/// Получить статистику игрока с сервера (playtime, lastJoinedAt).
 #[tauri::command]
 async fn get_stats(state: State<'_, AppState>) -> Result<protocol::PlayerStats, String> {
     let (_uuid, token) = current_session(&state)?;

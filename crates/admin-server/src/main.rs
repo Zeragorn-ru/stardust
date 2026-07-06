@@ -2365,18 +2365,18 @@ async fn sync_stats(
     Ok(Json(serde_json::json!({ "updated": updated })))
 }
 
-/// `GET /api/accounts/:uuid/stats` — время игры и дата последнего запуска.
+/// `GET /api/accounts/:uuid/stats` — время игры и дата последнего захода на сервер.
 async fn account_stats(
     State(state): State<Shared>,
     headers: HeaderMap,
     Path(uuid): Path<String>,
 ) -> Result<Json<protocol::PlayerStats>, ApiError> {
     require_admin(&state, &headers).await?;
-    let (playtime_seconds, last_launched_at) =
+    let (playtime_seconds, last_joined_at) =
         state.store.get_playtime(&uuid).await.map_err(map_store)?;
     Ok(Json(protocol::PlayerStats {
         playtime_seconds,
-        last_launched_at: last_launched_at
+        last_joined_at: last_joined_at
             .map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
 }

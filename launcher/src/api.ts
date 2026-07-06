@@ -494,11 +494,11 @@ export async function onUpdateProgress(
   }
 }
 
-/** Статистика игрока (playtime, last_launched_at). */
+/** Статистика игрока (playtime, lastJoinedAt). */
 export async function getStats(): Promise<PlayerStats> {
   const invoke = await getInvoke();
   if (!invoke) {
-    return { playtimeSeconds: 0, lastLaunchedAt: null };
+    return { playtimeSeconds: 0, lastJoinedAt: null };
   }
   return invoke<PlayerStats>("get_stats");
 }

@@ -117,10 +117,6 @@ export default function MainScreen({
 
   async function handlePlay() {
     onProgressChange({ phase: "checking", label: "Готовим игру…", fraction: null });
-    // Оптимистично обновляем lastLaunchedAt сразу.
-    setStats((s) =>
-      s ? { ...s, lastLaunchedAt: new Date().toISOString() } : s,
-    );
     try {
       await playGame();
       onRunningChange(true);
@@ -211,10 +207,10 @@ export default function MainScreen({
                       <span className="hero__stat-value">{formatPlaytime(stats.playtimeSeconds)}</span>
                       <span className="hero__stat-label">в игре</span>
                     </div>
-                    {stats.lastLaunchedAt != null && (
+                    {stats.lastJoinedAt != null && (
                       <div className="hero__stat">
-                        <span className="hero__stat-value">{formatLastLaunch(stats.lastLaunchedAt)}</span>
-                        <span className="hero__stat-label">последний запуск</span>
+                        <span className="hero__stat-value">{formatLastJoin(stats.lastJoinedAt)}</span>
+                        <span className="hero__stat-label">последний заход</span>
                       </div>
                     )}
                   </>
@@ -376,7 +372,7 @@ function formatPlaytime(seconds: number): string {
   return `${h}ч ${m}м`;
 }
 
-function formatLastLaunch(iso: string): string {
+function formatLastJoin(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const day = String(d.getDate()).padStart(2, "0");

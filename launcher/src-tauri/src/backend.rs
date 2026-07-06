@@ -660,7 +660,7 @@ pub async fn telegram_unlink(client: &reqwest::Client, token: &str) -> Result<()
     }
 }
 
-/// GET `/api/stats`. Получить статистику игрока (playtime, last_launched_at).
+/// GET `/api/stats`. Получить статистику игрока (playtime, lastJoinedAt).
 pub async fn get_stats(client: &reqwest::Client, token: &str) -> Result<PlayerStats, String> {
     let resp = client
         .get(format!("{}/api/stats", base_url()))

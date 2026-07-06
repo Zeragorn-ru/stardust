@@ -438,15 +438,15 @@ pub struct SkinUploadRequest {
     pub model: SkinModel,
 }
 
-/// Статистика игрока: суммарное время игры и дата последнего запуска.
+/// Статистика игрока: суммарное время игры и дата последнего захода на сервер.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerStats {
     /// Суммарное время игры в секундах.
     #[serde(rename = "playtimeSeconds")]
     pub playtime_seconds: i64,
-    /// ISO-8601 дата-время последнего запуска игры, либо null.
-    #[serde(rename = "lastLaunchedAt", skip_serializing_if = "Option::is_none")]
-    pub last_launched_at: Option<String>,
+    /// ISO-8601 дата-время последнего подтверждённого захода на сервер, либо null.
+    #[serde(rename = "lastJoinedAt", skip_serializing_if = "Option::is_none")]
+    pub last_joined_at: Option<String>,
 }
 
 /// Тело запроса на запись игровой сессии.

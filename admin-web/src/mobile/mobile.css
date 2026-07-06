@@ -754,6 +754,15 @@ button.secondary:hover:not(:disabled) {
     gap: 0;
 }
 
+.m-screen .fm-bulk {
+    top: 76px;
+    margin-inline: 0;
+    border-color: rgba(115, 215, 255, 0.28);
+    background: rgba(8, 11, 16, 0.96);
+    backdrop-filter: blur(18px) saturate(1.12);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.48);
+}
+
 .m-screen .fm-actions {
     gap: 2px;
 }

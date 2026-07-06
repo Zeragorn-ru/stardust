@@ -1185,6 +1185,9 @@ async fn ygg_has_joined(State(state): State<Shared>, Query(q): Query<HasJoinedQu
         );
         return StatusCode::NO_CONTENT.into_response();
     }
+    if let Err(e) = state.store.mark_server_joined(&uuid).await {
+        tracing::warn!(uuid = %uuid, "failed to update last server join time: {e:?}");
+    }
     tracing::info!(
         username = %q.username,
         uuid = %uuid,
@@ -1248,17 +1251,17 @@ async fn texture(State(state): State<Shared>, Path(hash): Path<String>) -> Respo
         .into_response()
 }
 
-/// `GET /api/stats` — суммарное время игры и дата последнего запуска.
+/// `GET /api/stats` — суммарное время игры и дата последнего захода на сервер.
 async fn stats_get(
     State(state): State<Shared>,
     headers: HeaderMap,
 ) -> Result<Json<PlayerStats>, ApiError> {
     let account = current_account(&state, &headers).await?;
-    let (playtime_seconds, last_launched_at) =
+    let (playtime_seconds, last_joined_at) =
         state.store.get_playtime(&account.uuid).await?;
     Ok(Json(PlayerStats {
         playtime_seconds,
-        last_launched_at: last_launched_at
+        last_joined_at: last_joined_at
             .map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
 }

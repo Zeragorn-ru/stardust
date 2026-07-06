@@ -700,22 +700,21 @@ impl Store {
 
     // ─────────────────────── статистика ───────────────────────
 
-    /// Возвращает `(playtime_seconds, last_launched_at)` для аккаунта.
+    /// Возвращает `(playtime_seconds, last_joined_at)` для аккаунта.
     pub async fn get_playtime(
         &self,
         uuid: &str,
     ) -> Result<(i64, Option<OffsetDateTime>), StoreError> {
         let row = sqlx::query(
-            "SELECT playtime_seconds, last_launched_at FROM accounts WHERE uuid = $1",
+            "SELECT playtime_seconds, last_joined_at FROM accounts WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
         .fetch_one(&self.pool)
         .await?;
-        Ok((row.get("playtime_seconds"), row.get("last_launched_at")))
+        Ok((row.get("playtime_seconds"), row.get("last_joined_at")))
     }
 
     /// Устанавливает абсолютное время игры (в секундах) из статистики Minecraft.
-    /// Обновляет `last_launched_at` текущим временем.
     pub async fn set_playtime_absolute(
         &self,
         uuid: &str,
@@ -723,12 +722,24 @@ impl Store {
     ) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
-             SET playtime_seconds = $2,
-                 last_launched_at  = now()
+             SET playtime_seconds = $2
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
         .bind(seconds)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Отмечает подтверждённый сервером заход игрока (`hasJoined`).
+    pub async fn mark_server_joined(&self, uuid: &str) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE accounts
+             SET last_joined_at = now()
+             WHERE uuid = $1",
+        )
+        .bind(normalize_uuid(uuid))
         .execute(&self.pool)
         .await?;
         Ok(())

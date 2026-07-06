@@ -194,6 +194,6 @@ export interface Progress {
 export interface PlayerStats {
   /** Суммарное время игры, секунды. */
   playtimeSeconds: number;
-  /** ISO-8601 дата последнего запуска, либо null. */
-  lastLaunchedAt: string | null;
+  /** ISO-8601 дата последнего подтверждённого захода на сервер, либо null. */
+  lastJoinedAt: string | null;
 }

@@ -18,3 +18,7 @@ deploy/logs/
 # OS / редакторы
 .DS_Store
 Thumbs.db
+
+# Локальные архивы модпака/датапака, не часть исходников
+stardust-mod/BlazeandCave's Advancements Pack 1.17.2.zip
+stardust-mod/bacap-ru.zip
