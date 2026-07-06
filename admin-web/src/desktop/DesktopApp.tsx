@@ -5,6 +5,7 @@
 // открытая сборка адресуется ссылкой `/builds/:id`. Слой данных (api/типы) и
 // проверенная логика управления файлами переиспользуются как есть.
 
+import { useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { FeedbackProvider } from "../ui/feedback";
 import { AuthProvider, useAuth } from "../app/useAuth";
@@ -48,18 +49,30 @@ function Shell() {
   const { username, logout } = useAuth();
   const location = useLocation();
   const section = location.pathname.split("/")[1] || "overview";
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <div className="app">
+    <div className={`app${sidebarOpen ? "" : " sidebar-collapsed"}`}>
       <aside className="sidebar">
         <div className="brand brand-redesigned">
           <span className="brand-mark">
             <span />
           </span>
-          <div>
+          <div className="brand-copy">
             <strong>StarDust</strong>
             <small>Control room</small>
           </div>
+          <button
+            className="sidebar-toggle"
+            type="button"
+            aria-label={sidebarOpen ? "Свернуть меню" : "Развернуть меню"}
+            aria-expanded={sidebarOpen}
+            onClick={() => setSidebarOpen((open) => !open)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
         </div>
         <nav className="nav">
           <span className="nav-group">Overview</span>
@@ -69,7 +82,7 @@ function Shell() {
               `nav-item${isActive ? " active" : ""}`
             }
           >
-            <IconChart /> Обзор
+            <IconChart /> <span className="nav-label">Обзор</span>
           </NavLink>
           <span className="nav-group">Infrastructure</span>
           <NavLink
@@ -78,7 +91,7 @@ function Shell() {
               `nav-item${isActive ? " active" : ""}`
             }
           >
-            <IconBox /> Сборки
+            <IconBox /> <span className="nav-label">Сборки</span>
           </NavLink>
           <NavLink
             to="/settings"
@@ -86,7 +99,7 @@ function Shell() {
               `nav-item${isActive ? " active" : ""}`
             }
           >
-            <IconSettings /> Интеграции
+            <IconSettings /> <span className="nav-label">Интеграции</span>
           </NavLink>
           <span className="nav-group">Operations</span>
           <NavLink
@@ -95,7 +108,7 @@ function Shell() {
               `nav-item${isActive ? " active" : ""}`
             }
           >
-            <IconUsers /> Аккаунты
+            <IconUsers /> <span className="nav-label">Аккаунты</span>
           </NavLink>
           <NavLink
             to="/customization"
@@ -103,7 +116,7 @@ function Shell() {
               `nav-item${isActive ? " active" : ""}`
             }
           >
-            <IconStar /> Кастомизация
+            <IconStar /> <span className="nav-label">Кастомизация</span>
           </NavLink>
         </nav>
         <div className="sidebar-foot">
@@ -116,10 +129,10 @@ function Shell() {
             </div>
           )}
           <a className="nav-item" href={switchViewHref("mobile")}>
-            <IconSmartphone /> Телефонная версия
+            <IconSmartphone /> <span className="nav-label">Телефонная версия</span>
           </a>
           <button className="nav-item" onClick={logout}>
-            <IconLogout /> Выйти
+            <IconLogout /> <span className="nav-label">Выйти</span>
           </button>
         </div>
       </aside>

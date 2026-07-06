@@ -1,8 +1,7 @@
-// Мобильная оболочка админки (/m): нижняя навигация вместо боковой панели,
-// экраны на всю ширину, крупные тач-цели. Слой данных (api/типы) общий с
-// десктопом — отличается только презентация, заточенная под телефон.
+// Мобильная оболочка админки (/m): один web-app экран с выдвижной левой
+// навигацией. Вкладки переключаются локальным состоянием, без смены URL.
 
-import { NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { useState, type ReactNode } from "react";
 import { FeedbackProvider } from "../ui/feedback";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { MobileLogin } from "./MobileLogin";
@@ -12,7 +11,7 @@ import { MobileBuildDetail } from "./MobileBuildDetail";
 import { MobileAccounts } from "./MobileAccounts";
 import { MobileSettings } from "./MobileSettings";
 import { MobileCustomization } from "./MobileCustomization";
-import { IconBox, IconChart, IconLogout, IconSettings, IconStar, IconUsers } from "../ui/icons";
+import { IconBox, IconChart, IconClose, IconLogout, IconSettings, IconStar, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
 export function MobileApp() {
@@ -42,58 +41,104 @@ function Gate() {
   return <Shell />;
 }
 
-const NAV = [
-  { to: "/overview", label: "Обзор", icon: <IconChart size={21} /> },
-  { to: "/builds", label: "Сборки", icon: <IconBox size={22} /> },
-  { to: "/accounts", label: "Аккаунты", icon: <IconUsers size={22} /> },
-  { to: "/customization", label: "Косметика", icon: <IconStar size={21} /> },
-  { to: "/settings", label: "Система", icon: <IconSettings size={22} /> },
+type MobileTab = "overview" | "builds" | "accounts" | "customization" | "settings";
+
+const NAV: Array<{ tab: MobileTab; label: string; eyebrow: string; icon: ReactNode }> = [
+  { tab: "overview", label: "Обзор", eyebrow: "Dashboard", icon: <IconChart size={19} /> },
+  { tab: "builds", label: "Сборки", eyebrow: "Deployment", icon: <IconBox size={20} /> },
+  { tab: "accounts", label: "Аккаунты", eyebrow: "Operations", icon: <IconUsers size={20} /> },
+  { tab: "customization", label: "Косметика", eyebrow: "Identity", icon: <IconStar size={19} /> },
+  { tab: "settings", label: "Система", eyebrow: "Integrations", icon: <IconSettings size={20} /> },
 ];
 
 function Shell() {
-  const { logout } = useAuth();
+  const { username, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState<MobileTab>("overview");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedBuildId, setSelectedBuildId] = useState<number | null>(null);
+
+  const activeItem = NAV.find((item) => item.tab === activeTab) ?? NAV[0];
+
+  function openTab(tab: MobileTab) {
+    setActiveTab(tab);
+    setSelectedBuildId(null);
+    setDrawerOpen(false);
+  }
+
+  function openBuild(buildId: number) {
+    setActiveTab("builds");
+    setSelectedBuildId(buildId);
+    setDrawerOpen(false);
+  }
+
   return (
     <div className="m-app">
       <header className="m-shell-head">
-        <div className="m-shell-brand">
+        <button
+          className="m-menu-button"
+          type="button"
+          aria-label="Открыть меню"
+          aria-expanded={drawerOpen}
+          onClick={() => setDrawerOpen(true)}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+        <div className="m-shell-title">
+          <span>{activeItem.eyebrow}</span>
+          <strong>{selectedBuildId ? "Детали сборки" : activeItem.label}</strong>
+        </div>
+        <div className="m-shell-actions">
+          <a className="m-shell-link" href={switchViewHref("desktop")}>ПК</a>
+        </div>
+      </header>
+
+      {drawerOpen && <button className="m-drawer-scrim" aria-label="Закрыть меню" onClick={() => setDrawerOpen(false)} />}
+      <aside className={`m-drawer${drawerOpen ? " open" : ""}`} aria-hidden={!drawerOpen}>
+        <div className="m-drawer-brand">
           <span className="m-brand-mark"><span /></span>
           <div>
             <strong>StarDust</strong>
             <small>Control room</small>
           </div>
-        </div>
-        <div className="m-shell-actions">
-          <a className="m-shell-link" href={switchViewHref("desktop")}>Desktop</a>
-          <button className="icon-only m-shell-logout" title="Выйти" onClick={logout}>
-            <IconLogout size={17} />
+          <button className="icon-only m-drawer-close" type="button" aria-label="Закрыть меню" onClick={() => setDrawerOpen(false)}>
+            <IconClose size={18} />
           </button>
         </div>
-      </header>
+        <nav className="m-drawer-nav">
+          {NAV.map((item) => (
+            <button
+              key={item.tab}
+              className={`m-drawer-item${activeTab === item.tab ? " active" : ""}`}
+              type="button"
+              onClick={() => openTab(item.tab)}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="m-drawer-foot">
+          {username && <span className="m-drawer-user">{username}</span>}
+          <a className="m-drawer-item" href={switchViewHref("desktop")}>ПК-версия</a>
+          <button className="m-drawer-item" type="button" onClick={logout}>
+            <IconLogout size={18} />
+            <span>Выйти</span>
+          </button>
+        </div>
+      </aside>
+
       <main className="m-content">
-        <Routes>
-          <Route path="/overview" element={<MobileOverview />} />
-          <Route path="/builds" element={<MobileBuilds />} />
-          <Route path="/builds/:id" element={<MobileBuildDetail />} />
-          <Route path="/accounts" element={<MobileAccounts />} />
-          <Route path="/customization" element={<MobileCustomization />} />
-          <Route path="/settings" element={<MobileSettings />} />
-          <Route path="*" element={<Navigate to="/overview" replace />} />
-        </Routes>
+        {activeTab === "overview" && <MobileOverview onOpenTab={openTab} onOpenBuild={openBuild} />}
+        {activeTab === "builds" && selectedBuildId == null && <MobileBuilds onOpenBuild={openBuild} />}
+        {activeTab === "builds" && selectedBuildId != null && (
+          <MobileBuildDetail buildId={selectedBuildId} onBack={() => setSelectedBuildId(null)} onOpenBuild={openBuild} />
+        )}
+        {activeTab === "accounts" && <MobileAccounts />}
+        {activeTab === "customization" && <MobileCustomization />}
+        {activeTab === "settings" && <MobileSettings />}
       </main>
-      <nav className="m-tabbar">
-        {NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `m-tab${isActive ? " active" : ""}`
-            }
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </NavLink>
-        ))}
-      </nav>
     </div>
   );
 }

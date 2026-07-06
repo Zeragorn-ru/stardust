@@ -5,7 +5,6 @@
 // переходом назад и крупными кнопками действий.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { SyncStatus } from "../api";
 import type {
@@ -30,12 +29,15 @@ import {
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
 
-export function MobileBuildDetail() {
-  const params = useParams();
-  const navigate = useNavigate();
+type MobileBuildDetailProps = {
+  buildId: number;
+  onBack: () => void;
+  onOpenBuild: (buildId: number) => void;
+};
+
+export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildDetailProps) {
   const toast = useToast();
   const confirm = useConfirm();
-  const buildId = Number(params.id);
 
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,7 +159,7 @@ export function MobileBuildDetail() {
     try {
       const res = await api.cloneBuild(buildId);
       toast.success("Создана копия");
-      navigate(`/builds/${res.id}`);
+      onOpenBuild(res.id);
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Не удалось клонировать",
@@ -251,7 +253,7 @@ export function MobileBuildDetail() {
   if (loading)
     return (
       <div className="m-screen">
-        <MobileDetailHead onBack={() => navigate("/builds")} title="Сборка" />
+        <MobileDetailHead onBack={onBack} title="Сборка" />
         <p className="muted pad">
           <span className="spinner" />
           Загрузка…
@@ -262,7 +264,7 @@ export function MobileBuildDetail() {
   if (!detail)
     return (
       <div className="m-screen">
-        <MobileDetailHead onBack={() => navigate("/builds")} title="Сборка" />
+        <MobileDetailHead onBack={onBack} title="Сборка" />
         <p className="muted pad">Сборка не найдена.</p>
       </div>
     );
@@ -270,7 +272,7 @@ export function MobileBuildDetail() {
   return (
     <div className="m-screen">
       <MobileDetailHead
-        onBack={() => navigate("/builds")}
+        onBack={onBack}
         title={detail.name}
         subtitle={`v${detail.version}`}
       />

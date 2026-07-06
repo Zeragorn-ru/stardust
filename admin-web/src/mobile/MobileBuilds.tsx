@@ -1,8 +1,7 @@
-// Список сборок (мобильный): карточки на всю ширину, переход в детали по
-// тапу (`/m/builds/:id`). Создание, клонирование и удаление — здесь же.
+// Список сборок (мобильный): карточки на всю ширину, детали открываются внутри
+// mobile shell без смены URL. Создание, клонирование и удаление — здесь же.
 
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { BuildHeader } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
@@ -15,10 +14,13 @@ import {
   IconTrash,
 } from "../ui/icons";
 
-export function MobileBuilds() {
+type MobileBuildsProps = {
+  onOpenBuild: (buildId: number) => void;
+};
+
+export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
   const toast = useToast();
   const confirm = useConfirm();
-  const navigate = useNavigate();
   const [builds, setBuilds] = useState<BuildHeader[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -67,7 +69,7 @@ export function MobileBuilds() {
     try {
       const res = await api.cloneBuild(id);
       toast.success(`Создана копия «${name}»`);
-      navigate(`/builds/${res.id}`);
+      onOpenBuild(res.id);
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Не удалось клонировать сборку",
@@ -99,7 +101,7 @@ export function MobileBuilds() {
             <li
               key={b.id}
               className="m-card"
-              onClick={() => navigate(`/builds/${b.id}`)}
+              onClick={() => onOpenBuild(b.id)}
             >
               <div className="m-card-body">
                 <div className="m-card-title">
@@ -151,7 +153,7 @@ export function MobileBuilds() {
           onClose={() => setCreating(false)}
           onCreated={(id) => {
             setCreating(false);
-            navigate(`/builds/${id}`);
+            onOpenBuild(id);
           }}
         />
       )}

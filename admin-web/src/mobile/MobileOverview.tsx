@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, Settings } from "../types";
 import { useToast } from "../ui/feedback";
 import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
 
-export function MobileOverview() {
+type MobileTab = "overview" | "builds" | "accounts" | "customization" | "settings";
+
+type MobileOverviewProps = {
+  onOpenTab: (tab: MobileTab) => void;
+  onOpenBuild: (buildId: number) => void;
+};
+
+export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) {
   const toast = useToast();
   const [builds, setBuilds] = useState<BuildHeader[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -78,14 +84,14 @@ export function MobileOverview() {
             <span className="m-eyebrow">Deployment</span>
             <h2>Активная сборка</h2>
           </div>
-          <Link to="/builds">Все</Link>
+          <button className="m-text-link" type="button" onClick={() => onOpenTab("builds")}>Все</button>
         </div>
         {activeBuild ? (
-          <Link className="m-service-row" to={`/builds/${activeBuild.id}`}>
+          <button className="m-service-row" type="button" onClick={() => onOpenBuild(activeBuild.id)}>
             <span className="m-row-icon"><IconBox size={16} /></span>
             <span className="m-row-main"><strong>{activeBuild.name}</strong><small>v{activeBuild.version} · {activeBuild.loaderKind} · MC {activeBuild.mcVersion}</small></span>
             <IconChevronRight size={18} />
-          </Link>
+          </button>
         ) : (
           <p className="muted">Активная сборка не выбрана.</p>
         )}
@@ -102,14 +108,14 @@ export function MobileOverview() {
           <span className="m-row-icon"><IconSync size={16} className={syncing ? "spin" : ""} /></span>
           <span className="m-row-main"><strong>{syncing ? "Синхронизация..." : "Синхронизировать статистику"}</strong><small>Обновить playtime из SFTP stats</small></span>
         </button>
-        <Link className="m-wide-action" to="/accounts">
+        <button className="m-wide-action" type="button" onClick={() => onOpenTab("accounts")}>
           <span className="m-row-icon"><IconUsers size={16} /></span>
           <span className="m-row-main"><strong>Аккаунты</strong><small>{stats.linked}/{accounts.length} Telegram linked</small></span>
-        </Link>
-        <Link className="m-wide-action" to="/customization">
+        </button>
+        <button className="m-wide-action" type="button" onClick={() => onOpenTab("customization")}>
           <span className="m-row-icon"><IconBox size={16} /></span>
           <span className="m-row-main"><strong>Косметика</strong><small>Бейджи и градиенты ника</small></span>
-        </Link>
+        </button>
       </section>
     </div>
   );
