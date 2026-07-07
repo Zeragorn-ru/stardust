@@ -148,7 +148,7 @@ jobs:
             echo "Release $tag already exists"
           fi
 
-          for dir in target/launcher-release/bundle/nsis target/launcher-release/bundle/macos target/launcher-release/bundle/deb target/universal-apple-darwin/release/bundle/macos; do
+          for dir in target/launcher-release/bundle/nsis target/launcher-release/bundle/dmg target/launcher-release/bundle/macos target/launcher-release/bundle/deb target/universal-apple-darwin/release/bundle/dmg target/universal-apple-darwin/release/bundle/macos; do
             if [ -d "$dir" ]; then
               for ext in exe dmg AppImage deb; do
                 for artifact in "$dir"/*."$ext"; do
