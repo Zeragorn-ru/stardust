@@ -1602,7 +1602,8 @@ body {
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34);
 }
 
-.server-player__avatar img {
+.server-player__avatar img,
+.server-player__avatar canvas {
     position: absolute;
     inset: 0;
     width: 100%;

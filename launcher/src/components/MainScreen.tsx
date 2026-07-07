@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
 import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
@@ -458,8 +458,13 @@ function fetchPlayerSkin(uuid: string): Promise<string | null> {
   return p;
 }
 
-/** Аватарка игрока: скин из нашего бэкенда или fallback-буква. */
+// Координаты головы в текстуре 64×64: база [8,8,8,8], шляпа [40,8,8,8].
+const HEAD_BASE: [number, number, number, number] = [8, 8, 8, 8];
+const HEAD_HAT: [number, number, number, number] = [40, 8, 8, 8];
+
+/** Аватарка игрока: голова из скина через Canvas или fallback-буква. */
 function PlayerAvatar({ uuid, name }: { uuid: string; name: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [src, setSrc] = useState<string | null>(() => skinCache.get(uuid) ?? undefined!);
   const initial = playerInitial(name);
 
@@ -471,6 +476,31 @@ function PlayerAvatar({ uuid, name }: { uuid: string; name: string }) {
     });
     return () => { cancel = true; };
   }, [uuid, src]);
+
+  // Рисуем голову на canvas, когда скин загружен.
+  useEffect(() => {
+    if (!src) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const size = 48;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = size * ratio;
+    canvas.height = size * ratio;
+
+    const img = new Image();
+    img.onload = () => {
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const [bx, by, bw, bh] = HEAD_BASE;
+      ctx.drawImage(img, bx, by, bw, bh, 0, 0, canvas.width, canvas.height);
+      const [hx, hy, hw, hh] = HEAD_HAT;
+      ctx.drawImage(img, hx, hy, hw, hh, 0, 0, canvas.width, canvas.height);
+    };
+    img.src = src;
+  }, [src]);
 
   if (src === undefined) {
     return (
@@ -491,7 +521,7 @@ function PlayerAvatar({ uuid, name }: { uuid: string; name: string }) {
 
   return (
     <span className="server-player__avatar" aria-hidden="true">
-      <img src={src} alt="" />
+      <canvas ref={canvasRef} style={{ width: 48, height: 48 }} />
       {initial}
     </span>
   );
