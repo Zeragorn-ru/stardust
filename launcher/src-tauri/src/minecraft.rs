@@ -29,8 +29,19 @@ const NEOFORGE_METADATA_URL: &str =
 const VERSION_MANIFEST_URL: &str =
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 const JAVA_VERSION: u32 = 21;
-const TEMURIN_API_URL: &str =
-    "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse";
+
+fn temurin_url() -> String {
+    let (os, arch) = if cfg!(target_os = "macos") {
+        ("mac", if cfg!(target_arch = "aarch64") { "aarch64" } else { "x64" })
+    } else if cfg!(target_os = "linux") {
+        ("linux", "x64")
+    } else {
+        ("windows", "x64")
+    };
+    format!(
+        "https://api.adoptium.net/v3/binary/latest/21/ga/{os}/{arch}/jre/hotspot/normal/eclipse"
+    )
+}
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -189,23 +200,30 @@ async fn ensure_java(
         return Ok(java);
     }
 
-    if !cfg!(windows) {
-        if let Some(java) = system_java_21() {
-            return Ok(java);
-        }
-        return Err("Автоскачивание Java пока реализовано только для Windows. Установи Java 21 или задай JAVA_HOME".into());
+    if let Some(java) = system_java_21() {
+        return Ok(java);
     }
 
     progress.begin(Stage::Java, "downloading", "Скачиваем приватную Java 21…");
     fs::create_dir_all(&runtime_dir)
         .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
-    let archive = data_dir.join("runtime").join("java-21.zip");
-    download_to(progress, http, TEMURIN_API_URL, &archive, "Java 21 runtime", None, None).await?;
-    progress.set_label("extracting", "Распаковываем Java 21…");
-    extract_java_zip(&archive, &runtime_dir)?;
-    let _ = fs::remove_file(&archive);
 
-    bundled_java(&runtime_dir).ok_or_else(|| "Java 21 скачана, но javaw.exe не найден".to_string())
+    let url = temurin_url();
+    if cfg!(windows) {
+        let archive = data_dir.join("runtime").join("java-21.zip");
+        download_to(progress, http, &url, &archive, "Java 21 runtime", None, None).await?;
+        progress.set_label("extracting", "Распаковываем Java 21…");
+        extract_java_zip(&archive, &runtime_dir)?;
+        let _ = fs::remove_file(&archive);
+    } else {
+        let archive = data_dir.join("runtime").join("java-21.tar.gz");
+        download_to(progress, http, &url, &archive, "Java 21 runtime", None, None).await?;
+        progress.set_label("extracting", "Распаковываем Java 21…");
+        extract_java_tar_gz(&archive, &runtime_dir)?;
+        let _ = fs::remove_file(&archive);
+    }
+
+    bundled_java(&runtime_dir).ok_or_else(|| "Java 21 скачана, но java не найдена".to_string())
 }
 
 fn bundled_java(runtime_dir: &Path) -> Option<PathBuf> {
@@ -314,6 +332,17 @@ fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
         let mut out_file = fs::File::create(&out).map_err(|e| e.to_string())?;
         std::io::copy(&mut file, &mut out_file).map_err(|e| e.to_string())?;
     }
+    Ok(())
+}
+
+fn extract_java_tar_gz(archive: &Path, target: &Path) -> Result<(), String> {
+    let file =
+        fs::File::open(archive).map_err(|e| format!("Не удалось открыть Java archive: {e}"))?;
+    let dec = flate2::read::GzDecoder::new(file);
+    let mut tar = tar::Archive::new(dec);
+    tar.set_overwrite(false);
+    tar.unpack(target)
+        .map_err(|e| format!("Ошибка распаковки Java tar.gz: {e}"))?;
     Ok(())
 }
 
