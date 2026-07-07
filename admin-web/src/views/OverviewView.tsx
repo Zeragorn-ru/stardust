@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, Settings } from "../types";
-import { IconBox, IconPlus, IconSettings, IconSync, IconUsers } from "../ui/icons";
+import { IconBox, IconSettings, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
 import { Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
 
@@ -70,9 +70,6 @@ export function OverviewView() {
           </p>
         </div>
         <div className="hero-actions">
-          <Link className="button primary" to="/builds/new">
-            <IconPlus size={15} /> Новая сборка
-          </Link>
           <Button variant="secondary" onClick={syncStats} disabled={syncing}>
             <IconSync size={15} className={syncing ? "spin" : ""} />
             {syncing ? "Синхронизация" : "Синхр. статистики"}

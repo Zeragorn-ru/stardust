@@ -1460,6 +1460,45 @@ body {
     gap: 2px;
 }
 
+.hero__stat--players {
+    position: relative;
+}
+
+.server-players-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.server-players-button {
+    min-width: 0;
+    padding: 2px 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    cursor: pointer;
+    transition:
+        background var(--t-fast),
+        border-color var(--t-fast),
+        transform var(--t-fast);
+}
+
+.server-players-button:hover {
+    border-color: rgba(74, 222, 128, 0.35);
+    background: rgba(74, 222, 128, 0.1);
+    transform: translateY(-1px);
+}
+
+.server-players-button__empty {
+    display: block;
+    padding: 2px 6px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+}
+
 .hero__stat-value {
     font-size: 20px;
     font-weight: 800;
@@ -1485,39 +1524,119 @@ body {
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
 
 .hero__stat-facepile {
-  display: flex;
-  margin-top: 8px;
+    display: flex;
 }
 
 .hero__stat-facepile > * {
-  margin-right: -8px;
-  border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: transform 0.2s;
-  background: var(--bg-surface);
+    margin-right: -8px;
+    border-radius: 5px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
+    transition: transform 0.2s;
+    background: var(--bg-surface);
 }
 
 .hero__stat-facepile > *:hover {
-  transform: translateY(-2px);
+    transform: translateY(-2px);
 }
 
 .facepile-img {
-  width: 24px;
-  height: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    width: 24px;
+    height: 24px;
+    image-rendering: pixelated;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .facepile-more {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: bold;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-color);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.server-players-popover {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 8px);
+    left: 0;
+    width: min(260px, 78vw);
+    max-height: 260px;
+    overflow: hidden;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    background: rgba(12, 13, 24, 0.96);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(18px) saturate(1.1);
+    -webkit-backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.server-players-popover__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 2px 2px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.server-players-popover__head strong {
+    font-size: 13px;
+}
+
+.server-players-popover__head span {
+    color: var(--muted);
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.server-players-list {
+    max-height: 198px;
+    overflow: auto;
+    display: grid;
+    gap: 4px;
+    padding-top: 8px;
+}
+
+.server-player {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 6px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.server-player__avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+    image-rendering: pixelated;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34);
+}
+
+.server-player__name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.server-players-empty {
+    margin: 0;
+    padding: 10px 2px 2px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
 }
 
 .play-error {

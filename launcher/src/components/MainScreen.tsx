@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
 import { accountInfo, getSettings, getStats, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
@@ -11,6 +11,8 @@ import MinecraftNickname from "./MinecraftNickname";
 const SERVER_HOST = "play.stardust-mc.xyz";
 const SERVER_STATUS_INTERVAL = 60_000;
 const ACCOUNT_STATUS_INTERVAL = 60_000;
+
+type ServerSamplePlayer = { name: string; id: string };
 
 /** Цвет индикатора пинга: зелёный <80мс, жёлтый <200мс, красный иначе. */
 function pingColor(ping: number | null): string {
@@ -49,7 +51,9 @@ export default function MainScreen({
   const [serverPlayers, setServerPlayers] = useState<number | null>(null);
   const [serverMax, setServerMax] = useState<number | null>(null);
   const [serverPing, setServerPing] = useState<number | null>(null);
-  const [serverSample, setServerSample] = useState<{name: string, id: string}[]>([]);
+  const [serverSample, setServerSample] = useState<ServerSamplePlayer[]>([]);
+  const [playersOpen, setPlayersOpen] = useState(false);
+  const playersMenuRef = useRef<HTMLDivElement>(null);
   const [windowFocused, setWindowFocused] = useState(true);
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
 
@@ -115,7 +119,7 @@ export default function MainScreen({
     async function checkServer() {
       try {
         const mod = await import("@tauri-apps/api/core");
-        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null; max: number | null; ping: number | null; sample: {name: string, id: string}[] }>)(
+        const result = await (mod.invoke as (cmd: string, args?: Record<string, unknown>) => Promise<{ online: boolean; players: number | null; max: number | null; ping: number | null; sample: ServerSamplePlayer[] }>)(
           "ping_minecraft_server",
           { host: SERVER_HOST },
         );
@@ -134,6 +138,31 @@ export default function MainScreen({
     const id = setInterval(checkServer, SERVER_STATUS_INTERVAL);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (!playersOpen) return;
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!playersMenuRef.current?.contains(event.target as Node)) {
+        setPlayersOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setPlayersOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [playersOpen]);
+
+  useEffect(() => {
+    if (!serverOnline) setPlayersOpen(false);
+  }, [serverOnline]);
 
   async function handlePlay() {
     if (ban) {
@@ -271,27 +300,61 @@ export default function MainScreen({
                       </span>
                       <span className="hero__stat-label">статус</span>
                     </div>
-                    <div className="hero__stat">
-                      <span className="hero__stat-value">
-                        {serverPlayers != null ? serverPlayers : "—"}
-                        {serverMax != null ? <span className="hero__stat-max">/{serverMax}</span> : null}
-                      </span>
+                    <div className="hero__stat hero__stat--players" ref={playersMenuRef}>
+                      <div className="server-players-line">
+                        <span className="hero__stat-value">
+                          {serverPlayers != null ? serverPlayers : "—"}
+                          {serverMax != null ? <span className="hero__stat-max">/{serverMax}</span> : null}
+                        </span>
+                        <button
+                          type="button"
+                          className="server-players-button"
+                          aria-haspopup="dialog"
+                          aria-expanded={playersOpen}
+                          onClick={() => setPlayersOpen((open) => !open)}
+                        >
+                          {serverSample.length > 0 ? (
+                            <span className="hero__stat-facepile" aria-hidden="true">
+                              {serverSample.slice(0, 5).map((player, i) => (
+                                <img
+                                  key={player.id || `${player.name}-${i}`}
+                                  src={avatarUrl(player.id, 24)}
+                                  alt=""
+                                  className="facepile-img"
+                                  style={{ zIndex: 10 - i }}
+                                />
+                              ))}
+                              {serverSample.length > 5 && (
+                                <span className="facepile-more" style={{ zIndex: 0 }}>
+                                  +{serverSample.length - 5}
+                                </span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="server-players-button__empty">Список</span>
+                          )}
+                        </button>
+                      </div>
                       <span className="hero__stat-label">игроков</span>
-                      {serverSample.length > 0 && (
-                        <div className="hero__stat-facepile" title={serverSample.map(s => s.name).join(", ")}>
-                          {serverSample.slice(0, 5).map((player, i) => (
-                            <img 
-                              key={player.id} 
-                              src={`https://crafatar.com/avatars/${player.id}?size=24&overlay=true`} 
-                              alt={player.name}
-                              className="facepile-img"
-                              style={{ zIndex: 10 - i }}
-                            />
-                          ))}
-                          {serverSample.length > 5 && (
-                            <div className="facepile-more" style={{ zIndex: 0 }}>
-                              +{serverSample.length - 5}
+                      {playersOpen && (
+                        <div className="server-players-popover" role="dialog" aria-label="Игроки онлайн">
+                          <div className="server-players-popover__head">
+                            <strong>Сейчас онлайн</strong>
+                            <span>{serverPlayers ?? serverSample.length} игрок(ов)</span>
+                          </div>
+                          {serverSample.length > 0 ? (
+                            <div className="server-players-list">
+                              {serverSample.map((player, i) => (
+                                <div className="server-player" key={player.id || `${player.name}-${i}`}>
+                                  <img src={avatarUrl(player.id, 32)} alt="" className="server-player__avatar" />
+                                  <span className="server-player__name">{player.name}</span>
+                                </div>
+                              ))}
                             </div>
+                          ) : (
+                            <p className="server-players-empty">
+                              Сервер показывает онлайн, но не отдаёт список игроков.
+                            </p>
                           )}
                         </div>
                       )}
@@ -380,6 +443,14 @@ export default function MainScreen({
 
 function hasDownloadMeta(progress: Progress): boolean {
   return progress.downloadedBytes != null || progress.totalBytes != null;
+}
+
+function avatarUrl(id: string, size: number): string {
+  const value = id.trim();
+  if (!value || value === "00000000-0000-0000-0000-000000000000") {
+    return `https://crafatar.com/avatars/8667ba71-b85a-4004-af54-457a9734eed7?size=${size}&overlay=true`;
+  }
+  return `https://crafatar.com/avatars/${value}?size=${size}&overlay=true`;
 }
 
 function banUntilLabel(ban: BanInfo): string {
