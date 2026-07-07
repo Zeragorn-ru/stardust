@@ -1,0 +1,12 @@
+name: Launcher — macOS signing setup
+description: |
+  Импортирует Developer ID сертификат в keychain runner'а и готовит notarytool.
+  Читает APPLE_* из env job (задаётся в workflow, не в этом action).
+  См. packaging/macos/README.md
+
+runs:
+  using: composite
+  steps:
+    - name: Import certificate & prepare notarization
+      shell: bash
+      run: bash scripts/ci/setup-macos-signing.sh

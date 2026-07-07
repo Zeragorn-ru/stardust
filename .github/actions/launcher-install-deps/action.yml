@@ -1,0 +1,12 @@
+name: Launcher — npm ci
+description: |
+  Устанавливает frontend-зависимости лаунчера (npm ci --ignore-scripts).
+  package-lock.json фиксирует версии; кеш node_modules ускоряет повторные прогоны.
+
+runs:
+  using: composite
+  steps:
+    - name: npm ci
+      shell: bash
+      working-directory: launcher
+      run: npm ci --ignore-scripts

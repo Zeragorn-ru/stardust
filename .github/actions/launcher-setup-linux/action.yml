@@ -1,0 +1,12 @@
+name: Launcher — Linux system deps
+description: |
+  Устанавливает нативные библиотеки для сборки Tauri на Debian/Ubuntu.
+  CI использует ubuntu-22.04: webkit2gtk 4.1 стабилен (на 24.04 у Tauri бывает пустое окно webview).
+  Локально: bash scripts/ci/setup-linux-deps.sh
+
+runs:
+  using: composite
+  steps:
+    - name: apt packages (webkit2gtk, gtk3, patchelf)
+      shell: bash
+      run: bash scripts/ci/setup-linux-deps.sh

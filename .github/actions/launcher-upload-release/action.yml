@@ -1,0 +1,16 @@
+name: Launcher — Upload GitHub Release
+description: |
+  Создаёт Release (если нет) и загружает dist/launcher-bundles/.
+  GH_TOKEN наследуется из job env workflow.
+
+inputs:
+  tag:
+    description: Git tag (например v0.7.23)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: upload-launcher-release.sh
+      shell: bash
+      run: bash scripts/ci/upload-launcher-release.sh "${{ inputs.tag }}"

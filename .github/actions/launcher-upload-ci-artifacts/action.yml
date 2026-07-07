@@ -1,0 +1,19 @@
+name: Launcher — Upload CI artifacts
+description: |
+  Загружает dist/launcher-bundles/ как артефакт GitHub Actions (14 дней).
+  Удобно скачать установщик без GitHub Release — для отладки CI.
+
+inputs:
+  artifact-name:
+    description: Имя артефакта (напр. launcher-release-macos)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: dist/launcher-bundles/
+        retention-days: 14
+        if-no-files-found: warn

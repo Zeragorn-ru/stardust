@@ -1,0 +1,28 @@
+name: Launcher — Tauri build
+description: |
+  Собирает установщики через tauri-action. Секреты (GITHUB_TOKEN, APPLE_*)
+  наследуются из job env workflow — не задаются здесь.
+
+inputs:
+  tauri-args:
+    description: Доп. аргументы tauri build (напр. --target universal-apple-darwin)
+    required: false
+    default: ""
+  release-draft:
+    description: Черновик релиза (для отладочных сборок)
+    required: false
+    default: "false"
+  prerelease:
+    description: Пометить как prerelease
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: tauri-apps/tauri-action@v0.6
+      with:
+        projectPath: launcher
+        releaseDraft: ${{ inputs.release-draft }}
+        prerelease: ${{ inputs.prerelease }}
+        args: ${{ inputs.tauri-args }} -- --profile launcher-release

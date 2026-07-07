@@ -1,28 +1,35 @@
-# Сборка лаунчера (Tauri) и публикация в GitHub Release.
-#
-# Секреты задаются на уровне job env (не в composite actions).
-# macOS job использует environment launcher-release для Apple secrets.
+# Отладочная сборка лаунчера без git-тега.
+# Секреты — на уровне job env. macOS → environment launcher-release.
 
-name: launcher-release
+name: launcher-build
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       platform:
-        description: "Платформа (all = matrix)"
+        description: "Платформа"
         type: choice
-        default: all
+        default: linux
         options:
           - all
           - windows
           - linux
           - macos
+      upload_release:
+        description: "Загрузить в существующий GitHub Release"
+        type: boolean
+        default: false
+      release_tag:
+        description: "Тег (vX.Y.Z), если upload_release=true"
+        type: string
+        default: ""
+      version:
+        description: "Версия для сборки (без v), пусто = не менять"
+        type: string
+        default: ""
 
 jobs:
-  release:
+  build:
     permissions:
       contents: write
     strategy:
@@ -45,8 +52,8 @@ jobs:
     environment: ${{ matrix.environment }}
     env:
       CI: true
-      GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
       APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
       APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -58,7 +65,6 @@ jobs:
       APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
       APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
     if: >-
-      github.event_name == 'push' ||
       github.event.inputs.platform == 'all' ||
       github.event.inputs.platform == matrix.id
     steps:
@@ -74,30 +80,26 @@ jobs:
         uses: ./.github/actions/launcher-setup-toolchain
         with:
           platform: ${{ matrix.platform }}
-          cache-key-suffix: release
-          save-cache: ${{ startsWith(github.ref, 'refs/tags/') }}
+          cache-key-suffix: build
+          save-cache: "false"
 
       - name: "③ npm ci"
         uses: ./.github/actions/launcher-install-deps
+
+      - name: "⑥ Set version (manual)"
+        if: github.event.inputs.version != ''
+        uses: ./.github/actions/launcher-set-version
+        with:
+          version: ${{ github.event.inputs.version }}
 
       - name: "④ Clippy"
         uses: ./.github/actions/launcher-clippy
 
       - name: "⑤ Bootstrap (Windows)"
-        if: startsWith(github.ref, 'refs/tags/') && matrix.id == 'windows'
+        if: matrix.id == 'windows'
         uses: ./.github/actions/launcher-build-bootstrap
         with:
           platform: ${{ matrix.platform }}
-
-      - name: "⑥ Set version from tag"
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: ./.github/actions/launcher-set-version
-        with:
-          version: ${{ github.ref_name }}
-
-      - name: "⑦ Wait for token"
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: ./.github/actions/launcher-wait-token
 
       - name: "⑦b macOS signing"
         if: matrix.id == 'macos'
@@ -107,6 +109,8 @@ jobs:
         uses: ./.github/actions/launcher-tauri-build
         with:
           tauri-args: ${{ matrix.tauri-args }}
+          release-draft: "true"
+          prerelease: "true"
 
       - name: "⑨ Collect bundles"
         if: always()
@@ -116,10 +120,10 @@ jobs:
         if: always()
         uses: ./.github/actions/launcher-upload-ci-artifacts
         with:
-          artifact-name: launcher-release-${{ matrix.id }}
+          artifact-name: launcher-build-${{ matrix.id }}
 
-      - name: "⑪ Upload GitHub Release"
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: "⑪ Upload GitHub Release (optional)"
+        if: github.event.inputs.upload_release == 'true' && github.event.inputs.release_tag != ''
         uses: ./.github/actions/launcher-upload-release
         with:
-          tag: ${{ github.ref_name }}
+          tag: ${{ github.event.inputs.release_tag }}

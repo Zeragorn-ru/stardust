@@ -43,6 +43,8 @@
       }
     },
     "macOS": {
+      "entitlements": "./Entitlements.plist",
+      "hardenedRuntime": true,
       "dmg": {}
     },
     "windows": {

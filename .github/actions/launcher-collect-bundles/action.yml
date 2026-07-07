@@ -1,0 +1,16 @@
+name: Launcher — Collect bundles
+description: |
+  Ищет установщики рекурсивно: find target -path '*/bundle/*'.
+  Checksums через scripts/ci/sha256-file.sh (macOS + Linux).
+
+runs:
+  using: composite
+  steps:
+    - name: collect-launcher-bundles.sh
+      shell: bash
+      run: |
+        bash scripts/ci/collect-launcher-bundles.sh || {
+          echo "==> DEBUG: bundle search tree"
+          find target -path '*/bundle/*' -print 2>/dev/null | head -50
+          exit 1
+        }

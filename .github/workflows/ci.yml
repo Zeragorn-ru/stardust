@@ -1,0 +1,110 @@
+# Быстрые проверки на push/PR — без релизов и деплоя.
+# Для отладки сборки лаунчера используй launcher-build.yml (workflow_dispatch).
+
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Что проверить"
+        type: choice
+        default: all
+        options:
+          - all
+          - backend
+          - launcher
+          - admin-web
+          - mod
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.target == 'all' ||
+      github.event.inputs.target == 'backend'
+    runs-on: ubuntu-latest
+    container: rust:1.96-bookworm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: backend-ci
+          cache-on-failure: true
+      - name: Test
+        run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
+      - name: Clippy
+        run: cargo clippy -p auth-server -p admin-server -p telegram-bot -p store -p protocol -- -D warnings
+
+  launcher:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.target == 'all' ||
+      github.event.inputs.target == 'launcher'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux deps
+        run: bash scripts/ci/setup-linux-deps.sh
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: launcher/package-lock.json
+      - uses: dtolnay/rust-toolchain@1.96.0
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: launcher-ci
+          cache-on-failure: true
+      - name: Install frontend deps
+        working-directory: launcher
+        run: npm ci --ignore-scripts
+      - name: Frontend build
+        working-directory: launcher
+        run: npm run build
+      - name: Clippy
+        run: cargo clippy -p launcher --profile launcher-release -- -D warnings
+
+  admin-web:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.target == 'all' ||
+      github.event.inputs.target == 'admin-web'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: admin-web/package-lock.json
+      - name: Build
+        working-directory: admin-web
+        run: npm ci && npm run build
+
+  mod:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.target == 'all' ||
+      github.event.inputs.target == 'mod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Build
+        working-directory: stardust-mod
+        run: ./gradlew build
