@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
 import { accountInfo, getSettings, getStats, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
@@ -53,7 +53,6 @@ export default function MainScreen({
   const [serverPing, setServerPing] = useState<number | null>(null);
   const [serverSample, setServerSample] = useState<ServerSamplePlayer[]>([]);
   const [playersOpen, setPlayersOpen] = useState(false);
-  const playersMenuRef = useRef<HTMLDivElement>(null);
   const [windowFocused, setWindowFocused] = useState(true);
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
 
@@ -142,22 +141,12 @@ export default function MainScreen({
   useEffect(() => {
     if (!playersOpen) return;
 
-    function handlePointerDown(event: MouseEvent) {
-      if (!playersMenuRef.current?.contains(event.target as Node)) {
-        setPlayersOpen(false);
-      }
-    }
-
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") setPlayersOpen(false);
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [playersOpen]);
 
   useEffect(() => {
@@ -300,7 +289,7 @@ export default function MainScreen({
                       </span>
                       <span className="hero__stat-label">статус</span>
                     </div>
-                    <div className="hero__stat hero__stat--players" ref={playersMenuRef}>
+                    <div className="hero__stat hero__stat--players">
                       <div className="server-players-line">
                         <span className="hero__stat-value">
                           {serverPlayers != null ? serverPlayers : "—"}
@@ -336,28 +325,6 @@ export default function MainScreen({
                         </button>
                       </div>
                       <span className="hero__stat-label">игроков</span>
-                      {playersOpen && (
-                        <div className="server-players-popover" role="dialog" aria-label="Игроки онлайн">
-                          <div className="server-players-popover__head">
-                            <strong>Сейчас онлайн</strong>
-                            <span>{serverPlayers ?? serverSample.length} игрок(ов)</span>
-                          </div>
-                          {serverSample.length > 0 ? (
-                            <div className="server-players-list">
-                              {serverSample.map((player, i) => (
-                                <div className="server-player" key={player.id || `${player.name}-${i}`}>
-                                  <img src={avatarUrl(player.id, 32)} alt="" className="server-player__avatar" />
-                                  <span className="server-player__name">{player.name}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="server-players-empty">
-                              Сервер показывает онлайн, но не отдаёт список игроков.
-                            </p>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </>
                 ) : (
@@ -435,6 +402,51 @@ export default function MainScreen({
           )}
         </div>
       </section>
+
+      {playersOpen && (
+        <div className="modal-overlay" onClick={() => setPlayersOpen(false)}>
+          <div
+            className="modal players-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Игроки онлайн"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="modal__header players-modal__header">
+              <div>
+                <span className="players-modal__eyebrow">Сервер</span>
+                <h2>Игроки онлайн</h2>
+              </div>
+              <span className="players-modal__count">
+                {serverPlayers ?? serverSample.length}
+                {serverMax != null ? `/${serverMax}` : ""}
+              </span>
+              <button
+                type="button"
+                className="btn btn--icon"
+                onClick={() => setPlayersOpen(false)}
+                aria-label="Закрыть"
+              >
+                ✕
+              </button>
+            </header>
+            {serverSample.length > 0 ? (
+              <div className="players-modal__grid">
+                {serverSample.map((player, i) => (
+                  <div className="server-player" key={player.id || `${player.name}-${i}`}>
+                    <img src={avatarUrl(player.id, 48)} alt="" className="server-player__avatar" />
+                    <span className="server-player__name">{player.name}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="players-modal__empty">
+                Сервер показывает онлайн, но не отдаёт список игроков в status sample.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {skinOpen && <CustomizeModal playerName={profile.name} onClose={() => setSkinOpen(false)} />}
     </div>

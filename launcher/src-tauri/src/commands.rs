@@ -1245,6 +1245,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
             let latest_log_path = game_dir.join("logs").join("latest.log");
             let log_content = std::fs::read_to_string(&latest_log_path)
                 .unwrap_or_else(|_| "Не удалось прочитать latest.log".to_string());
+            let log_content = trim_report_text(log_content, 900_000);
 
             let mut crash_content = None;
             let crash_reports_dir = game_dir.join("crash-reports");
@@ -1267,7 +1268,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     if let Ok(duration) = std::time::SystemTime::now().duration_since(latest_time) {
                         if duration.as_secs() < 15 {
                             if let Ok(content) = std::fs::read_to_string(path) {
-                                crash_content = Some(content);
+                                crash_content = Some(trim_report_text(content, 900_000));
                             }
                         }
                     }
@@ -1300,6 +1301,22 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     });
 
     Ok(())
+}
+
+fn trim_report_text(mut text: String, max_bytes: usize) -> String {
+    if text.len() <= max_bytes {
+        return text;
+    }
+    let marker = "[Stardust] Лог урезан: показан конец файла.\n";
+    let keep = max_bytes.saturating_sub(marker.len());
+    let start = text
+        .char_indices()
+        .rev()
+        .find(|(idx, _)| text.len() - *idx <= keep)
+        .map(|(idx, _)| idx)
+        .unwrap_or(0);
+    text.replace_range(..start, marker);
+    text
 }
 
 // ---------- Статистика ----------

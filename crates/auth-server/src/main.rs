@@ -1233,6 +1233,8 @@ struct ReportCrashRequest {
     crash_report: Option<String>,
 }
 
+const CRASH_DOCUMENT_MAX_BYTES: usize = 950_000;
+
 async fn report_crash(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -1250,35 +1252,51 @@ async fn report_crash(
         "⚠️ Minecraft у игрока «{username}» вылетел/крашнулся!\n{exit_code_str}"
     );
 
-    // Send latest.log
+    state.store.notify_admins(&caption).await?;
+
+    // Send latest.log as a separate document. Keep documents modest so Telegram
+    // delivery failures do not block the primary crash alert.
     if !req.log.trim().is_empty() {
+        let log = trim_document(req.log.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
         state
             .store
-            .notify_admins_with_document(&caption, "latest.log", req.log.as_bytes())
-            .await?;
-    } else {
-        // If log is empty, just notify text-only
-        state
-            .store
-            .notify_admins(&caption)
+            .notify_admins_with_document(
+                &format!("📄 latest.log игрока «{username}»"),
+                "latest.log",
+                &log,
+            )
             .await?;
     }
 
     // Send crash-report if present
     if let Some(crash) = req.crash_report {
         if !crash.trim().is_empty() {
+            let crash = trim_document(crash.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
             state
                 .store
                 .notify_admins_with_document(
                     &format!("📄 Краш-репорт игрока «{username}»"),
                     "crash-report.txt",
-                    crash.as_bytes(),
+                    &crash,
                 )
                 .await?;
         }
     }
 
     Ok(StatusCode::OK)
+}
+
+fn trim_document(bytes: &[u8], max_bytes: usize) -> Vec<u8> {
+    if bytes.len() <= max_bytes {
+        return bytes.to_vec();
+    }
+    let marker = b"[Stardust] Document truncated: tail follows.\n";
+    let keep = max_bytes.saturating_sub(marker.len());
+    let start = bytes.len().saturating_sub(keep);
+    let mut out = Vec::with_capacity(marker.len() + bytes.len() - start);
+    out.extend_from_slice(marker);
+    out.extend_from_slice(&bytes[start..]);
+    out
 }
 
 // ─────────────────── Кастомизация ника ───────────────────
