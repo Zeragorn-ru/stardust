@@ -29,7 +29,7 @@ interface Props {
   busy: boolean;
   onProgressChange: (p: Progress | null) => void;
   onRunningChange: (r: boolean) => void;
-  onOpenSettings: (section?: "general" | "account") => void;
+  onOpenSettings: (section?: "general" | "account" | "logs") => void;
   onLogout: () => void;
 }
 

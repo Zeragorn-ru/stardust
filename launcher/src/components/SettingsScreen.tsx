@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, JavaInstallation, JavaProvider, JavaVendorInfo, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
+import type { AppInfo, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
   downloadJava,
   getAppInfo,
+  getLogPaths,
   getSettings,
   installUpdate,
   listJavaDownloadVendors,
@@ -11,14 +12,16 @@ import {
   listJavaInstallationsDeep,
   onLauncherProgress,
   onUpdateProgress,
+  openLogFolder,
   openPath,
   saveSettings,
 } from "../api";
 import { useMotion } from "../motion";
 import AccountSection from "./AccountSection";
+import LogViewerModal, { type LogTab } from "./LogViewerModal";
 import ModsSection from "./ModsSection";
 
-type Section = "general" | "account" | "mods";
+type Section = "general" | "account" | "mods" | "logs";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -91,6 +94,13 @@ export default function SettingsScreen({
   const [javaDownloadError, setJavaDownloadError] = useState<string | null>(null);
   const [javaProgress, setJavaProgress] = useState<Progress | null>(null);
 
+  const [logPaths, setLogPaths] = useState<LogPaths | null>(null);
+  const [logViewer, setLogViewer] = useState<{
+    title: string;
+    tabs: LogTab[];
+    initialTabId?: string;
+  } | null>(null);
+
   useEffect(() => {
     getSettings().then((s) => {
       setSettings(s);
@@ -98,6 +108,7 @@ export default function SettingsScreen({
     });
     getAppInfo().then(setInfo);
     listJavaDownloadVendors().then(setJavaVendors);
+    getLogPaths().then(setLogPaths).catch(() => undefined);
   }, []);
 
   async function refreshJavaList(deep = false) {
@@ -304,6 +315,16 @@ export default function SettingsScreen({
           >
             Сборка
           </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
+              (section === "logs" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("logs")}
+          >
+            Логи
+          </button>
         </nav>
 
         {section === "account" ? (
@@ -317,6 +338,168 @@ export default function SettingsScreen({
         ) : section === "mods" ? (
           <div className="settings__body stagger" key="mods">
             <ModsSection />
+          </div>
+        ) : section === "logs" ? (
+          <div className="settings__body stagger" key="logs">
+            <div className="logs-card stagger-item">
+              <div className="toggle-row__text">
+                <span className="toggle-row__title">Логи лаунчера</span>
+                <span className="muted toggle-row__desc">
+                  Диагностика запуска, загрузок и ошибок лаунчера.
+                </span>
+              </div>
+              <div className="logs-card__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={!logPaths}
+                  onClick={() =>
+                    logPaths &&
+                    setLogViewer({
+                      title: "Лог лаунчера",
+                      tabs: [
+                        {
+                          id: "launcher",
+                          label: "launcher.log",
+                          path: logPaths.launcherLogLatest,
+                        },
+                      ],
+                    })
+                  }
+                >
+                  Лог лаунчера
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={!logPaths}
+                  onClick={() => void openLogFolder("launcherLogs")}
+                >
+                  Открыть папку
+                </button>
+              </div>
+            </div>
+
+            <div className="logs-card stagger-item">
+              <div className="toggle-row__text">
+                <span className="toggle-row__title">Логи Minecraft</span>
+                <span className="muted toggle-row__desc">
+                  latest.log и debug.log из папки игры.
+                </span>
+              </div>
+              <div className="logs-card__actions">
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={!logPaths}
+                  onClick={() =>
+                    logPaths &&
+                    setLogViewer({
+                      title: "Лог игры",
+                      tabs: [
+                        {
+                          id: "latest",
+                          label: "latest.log",
+                          path: logPaths.minecraftLatestLog,
+                        },
+                      ],
+                    })
+                  }
+                >
+                  Лог игры (latest.log)
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={!logPaths}
+                  onClick={() =>
+                    logPaths &&
+                    setLogViewer({
+                      title: "Отладочный лог",
+                      tabs: [
+                        {
+                          id: "debug",
+                          label: "debug.log",
+                          path: logPaths.minecraftDebugLog,
+                        },
+                      ],
+                    })
+                  }
+                >
+                  Отладочный лог
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  disabled={!logPaths}
+                  onClick={() => void openLogFolder("minecraftLogs")}
+                >
+                  Открыть папку
+                </button>
+              </div>
+            </div>
+
+            <div className="logs-card stagger-item">
+              <div className="toggle-row__text">
+                <span className="toggle-row__title">Подробные логи</span>
+                <span className="muted toggle-row__desc">
+                  Лаунчер и оба лога Minecraft в одном окне.
+                </span>
+              </div>
+              <div className="logs-card__actions">
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={!logPaths}
+                  onClick={() =>
+                    logPaths &&
+                    setLogViewer({
+                      title: "Подробные логи",
+                      tabs: [
+                        {
+                          id: "launcher",
+                          label: "Лаунчер",
+                          path: logPaths.launcherLogLatest,
+                        },
+                        {
+                          id: "latest",
+                          label: "latest.log",
+                          path: logPaths.minecraftLatestLog,
+                        },
+                        {
+                          id: "debug",
+                          label: "debug.log",
+                          path: logPaths.minecraftDebugLog,
+                        },
+                      ],
+                      initialTabId: "launcher",
+                    })
+                  }
+                >
+                  Все логи
+                </button>
+              </div>
+            </div>
+
+            {logPaths?.crashReportsExists && (
+              <div className="logs-card stagger-item">
+                <div className="toggle-row__text">
+                  <span className="toggle-row__title">Crash reports</span>
+                  <span className="muted toggle-row__desc">
+                    Отчёты о сбоях Minecraft.
+                  </span>
+                </div>
+                <div className="logs-card__actions">
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => void openLogFolder("crashReports")}
+                  >
+                    Открыть папку
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="settings__body stagger" key="general">
@@ -719,6 +902,15 @@ export default function SettingsScreen({
           </div>
         )}
       </div>
+
+      {logViewer && (
+        <LogViewerModal
+          title={logViewer.title}
+          tabs={logViewer.tabs}
+          initialTabId={logViewer.initialTabId}
+          onClose={() => setLogViewer(null)}
+        />
+      )}
     </div>
   );
 }

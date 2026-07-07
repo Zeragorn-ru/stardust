@@ -13,7 +13,7 @@ import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 
 type View = "onboarding" | "login" | "main" | "settings";
-type SettingsSection = "general" | "account";
+type SettingsSection = "general" | "account" | "logs";
 
 const VIEW_ORDER: View[] = ["onboarding", "login", "main", "settings"];
 const TRANSITION_MS = 380;
@@ -81,7 +81,12 @@ export default function App() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    onLauncherProgress(setProgress).then((fn) => { unlisten = fn; });
+    onLauncherProgress((p) => {
+      setProgress(p);
+      if (p.phase === "error") {
+        setRunning(false);
+      }
+    }).then((fn) => { unlisten = fn; });
     return () => unlisten?.();
   }, []);
 
@@ -99,7 +104,9 @@ export default function App() {
     const id = setInterval(async () => {
       if (!(await gameRunning())) {
         setRunning(false);
-        setProgress(null);
+        if (progressRef.current?.phase !== "error") {
+          setProgress(null);
+        }
       }
     }, 1500);
     return () => clearInterval(id);

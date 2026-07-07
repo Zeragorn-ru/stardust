@@ -1111,6 +1111,225 @@ async fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
         .map_err(|e| format!("не удалось открыть папку: {e}"))
 }
 
+// ---------- Логи ----------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogPaths {
+    launcher_log_dir: String,
+    launcher_log_latest: String,
+    minecraft_logs_dir: String,
+    minecraft_latest_log: String,
+    minecraft_debug_log: String,
+    crash_reports_dir: String,
+    data_dir: String,
+    crash_reports_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogTail {
+    path: String,
+    lines: Vec<String>,
+    truncated: bool,
+    exists: bool,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum LogFolderKind {
+    LauncherLogs,
+    MinecraftLogs,
+    CrashReports,
+}
+
+fn launcher_log_dir() -> std::path::PathBuf {
+    paths::exe_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("logs")
+}
+
+fn resolve_launcher_log_latest(log_dir: &std::path::Path) -> std::path::PathBuf {
+    let current = log_dir.join("launcher.log");
+    if current.exists() {
+        return current;
+    }
+    let mut latest: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
+    if let Ok(entries) = std::fs::read_dir(log_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("launcher.log.") {
+                continue;
+            }
+            if let Ok(meta) = entry.metadata() {
+                if meta.is_file() {
+                    if let Ok(modified) = meta.modified() {
+                        if latest
+                            .as_ref()
+                            .map(|(t, _)| modified > *t)
+                            .unwrap_or(true)
+                        {
+                            latest = Some((modified, entry.path()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    latest
+        .map(|(_, path)| path)
+        .unwrap_or(current)
+}
+
+fn allowed_log_roots(app: &AppHandle) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut roots = Vec::new();
+
+    let data_dir = paths::data_dir(app);
+    if let Ok(c) = data_dir.canonicalize() {
+        roots.push(c);
+    }
+
+    let log_dir = launcher_log_dir();
+    let _ = std::fs::create_dir_all(&log_dir);
+    if let Ok(c) = log_dir.canonicalize() {
+        roots.push(c);
+    }
+
+    if roots.is_empty() {
+        return Err("ошибка получения разрешённых путей логов".into());
+    }
+    Ok(roots)
+}
+
+fn validate_log_path(app: &AppHandle, path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    if path.as_os_str().is_empty() || path.components().any(|c| c == std::path::Component::ParentDir)
+    {
+        return Err("путь содержит недопустимые элементы".into());
+    }
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "путь не существует или недоступен".to_string())?;
+    for root in allowed_log_roots(app)? {
+        if canonical.starts_with(&root) {
+            return Ok(canonical);
+        }
+    }
+    Err("доступ к указанному пути запрещён".into())
+}
+
+fn read_file_tail(path: &std::path::Path, max_bytes: usize) -> Result<String, String> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    const MAX_BYTES: usize = 500 * 1024;
+    let cap = max_bytes.min(MAX_BYTES);
+
+    let mut file = std::fs::File::open(path).map_err(|e| format!("не удалось открыть файл: {e}"))?;
+    let len = file
+        .metadata()
+        .map_err(|e| e.to_string())?
+        .len();
+    let start = len.saturating_sub(cap as u64);
+    file.seek(SeekFrom::Start(start))
+        .map_err(|e| format!("не удалось прочитать файл: {e}"))?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)
+        .map_err(|e| format!("не удалось прочитать файл: {e}"))?;
+    if start > 0 {
+        // Обрезали начало посередине строки — пропускаем первую неполную строку.
+        if let Some(idx) = buf.iter().position(|b| *b == b'\n') {
+            buf.drain(..=idx);
+        }
+    }
+    Ok(String::from_utf8_lossy(&buf).into_owned())
+}
+
+/// Пути к логам лаунчера и Minecraft.
+#[tauri::command]
+fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
+    let data_dir = paths::data_dir(&app);
+    let log_dir = launcher_log_dir();
+    let _ = std::fs::create_dir_all(&log_dir);
+
+    let game_dir = game_dir(&app);
+    let minecraft_logs_dir = game_dir.join("logs");
+    let crash_reports_dir = game_dir.join("crash-reports");
+
+    Ok(LogPaths {
+        launcher_log_dir: log_dir.to_string_lossy().into_owned(),
+        launcher_log_latest: resolve_launcher_log_latest(&log_dir)
+            .to_string_lossy()
+            .into_owned(),
+        minecraft_logs_dir: minecraft_logs_dir.to_string_lossy().into_owned(),
+        minecraft_latest_log: minecraft_logs_dir
+            .join("latest.log")
+            .to_string_lossy()
+            .into_owned(),
+        minecraft_debug_log: minecraft_logs_dir
+            .join("debug.log")
+            .to_string_lossy()
+            .into_owned(),
+        crash_reports_dir: crash_reports_dir.to_string_lossy().into_owned(),
+        data_dir: data_dir.to_string_lossy().into_owned(),
+        crash_reports_exists: crash_reports_dir.is_dir(),
+    })
+}
+
+/// Прочитать последние N строк лог-файла (безопасно: только разрешённые каталоги).
+#[tauri::command]
+fn read_log_tail(app: AppHandle, path: String, lines: Option<u32>) -> Result<LogTail, String> {
+    const MAX_LINES: usize = 2000;
+    let max_lines = lines.unwrap_or(200).clamp(1, MAX_LINES as u32) as usize;
+
+    if path.contains("..") {
+        return Err("путь содержит недопустимые элементы".into());
+    }
+
+    let target = std::path::Path::new(&path);
+    if !target.exists() {
+        return Ok(LogTail {
+            path,
+            lines: vec![],
+            truncated: false,
+            exists: false,
+        });
+    }
+
+    let canonical = validate_log_path(&app, target)?;
+    let path_str = canonical.to_string_lossy().into_owned();
+    let content = read_file_tail(&canonical, 500 * 1024)?;
+    let all_lines: Vec<String> = content.lines().map(str::to_string).collect();
+    let truncated = all_lines.len() > max_lines
+        || canonical
+            .metadata()
+            .map(|m| m.len() as usize > 500 * 1024)
+            .unwrap_or(false);
+    let skip = all_lines.len().saturating_sub(max_lines);
+    let lines_out = all_lines[skip..].to_vec();
+
+    Ok(LogTail {
+        path: path_str,
+        lines: lines_out,
+        truncated,
+        exists: true,
+    })
+}
+
+/// Открыть папку логов в файловом менеджере.
+#[tauri::command]
+async fn open_log_folder(app: AppHandle, kind: LogFolderKind) -> Result<(), String> {
+    let path = match kind {
+        LogFolderKind::LauncherLogs => launcher_log_dir(),
+        LogFolderKind::MinecraftLogs => game_dir(&app).join("logs"),
+        LogFolderKind::CrashReports => game_dir(&app).join("crash-reports"),
+    };
+    let _ = std::fs::create_dir_all(&path);
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "путь не существует или недоступен".to_string())?;
+    open::that(&canonical).map_err(|e| format!("не удалось открыть папку: {e}"))
+}
+
 /// Отвязать Telegram (отключить 2FA).
 #[tauri::command]
 async fn telegram_unlink(state: State<'_, AppState>) -> Result<(), String> {
@@ -1253,9 +1472,16 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     let data_dir2 = data_dir.clone();
     let app_handle = app.clone();
     tokio::spawn(async move {
+        const EARLY_WINDOW_SECS: i64 = 15;
         let mut exit_status = None;
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            let elapsed = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds();
+            let sleep = if elapsed < EARLY_WINDOW_SECS {
+                std::time::Duration::from_millis(500)
+            } else {
+                std::time::Duration::from_secs(2)
+            };
+            tokio::time::sleep(sleep).await;
 
             let state2 = app_handle.state::<AppState>();
             let mut guard = state2.game.lock().unwrap();
@@ -1268,7 +1494,8 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                         break;
                     }
                     Ok(None) => {}
-                    Err(_) => {
+                    Err(e) => {
+                        tracing::warn!("[game] try_wait: {e}");
                         *guard = None;
                         crate::game_guard::clear(&data_dir2);
                         break;
@@ -1282,58 +1509,80 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let duration = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds().max(0);
         crate::game_guard::clear_session(&data_dir2);
 
+        let exit_code = exit_status.and_then(|s| s.code());
+        tracing::warn!(
+            "[game] процесс Minecraft завершился: код={:?}, длительность={}с",
+            exit_code,
+            duration
+        );
+
+        let quick_exit = duration < EARLY_WINDOW_SECS;
         let is_crash = if let Some(status) = exit_status {
             !status.success()
         } else {
-            false
+            true
         };
 
-        if is_crash {
+        if quick_exit || is_crash {
             let game_dir = data_dir2.join("minecraft").join("game");
             let latest_log_path = game_dir.join("logs").join("latest.log");
             let log_content = std::fs::read_to_string(&latest_log_path)
-                .unwrap_or_else(|_| "Не удалось прочитать latest.log".to_string());
-            let log_content = trim_report_text(log_content, 900_000);
+                .unwrap_or_else(|_| String::new());
 
-            let mut crash_content = None;
-            let crash_reports_dir = game_dir.join("crash-reports");
-            if let Ok(entries) = std::fs::read_dir(crash_reports_dir) {
-                let mut latest_file = None;
-                let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
-                for entry in entries.flatten() {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_file() {
-                            if let Ok(modified) = metadata.modified() {
-                                if modified > latest_time {
-                                    latest_time = modified;
-                                    latest_file = Some(entry.path());
+            if quick_exit {
+                let label = launch_failure_label(&log_content, exit_code);
+                crate::progress::Progress::error(&app_handle, label);
+            }
+
+            if is_crash {
+                let log_content = if log_content.is_empty() {
+                    "Не удалось прочитать latest.log".to_string()
+                } else {
+                    trim_report_text(log_content, 900_000)
+                };
+
+                let mut crash_content = None;
+                let crash_reports_dir = game_dir.join("crash-reports");
+                if let Ok(entries) = std::fs::read_dir(crash_reports_dir) {
+                    let mut latest_file = None;
+                    let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
+                    for entry in entries.flatten() {
+                        if let Ok(metadata) = entry.metadata() {
+                            if metadata.is_file() {
+                                if let Ok(modified) = metadata.modified() {
+                                    if modified > latest_time {
+                                        latest_time = modified;
+                                        latest_file = Some(entry.path());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(path) = latest_file {
+                        if let Ok(duration) =
+                            std::time::SystemTime::now().duration_since(latest_time)
+                        {
+                            if duration.as_secs() < 15 {
+                                if let Ok(content) = std::fs::read_to_string(path) {
+                                    crash_content = Some(trim_report_text(content, 900_000));
                                 }
                             }
                         }
                     }
                 }
-                if let Some(path) = latest_file {
-                    if let Ok(duration) = std::time::SystemTime::now().duration_since(latest_time) {
-                        if duration.as_secs() < 15 {
-                            if let Ok(content) = std::fs::read_to_string(path) {
-                                crash_content = Some(trim_report_text(content, 900_000));
-                            }
-                        }
-                    }
-                }
-            }
 
-            let exit_code = exit_status.and_then(|s| s.code());
-            if let Err(e) = backend::report_crash(
-                &http,
-                &token,
-                exit_code,
-                &log_content,
-                crash_content.as_deref(),
-            )
-            .await
-            {
-                tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
+                let exit_code = exit_status.and_then(|s| s.code());
+                if let Err(e) = backend::report_crash(
+                    &http,
+                    &token,
+                    exit_code,
+                    &log_content,
+                    crash_content.as_deref(),
+                )
+                .await
+                {
+                    tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
+                }
             }
         }
 
@@ -1349,6 +1598,32 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     });
 
     Ok(())
+}
+
+fn launch_failure_label(log_content: &str, exit_code: Option<i32>) -> String {
+    let code_part = exit_code
+        .map(|c| format!(" (код {c})"))
+        .unwrap_or_default();
+    let base = format!("Minecraft завершился при запуске{code_part}");
+    let snippet = minecraft_log_snippet(log_content, 8);
+    match snippet {
+        Some(s) => format!("{base}\n{s}"),
+        None => base,
+    }
+}
+
+fn minecraft_log_snippet(log_content: &str, max_lines: usize) -> Option<String> {
+    let mut lines: Vec<&str> = log_content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+    if lines.is_empty() {
+        return None;
+    }
+    if lines.len() > max_lines {
+        lines = lines[lines.len() - max_lines..].to_vec();
+    }
+    Some(lines.join("\n"))
 }
 
 fn trim_report_text(mut text: String, max_bytes: usize) -> String {
@@ -1648,6 +1923,9 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             telegram_link_start,
             open_external,
             open_path,
+            get_log_paths,
+            read_log_tail,
+            open_log_folder,
             telegram_unlink,
             change_username,
             change_password,

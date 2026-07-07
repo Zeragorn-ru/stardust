@@ -12,6 +12,9 @@ import type {
   JavaInstallation,
   JavaVendorInfo,
   LoginOutcome,
+  LogFolderKind,
+  LogPaths,
+  LogTail,
   OptionalMod,
   PlayerProfile,
   PlayerStats,
@@ -300,6 +303,48 @@ export async function openExternal(url: string): Promise<void> {
 export async function openPath(path: string): Promise<void> {
   const invoke = await getInvoke();
   if (invoke) await invoke<void>("open_path", { path });
+}
+
+/** Пути к логам лаунчера и Minecraft. */
+export async function getLogPaths(): Promise<LogPaths> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return {
+      launcherLogDir: "./logs",
+      launcherLogLatest: "./logs/launcher.log",
+      minecraftLogsDir: "./data/minecraft/game/logs",
+      minecraftLatestLog: "./data/minecraft/game/logs/latest.log",
+      minecraftDebugLog: "./data/minecraft/game/logs/debug.log",
+      crashReportsDir: "./data/minecraft/game/crash-reports",
+      dataDir: "./data",
+      crashReportsExists: false,
+    };
+  }
+  return invoke<LogPaths>("get_log_paths");
+}
+
+/** Прочитать последние строки лог-файла. */
+export async function readLogTail(
+  path: string,
+  lines = 200,
+): Promise<LogTail> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return {
+      path,
+      lines: ["[dev] Логи доступны только в приложении Tauri."],
+      truncated: false,
+      exists: false,
+    };
+  }
+  return invoke<LogTail>("read_log_tail", { path, lines });
+}
+
+/** Открыть папку логов в файловом менеджере. */
+export async function openLogFolder(kind: LogFolderKind): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) return;
+  await invoke<void>("open_log_folder", { kind });
 }
 
 /** Сменить ник. Возвращает обновлённый профиль. */

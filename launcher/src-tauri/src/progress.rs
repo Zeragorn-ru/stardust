@@ -255,6 +255,22 @@ impl Progress {
         tracing::info!("[launcher] {msg}");
     }
 
+    /// Сообщает UI об ошибке запуска (phase = "error").
+    pub fn error(app: &AppHandle, label: impl Into<String>) {
+        let _ = app.emit(
+            "launcher://progress",
+            ProgressPayload {
+                phase: "error".into(),
+                label: label.into(),
+                fraction: None,
+                downloaded_bytes: None,
+                total_bytes: None,
+                speed_bytes_per_sec: None,
+                eta_seconds: None,
+            },
+        );
+    }
+
     fn emit(&self) {
         let inner = self.inner.lock().unwrap();
         let overall = ((inner.completed_weight + inner.current.weight() * inner.current_fraction)

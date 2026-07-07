@@ -229,3 +229,25 @@ export interface PlayerStats {
   /** ISO-8601 дата последнего подтверждённого захода на сервер, либо null. */
   lastJoinedAt: string | null;
 }
+
+/** Пути к логам лаунчера и Minecraft. */
+export interface LogPaths {
+  launcherLogDir: string;
+  launcherLogLatest: string;
+  minecraftLogsDir: string;
+  minecraftLatestLog: string;
+  minecraftDebugLog: string;
+  crashReportsDir: string;
+  dataDir: string;
+  crashReportsExists: boolean;
+}
+
+/** Хвост лог-файла. */
+export interface LogTail {
+  path: string;
+  lines: string[];
+  truncated: boolean;
+  exists: boolean;
+}
+
+export type LogFolderKind = "launcherLogs" | "minecraftLogs" | "crashReports";
