@@ -1306,6 +1306,14 @@ td.num {
     grid-template-columns: 40px minmax(0, 1fr) auto;
 }
 
+.fm-row.folder {
+    padding-left: 4px;
+}
+
+.fm-row.folder .fm-main {
+    padding-left: 0;
+}
+
 .fm-row:hover {
     border-color: rgba(115, 215, 255, 0.18);
     background: rgba(12, 16, 24, 0.92);
