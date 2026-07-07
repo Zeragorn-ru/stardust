@@ -904,12 +904,13 @@ button.secondary:hover:not(:disabled) {
 
 .m-screen .fm-row.folder {
     align-items: center;
-    padding-left: 4px;
+    padding-left: 6px;
     padding-right: 6px;
 }
 
 .m-screen .fm-row.folder .fm-main {
-    padding-left: 0;
+    grid-template-columns: 32px minmax(0, 1fr);
+    padding: 0;
 }
 
 .m-screen .fm-main {

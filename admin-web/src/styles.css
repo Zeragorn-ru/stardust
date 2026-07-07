@@ -1307,11 +1307,15 @@ td.num {
 }
 
 .fm-row.folder {
-    padding-left: 4px;
+    padding-left: 6px;
 }
 
 .fm-row.folder .fm-main {
-    padding-left: 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    justify-self: stretch;
+    padding: 0;
 }
 
 .fm-row:hover {
