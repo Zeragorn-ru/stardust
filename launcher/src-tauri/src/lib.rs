@@ -4,6 +4,7 @@
 mod backend;
 mod commands;
 mod game_guard;
+mod java;
 mod minecraft;
 mod modpack;
 mod paths;
