@@ -42,6 +42,9 @@
         "bundleMediaFramework": false
       }
     },
+    "macOS": {
+      "dmg": {}
+    },
     "windows": {
       "nsis": {
         "installerHooks": "nsis/hooks.nsh"
