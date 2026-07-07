@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, getSettings, getStats, onStatsUpdated, playGame } from "../api";
+import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -415,16 +415,7 @@ export default function MainScreen({
               <div className="players-modal__grid">
                 {serverSample.map((player, i) => (
                   <div className="server-player" key={player.id || `${player.name}-${i}`}>
-                    <span className="server-player__avatar" aria-hidden="true">
-                      <img
-                        src={playerAvatarUrl(player)}
-                        alt=""
-                        onError={(event) => {
-                          event.currentTarget.hidden = true;
-                        }}
-                      />
-                      {playerInitial(player.name)}
-                    </span>
+                    <PlayerAvatar uuid={player.id} name={player.name} />
                     <span className="server-player__name">{player.name}</span>
                   </div>
                 ))}
@@ -451,10 +442,59 @@ function playerInitial(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || "?";
 }
 
-function playerAvatarUrl(player: ServerSamplePlayer): string {
-  const id = player.id.trim();
-  const value = id && id !== "00000000-0000-0000-0000-000000000000" ? id : player.name.trim();
-  return `https://mc-heads.net/avatar/${encodeURIComponent(value)}/48`;
+// ── Кеш скинов игроков (модульный, общий между рендерами) ────────────
+const skinCache = new Map<string, string | null>();
+const pendingFetches = new Map<string, Promise<string | null>>();
+
+function fetchPlayerSkin(uuid: string): Promise<string | null> {
+  const cached = pendingFetches.get(uuid);
+  if (cached) return cached;
+  const p = getPlayerSkin(uuid).then((dataUrl) => {
+    skinCache.set(uuid, dataUrl);
+    pendingFetches.delete(uuid);
+    return dataUrl;
+  });
+  pendingFetches.set(uuid, p);
+  return p;
+}
+
+/** Аватарка игрока: скин из нашего бэкенда или fallback-буква. */
+function PlayerAvatar({ uuid, name }: { uuid: string; name: string }) {
+  const [src, setSrc] = useState<string | null>(() => skinCache.get(uuid) ?? undefined!);
+  const initial = playerInitial(name);
+
+  useEffect(() => {
+    if (src !== undefined) return;
+    let cancel = false;
+    fetchPlayerSkin(uuid).then((dataUrl) => {
+      if (!cancel) setSrc(dataUrl ?? null);
+    });
+    return () => { cancel = true; };
+  }, [uuid, src]);
+
+  if (src === undefined) {
+    return (
+      <span className="server-player__avatar" aria-hidden="true">
+        <span className="server-player__loading" />
+        {initial}
+      </span>
+    );
+  }
+
+  if (src === null) {
+    return (
+      <span className="server-player__avatar" aria-hidden="true">
+        {initial}
+      </span>
+    );
+  }
+
+  return (
+    <span className="server-player__avatar" aria-hidden="true">
+      <img src={src} alt="" />
+      {initial}
+    </span>
+  );
 }
 
 function banUntilLabel(ban: BanInfo): string {

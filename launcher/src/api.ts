@@ -400,6 +400,13 @@ export async function setSkin(
   await invoke<void>("set_skin", { dataUrl, model });
 }
 
+/** Скин другого игрока по UUID (data-URL PNG или null). */
+export async function getPlayerSkin(uuid: string): Promise<string | null> {
+  const invoke = await getInvoke();
+  if (!invoke) return null;
+  return invoke<string | null>("get_player_skin", { uuid });
+}
+
 /** Импортировать скин и плащ с лицензионного аккаунта (ник или UUID).
  *
  * При `keepSynced` сервер запомнит UUID источника и будет периодически

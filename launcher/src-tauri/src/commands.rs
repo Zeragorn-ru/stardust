@@ -1554,6 +1554,20 @@ async fn set_active_customization(
     Ok(())
 }
 
+/// Скин другого игрока по UUID (для аватарок в списке онлайн).
+/// Использует публичный эндпоинт `/api/skin/:uuid` без авторизации.
+#[tauri::command]
+async fn get_player_skin(state: State<'_, AppState>, uuid: String) -> Result<Option<String>, String> {
+    let http = state.http();
+    match backend::get_skin(&http, &uuid).await? {
+        Some(fetched) => Ok(Some(format!(
+            "data:image/png;base64,{}",
+            fetched.png_base64
+        ))),
+        None => Ok(None),
+    }
+}
+
 /// Регистрирует все команды и состояние в Tauri-приложении.
 pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder
@@ -1595,5 +1609,6 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             ping_minecraft_server,
             get_customization,
             set_active_customization,
+            get_player_skin,
         ])
 }
