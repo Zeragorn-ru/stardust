@@ -168,6 +168,7 @@ final class StardustTabIntegration {
                 try {
                     if (bp != null) bp.update(player);
                     if (np != null) np.update(player);
+                    applyTabListName(api, player);
                 } catch (Exception e) {
                     StardustMod.LOGGER.warn("Stardust TAB: update {} failed: {}", player.getName(), e.toString());
                 }
@@ -216,6 +217,7 @@ final class StardustTabIntegration {
             try {
                 if (bp != null) bp.update(p);
                 if (np != null) np.update(p);
+                applyTabListName(api, p);
                 count++;
             } catch (Exception e) {
                 StardustMod.LOGGER.warn("Stardust: update {} failed: {}", p.getName(), e.toString());
@@ -224,6 +226,14 @@ final class StardustTabIntegration {
         if (!quiet || debug) {
             StardustMod.LOGGER.info("Stardust: обновлено {} игроков", count);
         }
+    }
+
+    private static void applyTabListName(TabAPI api, TabPlayer player) {
+        if (api == null || player == null) return;
+        var manager = api.getTabListFormatManager();
+        if (manager == null) return;
+        String value = resolveBadge(httpProvider, localFallback, player) + resolveName(httpProvider, localFallback, player);
+        manager.setName(player, value);
     }
 
     // ─────────── Badge ───────────
