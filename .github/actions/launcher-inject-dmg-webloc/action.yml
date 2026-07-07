@@ -1,0 +1,12 @@
+name: Launcher — Inject DMG webloc
+description: |
+  После tauri build на macOS: монтирует .dmg, добавляет Установка.webloc
+  (ссылка на docs/MACOS_INSTALL.md на GitHub) и пересобирает образ.
+  Без Apple-сертификата. Пропускается, если .dmg не найден.
+
+runs:
+  using: composite
+  steps:
+    - name: inject-dmg-webloc.sh
+      shell: bash
+      run: bash scripts/ci/inject-dmg-webloc.sh

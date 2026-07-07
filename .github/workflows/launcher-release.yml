@@ -108,6 +108,10 @@ jobs:
         with:
           tauri-args: ${{ matrix.tauri-args }}
 
+      - name: "⑧b DMG webloc"
+        if: matrix.id == 'macos'
+        uses: ./.github/actions/launcher-inject-dmg-webloc
+
       - name: "⑨ Collect bundles"
         if: always()
         uses: ./.github/actions/launcher-collect-bundles

@@ -51,6 +51,18 @@ export APPLE_SIGNING_IDENTITY="Developer ID Application: …"
 make build-launcher
 ```
 
+## DMG без подписи Apple
+
+Подпись не обязательна для UX-улучшений DMG:
+
+| Элемент | Описание |
+|---------|----------|
+| Фон DMG | `launcher/src-tauri/images/dmg-background.png` + `tauri.conf.json` → `bundle.macOS.dmg` |
+| Гайд | [`docs/MACOS_INSTALL.md`](../../docs/MACOS_INSTALL.md) на GitHub |
+| `.webloc` | `launcher/src-tauri/dmg/Установка.webloc` — CI вшивает в DMG (`inject-dmg-webloc.sh`) |
+
+Пользователь: drag-and-drop в Applications, при Gatekeeper — ПКМ → Open. Двойной клик **Установка** в DMG открывает гайд.
+
 ## Обход для себя (не для пользователей)
 
 ПКМ → Open → Open, или System Settings → Privacy & Security → Open Anyway.

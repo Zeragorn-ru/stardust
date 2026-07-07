@@ -22,6 +22,7 @@ Environments) для Apple signing secrets.
 | ⑦ | [`launcher-wait-token`](launcher-wait-token/) | тег | — |
 | ⑦b | [`launcher-setup-macos-signing`](launcher-setup-macos-signing/) | macOS | [`packaging/macos/README.md`](../packaging/macos/README.md) |
 | ⑧ | [`launcher-tauri-build`](launcher-tauri-build/) | всегда | `make build-launcher` |
+| ⑧b | [`launcher-inject-dmg-webloc`](launcher-inject-dmg-webloc/) | macOS | `scripts/ci/inject-dmg-webloc.sh` |
 | ⑨ | [`launcher-collect-bundles`](launcher-collect-bundles/) | always() | `make collect-launcher-bundles` |
 | ⑩ | [`launcher-upload-ci-artifacts`](launcher-upload-ci-artifacts/) | always() | `dist/launcher-bundles/` |
 | ⑪ | [`launcher-upload-release`](launcher-upload-release/) | тег | `scripts/ci/upload-launcher-release.sh` |
@@ -44,7 +45,9 @@ Checksums: `scripts/ci/sha256-file.sh` (Linux `sha256sum`, macOS `shasum`).
 |-----------|-----------------|
 | Windows | `StarDust_X.Y.Z_x64-setup.exe`, `bootstrap.exe` |
 | Linux | `StarDust_X.Y.Z_amd64.deb`, `.rpm`, `.AppImage` |
-| macOS | `StarDust_X.Y.Z_universal.dmg` |
+| macOS | `StarDust_X.Y.Z_universal.dmg` (+ `Установка.webloc` внутри DMG) |
+
+DMG: кастомный фон (`images/dmg-background.png`), гайд [`docs/MACOS_INSTALL.md`](../../docs/MACOS_INSTALL.md).
 
 **Gatekeeper:** без Apple Developer ID + нотаризации macOS покажет *«StarDust Not Opened»*.
 Настройка: [`packaging/macos/README.md`](../packaging/macos/README.md).
