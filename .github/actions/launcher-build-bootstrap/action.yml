@@ -1,0 +1,27 @@
+name: Launcher — Bootstrap (Windows)
+description: |
+  Собирает bootstrap.exe — маленький helper для тихого NSIS-обновления на Windows.
+  Лаунчер скачивает bootstrap + setup.exe из GitHub Release и запускает bootstrap,
+  который ставит новую версию и перезапускает StarDust.exe.
+  Крейт crates/bootstrap вне workspace; кешируется отдельно.
+
+inputs:
+  platform:
+    description: Runner OS label
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Cache bootstrap target/
+      if: inputs.platform == 'windows-latest'
+      uses: actions/cache@v4
+      with:
+        path: crates/bootstrap/target
+        key: bootstrap-${{ inputs.platform }}-${{ hashFiles('crates/bootstrap/**') }}
+        restore-keys: bootstrap-${{ inputs.platform }}-
+
+    - name: Build bootstrap.exe
+      if: inputs.platform == 'windows-latest'
+      shell: bash
+      run: bash scripts/ci/build-bootstrap.sh

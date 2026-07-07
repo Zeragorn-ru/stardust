@@ -1,0 +1,19 @@
+name: Launcher — Collect bundles
+description: |
+  Ищет собранные установщики в target/**/bundle/{nsis,dmg,deb,rpm,appimage}
+  и копирует в dist/launcher-bundles/ с SHA256.
+  При ошибке печатает дерево bundle/ для отладки.
+  Локально: make collect-launcher-bundles
+
+runs:
+  using: composite
+  steps:
+    - name: collect-launcher-bundles.sh
+      shell: bash
+      run: |
+        bash scripts/ci/collect-launcher-bundles.sh || {
+          echo "==> DEBUG: bundle search tree"
+          find target -type d -name bundle 2>/dev/null | head -30
+          find target \( -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) 2>/dev/null | head -40
+          exit 1
+        }

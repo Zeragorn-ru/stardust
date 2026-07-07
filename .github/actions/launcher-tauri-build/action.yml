@@ -1,0 +1,32 @@
+name: Launcher — Tauri build
+description: |
+  Собирает установщики через tauri-action: NSIS (Win), deb/rpm/AppImage (Linux),
+  universal DMG (macOS). Профиль launcher-release (thin LTO, быстрее fat).
+  macOS: --target universal-apple-darwin → StarDust_X.Y.Z_universal.dmg
+  с drag-and-drop окном (StarDust.app → Applications).
+
+inputs:
+  tauri-args:
+    description: Доп. аргументы tauri build (напр. --target universal-apple-darwin)
+    required: false
+    default: ""
+  release-draft:
+    description: Черновик релиза (для отладочных сборок)
+    required: false
+    default: "false"
+  prerelease:
+    description: Пометить как prerelease
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: tauri-apps/tauri-action@v0.6
+      env:
+        GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      with:
+        projectPath: launcher
+        releaseDraft: ${{ inputs.release-draft }}
+        prerelease: ${{ inputs.prerelease }}
+        args: ${{ inputs.tauri-args }} -- --profile launcher-release

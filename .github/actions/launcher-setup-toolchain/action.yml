@@ -1,0 +1,50 @@
+name: Launcher — Toolchain & caches
+description: |
+  Node 20, Rust 1.96 + clippy, rust-cache и npm cache.
+  На macOS дополнительно добавляет x86_64-apple-darwin для universal-сборки
+  (aarch64 уже есть на macos-latest runner).
+
+inputs:
+  platform:
+    description: Runner OS label (windows-latest | ubuntu-22.04 | macos-latest)
+    required: true
+  cache-key-suffix:
+    description: Суффикс ключа кеша (release | build)
+    required: false
+    default: release
+  save-cache:
+    description: Сохранять rust-cache (true на тегах)
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: npm
+        cache-dependency-path: launcher/package-lock.json
+
+    - uses: dtolnay/rust-toolchain@1.96.0
+      with:
+        components: clippy
+
+    - name: macOS universal target (x86_64)
+      if: inputs.platform == 'macos-latest'
+      shell: bash
+      run: rustup target add x86_64-apple-darwin
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: ". -> target"
+        shared-key: launcher-${{ inputs.cache-key-suffix }}-${{ inputs.platform }}
+        save-if: ${{ inputs.save-cache == 'true' }}
+        cache-on-failure: true
+
+    - name: npm node_modules cache
+      uses: actions/cache@v4
+      with:
+        path: launcher/node_modules
+        key: npm-${{ inputs.platform }}-${{ hashFiles('launcher/package-lock.json') }}
+        restore-keys: npm-${{ inputs.platform }}-

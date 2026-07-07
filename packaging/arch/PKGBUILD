@@ -1,0 +1,86 @@
+# StarDust Launcher — Arch Linux package (сборка из исходников).
+#
+# Использование:
+#   cd packaging/arch
+#   makepkg -si
+#
+# Или из корня репозитория:
+#   make pkg-arch
+#
+# Зависимости для сборки (pacman -S):
+#   base-devel nodejs npm rust webkit2gtk-4.1 gtk3 libappindicator-gtk3 librsvg patchelf
+
+pkgname=stardust-launcher
+pkgver=0.0.0
+# pkgrel обновляй при пересборке с той же версией.
+pkgrel=1
+pkgdesc="Minecraft launcher for the Stardust server (Tauri)"
+arch=('x86_64')
+url="https://github.com/Zeragorn-ru/stardust"
+license=('MIT')
+depends=(
+  'gtk3'
+  'webkit2gtk-4.1'
+  'libappindicator-gtk3'
+  'librsvg'
+  'hicolor-icon-theme'
+)
+makedepends=(
+  'cargo'
+  'nodejs'
+  'npm'
+  'patchelf'
+  'rust'
+)
+source=()
+# Для релизного PKGBUILD замени source на tarball:
+# source=("stardust-${pkgver}.tar.gz::https://github.com/Zeragorn-ru/stardust/archive/refs/tags/v${pkgver}.tar.gz")
+# sha256sums=('SKIP')
+
+prepare() {
+  # Локальная разработка: собираем из дерева репозитория.
+  if [ ! -d "${startdir}/../../launcher" ]; then
+    echo "ERROR: запускай makepkg из packaging/arch внутри клона репозитория" >&2
+    exit 1
+  fi
+  rm -rf "${srcdir}/stardust-src"
+  cp -a "${startdir}/../.." "${srcdir}/stardust-src"
+}
+
+pkgver() {
+  # При сборке из git-тега подставь реальную версию в pkgver выше.
+  echo "$pkgver"
+}
+
+build() {
+  cd "${srcdir}/stardust-src/launcher"
+  npm ci --ignore-scripts
+  npm run build
+  cargo build --manifest-path src-tauri/Cargo.toml --profile launcher-release
+  npm run tauri build -- --profile launcher-release --bundles deb,appimage
+}
+
+package() {
+  local deb
+  deb="$(find "${srcdir}/stardust-src/target" -name 'stardust_*.deb' -o -name 'StarDust_*.deb' 2>/dev/null | head -1)"
+  if [ -n "$deb" ]; then
+    bsdtar -xf "$deb" -C "${pkgdir}"
+    return
+  fi
+
+  # Fallback: установить бинарь напрямую (без .deb).
+  install -Dm755 "${srcdir}/stardust-src/target/launcher-release/launcher" \
+    "${pkgdir}/usr/bin/stardust-launcher"
+  install -Dm644 "${srcdir}/stardust-src/launcher/src-tauri/icons/128x128.png" \
+    "${pkgdir}/usr/share/icons/hicolor/128x128/apps/com.stardust.launcher.png"
+  install -Dm644 /dev/stdin "${pkgdir}/usr/share/applications/com.stardust.launcher.desktop" <<'EOF'
+[Desktop Entry]
+Name=StarDust
+Comment=Minecraft launcher for the Stardust server
+Exec=stardust-launcher
+Icon=com.stardust.launcher
+Terminal=false
+Type=Application
+Categories=Game;
+EOF
+}

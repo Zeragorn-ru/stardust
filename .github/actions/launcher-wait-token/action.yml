@@ -1,0 +1,11 @@
+name: Launcher — Wait for GitHub token
+description: |
+  Пауза 15 с после создания тега — GitHub иногда не сразу отдаёт права
+  GITHUB_TOKEN для tauri-action / gh release upload.
+
+runs:
+  using: composite
+  steps:
+    - name: sleep 15
+      shell: bash
+      run: sleep 15

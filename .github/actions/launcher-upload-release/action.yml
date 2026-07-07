@@ -1,0 +1,19 @@
+name: Launcher — Upload GitHub Release
+description: |
+  Создаёт Release (если нет) и загружает все файлы из dist/launcher-bundles/
+  + .sha256. Каждая matrix-job грузит только свои артефакты (--clobber).
+  Требует GH_TOKEN / RELEASE_TOKEN.
+
+inputs:
+  tag:
+    description: Git tag (например v0.7.23)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: upload-launcher-release.sh
+      shell: bash
+      env:
+        GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      run: bash scripts/ci/upload-launcher-release.sh "${{ inputs.tag }}"

@@ -1,29 +1,35 @@
-# Сборка лаунчера (Tauri) и публикация в GitHub Release.
-#
-# Оркестратор: каждый этап — composite action в .github/actions/launcher-*/
-# с описанием в поле description (видно в UI Actions).
-# Для отладки без тега: launcher-build.yml
+# Отладочная сборка лаунчера без git-тега.
+# Те же composite actions, что launcher-release.yml — см. .github/actions/README.md
 
-name: launcher-release
+name: launcher-build
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       platform:
-        description: "Платформа (all = matrix)"
+        description: "Платформа"
         type: choice
-        default: all
+        default: linux
         options:
           - all
           - windows
           - linux
           - macos
+      upload_release:
+        description: "Загрузить в существующий GitHub Release"
+        type: boolean
+        default: false
+      release_tag:
+        description: "Тег (vX.Y.Z), если upload_release=true"
+        type: string
+        default: ""
+      version:
+        description: "Версия для сборки (без v), пусто = не менять"
+        type: string
+        default: ""
 
 jobs:
-  release:
+  build:
     permissions:
       contents: write
     strategy:
@@ -41,7 +47,6 @@ jobs:
             tauri-args: "--target universal-apple-darwin"
     runs-on: ${{ matrix.platform }}
     if: >-
-      github.event_name == 'push' ||
       github.event.inputs.platform == 'all' ||
       github.event.inputs.platform == matrix.id
     steps:
@@ -57,35 +62,33 @@ jobs:
         uses: ./.github/actions/launcher-setup-toolchain
         with:
           platform: ${{ matrix.platform }}
-          cache-key-suffix: release
-          save-cache: ${{ startsWith(github.ref, 'refs/tags/') }}
+          cache-key-suffix: build
+          save-cache: "false"
 
       - name: "③ npm ci"
         uses: ./.github/actions/launcher-install-deps
+
+      - name: "⑥ Set version (manual)"
+        if: github.event.inputs.version != ''
+        uses: ./.github/actions/launcher-set-version
+        with:
+          version: ${{ github.event.inputs.version }}
 
       - name: "④ Clippy"
         uses: ./.github/actions/launcher-clippy
 
       - name: "⑤ Bootstrap (Windows)"
-        if: startsWith(github.ref, 'refs/tags/') && matrix.id == 'windows'
+        if: matrix.id == 'windows'
         uses: ./.github/actions/launcher-build-bootstrap
         with:
           platform: ${{ matrix.platform }}
-
-      - name: "⑥ Set version from tag"
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: ./.github/actions/launcher-set-version
-        with:
-          version: ${{ github.ref_name }}
-
-      - name: "⑦ Wait for token"
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: ./.github/actions/launcher-wait-token
 
       - name: "⑧ Tauri build"
         uses: ./.github/actions/launcher-tauri-build
         with:
           tauri-args: ${{ matrix.tauri-args }}
+          release-draft: "true"
+          prerelease: "true"
 
       - name: "⑨ Collect bundles"
         if: always()
@@ -95,10 +98,10 @@ jobs:
         if: always()
         uses: ./.github/actions/launcher-upload-ci-artifacts
         with:
-          artifact-name: launcher-release-${{ matrix.id }}
+          artifact-name: launcher-build-${{ matrix.id }}
 
-      - name: "⑪ Upload GitHub Release"
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: "⑪ Upload GitHub Release (optional)"
+        if: github.event.inputs.upload_release == 'true' && github.event.inputs.release_tag != ''
         uses: ./.github/actions/launcher-upload-release
         with:
-          tag: ${{ github.ref_name }}
+          tag: ${{ github.event.inputs.release_tag }}

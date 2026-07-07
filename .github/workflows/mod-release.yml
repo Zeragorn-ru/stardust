@@ -1,8 +1,5 @@
 # Сборка stardust-mod и публикация в GitHub Release.
-#
-# Триггер — git-тег вида mod-v1.2.3. Собирает NeoForge-мод (./gradlew build),
-# патчит версию из тега и загружает jar в GitHub Release.
-# Admin-server может затем скачать jar через GitHub API и задеплоить на сервер.
+# Триггер — git-тег mod-vX.Y.Z. Для проверки без релиза: ci.yml (target=mod).
 
 name: mod-release
 
@@ -11,6 +8,19 @@ on:
     tags:
       - "mod-v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия мода (без mod-v), для ручного прогона"
+        type: string
+        default: "0.0.0-dev"
+      upload_release:
+        description: "Создать/обновить GitHub Release"
+        type: boolean
+        default: false
+      release_tag:
+        description: "Тег релиза (mod-vX.Y.Z), если upload_release=true"
+        type: string
+        default: ""
 
 jobs:
   build:
@@ -31,42 +41,52 @@ jobs:
         with:
           node-version: 20
 
-      # Версия из тега: mod-v0.1.0 → 0.1.0
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
         run: |
           version="${GITHUB_REF_NAME#mod-v}"
           echo "MOD_VERSION=$version" >> $GITHUB_ENV
-          echo "Setting mod version to $version"
-          perl -0pi -e "s/(version\s*=\s*')[0-9]+\.[0-9]+\.[0-9]+(')/\${1}$version\${2}/" stardust-mod/build.gradle
-          if ! grep -q "$version" stardust-mod/build.gradle; then
-            echo "ERROR: version replacement failed in build.gradle"
-            exit 1
-          fi
+          bash scripts/ci/set-mod-version.sh "$version"
+
+      - name: Set version (manual)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.version != ''
+        run: |
+          echo "MOD_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          bash scripts/ci/set-mod-version.sh "${{ github.event.inputs.version }}"
 
       - name: Build mod jar
-        run: ./gradlew build
         working-directory: stardust-mod
+        run: ./gradlew build
 
       - name: Find jar file
         id: find-jar
         run: |
           jar=$(ls stardust-mod/build/libs/*.jar | grep -v sources | head -1)
           echo "jar_path=$jar" >> $GITHUB_OUTPUT
-          echo "jar_name=$(basename $jar)" >> $GITHUB_OUTPUT
+          echo "jar_name=$(basename "$jar")" >> $GITHUB_OUTPUT
           echo "Found jar: $jar"
 
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stardust-mod-jar
+          path: ${{ steps.find-jar.outputs.jar_path }}
+          retention-days: 14
+
       - name: Create release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: >-
+          startsWith(github.ref, 'refs/tags/') ||
+          (github.event.inputs.upload_release == 'true' && github.event.inputs.release_tag != '')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          tag="${GITHUB_REF_NAME}"
-          version="${MOD_VERSION:-unknown}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ github.event.inputs.release_tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
           title="Stardust Mod $tag"
-
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --title "$title" --generate-notes
             echo "Created release $tag"
@@ -75,15 +95,18 @@ jobs:
           fi
 
       - name: Upload jar to release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: >-
+          startsWith(github.ref, 'refs/tags/') ||
+          (github.event.inputs.upload_release == 'true' && github.event.inputs.release_tag != '')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          tag="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ github.event.inputs.release_tag }}"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
           jar="${{ steps.find-jar.outputs.jar_path }}"
-          name="${{ steps.find-jar.outputs.jar_name }}"
-
           sha256sum "$jar" | awk '{print $1}' > "${jar}.sha256"
-          echo "Uploading $name"
           gh release upload "$tag" "$jar" "${jar}.sha256" --clobber
