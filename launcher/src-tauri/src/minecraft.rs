@@ -100,7 +100,7 @@ pub async fn launch(
         "extracting",
         "Распаковываем native-библиотеки…",
     );
-    extract_natives(&root, &version)?;
+    extract_natives(&root, &version, &loader.libraries)?;
 
     let game_dir = root.join("game");
     fs::create_dir_all(&game_dir).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
@@ -122,7 +122,22 @@ pub async fn launch(
     let natives_dir = natives_dir(&root, &version.id);
 
     let memory = settings_memory_mb;
+    let natives_path = natives_dir.to_string_lossy().to_string();
     let mut args = Vec::<String>::new();
+
+    // На macOS GLFW/LWJGL требуют -XstartOnFirstThread среди первых JVM-флагов.
+    if cfg!(target_os = "macos") {
+        args.push("-XstartOnFirstThread".into());
+    }
+
+    // Vanilla ruled JVM args: natives paths, OS-specific flags и т.д.
+    args.extend(vanilla_jvm_args(&version, &natives_path));
+
+    // На macOS раннее окно NeoForge (fmlearlywindow) часто падает при старте GLFW.
+    if cfg!(target_os = "macos") {
+        args.push("-Dfml.earlyWindowControl=false".into());
+    }
+
     // Фиксированный heap — без этого JVM стартует с крошечной кучей и
     // перестраивает её по мере роста, что на слабых системах вызывает
     // длинные GC-паузы, из-за которых игрок может не успеть создаться.
@@ -135,10 +150,7 @@ pub async fn launch(
     args.push("-XX:+ParallelRefProcEnabled".into());
     args.push("-XX:+DisableExplicitGC".into());
     args.push("-XX:MaxGCPauseMillis=200".into());
-    args.push(format!(
-        "-Djava.library.path={}",
-        natives_dir.to_string_lossy()
-    ));
+
     // JVM-аргументы NeoForge (module-path, --add-opens и т.д.) с подстановкой
     // плейсхолдеров. Без них BootstrapLauncher не стартует.
     args.extend(modloader_jvm_args(&root, &version, &loader));
@@ -272,7 +284,9 @@ async fn download_libraries(
     concurrency: usize,
 ) -> Result<(), String> {
     let mut jobs: Vec<DownloadJob> = Vec::new();
-    for lib in libraries.iter().filter(|lib| rules_allow(&lib.rules)) {
+    for lib in libraries.iter().filter(|lib| {
+        rules_allow(&lib.rules, &LaunchFeatures::default())
+    }) {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             let path = root.join("libraries").join(&artifact.path);
             if !artifact.url.is_empty()
@@ -452,25 +466,44 @@ async fn download_jobs(
     Ok(())
 }
 
-fn extract_natives(root: &Path, version: &VersionJson) -> Result<(), String> {
+fn extract_natives(
+    root: &Path,
+    version: &VersionJson,
+    loader_libraries: &[Library],
+) -> Result<(), String> {
     let dir = natives_dir(root, &version.id);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
-    for lib in active_libraries(version) {
-        let Some(classifier) = native_classifier(lib) else {
-            continue;
-        };
-        let Some(classifiers) = lib.downloads.classifiers.as_ref() else {
-            continue;
-        };
-        let Some(artifact) = classifiers.get(&classifier) else {
-            continue;
-        };
-        let jar_path = root.join("libraries").join(&artifact.path);
-        if !jar_path.exists() {
-            continue;
+    let mut extracted = std::collections::HashSet::new();
+    let launch_features = LaunchFeatures::default();
+    let libraries = version
+        .libraries
+        .iter()
+        .chain(loader_libraries.iter())
+        .filter(|lib| rules_allow(&lib.rules, &launch_features));
+
+    for lib in libraries {
+        // Старый формат: natives: {osx: "natives-macos"} + classifiers.
+        if let Some(classifier) = native_classifier(lib) {
+            if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
+                if let Some(artifact) = classifiers.get(&classifier) {
+                    let jar_path = root.join("libraries").join(&artifact.path);
+                    if jar_path.exists() && extracted.insert(artifact.path.clone()) {
+                        extract_zip(&jar_path, &dir)?;
+                    }
+                }
+            }
         }
-        extract_zip(&jar_path, &dir)?;
+
+        // MC 1.21+: отдельные записи вида group:artifact:version:natives-macos.
+        if let Some(artifact) = lib.downloads.artifact.as_ref() {
+            if native_artifact_for_current_os(&artifact.path, lib.name.as_deref()) {
+                let jar_path = root.join("libraries").join(&artifact.path);
+                if jar_path.exists() && extracted.insert(artifact.path.clone()) {
+                    extract_zip(&jar_path, &dir)?;
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -509,7 +542,12 @@ fn build_modloader_classpath(
     let mut paths = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    for lib in loader.libraries.iter().filter(|l| rules_allow(&l.rules)) {
+    let launch_features = LaunchFeatures::default();
+    for lib in loader
+        .libraries
+        .iter()
+        .filter(|l| rules_allow(&l.rules, &launch_features))
+    {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             if let Some(key) = library_dedup_key(lib) {
                 seen.insert(key);
@@ -563,13 +601,9 @@ fn game_args(
     profile: &PlayerProfile,
     access_token: &str,
 ) -> Vec<String> {
-    let assets_dir = root.join("assets");
-    let mut args = if let Some(arguments) = version.arguments.as_ref() {
-        arguments
-            .game
-            .iter()
-            .filter_map(argument_value)
-            .collect::<Vec<_>>()
+    let features = LaunchFeatures::default();
+    let args = if let Some(arguments) = version.arguments.as_ref() {
+        resolve_arguments(&arguments.game, &features)
     } else {
         version
             .minecraft_arguments
@@ -580,7 +614,24 @@ fn game_args(
             .collect::<Vec<_>>()
     };
 
-    let replacements = HashMap::from([
+    let replacements = game_arg_replacements(root, game_dir, version, profile, access_token);
+    args.into_iter()
+        .map(|arg| substitute_tokens(&arg, &replacements))
+        .collect()
+}
+
+/// Плейсхолдеры vanilla game-аргументов. Неизвестные quickPlay/resolution
+/// подставляем безопасными значениями — на случай если ruled-блок всё же
+/// попал в командную строку.
+fn game_arg_replacements(
+    root: &Path,
+    game_dir: &Path,
+    version: &VersionJson,
+    profile: &PlayerProfile,
+    access_token: &str,
+) -> HashMap<&'static str, String> {
+    let assets_dir = root.join("assets");
+    HashMap::from([
         ("${auth_player_name}", profile.name.clone()),
         ("${version_name}", version.id.clone()),
         ("${game_directory}", game_dir.to_string_lossy().to_string()),
@@ -590,25 +641,90 @@ fn game_args(
         ("${auth_access_token}", access_token.to_string()),
         ("${user_type}", "msa".to_string()),
         ("${version_type}", version.version_type.clone()),
-        ("${clientid}", "".to_string()),
-        ("${auth_xuid}", "".to_string()),
-    ]);
-
-    for arg in &mut args {
-        if let Some(value) = replacements.get(arg.as_str()) {
-            *arg = value.clone();
-        }
-    }
-    args
+        ("${clientid}", String::new()),
+        ("${auth_xuid}", String::new()),
+        ("${resolution_width}", "1280".to_string()),
+        ("${resolution_height}", "720".to_string()),
+        ("${quickPlayPath}", String::new()),
+        ("${quickPlaySingleplayer}", String::new()),
+        ("${quickPlayMultiplayer}", String::new()),
+        ("${quickPlayRealms}", String::new()),
+    ])
 }
 
-fn argument_value(value: &Value) -> Option<String> {
+/// Разворачивает vanilla JVM-аргументы с OS/feature rules и подставляет
+/// плейсхолдеры natives directory и launcher metadata.
+/// `-cp` / `${classpath}` из version json пропускаем — classpath задаём ниже.
+fn vanilla_jvm_args(version: &VersionJson, natives_directory: &str) -> Vec<String> {
+    let replacements = HashMap::from([
+        ("${natives_directory}", natives_directory.to_string()),
+        ("${launcher_name}", "StarDust".to_string()),
+        ("${launcher_version}", env!("CARGO_PKG_VERSION").to_string()),
+    ]);
+    let features = LaunchFeatures::default();
+    let args = version
+        .arguments
+        .as_ref()
+        .map(|a| resolve_arguments(&a.jvm, &features))
+        .unwrap_or_default();
+    args.into_iter()
+        .map(|arg| substitute_tokens(&arg, &replacements))
+        .filter(|arg| arg != "-cp" && arg != "${classpath}")
+        .collect()
+}
+
+/// Разворачивает список аргументов Minecraft (jvm/game) с учётом rules.
+fn resolve_arguments(values: &[Value], features: &LaunchFeatures) -> Vec<String> {
+    let mut out = Vec::new();
+    for value in values {
+        out.extend(resolve_argument(value, features));
+    }
+    out
+}
+
+fn resolve_argument(value: &Value, features: &LaunchFeatures) -> Vec<String> {
     match value {
-        Value::String(s) => Some(s.clone()),
-        // Условные аргументы (feature/OS rules) пока пропускаем. Для NeoForge на
-        // десктопе они не требуются — jvm/game-аргументы там простые строки.
-        Value::Object(_) => None,
-        _ => None,
+        Value::String(s) => vec![s.clone()],
+        Value::Object(obj) => {
+            let rules = obj.get("rules").and_then(|r| {
+                serde_json::from_value::<Vec<Rule>>(r.clone()).ok()
+            });
+            if !rules_allow(&rules, features) {
+                return Vec::new();
+            }
+            match obj.get("value") {
+                Some(Value::String(s)) => vec![s.clone()],
+                Some(Value::Array(arr)) => arr
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect(),
+                _ => Vec::new(),
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Проверяет, что путь артефакта — native-библиотека для текущей ОС/архитектуры.
+fn native_artifact_for_current_os(path: &str, name: Option<&str>) -> bool {
+    let haystack = format!(
+        "{} {}",
+        path.to_ascii_lowercase(),
+        name.unwrap_or("").to_ascii_lowercase()
+    );
+    if !haystack.contains("natives") {
+        return false;
+    }
+    if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            haystack.contains("natives-macos-arm64")
+        } else {
+            haystack.contains("natives-macos") && !haystack.contains("arm64")
+        }
+    } else if cfg!(target_os = "windows") {
+        haystack.contains("natives-windows")
+    } else {
+        haystack.contains("natives-linux")
     }
 }
 
@@ -637,10 +753,11 @@ fn modloader_jvm_args(
         ("${version_name}", vanilla.id.clone()),
     ]);
 
+    let features = LaunchFeatures::default();
     arguments
         .jvm
         .iter()
-        .filter_map(argument_value)
+        .flat_map(|value| resolve_argument(value, &features))
         .map(|arg| substitute_tokens(&arg, &replacements))
         .collect()
 }
@@ -651,7 +768,12 @@ fn modloader_game_args(loader: &ModLoaderProfile) -> Vec<String> {
     let Some(arguments) = loader.arguments.as_ref() else {
         return Vec::new();
     };
-    arguments.game.iter().filter_map(argument_value).collect()
+    let features = LaunchFeatures::default();
+    arguments
+        .game
+        .iter()
+        .flat_map(|value| resolve_argument(value, &features))
+        .collect()
 }
 
 /// Заменяет все вхождения `${...}`-плейсхолдеров внутри строки.
@@ -689,17 +811,41 @@ fn legacy_default_args() -> Vec<&'static str> {
 }
 
 fn active_libraries(version: &VersionJson) -> impl Iterator<Item = &Library> {
-    version
-        .libraries
-        .iter()
-        .filter(|lib| rules_allow(&lib.rules))
+    version.libraries.iter().filter(|lib| {
+        rules_allow(&lib.rules, &LaunchFeatures::default())
+    })
 }
 
-fn rules_allow(rules: &Option<Vec<Rule>>) -> bool {
+/// Feature-флаги запуска для ruled game/jvm аргументов Minecraft.
+#[derive(Debug, Clone, Default)]
+struct LaunchFeatures {
+    is_demo_user: bool,
+    has_custom_resolution: bool,
+    has_quick_plays_support: bool,
+    is_quick_play_singleplayer: bool,
+    is_quick_play_multiplayer: bool,
+    is_quick_play_realms: bool,
+}
+
+impl LaunchFeatures {
+    fn feature(&self, name: &str) -> bool {
+        match name {
+            "is_demo_user" => self.is_demo_user,
+            "has_custom_resolution" => self.has_custom_resolution,
+            "has_quick_plays_support" => self.has_quick_plays_support,
+            "is_quick_play_singleplayer" => self.is_quick_play_singleplayer,
+            "is_quick_play_multiplayer" => self.is_quick_play_multiplayer,
+            "is_quick_play_realms" => self.is_quick_play_realms,
+            _ => false,
+        }
+    }
+}
+
+fn rules_allow(rules: &Option<Vec<Rule>>, features: &LaunchFeatures) -> bool {
     let Some(rules) = rules else { return true };
     let mut allowed = false;
     for rule in rules {
-        if rule.matches_current_os() {
+        if rule.matches(features) {
             allowed = rule.action == "allow";
         }
     }
@@ -1505,29 +1651,67 @@ struct LibraryArtifact {
     size: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Rule {
     action: String,
     #[serde(default)]
     os: Option<RuleOs>,
+    #[serde(default)]
+    features: Option<HashMap<String, bool>>,
 }
 
 impl Rule {
-    fn matches_current_os(&self) -> bool {
-        let Some(os) = self.os.as_ref() else {
-            return true;
-        };
-        let Some(name) = os.name.as_ref() else {
-            return true;
-        };
-        name == current_os_name()
+    fn matches(&self, launch: &LaunchFeatures) -> bool {
+        if let Some(os) = self.os.as_ref() {
+            if let Some(name) = os.name.as_ref() {
+                if name != current_os_name() {
+                    return false;
+                }
+            }
+            if let Some(arch) = os.arch.as_ref() {
+                if !arch_matches(arch) {
+                    return false;
+                }
+            }
+        }
+        if let Some(features) = self.features.as_ref() {
+            for (name, expected) in features {
+                if launch.feature(name) != *expected {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct RuleOs {
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    arch: Option<String>,
+}
+
+fn arch_matches(rule_arch: &str) -> bool {
+    match rule_arch {
+        "x86" => cfg!(any(target_arch = "x86", target_arch = "x86_64")),
+        "x86_64" => cfg!(target_arch = "x86_64"),
+        "aarch64" => cfg!(target_arch = "aarch64"),
+        other => current_arch_name() == other,
+    }
+}
+
+fn current_arch_name() -> &'static str {
+    if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else if cfg!(target_arch = "x86") {
+        "x86"
+    } else {
+        "unknown"
+    }
 }
 
 fn current_os_name() -> &'static str {
@@ -1562,12 +1746,29 @@ mod tests {
 
     #[test]
     fn rules_allow_none_rules() {
-        assert!(rules_allow(&None));
+        let features = LaunchFeatures::default();
+        assert!(rules_allow(&None, &features));
     }
 
     #[test]
     fn rules_allow_empty_rules() {
-        assert!(!rules_allow(&Some(vec![])));
+        let features = LaunchFeatures::default();
+        assert!(!rules_allow(&Some(vec![]), &features));
+    }
+
+    #[test]
+    fn rules_allow_demo_only_when_feature_set() {
+        let rules: Vec<Rule> = serde_json::from_str(
+            r#"[{"action":"allow","features":{"is_demo_user":true}}]"#,
+        )
+        .unwrap();
+        let features = LaunchFeatures::default();
+        assert!(!rules_allow(&Some(rules.clone()), &features));
+        let demo = LaunchFeatures {
+            is_demo_user: true,
+            ..LaunchFeatures::default()
+        };
+        assert!(rules_allow(&Some(rules), &demo));
     }
 
     #[test]
@@ -1583,5 +1784,163 @@ mod tests {
             "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_argument_osx_rule() {
+        let value: Value = serde_json::from_str(
+            r#"{"rules":[{"action":"allow","os":{"name":"osx"}}],"value":["-XstartOnFirstThread"]}"#,
+        )
+        .unwrap();
+        let features = LaunchFeatures::default();
+        let args = resolve_argument(&value, &features);
+        if cfg!(target_os = "macos") {
+            assert_eq!(args, vec!["-XstartOnFirstThread"]);
+        } else {
+            assert!(args.is_empty());
+        }
+    }
+
+    #[test]
+    fn resolve_argument_string_value() {
+        let value = Value::String("-Dfoo=bar".into());
+        let features = LaunchFeatures::default();
+        assert_eq!(resolve_argument(&value, &features), vec!["-Dfoo=bar"]);
+    }
+
+    #[test]
+    fn vanilla_jvm_args_substitutes_natives_directory() {
+        let version: VersionJson = serde_json::from_str(
+            r#"{
+                "id":"1.21.1","type":"release","mainClass":"x",
+                "assetIndex":{"id":"1.21","url":"http://x"},
+                "downloads":{"client":{"url":"http://x"}},
+                "libraries":[],
+                "arguments":{"jvm":["-Djava.library.path=${natives_directory}"]}
+            }"#,
+        )
+        .unwrap();
+        let args = vanilla_jvm_args(&version, "/tmp/natives");
+        assert!(args.contains(&"-Djava.library.path=/tmp/natives".to_string()));
+    }
+
+    #[test]
+    fn native_artifact_for_current_os_detects_macos_jar() {
+        let path = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-macos.jar";
+        if cfg!(target_os = "macos") && !cfg!(target_arch = "aarch64") {
+            assert!(native_artifact_for_current_os(path, None));
+        }
+        let arm_path =
+            "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-macos-arm64.jar";
+        if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+            assert!(native_artifact_for_current_os(arm_path, None));
+        }
+        if cfg!(target_os = "macos") && !cfg!(target_arch = "aarch64") {
+            assert!(!native_artifact_for_current_os(arm_path, None));
+        }
+    }
+
+    /// Хвост `arguments.game` из официального 1.21.1 version json (без внешних скобок).
+    const GAME_ARGS_1211_TAIL: &str = r#"
+        {"rules":[{"action":"allow","features":{"is_demo_user":true}}],"value":"--demo"},
+        {"rules":[{"action":"allow","features":{"has_custom_resolution":true}}],
+         "value":["--width","${resolution_width}","--height","${resolution_height}"]},
+        {"rules":[{"action":"allow","features":{"has_quick_plays_support":true}}],
+         "value":["--quickPlayPath","${quickPlayPath}"]}
+    "#;
+
+    fn version_json_with_game_args(game_tail: &str) -> VersionJson {
+        let tail = if game_tail.trim().is_empty() {
+            String::new()
+        } else {
+            format!(",{game_tail}")
+        };
+        serde_json::from_str(&format!(
+            r#"{{
+                "id":"1.21.1","type":"release","mainClass":"net.minecraft.client.main.Main",
+                "assetIndex":{{"id":"1.21","url":"http://x"}},
+                "downloads":{{"client":{{"url":"http://x"}}}},
+                "libraries":[],
+                "arguments":{{"game":[
+                    "--username","${{auth_player_name}}",
+                    "--version","${{version_name}}"
+                    {tail}
+                ]}}
+            }}"#
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn resolve_game_args_1211_excludes_feature_gated_on_normal_launch() {
+        let version = version_json_with_game_args(GAME_ARGS_1211_TAIL);
+        let features = LaunchFeatures::default();
+        let args = resolve_arguments(&version.arguments.as_ref().unwrap().game, &features);
+        assert!(!args.contains(&"--demo".to_string()));
+        assert!(!args.contains(&"--width".to_string()));
+        assert!(!args.contains(&"${resolution_width}".to_string()));
+        assert!(!args.contains(&"--quickPlayPath".to_string()));
+    }
+
+    #[test]
+    fn resolve_game_args_1211_includes_demo_when_feature_set() {
+        let version = version_json_with_game_args(GAME_ARGS_1211_TAIL);
+        let features = LaunchFeatures {
+            is_demo_user: true,
+            ..LaunchFeatures::default()
+        };
+        let args = resolve_arguments(&version.arguments.as_ref().unwrap().game, &features);
+        assert!(args.contains(&"--demo".to_string()));
+    }
+
+    #[test]
+    fn game_args_substitutes_tokens_from_1211_fragment() {
+        let version = version_json_with_game_args("");
+        let root = std::env::temp_dir().join("stardust_test_game_args");
+        let game_dir = root.join("game");
+        let _ = std::fs::create_dir_all(&game_dir);
+        let profile = PlayerProfile {
+            id: "00000000000000000000000000000000".to_string(),
+            name: "Steve".to_string(),
+            active_badge: None,
+            active_gradient: None,
+            ban: None,
+        };
+        let args = game_args(&root, &game_dir, &version, &profile, "token123");
+        assert!(args.contains(&"Steve".to_string()));
+        assert!(args.contains(&"1.21.1".to_string()));
+        assert!(!args.iter().any(|a| a.contains("${")));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn game_args_substitutes_resolution_defaults_when_forced_in() {
+        let version = version_json_with_game_args(
+            r#"{"rules":[{"action":"allow","features":{"has_custom_resolution":true}}],
+               "value":["--width","${resolution_width}","--height","${resolution_height}"]}"#,
+        );
+        let mut features = LaunchFeatures::default();
+        features.has_custom_resolution = true;
+        let resolved =
+            resolve_arguments(&version.arguments.as_ref().unwrap().game, &features);
+        let root = std::env::temp_dir().join("stardust_test_resolution_args");
+        let game_dir = root.join("game");
+        let _ = std::fs::create_dir_all(&game_dir);
+        let profile = PlayerProfile {
+            id: "00000000000000000000000000000000".to_string(),
+            name: "Steve".to_string(),
+            active_badge: None,
+            active_gradient: None,
+            ban: None,
+        };
+        let replacements =
+            game_arg_replacements(&root, &game_dir, &version, &profile, "token");
+        let args: Vec<String> = resolved
+            .into_iter()
+            .map(|arg| substitute_tokens(&arg, &replacements))
+            .collect();
+        assert!(args.contains(&"1280".to_string()));
+        assert!(args.contains(&"720".to_string()));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }
