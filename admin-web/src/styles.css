@@ -1286,10 +1286,11 @@ td.num {
 }
 
 .fm-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
-    padding: 7px 8px 7px 0;
+    gap: 8px;
+    padding: 7px 8px;
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 16px;
     background: rgba(8, 11, 16, 0.78);
@@ -1299,6 +1300,10 @@ td.num {
         border-color 140ms ease,
         transform 140ms ease,
         box-shadow 140ms ease;
+}
+
+.fm-row.file {
+    grid-template-columns: 40px minmax(0, 1fr) auto;
 }
 
 .fm-row:hover {
@@ -1345,7 +1350,7 @@ td.num {
     border-color: transparent;
     border-radius: 0;
     text-align: left;
-    padding: 6px 12px;
+    padding: 6px 4px;
     color: var(--text);
 }
 
@@ -1421,7 +1426,14 @@ td.num {
 }
 
 .fm-file-subline {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+}
+
+.fm-file-subline .tag,
+.fm-file-subline .fm-meta,
+.fm-file-subline .fm-sha {
+    flex: 0 0 auto;
 }
 
 .fm-file-note span {
@@ -1729,6 +1741,12 @@ td.num {
 }
 
 .fm-path-link {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 42%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     background: transparent;
     border-color: transparent;
     padding: 2px 6px;
@@ -1954,15 +1972,46 @@ td.num {
 .fm-check {
     display: flex;
     align-items: center;
-    padding: 0 4px 0 10px;
+    justify-content: center;
+    align-self: stretch;
+    padding: 0;
 }
 
 .fm-check input {
-    width: 14px;
-    height: 14px;
+    appearance: none;
+    width: 16px;
+    height: 16px;
     margin: 0;
     cursor: pointer;
-    accent-color: var(--accent);
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.035);
+    transition:
+        background 140ms ease,
+        border-color 140ms ease,
+        box-shadow 140ms ease;
+}
+
+.fm-check input:hover {
+    border-color: rgba(115, 215, 255, 0.42);
+    background: rgba(115, 215, 255, 0.08);
+}
+
+.fm-check input:checked {
+    border-color: rgba(115, 215, 255, 0.8);
+    background: linear-gradient(135deg, #6bd7ff, #8a7cff);
+    box-shadow: 0 0 0 3px rgba(115, 215, 255, 0.12);
+}
+
+.fm-check input:checked::before {
+    content: "";
+    width: 8px;
+    height: 5px;
+    border-left: 2px solid #020304;
+    border-bottom: 2px solid #020304;
+    transform: translateY(-1px) rotate(-45deg);
 }
 
 .fm-row.file.selected {

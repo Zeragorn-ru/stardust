@@ -897,7 +897,8 @@ button.secondary:hover:not(:disabled) {
 }
 
 .m-screen .fm-row.file {
-    align-items: flex-start;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    align-items: center;
     padding-right: 6px;
 }
 
@@ -907,7 +908,7 @@ button.secondary:hover:not(:disabled) {
 }
 
 .m-screen .fm-main {
-    padding-inline: 8px;
+    padding-inline: 2px;
     gap: 8px;
 }
 
