@@ -37,6 +37,7 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(this::onCommandsRegister);
         NeoForge.EVENT_BUS.addListener(StardustSuperChallengeHealth::onAdvancementEarned);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
+        NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
     }
 
@@ -60,6 +61,13 @@ public final class StardustMod {
     private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             StardustSuperChallengeHealth.onPlayerLogin(player);
+            StardustChatNotifications.onPlayerJoin(player);
+        }
+    }
+
+    private void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            StardustChatNotifications.onPlayerQuit(player);
         }
     }
 
