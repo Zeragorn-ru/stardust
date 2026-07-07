@@ -1473,11 +1473,13 @@ body {
 
 .server-players-button {
     min-width: 0;
-    padding: 2px 4px;
+    padding: 5px 9px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.05);
     color: var(--text);
+    font-size: 12px;
+    font-weight: 800;
     cursor: pointer;
     transition:
         background var(--t-fast),
@@ -1489,14 +1491,6 @@ body {
     border-color: rgba(74, 222, 128, 0.35);
     background: rgba(74, 222, 128, 0.1);
     transform: translateY(-1px);
-}
-
-.server-players-button__empty {
-    display: block;
-    padding: 2px 6px;
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 700;
 }
 
 .hero__stat-value {
@@ -1522,42 +1516,6 @@ body {
 .hero__stat-value--offline { opacity: 0.4; }
 .hero__stat-value--muted  { opacity: 0.4; }
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
-
-.hero__stat-facepile {
-    display: flex;
-}
-
-.hero__stat-facepile > * {
-    margin-right: -8px;
-    border-radius: 5px;
-    border: 1px solid rgba(255, 255, 255, 0.24);
-    transition: transform 0.2s;
-    background: var(--bg-surface);
-}
-
-.hero__stat-facepile > *:hover {
-    transform: translateY(-2px);
-}
-
-.facepile-img {
-    width: 24px;
-    height: 24px;
-    image-rendering: pixelated;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-.facepile-more {
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: bold;
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
 
 .players-modal {
     width: min(620px, calc(100vw - 36px));
@@ -1630,9 +1588,15 @@ body {
 .server-player__avatar {
     width: 48px;
     height: 48px;
+    display: grid;
+    place-items: center;
     border-radius: 11px;
-    image-rendering: pixelated;
-    background: rgba(255, 255, 255, 0.08);
+    background:
+        radial-gradient(circle at 30% 20%, rgba(115, 215, 255, 0.28), transparent 48%),
+        linear-gradient(135deg, rgba(124, 92, 255, 0.28), rgba(74, 222, 128, 0.16));
+    color: #fff;
+    font-size: 18px;
+    font-weight: 900;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34);
 }
 

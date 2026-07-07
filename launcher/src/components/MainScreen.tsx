@@ -302,26 +302,7 @@ export default function MainScreen({
                           aria-expanded={playersOpen}
                           onClick={() => setPlayersOpen((open) => !open)}
                         >
-                          {serverSample.length > 0 ? (
-                            <span className="hero__stat-facepile" aria-hidden="true">
-                              {serverSample.slice(0, 5).map((player, i) => (
-                                <img
-                                  key={player.id || `${player.name}-${i}`}
-                                  src={avatarUrl(player.id, 24)}
-                                  alt=""
-                                  className="facepile-img"
-                                  style={{ zIndex: 10 - i }}
-                                />
-                              ))}
-                              {serverSample.length > 5 && (
-                                <span className="facepile-more" style={{ zIndex: 0 }}>
-                                  +{serverSample.length - 5}
-                                </span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="server-players-button__empty">Список</span>
-                          )}
+                          Список
                         </button>
                       </div>
                       <span className="hero__stat-label">игроков</span>
@@ -434,7 +415,9 @@ export default function MainScreen({
               <div className="players-modal__grid">
                 {serverSample.map((player, i) => (
                   <div className="server-player" key={player.id || `${player.name}-${i}`}>
-                    <img src={avatarUrl(player.id, 48)} alt="" className="server-player__avatar" />
+                    <span className="server-player__avatar" aria-hidden="true">
+                      {playerInitial(player.name)}
+                    </span>
                     <span className="server-player__name">{player.name}</span>
                   </div>
                 ))}
@@ -457,12 +440,8 @@ function hasDownloadMeta(progress: Progress): boolean {
   return progress.downloadedBytes != null || progress.totalBytes != null;
 }
 
-function avatarUrl(id: string, size: number): string {
-  const value = id.trim();
-  if (!value || value === "00000000-0000-0000-0000-000000000000") {
-    return `https://crafatar.com/avatars/8667ba71-b85a-4004-af54-457a9734eed7?size=${size}&overlay=true`;
-  }
-  return `https://crafatar.com/avatars/${value}?size=${size}&overlay=true`;
+function playerInitial(name: string): string {
+  return name.trim().slice(0, 1).toUpperCase() || "?";
 }
 
 function banUntilLabel(ban: BanInfo): string {
