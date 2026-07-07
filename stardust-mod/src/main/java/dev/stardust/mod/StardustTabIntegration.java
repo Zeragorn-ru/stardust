@@ -59,6 +59,7 @@ final class StardustTabIntegration {
                 return java.util.List.of();
             }
         });
+        httpProvider.setAfterRefresh(StardustTabIntegration::updateAllPlayersQuietly);
         httpProvider.start();
 
         localFallback = StardustBadgeConfig.load(configDir);
@@ -178,6 +179,14 @@ final class StardustTabIntegration {
     }
 
     private static void updateAllPlayers() {
+        updateAllPlayers(false);
+    }
+
+    private static void updateAllPlayersQuietly() {
+        updateAllPlayers(true);
+    }
+
+    private static void updateAllPlayers(boolean quiet) {
         TabAPI api = TabAPI.getInstance();
         if (api == null) return;
         PlaceholderManager pm = api.getPlaceholderManager();
@@ -212,7 +221,9 @@ final class StardustTabIntegration {
                 StardustMod.LOGGER.warn("Stardust: update {} failed: {}", p.getName(), e.toString());
             }
         }
-        StardustMod.LOGGER.info("Stardust: обновлено {} игроков", count);
+        if (!quiet || debug) {
+            StardustMod.LOGGER.info("Stardust: обновлено {} игроков", count);
+        }
     }
 
     // ─────────── Badge ───────────

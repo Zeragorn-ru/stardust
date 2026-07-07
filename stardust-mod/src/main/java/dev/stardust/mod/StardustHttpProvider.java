@@ -46,11 +46,12 @@ public final class StardustHttpProvider {
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
     private final Set<String> knownNames = ConcurrentHashMap.newKeySet();
     private volatile Supplier<Collection<String>> onlinePlayersProvider;
+    private volatile Runnable afterRefresh;
     private volatile boolean running = false;
 
     public StardustHttpProvider(String authUrl, int refreshIntervalSeconds, boolean debug) {
         this.authUrl = authUrl.endsWith("/") ? authUrl.substring(0, authUrl.length() - 1) : authUrl;
-        this.refreshIntervalSeconds = Math.max(10, refreshIntervalSeconds);
+        this.refreshIntervalSeconds = Math.max(3, refreshIntervalSeconds);
         this.debug = debug;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_TIMEOUT)
@@ -65,6 +66,11 @@ public final class StardustHttpProvider {
     /** Устанавливает провайдер онлайн-игроков (вызывается из TAB интеграции). */
     public void setOnlinePlayersProvider(Supplier<Collection<String>> provider) {
         this.onlinePlayersProvider = provider;
+    }
+
+    /** Вызывается после успешного обновления HTTP-кеша. */
+    public void setAfterRefresh(Runnable afterRefresh) {
+        this.afterRefresh = afterRefresh;
     }
 
     public void start() {
@@ -106,7 +112,7 @@ public final class StardustHttpProvider {
         if (provider == null) return;
         Collection<String> online = provider.get();
         if (online == null || online.isEmpty()) return;
-        fetchPlayers(online);
+        if (fetchPlayers(online)) notifyAfterRefresh();
     }
 
     /** Обновляет кеш только для онлайн-игроков. */
@@ -115,12 +121,12 @@ public final class StardustHttpProvider {
         if (provider == null) return;
         Collection<String> online = provider.get();
         if (online == null || online.isEmpty()) return;
-        fetchPlayers(online);
+        if (fetchPlayers(online)) notifyAfterRefresh();
     }
 
     /** Запрашивает кастомизацию у auth-server. */
-    private void fetchPlayers(Collection<String> names) {
-        if (names.isEmpty()) return;
+    private boolean fetchPlayers(Collection<String> names) {
+        if (names.isEmpty()) return false;
         try {
             String players = names.stream()
                     .filter(name -> name != null && !name.isBlank())
@@ -128,7 +134,7 @@ public final class StardustHttpProvider {
                     .map(name -> URLEncoder.encode(name, StandardCharsets.UTF_8))
                     .reduce((a, b) -> a + "," + b)
                     .orElse("");
-            if (players.isEmpty()) return;
+            if (players.isEmpty()) return false;
 
             String url = authUrl + "/api/server/customization?players=" + players;
             if (debug) StardustMod.LOGGER.info("Stardust HTTP: → {}", url);
@@ -141,7 +147,7 @@ public final class StardustHttpProvider {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
                 StardustMod.LOGGER.warn("Stardust HTTP: auth-server {}", response.statusCode());
-                return;
+                return false;
             }
 
             Map<String, ServerResponse> raw = GSON.fromJson(
@@ -165,11 +171,23 @@ public final class StardustHttpProvider {
                 }
             }
             if (debug) StardustMod.LOGGER.info("Stardust HTTP: обновлено {}, кеш={}", names.size(), cache.size());
+            return true;
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             StardustMod.LOGGER.warn("Stardust HTTP: ошибка ({})", e.toString());
         } catch (Exception e) {
             StardustMod.LOGGER.warn("Stardust HTTP: ошибка", e);
+        }
+        return false;
+    }
+
+    private void notifyAfterRefresh() {
+        Runnable callback = afterRefresh;
+        if (callback == null) return;
+        try {
+            callback.run();
+        } catch (Exception e) {
+            StardustMod.LOGGER.warn("Stardust HTTP: after-refresh callback failed", e);
         }
     }
 

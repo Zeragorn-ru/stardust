@@ -13,7 +13,7 @@ public final class StardustServerConfig {
 
     private static final String FILE_NAME = "stardust-server.properties";
     private static final String DEFAULT_AUTH_URL = "https://auth.zeragorn.xyz";
-    private static final int DEFAULT_REFRESH_SECONDS = 60;
+    private static final int DEFAULT_REFRESH_SECONDS = 5;
 
     private final String authUrl;
     private final int refreshIntervalSeconds;
@@ -60,12 +60,14 @@ public final class StardustServerConfig {
                 DEFAULT_AUTH_URL
         );
 
-        int refresh = parseRefreshSeconds(firstNonBlank(
+        String refreshOverride = firstNonBlank(
                 System.getProperty("stardust.refresh-interval-seconds"),
-                System.getenv("STARDUST_REFRESH_INTERVAL_SECONDS"),
-                props.getProperty("stardust.refresh-interval-seconds"),
-                String.valueOf(DEFAULT_REFRESH_SECONDS)
-        ));
+                System.getenv("STARDUST_REFRESH_INTERVAL_SECONDS")
+        );
+        String refreshRaw = refreshOverride != null
+                ? refreshOverride
+                : props.getProperty("stardust.refresh-interval-seconds");
+        int refresh = parseRefreshSeconds(refreshRaw, refreshOverride == null);
 
         boolean debug = parseBoolean(firstNonBlank(
                 System.getProperty("stardust.debug"),
@@ -97,9 +99,12 @@ public final class StardustServerConfig {
         return DEFAULT_AUTH_URL;
     }
 
-    private static int parseRefreshSeconds(String raw) {
+    private static int parseRefreshSeconds(String raw, boolean allowOldDefaultMigration) {
+        if (raw == null || raw.isBlank()) return DEFAULT_REFRESH_SECONDS;
         try {
-            return Math.max(10, Integer.parseInt(raw.trim()));
+            int parsed = Integer.parseInt(raw.trim());
+            if (allowOldDefaultMigration && parsed == 60) return DEFAULT_REFRESH_SECONDS;
+            return Math.max(3, parsed);
         } catch (Exception e) {
             return DEFAULT_REFRESH_SECONDS;
         }
