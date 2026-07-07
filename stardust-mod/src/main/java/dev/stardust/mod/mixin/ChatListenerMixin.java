@@ -2,7 +2,7 @@ package dev.stardust.mod.mixin;
 
 import net.minecraft.client.multiplayer.chat.ChatListener;
 import net.minecraft.network.chat.PlayerChatMessage;
-import net.minecraft.client.multiplayer.PlayerInfo;
+import com.mojang.authlib.GameProfile;
 import net.minecraft.network.chat.ChatType;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -17,14 +17,14 @@ public abstract class ChatListenerMixin {
         at = @At("HEAD"),
         cancellable = true
     )
-    private void stardust$suppressLocalEcho(PlayerChatMessage message, PlayerInfo playerInfo, ChatType.Bound bound, CallbackInfo ci) {
+    private void stardust$suppressLocalEcho(PlayerChatMessage message, GameProfile profile, ChatType.Bound bound, CallbackInfo ci) {
         // When we handle chat via ServerChatEvent + broadcastSystemMessage,
         // the vanilla PlayerChatMessage is never sent to clients.
         // However the client still optimistically renders its own message.
         // Cancelling here prevents the <name> echo for the sender.
         // We only cancel if the sender is the local player (the one who just typed).
         var mc = net.minecraft.client.Minecraft.getInstance();
-        if (playerInfo != null && mc.player != null && playerInfo.getProfile().getId().equals(mc.player.getUUID())) {
+        if (profile != null && mc.player != null && profile.getId().equals(mc.player.getUUID())) {
             ci.cancel();
         }
     }
