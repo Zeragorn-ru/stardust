@@ -9,6 +9,8 @@ import type {
   AccountInfo,
   AppInfo,
   ChallengeOutcome,
+  JavaInstallation,
+  JavaVendorInfo,
   LoginOutcome,
   OptionalMod,
   PlayerProfile,
@@ -43,6 +45,8 @@ const FALLBACK_SETTINGS: Settings = {
   downloadConcurrency: 6,
   show3dModel: true,
   proxyType: "builtin",
+  javaProvider: "auto",
+  javaCustomPath: null,
 };
 
 // Ключи для dev-фолбэка в браузере.
@@ -348,6 +352,39 @@ export async function saveSettings(settings: Settings): Promise<void> {
   const invoke = await getInvoke();
   if (!invoke) return;
   await invoke<void>("save_settings", { settings });
+}
+
+/** Список установок Java 21+ (быстрый поиск). */
+export async function listJavaInstallations(): Promise<JavaInstallation[]> {
+  const invoke = await getInvoke();
+  if (!invoke) return [];
+  return invoke<JavaInstallation[]>("list_java_installations");
+}
+
+/** Глубокий поиск Java 21+ по типичным корням системы. */
+export async function listJavaInstallationsDeep(): Promise<JavaInstallation[]> {
+  const invoke = await getInvoke();
+  if (!invoke) return [];
+  return invoke<JavaInstallation[]>("list_java_installations_deep");
+}
+
+/** Поставщики Java, доступные для скачивания. */
+export async function listJavaDownloadVendors(): Promise<JavaVendorInfo[]> {
+  const invoke = await getInvoke();
+  if (!invoke) return [];
+  return invoke<JavaVendorInfo[]>("list_java_download_vendors");
+}
+
+/** Скачать Java 21 от выбранного поставщика. */
+export async function downloadJava(vendor: string): Promise<string> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Tauri недоступен");
+  return invoke<string>("download_java", { vendor });
+}
+
+/** Скачать Temurin Java 21 в папку данных лаунчера. */
+export async function downloadTemurinJava(): Promise<string> {
+  return downloadJava("temurin");
 }
 
 /** Сведения о среде запуска (режим, папка данных, версия). */

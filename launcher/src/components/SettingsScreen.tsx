@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, PlayerProfile, Settings, UpdateInfo, UpdateProgress } from "../types";
+import type { AppInfo, JavaInstallation, JavaProvider, JavaVendorInfo, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
+  downloadJava,
   getAppInfo,
   getSettings,
   installUpdate,
+  listJavaDownloadVendors,
+  listJavaInstallations,
+  listJavaInstallationsDeep,
+  onLauncherProgress,
   onUpdateProgress,
   openPath,
   saveSettings,
@@ -47,6 +52,13 @@ function formatEta(seconds: number): string {
   return sec > 0 ? `~${min}м ${sec}с` : `~${min}м`;
 }
 
+const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
+  auto: "Авто",
+  temurin: "Temurin (лаунчер)",
+  system: "Системная",
+  custom: "Свой путь",
+};
+
 export default function SettingsScreen({
   profile,
   onProfileChange,
@@ -69,13 +81,50 @@ export default function SettingsScreen({
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
 
+  const [javaInstalls, setJavaInstalls] = useState<JavaInstallation[] | null>(null);
+  const [javaVendors, setJavaVendors] = useState<JavaVendorInfo[]>([]);
+  const [javaListError, setJavaListError] = useState<string | null>(null);
+  const [javaRefreshing, setJavaRefreshing] = useState(false);
+  const [javaDeepSearching, setJavaDeepSearching] = useState(false);
+  const [javaDownloading, setJavaDownloading] = useState(false);
+  const [downloadingVendor, setDownloadingVendor] = useState<string | null>(null);
+  const [javaDownloadError, setJavaDownloadError] = useState<string | null>(null);
+  const [javaProgress, setJavaProgress] = useState<Progress | null>(null);
+
   useEffect(() => {
     getSettings().then((s) => {
       setSettings(s);
       setInitialSettings(s);
     });
     getAppInfo().then(setInfo);
+    listJavaDownloadVendors().then(setJavaVendors);
   }, []);
+
+  async function refreshJavaList(deep = false) {
+    if (deep) {
+      setJavaDeepSearching(true);
+    } else {
+      setJavaRefreshing(true);
+    }
+    setJavaListError(null);
+    try {
+      const list = deep
+        ? await listJavaInstallationsDeep()
+        : await listJavaInstallations();
+      setJavaInstalls(list);
+    } catch (e) {
+      setJavaListError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setJavaRefreshing(false);
+      setJavaDeepSearching(false);
+    }
+  }
+
+  useEffect(() => {
+    if (section === "general") {
+      void refreshJavaList();
+    }
+  }, [section]);
 
   // Проверка несохранённых изменений.
   const isDirty =
@@ -84,7 +133,9 @@ export default function SettingsScreen({
     (settings.memoryMb !== initialSettings.memoryMb ||
       settings.downloadConcurrency !== initialSettings.downloadConcurrency ||
       settings.show3dModel !== initialSettings.show3dModel ||
-      settings.proxyType !== initialSettings.proxyType);
+      settings.proxyType !== initialSettings.proxyType ||
+      (settings.javaProvider ?? "auto") !== (initialSettings.javaProvider ?? "auto") ||
+      (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? ""));
 
   function handleClose() {
     if (isDirty && !window.confirm("Есть несохранённые изменения. Покинуть настройки?")) {
@@ -125,6 +176,59 @@ export default function SettingsScreen({
     } finally {
       unlisten();
     }
+  }
+
+  async function handleDeepJavaSearch() {
+    if (
+      !window.confirm(
+        "Глубокий поиск может занять некоторое время. Продолжить?",
+      )
+    ) {
+      return;
+    }
+    await refreshJavaList(true);
+  }
+
+  async function handleDownloadJava(vendorId: string) {
+    setJavaDownloading(true);
+    setDownloadingVendor(vendorId);
+    setJavaDownloadError(null);
+    setJavaProgress(null);
+    const unlisten = await onLauncherProgress((p) => {
+      setJavaProgress(p);
+    });
+    try {
+      const path = await downloadJava(vendorId);
+      setSettings((prev) =>
+        prev
+          ? {
+              ...prev,
+              javaProvider: "custom",
+              javaCustomPath: path,
+            }
+          : prev,
+      );
+      await refreshJavaList(false);
+    } catch (e) {
+      setJavaDownloadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      unlisten();
+      setJavaDownloading(false);
+      setDownloadingVendor(null);
+      setJavaProgress(null);
+    }
+  }
+
+  function selectJavaInstall(install: JavaInstallation) {
+    setSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            javaProvider: "custom",
+            javaCustomPath: install.path,
+          }
+        : prev,
+    );
   }
 
   async function handleSave() {
@@ -352,6 +456,147 @@ export default function SettingsScreen({
               </div>
             </div>
 
+            {settings && (
+              <div className="java-card stagger-item">
+                <div className="java-card__head">
+                  <div className="toggle-row__text">
+                    <span className="toggle-row__title">Java</span>
+                    <span className="muted toggle-row__desc">
+                      Minecraft 1.21 требует Java 21+. Выберите источник или укажите путь к
+                      исполняемому файлу.
+                    </span>
+                  </div>
+                  <div className="java-card__head-actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => void refreshJavaList(false)}
+                      disabled={javaRefreshing || javaDeepSearching}
+                    >
+                      {javaRefreshing ? "Поиск…" : "Обновить список"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => void handleDeepJavaSearch()}
+                      disabled={javaRefreshing || javaDeepSearching || javaDownloading}
+                    >
+                      {javaDeepSearching ? "Глубокий поиск…" : "Глубокий поиск"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="field">
+                  <span>Источник Java</span>
+                  <select
+                    value={settings.javaProvider ?? "auto"}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        javaProvider: e.target.value as JavaProvider,
+                      })
+                    }
+                  >
+                    <option value="auto">{JAVA_PROVIDER_LABELS.auto} (Temurin → система → скачать)</option>
+                    <option value="temurin">{JAVA_PROVIDER_LABELS.temurin}</option>
+                    <option value="system">{JAVA_PROVIDER_LABELS.system}</option>
+                    <option value="custom">{JAVA_PROVIDER_LABELS.custom}</option>
+                  </select>
+                </div>
+
+                {(settings.javaProvider ?? "auto") === "custom" && (
+                  <div className="field">
+                    <span>Путь к java</span>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="/path/to/java или C:\Program Files\...\bin\java.exe"
+                      value={settings.javaCustomPath ?? ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          javaCustomPath: e.target.value || null,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="java-card__download">
+                  <span className="toggle-row__title">Скачать Java 21</span>
+                  <div className="java-vendors">
+                    {javaVendors.map((vendor) => (
+                      <button
+                        key={vendor.id}
+                        type="button"
+                        className="java-vendors__item"
+                        onClick={() => void handleDownloadJava(vendor.id)}
+                        disabled={javaDownloading}
+                      >
+                        <span className="java-vendors__name">{vendor.name}</span>
+                        <span className="muted java-vendors__label">{vendor.label}</span>
+                        {downloadingVendor === vendor.id && (
+                          <span className="muted java-vendors__status">Скачивание…</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {javaDownloading && javaProgress && (
+                    <p className="muted java-card__msg">
+                      {javaProgress.label}
+                      {Number.isFinite(javaProgress.fraction) &&
+                        ` ${Math.round(javaProgress.fraction! * 100)}%`}
+                    </p>
+                  )}
+                </div>
+
+                {javaDownloadError && (
+                  <p className="muted java-card__msg">Ошибка скачивания: {javaDownloadError}</p>
+                )}
+                {javaListError && (
+                  <p className="muted java-card__msg">Ошибка поиска: {javaListError}</p>
+                )}
+
+                {javaInstalls === null && !javaListError && (
+                  <p className="muted java-card__msg">Ищем установки Java…</p>
+                )}
+
+                {javaInstalls && javaInstalls.length === 0 && (
+                  <p className="muted java-card__msg">
+                    Java 21+ не найдена. Скачайте Temurin или укажите путь вручную.
+                  </p>
+                )}
+
+                {javaInstalls && javaInstalls.length > 0 && (
+                  <div className="java-list">
+                    {javaInstalls.map((install) => {
+                      const selected =
+                        (settings.javaProvider ?? "auto") === "custom" &&
+                        settings.javaCustomPath === install.path;
+                      return (
+                        <button
+                          key={`${install.path}-${install.source}`}
+                          type="button"
+                          className={
+                            "java-list__item" + (selected ? " java-list__item--selected" : "")
+                          }
+                          onClick={() => selectJavaInstall(install)}
+                          title={install.path}
+                        >
+                          <span className="java-list__title">
+                            Java {install.major}
+                            <span className="muted"> · {install.version}</span>
+                          </span>
+                          <span className="muted java-list__source">{install.source}</span>
+                          <span className="java-list__path">{install.path}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="toggle-row stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Анимации</span>
@@ -417,7 +662,16 @@ export default function SettingsScreen({
             <button
               type="button"
               className="btn btn--ghost stagger-item"
-              onClick={() => setSettings({ memoryMb: 4096, downloadConcurrency: 6, show3dModel: true, proxyType: "builtin" })}
+              onClick={() =>
+                setSettings({
+                  memoryMb: 4096,
+                  downloadConcurrency: 6,
+                  show3dModel: true,
+                  proxyType: "builtin",
+                  javaProvider: "auto",
+                  javaCustomPath: null,
+                })
+              }
             >
               Сбросить настройки по умолчанию
             </button>

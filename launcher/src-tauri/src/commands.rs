@@ -15,6 +15,7 @@ use tauri::{AppHandle, Emitter, State};
 use protocol::PlayerProfile;
 
 use crate::backend;
+use crate::java::{self, JavaInstallation, JavaProvider};
 use crate::minecraft;
 use crate::paths;
 
@@ -45,6 +46,12 @@ pub struct Settings {
     pub show_3d_model: bool,
     #[serde(rename = "proxyType", default)]
     pub proxy_type: ProxyType,
+    /// Источник Java для запуска игры.
+    #[serde(rename = "javaProvider", default)]
+    pub java_provider: JavaProvider,
+    /// Путь к `java`/`javaw`, если `javaProvider` = custom.
+    #[serde(rename = "javaCustomPath", default)]
+    pub java_custom_path: Option<String>,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -67,6 +74,8 @@ impl Default for Settings {
             download_concurrency: default_concurrency(),
             show_3d_model: true,
             proxy_type: ProxyType::default(),
+            java_provider: JavaProvider::default(),
+            java_custom_path: None,
         }
     }
 }
@@ -827,6 +836,43 @@ fn save_settings(settings: Settings, state: State<'_, AppState>, app: AppHandle)
     Ok(())
 }
 
+#[tauri::command]
+fn list_java_installations(app: AppHandle) -> Vec<JavaInstallation> {
+    java::list_installations(&paths::data_dir(&app))
+}
+
+#[tauri::command]
+fn list_java_installations_deep(app: AppHandle) -> Vec<JavaInstallation> {
+    java::list_installations_deep(&paths::data_dir(&app))
+}
+
+#[tauri::command]
+fn list_java_download_vendors() -> Vec<java::JavaVendorInfo> {
+    java::list_download_vendors()
+}
+
+#[tauri::command]
+async fn download_java(
+    vendor: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let vendor = java::JavaVendor::parse(&vendor)
+        .ok_or_else(|| format!("Неизвестный поставщик Java: {vendor}"))?;
+    let data_dir = paths::data_dir(&app);
+    let progress = crate::progress::Progress::new(app.clone());
+    let path = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn download_temurin_java(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    download_java("temurin".to_string(), app, state).await
+}
+
 // ---------- Среда запуска ----------
 
 #[tauri::command]
@@ -1184,6 +1230,8 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         paths::data_dir(&app),
         settings.memory_mb.clamp(512, 32768),
         settings.download_concurrency as usize,
+        settings.java_provider,
+        settings.java_custom_path.clone(),
         profile,
         token.clone(),
     )
@@ -1586,6 +1634,11 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             current_profile,
             get_settings,
             save_settings,
+            list_java_installations,
+            list_java_installations_deep,
+            list_java_download_vendors,
+            download_java,
+            download_temurin_java,
             app_info,
             get_skin,
             load_skin_cache,

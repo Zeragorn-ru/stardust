@@ -28,20 +28,6 @@ const NEOFORGE_METADATA_URL: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
 const VERSION_MANIFEST_URL: &str =
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-const JAVA_VERSION: u32 = 21;
-
-fn temurin_url() -> String {
-    let (os, arch) = if cfg!(target_os = "macos") {
-        ("mac", if cfg!(target_arch = "aarch64") { "aarch64" } else { "x64" })
-    } else if cfg!(target_os = "linux") {
-        ("linux", "x64")
-    } else {
-        ("windows", "x64")
-    };
-    format!(
-        "https://api.adoptium.net/v3/binary/latest/21/ga/{os}/{arch}/jre/hotspot/normal/eclipse"
-    )
-}
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -51,6 +37,8 @@ pub async fn launch(
     data_dir: PathBuf,
     settings_memory_mb: u32,
     download_concurrency: usize,
+    java_provider: crate::java::JavaProvider,
+    java_custom_path: Option<String>,
     profile: PlayerProfile,
     access_token: String,
 ) -> Result<Child, String> {
@@ -70,7 +58,14 @@ pub async fn launch(
     let concurrency = download_concurrency.clamp(1, 16);
 
     let progress = Progress::new(app.clone());
-    let java = ensure_java(&progress, http, &data_dir).await?;
+    let java = crate::java::resolve_java(
+        java_provider,
+        java_custom_path.as_deref(),
+        &progress,
+        http,
+        &data_dir,
+    )
+    .await?;
 
     let version = ensure_version(&progress, http, &root, &version_id).await?;
     ensure_client(&progress, http, &root, &version).await?;
@@ -190,160 +185,12 @@ pub async fn launch(
     Ok(child)
 }
 
-async fn ensure_java(
-    progress: &Progress,
-    http: &reqwest::Client,
-    data_dir: &Path,
-) -> Result<PathBuf, String> {
-    let runtime_dir = data_dir.join("runtime").join("java-21");
-    if let Some(java) = bundled_java(&runtime_dir) {
-        return Ok(java);
-    }
-
-    if let Some(java) = system_java_21() {
-        return Ok(java);
-    }
-
-    progress.begin(Stage::Java, "downloading", "Скачиваем приватную Java 21…");
-    fs::create_dir_all(&runtime_dir)
-        .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
-
-    let url = temurin_url();
-    if cfg!(windows) {
-        let archive = data_dir.join("runtime").join("java-21.zip");
-        download_to(progress, http, &url, &archive, "Java 21 runtime", None, None).await?;
-        progress.set_label("extracting", "Распаковываем Java 21…");
-        extract_java_zip(&archive, &runtime_dir)?;
-        let _ = fs::remove_file(&archive);
-    } else {
-        let archive = data_dir.join("runtime").join("java-21.tar.gz");
-        download_to(progress, http, &url, &archive, "Java 21 runtime", None, None).await?;
-        progress.set_label("extracting", "Распаковываем Java 21…");
-        extract_java_tar_gz(&archive, &runtime_dir)?;
-        let _ = fs::remove_file(&archive);
-    }
-
-    bundled_java(&runtime_dir).ok_or_else(|| "Java 21 скачана, но java не найдена".to_string())
-}
-
-fn bundled_java(runtime_dir: &Path) -> Option<PathBuf> {
-    let direct = runtime_dir
-        .join("bin")
-        .join(if cfg!(windows) { "javaw.exe" } else { "java" });
-    if direct.exists() {
-        return Some(direct);
-    }
-    for entry in fs::read_dir(runtime_dir).ok()? {
-        let path = entry.ok()?.path();
-        let java = path
-            .join("bin")
-            .join(if cfg!(windows) { "javaw.exe" } else { "java" });
-        if java.exists() {
-            return Some(java);
-        }
-    }
-    None
-}
-
-fn system_java_21() -> Option<PathBuf> {
-    if let Ok(home) = std::env::var("JAVA_HOME") {
-        let exe = if cfg!(windows) { "javaw.exe" } else { "java" };
-        let path = PathBuf::from(home).join("bin").join(exe);
-        if path.exists() && java_is_21(&path) {
-            return Some(path);
-        }
-    }
-    let java = PathBuf::from(if cfg!(windows) { "javaw" } else { "java" });
-    if java_is_21(&java) {
-        Some(java)
-    } else {
-        None
-    }
-}
-
 #[cfg_attr(not(windows), allow(unused_variables))]
 fn hide_console(command: &mut Command) {
     #[cfg(windows)]
     {
         command.creation_flags(CREATE_NO_WINDOW);
     }
-}
-
-fn java_is_21(java: &Path) -> bool {
-    let java_check = if cfg!(windows) {
-        let mut p = java.to_path_buf();
-        p.set_file_name("java.exe");
-        p
-    } else {
-        java.to_path_buf()
-    };
-    let mut command = Command::new(java_check);
-    command.arg("-version");
-    hide_console(&mut command);
-    let Ok(output) = command.output() else {
-        return false;
-    };
-    let text = String::from_utf8_lossy(&output.stderr);
-    parse_java_major(&text).is_some_and(|major| major >= JAVA_VERSION)
-}
-
-fn parse_java_major(text: &str) -> Option<u32> {
-    let marker = "version \"";
-    let start = text.find(marker)? + marker.len();
-    let rest = &text[start..];
-    let version = rest.split('"').next()?;
-    let first = version.split('.').next()?;
-    if first == "1" {
-        version.split('.').nth(1)?.parse().ok()
-    } else {
-        first.parse().ok()
-    }
-}
-
-fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
-    let file =
-        fs::File::open(archive).map_err(|e| format!("Не удалось открыть Java archive: {e}"))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("Некорректный Java zip: {e}"))?;
-    for i in 0..zip.len() {
-        let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
-        let name = file.name().replace('\\', "/");
-        if name.ends_with('/') {
-            continue;
-        }
-        let stripped = name.split_once('/').map(|(_, rest)| rest).unwrap_or(&name);
-        if stripped.is_empty() {
-            continue;
-        }
-        // Защита от zip-slip: отвергаем любой путь, содержащий `..`-компоненты.
-        // Это надёжнее canonicalize, который не работает для несуществующих файлов.
-        if Path::new(stripped)
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            return Err(format!(
-                "Небезопасный путь в zip: {name} (попытка выхода за пределы {})",
-                target.display()
-            ));
-        }
-        let out = target.join(stripped);
-        if let Some(parent) = out.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        let mut out_file = fs::File::create(&out).map_err(|e| e.to_string())?;
-        std::io::copy(&mut file, &mut out_file).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-fn extract_java_tar_gz(archive: &Path, target: &Path) -> Result<(), String> {
-    let file =
-        fs::File::open(archive).map_err(|e| format!("Не удалось открыть Java archive: {e}"))?;
-    let dec = flate2::read::GzDecoder::new(file);
-    let mut tar = tar::Archive::new(dec);
-    tar.set_overwrite(false);
-    tar.unpack(target)
-        .map_err(|e| format!("Ошибка распаковки Java tar.gz: {e}"))?;
-    Ok(())
 }
 
 async fn ensure_version(
@@ -1696,33 +1543,6 @@ fn current_os_name() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn parse_java_major_old_style() {
-        assert_eq!(
-            parse_java_major("java version \"1.8.0_301\""),
-            Some(8)
-        );
-    }
-
-    #[test]
-    fn parse_java_major_new_style() {
-        assert_eq!(
-            parse_java_major("openjdk version \"21.0.1\" 2024-04-16"),
-            Some(21)
-        );
-    }
-
-    #[test]
-    fn parse_java_major_empty() {
-        assert_eq!(parse_java_major(""), None);
-    }
-
-    #[test]
-    fn parse_java_major_no_version() {
-        assert_eq!(parse_java_major("some random text"), None);
-    }
 
     #[test]
     fn substitute_tokens_basic() {
@@ -1748,59 +1568,6 @@ mod tests {
     #[test]
     fn rules_allow_empty_rules() {
         assert!(!rules_allow(&Some(vec![])));
-    }
-
-    #[test]
-    fn extract_java_zip_rejects_slip() {
-        let dir = std::env::temp_dir().join("stardust_test_zip_slip");
-        let _ = std::fs::create_dir_all(&dir);
-        let target = dir.join("target");
-        let _ = std::fs::create_dir_all(&target);
-
-        // Create a zip with a malicious entry that tries to escape.
-        let zip_path = dir.join("malicious.zip");
-        {
-            let file = fs::File::create(&zip_path).unwrap();
-            let mut zip = zip::ZipWriter::new(file);
-            let options = zip::write::SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored);
-            // This entry tries to write outside the target directory.
-            zip.start_file("jdk/bin/../../etc/passwd", options).unwrap();
-            zip.write_all(b"malicious").unwrap();
-            zip.finish().unwrap();
-        }
-
-        let result = extract_java_zip(&zip_path, &target);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.contains("Небезопасный путь"), "Error was: {err}");
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn extract_java_zip_accepts_valid() {
-        let dir = std::env::temp_dir().join("stardust_test_zip_valid");
-        let _ = std::fs::create_dir_all(&dir);
-        let target = dir.join("target");
-        let _ = std::fs::create_dir_all(&target);
-
-        let zip_path = dir.join("valid.zip");
-        {
-            let file = fs::File::create(&zip_path).unwrap();
-            let mut zip = zip::ZipWriter::new(file);
-            let options = zip::write::SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored);
-            zip.start_file("jdk/bin/java", options).unwrap();
-            zip.write_all(b"fake java binary").unwrap();
-            zip.finish().unwrap();
-        }
-
-        let result = extract_java_zip(&zip_path, &target);
-        assert!(result.is_ok(), "Error: {:?}", result.err());
-        assert!(target.join("bin/java").exists());
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
