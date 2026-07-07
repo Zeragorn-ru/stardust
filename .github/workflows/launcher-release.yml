@@ -148,18 +148,27 @@ jobs:
             echo "Release $tag already exists"
           fi
 
-          for dir in target/launcher-release/bundle/nsis target/launcher-release/bundle/dmg target/launcher-release/bundle/macos target/launcher-release/bundle/deb target/universal-apple-darwin/release/bundle/dmg target/universal-apple-darwin/release/bundle/macos; do
-            if [ -d "$dir" ]; then
-              for ext in exe dmg AppImage deb; do
-                for artifact in "$dir"/*."$ext"; do
-                  [ -f "$artifact" ] || continue
-                  sha256sum "$artifact" | awk '{print $1}' > "${artifact}.sha256"
-                  echo "Uploading $(basename "$artifact") and checksum"
-                  gh release upload "$tag" "$artifact" "${artifact}.sha256" --clobber
-                done
-              done
+          checksum() {
+            if command -v sha256sum >/dev/null 2>&1; then
+              sha256sum "$1" | awk '{print $1}'
+            else
+              shasum -a 256 "$1" | awk '{print $1}'
             fi
-          done
+          }
+
+          found=0
+          while IFS= read -r artifact; do
+            found=1
+            checksum "$artifact" > "${artifact}.sha256"
+            echo "Uploading $(basename "$artifact") and checksum"
+            gh release upload "$tag" "$artifact" "${artifact}.sha256" --clobber
+          done < <(find target -path "*/bundle/*" -type f \( -name "*.exe" -o -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" \))
+
+          if [ "$found" -eq 0 ]; then
+            echo "ERROR: no bundle artifacts found"
+            find target -path "*/bundle/*" -print || true
+            exit 1
+          fi
 
 
       - name: Upload bootstrap
