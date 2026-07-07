@@ -1,0 +1,12 @@
+name: Launcher — Clippy
+description: |
+  Статический анализ Rust-кода лаунчера в профиле launcher-release.
+  Компилирует зависимости в том же профиле — tauri build переиспользует target/.
+  Локально: make clippy-launcher
+
+runs:
+  using: composite
+  steps:
+    - name: cargo clippy -p launcher --profile launcher-release
+      shell: bash
+      run: cargo clippy -p launcher --profile launcher-release -- -D warnings

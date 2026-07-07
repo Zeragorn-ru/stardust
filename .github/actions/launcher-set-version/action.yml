@@ -1,0 +1,17 @@
+name: Launcher — Set version
+description: |
+  Подставляет версию из git-тега (vX.Y.Z → X.Y.Z) в package.json, tauri.conf.json,
+  Cargo.toml и Cargo.lock. В исходниках всегда плейсхолдер 0.0.0.
+  Локально: bash scripts/ci/set-launcher-version.sh 0.7.23
+
+inputs:
+  version:
+    description: Версия без префикса v
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Patch version files
+      shell: bash
+      run: bash scripts/ci/set-launcher-version.sh "${{ inputs.version }}"

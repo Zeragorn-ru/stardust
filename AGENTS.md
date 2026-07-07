@@ -20,16 +20,33 @@
 - `launcher` — Tauri launcher: React frontend и Rust backend.
 - `admin-web` — веб-админка: desktop и mobile entrypoints.
 - `stardust-mod` — Minecraft/NeoForge mod.
+- `Makefile` — единая точка входа для локальных сборок (`make help`).
+- `scripts/ci/` — скрипты, общие для CI и локальной отладки.
+- `packaging/` — заготовки PKGBUILD, RPM spec, Homebrew, Flatpak.
+
+## CI/CD
+
+| Workflow | Триггер | Назначение |
+|----------|---------|------------|
+| `ci.yml` | push/PR master, workflow_dispatch | Быстрые проверки без релизов |
+| `backend.yml` | push master (path filter), workflow_dispatch | Тесты, Docker → ghcr.io, деплой |
+| `launcher-release.yml` | тег `v*`, workflow_dispatch | Релизные установщики → GitHub Releases |
+| `launcher-build.yml` | workflow_dispatch | Отладочная сборка лаунчера + артефакты Actions |
+| `mod-release.yml` | тег `mod-v*`, workflow_dispatch | JAR мода → GitHub Releases |
+
+Этапы сборки лаунчера разбиты на composite actions в `.github/actions/launcher-*/` — см. `.github/actions/README.md`.
+
+Rust закреплён в `rust-toolchain.toml` (1.96.0). Локально: `make ci` повторяет проверки из `ci.yml`.
 
 ## Проверки перед коммитом
 
-Минимум выбирай по зоне изменений:
+Минимум выбирай по зоне изменений (или `make ci` / `make ci-launcher`):
 
-- Rust backend/protocol/store: `cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol`.
-- Launcher Rust backend: `cargo clippy -p launcher --profile launcher-release -- -D warnings` и `cargo build -p launcher`.
-- Launcher frontend/Tauri app: из `launcher` выполнить `npm run build` при изменениях React/TS/CSS.
-- Admin web: из `admin-web` выполнить `npm run build`.
-- Stardust mod: используй Gradle-задачи из `stardust-mod` только если менялся мод.
+- Rust backend/protocol/store: `cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol` или `make test-backend`.
+- Launcher Rust backend: `make clippy-launcher` и `cargo build -p launcher`.
+- Launcher frontend/Tauri app: `make build-launcher-frontend` при изменениях React/TS/CSS.
+- Admin web: `make build-admin-web`.
+- Stardust mod: `make build-mod` только если менялся мод.
 - Если изменились API-типы в `crates/protocol`, проверь Rust-пакеты и TypeScript-потребителей, которые ожидают JSON-поля.
 
 Если проверка не запускалась, явно напиши почему.

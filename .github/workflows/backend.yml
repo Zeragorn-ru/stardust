@@ -28,6 +28,11 @@ on:
       - "deploy/squid.conf"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
+    inputs:
+      skip_deploy:
+        description: "Собрать образы, но не деплоить на сервер"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -151,7 +156,9 @@ jobs:
   deploy:
     needs: image
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.skip_deploy != 'true')
     steps:
       - uses: actions/checkout@v4
 

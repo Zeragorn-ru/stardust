@@ -1,0 +1,41 @@
+name: Launcher — Tauri build
+description: |
+  Собирает установщики через tauri-action. GITHUB_TOKEN и APPLE_* передаются
+  через env шага workflow (не secrets внутри composite action).
+
+inputs:
+  tauri-args:
+    description: Доп. аргументы tauri build (напр. --target universal-apple-darwin)
+    required: false
+    default: ""
+  release-draft:
+    description: Черновик релиза (для отладочных сборок)
+    required: false
+    default: "false"
+  prerelease:
+    description: Пометить как prerelease
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - uses: tauri-apps/tauri-action@v0.6
+      env:
+        CI: true
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
+        APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+        KEYCHAIN_PASSWORD: ${{ env.KEYCHAIN_PASSWORD }}
+        APPLE_ID: ${{ env.APPLE_ID }}
+        APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
+        APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
+        APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
+        APPLE_API_KEY: ${{ env.APPLE_API_KEY }}
+        APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+      with:
+        projectPath: launcher
+        releaseDraft: ${{ inputs.release-draft }}
+        prerelease: ${{ inputs.prerelease }}
+        args: ${{ inputs.tauri-args }} -- --profile launcher-release

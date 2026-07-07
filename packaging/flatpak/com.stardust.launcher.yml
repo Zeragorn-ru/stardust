@@ -1,0 +1,52 @@
+# Flatpak manifest stub — com.stardust.launcher
+#
+# Сборка (после установки flatpak-builder):
+#   flatpak-builder --repo=repo --force-clean build-dir packaging/flatpak/com.stardust.launcher.yml
+#   flatpak build-bundle repo stardust-launcher.flatpak com.stardust.launcher
+#
+# Зависимости рантайма: org.gnome.Platform//46 (или новее с webkit).
+
+app-id: com.stardust.launcher
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+command: stardust-launcher
+finish-args:
+  - --share=network
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=home
+
+modules:
+  - name: nodejs
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 /usr/bin/node /app/bin/node
+      - install -Dm755 /usr/bin/npm /app/bin/npm
+    sources:
+      - type: file
+        url: https://nodejs.org/dist/v20.18.0/node-v20.18.0-linux-x64.tar.xz
+        sha256: 03c0f5a8c13bea16e0e0c0c0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0
+
+  - name: stardust-launcher
+    buildsystem: simple
+    build-commands:
+      - cd launcher && npm ci --ignore-scripts && npm run build
+      - cargo build --manifest-path launcher/src-tauri/Cargo.toml --profile launcher-release
+      - cd launcher && npm run tauri build -- --profile launcher-release --bundles appimage
+      - |
+        install -Dm755 target/launcher-release/launcher /app/bin/stardust-launcher
+        install -Dm644 launcher/src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/com.stardust.launcher.png
+        install -Dm644 /dev/stdin /app/share/applications/com.stardust.launcher.desktop <<'EOF'
+        [Desktop Entry]
+        Name=StarDust
+        Exec=stardust-launcher
+        Icon=com.stardust.launcher
+        Type=Application
+        Categories=Game;
+        EOF
+    sources:
+      - type: dir
+        path: ../..
