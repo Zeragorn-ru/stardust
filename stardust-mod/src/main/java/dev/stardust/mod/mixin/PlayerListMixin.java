@@ -19,7 +19,9 @@ public abstract class PlayerListMixin {
     private void stardust$suppressVanillaJoinLeave(Component message, boolean bypassHiddenChat, CallbackInfo ci) {
         if (message != null && message.getContents() instanceof TranslatableContents tc) {
             String key = tc.getKey();
-            if ("multiplayer.player.joined".equals(key) || "multiplayer.player.left".equals(key)) {
+            if ("multiplayer.player.joined".equals(key)
+                    || "multiplayer.player.joined.renamed".equals(key)
+                    || "multiplayer.player.left".equals(key)) {
                 ci.cancel();
             }
         }
