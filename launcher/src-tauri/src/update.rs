@@ -302,6 +302,7 @@ fn sanitize_filename(name: &str) -> Result<String, String> {
 }
 
 /// Ищет bootstrap.exe в ассетах релиза.
+#[cfg(target_os = "windows")]
 fn find_bootstrap_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
     assets
         .iter()
@@ -542,15 +543,6 @@ fn launch_bootstrap(
         .spawn()
         .map_err(|e| format!("Не удалось запустить обновлятор: {e}"))?;
     Ok(())
-}
-
-#[cfg(not(target_os = "windows"))]
-fn launch_bootstrap(
-    _bootstrap_path: &std::path::Path,
-    _installer_path: &std::path::Path,
-    _install_dir: &std::path::Path,
-) -> Result<(), String> {
-    Err("Обновление поддерживается только на Windows".into())
 }
 
 // ─── Tauri commands ─────────────────────────────────────────────────────────
