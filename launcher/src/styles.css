@@ -1590,6 +1590,8 @@ body {
     height: 48px;
     display: grid;
     place-items: center;
+    position: relative;
+    overflow: hidden;
     border-radius: 11px;
     background:
         radial-gradient(circle at 30% 20%, rgba(115, 215, 255, 0.28), transparent 48%),
@@ -1598,6 +1600,15 @@ body {
     font-size: 18px;
     font-weight: 900;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.34);
+}
+
+.server-player__avatar img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
 }
 
 .server-player__name {

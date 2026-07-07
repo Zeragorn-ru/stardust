@@ -416,6 +416,13 @@ export default function MainScreen({
                 {serverSample.map((player, i) => (
                   <div className="server-player" key={player.id || `${player.name}-${i}`}>
                     <span className="server-player__avatar" aria-hidden="true">
+                      <img
+                        src={playerAvatarUrl(player)}
+                        alt=""
+                        onError={(event) => {
+                          event.currentTarget.hidden = true;
+                        }}
+                      />
                       {playerInitial(player.name)}
                     </span>
                     <span className="server-player__name">{player.name}</span>
@@ -442,6 +449,12 @@ function hasDownloadMeta(progress: Progress): boolean {
 
 function playerInitial(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || "?";
+}
+
+function playerAvatarUrl(player: ServerSamplePlayer): string {
+  const id = player.id.trim();
+  const value = id && id !== "00000000-0000-0000-0000-000000000000" ? id : player.name.trim();
+  return `https://mc-heads.net/avatar/${encodeURIComponent(value)}/48`;
 }
 
 function banUntilLabel(ban: BanInfo): string {
