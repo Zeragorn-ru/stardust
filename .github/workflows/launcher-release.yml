@@ -69,7 +69,7 @@ jobs:
 
       - name: Install frontend deps
         working-directory: launcher
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts && node scripts/patch-skin-renderer.js
 
       # Clippy: проверка перед сборкой. Компилирует зависимости в профиле
       # launcher-release — tauri-action переиспользует те же артефакты.
