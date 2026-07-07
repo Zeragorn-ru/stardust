@@ -1364,6 +1364,12 @@ td.num {
 
 .fm-icon.folder {
     color: var(--accent);
+    width: 34px;
+    height: 34px;
+    padding: 8px;
+    border: 1px solid rgba(95, 240, 167, 0.14);
+    border-radius: 12px;
+    background: rgba(95, 240, 167, 0.08);
 }
 
 .fm-icon.file {
@@ -1425,7 +1431,14 @@ td.num {
 }
 
 .fm-row.folder .fm-name {
-    font-weight: 600;
+    font-weight: 750;
+    letter-spacing: -0.01em;
+}
+
+.fm-folder-text {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
 }
 
 .fm-disp {
@@ -1700,7 +1713,10 @@ td.num {
 }
 
 .fm-edit-check input {
+    width: 14px;
+    height: 14px;
     cursor: pointer;
+    accent-color: var(--accent);
 }
 
 .fm-edit-check.disabled {
@@ -1925,7 +1941,9 @@ td.num {
 }
 
 .checkbox-row input {
-    width: auto;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent);
 }
 
 .checkbox-row label {
@@ -1940,9 +1958,11 @@ td.num {
 }
 
 .fm-check input {
-    width: auto;
+    width: 14px;
+    height: 14px;
     margin: 0;
     cursor: pointer;
+    accent-color: var(--accent);
 }
 
 .fm-row.file.selected {
@@ -1969,9 +1989,11 @@ td.num {
 }
 
 .fm-selectall input {
-    width: auto;
+    width: 14px;
+    height: 14px;
     margin: 0;
     cursor: pointer;
+    accent-color: var(--accent);
 }
 
 .fm-bulk {
@@ -2530,6 +2552,8 @@ td.num {
 }
 
 .pc-check input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
     accent-color: var(--accent);
     cursor: pointer;
 }
@@ -2899,6 +2923,16 @@ select {
     min-height: var(--control-h);
     background: #07090d;
     border-color: rgba(255, 255, 255, 0.08);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+    width: 14px;
+    height: 14px;
+    min-height: 0;
+    padding: 0;
+    flex: 0 0 auto;
+    accent-color: var(--accent);
 }
 
 .app {

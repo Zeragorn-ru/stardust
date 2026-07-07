@@ -901,12 +901,23 @@ button.secondary:hover:not(:disabled) {
     padding-right: 6px;
 }
 
+.m-screen .fm-row.folder {
+    align-items: center;
+    padding-right: 6px;
+}
+
 .m-screen .fm-main {
     padding-inline: 8px;
     gap: 8px;
 }
 
 .m-screen .fm-icon.file {
+    width: 32px;
+    height: 32px;
+    padding: 7px;
+}
+
+.m-screen .fm-icon.folder {
     width: 32px;
     height: 32px;
     padding: 7px;

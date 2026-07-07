@@ -516,9 +516,11 @@ export function FileManager({
             <div key={folder.path} className="fm-row folder">
               <button className="fm-main" onClick={() => setDir(folder.path)}>
                 <IconFolder size={17} className="fm-icon folder" />
-                <span className="fm-name">{folder.name}</span>
-                <span className="fm-meta muted">
-                  {folder.fileCount} файл(ов) · {formatSize(folder.totalSize)}
+                <span className="fm-folder-text">
+                  <span className="fm-name">{folder.name}</span>
+                  <span className="fm-meta muted">
+                    {folder.fileCount} файл(ов) · {formatSize(folder.totalSize)}
+                  </span>
                 </span>
               </button>
               <div className="fm-actions">
