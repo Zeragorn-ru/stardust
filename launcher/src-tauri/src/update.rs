@@ -242,13 +242,61 @@ fn pick_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
                     .find(|a| a.name.to_lowercase().ends_with(".msi"))
             })
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        pick_macos_asset(assets)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        assets
+            .iter()
+            .find(|a| {
+                let n = a.name.to_lowercase();
+                n.ends_with(".appimage")
+            })
+            .or_else(|| {
+                assets.iter().find(|a| {
+                    let n = a.name.to_lowercase();
+                    n.ends_with(".deb") || n.ends_with(".rpm")
+                })
+            })
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     {
         assets.iter().find(|a| {
             let n = a.name.to_lowercase();
             n.ends_with(".appimage") || n.ends_with(".dmg")
         })
     }
+}
+
+#[cfg(target_os = "macos")]
+fn pick_macos_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
+    let dmgs: Vec<&GhAsset> = assets
+        .iter()
+        .filter(|a| a.name.to_lowercase().ends_with(".dmg"))
+        .collect();
+    if !dmgs.is_empty() {
+        let prefer = |needle: &str| {
+            dmgs.iter()
+                .find(|a| a.name.to_lowercase().contains(needle))
+                .copied()
+        };
+        if cfg!(target_arch = "aarch64") {
+            return prefer("universal")
+                .or_else(|| prefer("aarch64"))
+                .or_else(|| prefer("arm64"))
+                .or(dmgs.first().copied());
+        }
+        return prefer("universal")
+            .or_else(|| prefer("x64"))
+            .or_else(|| prefer("x86_64"))
+            .or(dmgs.first().copied());
+    }
+
+    assets
+        .iter()
+        .find(|a| a.name.to_lowercase().ends_with(".app.tar.gz"))
 }
 
 /// Ищет SHA-256 хеш для given installer name в ассетах релиза.
@@ -519,8 +567,6 @@ async fn download_single(params: &DownloadParams<'_>) -> Result<(), String> {
     Ok(())
 }
 
-// ─── Запуск bootstrap ───────────────────────────────────────────────────────
-
 /// Запускает bootstrap.exe с установщиком, каталогом установки и именем exe.
 #[cfg(target_os = "windows")]
 fn launch_bootstrap(
@@ -543,6 +589,17 @@ fn launch_bootstrap(
         .spawn()
         .map_err(|e| format!("Не удалось запустить обновлятор: {e}"))?;
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn clear_macos_quarantine(path: &std::path::Path) {
+    let _ = std::process::Command::new("xattr")
+        .args([
+            "-dr",
+            "com.apple.quarantine",
+            &path.to_string_lossy(),
+        ])
+        .output();
 }
 
 // ─── Tauri commands ─────────────────────────────────────────────────────────
@@ -757,10 +814,25 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         launch_bootstrap(&bootstrap_path, &installer_path, &install_dir)?;
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        // На macOS/Linux открываем установщик через системный обработчик:
-        // .dmg → Finder, .AppImage → запуск.
+        clear_macos_quarantine(&installer_path);
+        std::process::Command::new("open")
+            .arg(&installer_path)
+            .spawn()
+            .map_err(|e| format!("Не удалось открыть установщик: {e}"))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&installer_path)
+            .spawn()
+            .map_err(|e| format!("Не удалось открыть установщик: {e}"))?;
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
         std::process::Command::new("open")
             .arg(&installer_path)
             .spawn()
@@ -915,5 +987,24 @@ mod tests {
             size: 0,
         }];
         assert!(find_sha256_asset(&assets, "setup.exe").is_none());
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn pick_macos_asset_prefers_universal_dmg() {
+        let assets = vec![
+            GhAsset {
+                name: "StarDust_1.0.0_x64.dmg".into(),
+                browser_download_url: "".into(),
+                size: 0,
+            },
+            GhAsset {
+                name: "StarDust_1.0.0_universal.dmg".into(),
+                browser_download_url: "".into(),
+                size: 0,
+            },
+        ];
+        let picked = pick_macos_asset(&assets).unwrap();
+        assert!(picked.name.contains("universal"));
     }
 }
