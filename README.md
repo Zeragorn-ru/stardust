@@ -20,7 +20,7 @@
 | `crates/store/` | Общий storage-слой: аккаунты, сессии, сборки, challenge'ы, кастомизация | Rust, sqlx |
 | `crates/protocol/` | Общие типы API и формата `manifest.json` | Rust, serde |
 | `crates/telegram-bot/` | Telegram-бот для 2FA-кодов и системных уведомлений | Rust |
-| `docs/` | Архитектура и дорожная карта | Markdown |
+| `docs/` | Архитектура, дорожная карта, гайды по установке | Markdown |
 
 ## Что уже реализовано
 
@@ -50,6 +50,29 @@
 
 Подробнее — в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) и
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+## Сборка и CI
+
+Корневой [`Makefile`](Makefile) — единая точка входа (`make help`):
+
+```sh
+make ci                  # проверки как в .github/workflows/ci.yml
+make ci-launcher         # полная сборка лаунчера + dist/launcher-bundles/
+make test-backend        # cargo test серверных крейтов
+```
+
+Rust **1.96** закреплён в [`rust-toolchain.toml`](rust-toolchain.toml). Подробности CI —
+в [`.github/actions/README.md`](.github/actions/README.md) и [`AGENTS.md`](AGENTS.md).
+
+| Workflow | Триггер | Назначение |
+|----------|---------|------------|
+| `ci.yml` | push/PR `master` | Быстрые проверки без релизов |
+| `launcher-release.yml` | тег `v*` | Установщики → GitHub Releases |
+| `launcher-build.yml` | `workflow_dispatch` | Отладочная сборка лаунчера |
+| `backend.yml` | push `master` | Docker → ghcr.io + деплой |
+| `mod-release.yml` | тег `mod-v*` | JAR мода → GitHub Releases |
+
+Нативная упаковка (Arch, Fedora, Homebrew, Flatpak) — [`packaging/`](packaging/).
 
 ## Разработка
 
@@ -139,6 +162,18 @@ LAUNCHER_UPDATE_URL=https://api.github.com/repos/OWNER/REPO/releases/latest npm 
 
 Проверка и установка доступны в настройках лаунчера (раздел «Обновления»).
 
+### Установка на macOS
+
+Скачайте **`StarDust_X.Y.Z_universal.dmg`** из [GitHub Releases](https://github.com/Zeragorn-ru/stardust/releases).
+
+Полный гайд (Gatekeeper, первый запуск, обновления):
+
+**[docs/MACOS_INSTALL.md](docs/MACOS_INSTALL.md)**
+
+Кратко: откройте DMG → перетащите StarDust в **Applications** → при первом запуске
+**ПКМ → Open** (лаунчер пока без платного Apple-сертификата). В DMG есть файл
+**«Установка»** — он откроет гайд в браузере.
+
 ### Релиз новой версии лаунчера
 
 Сборка лаунчера запускается **только по git-тегу вида `vX.Y.Z`**
@@ -171,15 +206,14 @@ git tag v0.2.10
 git push origin v0.2.10
 ```
 
-Дальше workflow `launcher-release` создаст GitHub Release `v0.2.10`, соберёт
-NSIS-установщик и приложит ассеты. Дополнительно в релиз будет загружен
-`authlib-injector.jar`, чтобы его можно было вручную положить на NeoForge-сервер
-и подключить через `user_jvm_args.txt`. Установленные лаунчеры подхватят
-обновление через GitHub Releases API.
+Дальше workflow `launcher-release` создаст GitHub Release `v0.2.10` и соберёт
+установщики для **Windows** (NSIS `.exe`), **Linux** (`.deb`, `.rpm`, AppImage) и
+**macOS** (universal `.dmg` с гайдом по установке). Установленные лаунчеры
+подхватят обновление через GitHub Releases API.
 
-
-Сборка не требует ключей подписи — релизный workflow просто собирает установщик
-и прикладывает его к GitHub Release:
+Сборка не требует ключей подписи Apple — без сертификата macOS-сборка идёт
+unsigned (см. [гайд по установке](docs/MACOS_INSTALL.md)). Релизный workflow
+собирает установщики и прикладывает их к GitHub Release:
 
 ```sh
 cd launcher

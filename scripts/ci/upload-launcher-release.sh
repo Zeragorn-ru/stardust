@@ -16,7 +16,9 @@ else
   echo "Release $tag already exists"
 fi
 
-"$root/scripts/ci/collect-launcher-bundles.sh"
+if [ ! -d dist/launcher-bundles ] || [ -z "$(ls -A dist/launcher-bundles 2>/dev/null)" ]; then
+  "$root/scripts/ci/collect-launcher-bundles.sh"
+fi
 
 for artifact in dist/launcher-bundles/*; do
   [ -f "$artifact" ] || continue
