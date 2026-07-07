@@ -148,8 +148,14 @@ async fn fetch_releases(app: &AppHandle) -> Result<Vec<GhRelease>, String> {
 /// Проверяет, есть ли в релизе установщик и bootstrap.exe (обновлятор).
 fn is_release_ready(release: &GhRelease) -> bool {
     let has_installer = pick_asset(&release.assets).is_some();
-    let has_bootstrap = find_bootstrap_asset(&release.assets).is_some();
-    has_installer && has_bootstrap
+    #[cfg(target_os = "windows")]
+    {
+        has_installer && find_bootstrap_asset(&release.assets).is_some()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        has_installer
+    }
 }
 
 /// Ищет первый релиз, который новее текущей версии и готов к скачиванию
@@ -595,9 +601,10 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     // ── Фаза 1: bootstrap (0.00 — 0.30) ──────────────────────────────────
     let _data_dir = crate::paths::data_dir(&app);
 
-    let bootstrap_asset = find_bootstrap_asset(&release.assets)
-        .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
+    #[cfg(target_os = "windows")]
     let bootstrap_path = {
+        let bootstrap_asset = find_bootstrap_asset(&release.assets)
+            .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
         let path = std::env::temp_dir().join(sanitize_filename(&bootstrap_asset.name)?);
         let hash_path = std::path::PathBuf::from(format!("{}.sha256", path.display()));
 
@@ -748,12 +755,30 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         },
     );
 
-    let install_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(std::env::temp_dir);
+    #[cfg(target_os = "windows")]
+    {
+        let install_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(std::env::temp_dir);
 
-    launch_bootstrap(&bootstrap_path, &installer_path, &install_dir)?;
+        launch_bootstrap(&bootstrap_path, &installer_path, &install_dir)?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // На macOS/Linux открываем установщик через системный обработчик:
+        // .dmg → Finder, .AppImage → запуск.
+        std::process::Command::new("open")
+            .arg(&installer_path)
+            .spawn()
+            .or_else(|_| {
+                std::process::Command::new("xdg-open")
+                    .arg(&installer_path)
+                    .spawn()
+            })
+            .map_err(|e| format!("Не удалось открыть установщик: {e}"))?;
+    }
 
     emit_progress(
         &app,
