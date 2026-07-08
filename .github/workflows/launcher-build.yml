@@ -35,13 +35,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: ${{ fromJSON(
-          github.event.inputs.platform == 'all' && '["windows","linux","macos"]' ||
-          github.event.inputs.platform == 'windows' && '["windows"]' ||
-          github.event.inputs.platform == 'linux' && '["linux"]' ||
-          github.event.inputs.platform == 'macos' && '["macos"]' ||
-          '["linux"]'
-        ) }}
         include:
           - id: windows
             platform: windows
