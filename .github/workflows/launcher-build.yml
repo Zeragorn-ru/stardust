@@ -89,14 +89,15 @@ jobs:
           platform: ${{ matrix.runner }}
 
       - name: "⑧ Tauri build"
-        uses: ./.github/actions/launcher-tauri-build
-        with:
-          tauri-args: ${{ matrix.tauri-args }}
-          release-draft: "true"
-          prerelease: "true"
-          signing: "false"
+        uses: tauri-apps/tauri-action@v0.6
         env:
+          CI: true
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: launcher
+          releaseDraft: "true"
+          prerelease: "true"
+          args: ${{ matrix.tauri-args }} -- --profile launcher-release
 
       - name: "⑨ Collect bundles"
         if: always()
