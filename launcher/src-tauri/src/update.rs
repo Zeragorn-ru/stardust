@@ -242,13 +242,97 @@ fn pick_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
                     .find(|a| a.name.to_lowercase().ends_with(".msi"))
             })
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        // Prefer .app.zip for true auto-update; fall back to .dmg (manual install).
+        assets
+            .iter()
+            .find(|a| a.name.to_lowercase().ends_with(".app.zip"))
+            .or_else(|| {
+                assets.iter().find(|a| {
+                    let n = a.name.to_lowercase();
+                    n.ends_with(".appimage") || n.ends_with(".dmg")
+                })
+            })
+    }
+    #[cfg(target_os = "linux")]
     {
         assets.iter().find(|a| {
             let n = a.name.to_lowercase();
-            n.ends_with(".appimage") || n.ends_with(".dmg")
+            n.ends_with(".appimage")
         })
     }
+}
+
+/// Ищет .app.zip ассет в релизе (для macOS автообновления).
+#[cfg(target_os = "macos")]
+fn find_app_zip_asset<'a>(assets: &'a [GhAsset]) -> Option<&'a GhAsset> {
+    assets
+        .iter()
+        .find(|a| a.name.to_lowercase().ends_with(".app.zip"))
+}
+
+/// Извлекает .app из .app.zip.
+/// Принимает путь к скачанному zip-файлу, возвращает путь к .app директории.
+#[cfg(target_os = "macos")]
+fn extract_app_zip(zip_path: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    let stem = zip_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("stardust_update");
+    let extract_dir = std::env::temp_dir().join(format!("stardust_update_{stem}"));
+    let _ = std::fs::remove_dir_all(&extract_dir);
+    std::fs::create_dir_all(&extract_dir)
+        .map_err(|e| format!("Не удалось создать временную папку: {e}"))?;
+
+    let output = std::process::Command::new("unzip")
+        .arg("-o")
+        .arg(zip_path)
+        .arg("-d")
+        .arg(&extract_dir)
+        .output()
+        .map_err(|e| format!("Не удалось запустить unzip: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("unzip завершился с ошибкой: {stderr}"));
+    }
+
+    let app_path = find_app_in_dir(&extract_dir)?;
+    Ok(app_path)
+}
+
+/// Ищет .app директорию в указанной папке (рекурсивно, макс. 2 уровня).
+#[cfg(target_os = "macos")]
+fn find_app_in_dir(dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
+    // Сначала ищем прямо в dir.
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.extension().is_some_and(|e| e == "app") {
+                return Ok(path);
+            }
+        }
+    }
+
+    // Ищем на один уровень глубже.
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Ok(sub) = std::fs::read_dir(&path) {
+                    for sub_entry in sub.flatten() {
+                        let sub_path = sub_entry.path();
+                        if sub_path.is_dir() && sub_path.extension().is_some_and(|e| e == "app") {
+                            return Ok(sub_path);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Err("В распакованном архиве не найден .app бандл".into())
 }
 
 /// Ищет SHA-256 хеш для given installer name в ассетах релиза.
@@ -545,6 +629,58 @@ fn launch_bootstrap(
     Ok(())
 }
 
+// ─── Автообновление macOS/Linux ──────────────────────────────────────────────
+
+/// Определяет папку установки по текущему exe.
+///
+/// macOS: текущий exe — `StarDust.app/Contents/MacOS/launcher`,
+///   install_dir = `StarDust.app` (parent of Contents/).
+#[cfg(target_os = "macos")]
+fn get_install_dir() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    // macOS: exe is at <App>.app/Contents/MacOS/<binary>
+    // Install dir is <App>.app (two levels up).
+    exe.parent()?.parent().map(|p| p.to_path_buf())
+}
+
+/// Записывает PID текущего процесса в файл, чтобы update-скрипт дождался выхода.
+#[cfg(not(target_os = "windows"))]
+fn write_pid_file(path: &std::path::Path) -> Result<(), String> {
+    let pid = std::process::id();
+    std::fs::write(path, pid.to_string())
+        .map_err(|e| format!("Не удалось записать PID-файл: {e}"))
+}
+
+/// Ищет скрипт обновления в нескольких стандартных расположениях.
+#[cfg(target_os = "macos")]
+fn find_update_script() -> Option<std::path::PathBuf> {
+    let name = "update-macos.sh";
+    let candidates = [
+        // рядом с exe (портативный режим)
+        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join(name))).unwrap_or_default(),
+        // в Resources .app bundle (сборка)
+        std::env::current_exe().ok().and_then(|p| {
+            let resources = p.parent()?.parent()?.join("Resources");
+            Some(resources.join(name))
+        }).unwrap_or_default(),
+        // в /opt/stardust-launcher/
+        std::path::PathBuf::from(format!("/opt/stardust-launcher/{name}")),
+    ];
+    candidates.into_iter().find(|p| p.exists())
+}
+
+#[cfg(target_os = "linux")]
+fn find_update_script() -> Option<std::path::PathBuf> {
+    let name = "update-linux.sh";
+    let candidates = [
+        // рядом с exe (портативный режим)
+        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join(name))).unwrap_or_default(),
+        // в /opt/stardust-launcher/
+        std::path::PathBuf::from(format!("/opt/stardust-launcher/{name}")),
+    ];
+    candidates.into_iter().find(|p| p.exists())
+}
+
 // ─── Tauri commands ─────────────────────────────────────────────────────────
 
 /// Проверить наличие обновления, ничего не устанавливая.
@@ -573,7 +709,7 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
 /// Скачать доступное обновление и запустить обновлятор, затем закрыть лаунчер.
 ///
 /// Фазы с прогрессом:
-/// 1. downloading_bootstrap  (0.00 — 0.30)
+/// 1. downloading_bootstrap  (0.00 — 0.30)  [только Windows]
 /// 2. downloading_installer  (0.30 — 0.85)
 /// 3. verifying_sha256       (0.85 — 0.95)
 /// 4. launching              (0.95 — 1.00)
@@ -590,7 +726,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
 
     let http = http_client(&app)?;
 
-    // ── Фаза 1: bootstrap (0.00 — 0.30) ──────────────────────────────────
+    // ── Фаза 1: bootstrap (только Windows) (0.00 — 0.30) ─────────────────
     let _data_dir = crate::paths::data_dir(&app);
 
     #[cfg(target_os = "windows")]
@@ -600,7 +736,6 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         let path = std::env::temp_dir().join(sanitize_filename(&bootstrap_asset.name)?);
         let hash_path = std::path::PathBuf::from(format!("{}.sha256", path.display()));
 
-        // Проверяем кеш: файл + рядом sha256 с совпадающим хешем
         let cached = if hash_path.exists() && path.exists() {
             let expected = std::fs::read_to_string(&hash_path)
                 .ok()
@@ -649,7 +784,6 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
             )
             .await?;
 
-            // Сохраняем sha256 для проверки при следующем обновлении
             if let Some(hash) = tauri::async_runtime::spawn_blocking({
                 let p2 = p.clone();
                 move || compute_sha256(&p2)
@@ -665,7 +799,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         }
     };
 
-    // ── Фаза 2: установщик (0.30 — 0.85) ─────────────────────────────────
+    // ── Фаза 2: скачивание обновления (0.30 — 0.85) ─────────────────────
     let installer_path = download_asset_with_progress(
         &app,
         &http,
@@ -733,7 +867,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    // ── Фаза 4: запуск (0.95 — 1.00) ─────────────────────────────────────
+    // ── Фаза 4: запуск обновления (0.95 — 1.00) ─────────────────────────
     emit_progress(
         &app,
         &UpdateProgress {
@@ -757,19 +891,94 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         launch_bootstrap(&bootstrap_path, &installer_path, &install_dir)?;
     }
 
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
-        // На macOS/Linux открываем установщик через системный обработчик:
-        // .dmg → Finder, .AppImage → запуск.
-        std::process::Command::new("open")
-            .arg(&installer_path)
-            .spawn()
-            .or_else(|_| {
-                std::process::Command::new("xdg-open")
-                    .arg(&installer_path)
-                    .spawn()
-            })
-            .map_err(|e| format!("Не удалось открыть установщик: {e}"))?;
+        // macOS: скачали .app.zip → распаковываем → скрипт заменяет .app → перезапуск.
+        let install_dir = get_install_dir()
+            .ok_or_else(|| "Не удалось определить папку установки".to_string())?;
+        let app_name = install_dir
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("StarDust");
+
+        // Распаковываем .app.zip.
+        let new_app = extract_app_zip(&installer_path)?;
+
+        // Записываем PID для update-скрипта.
+        let pid_path = install_dir
+            .join("Contents")
+            .join("MacOS")
+            .join(".update-pid");
+        write_pid_file(&pid_path)?;
+
+        // Запускаем update-скрипт (замена + перезапуск).
+        if let Some(script_path) = find_update_script() {
+            std::process::Command::new("bash")
+                .arg(&script_path)
+                .arg(&new_app)
+                .arg(&install_dir)
+                .arg(app_name)
+                .spawn()
+                .map_err(|e| format!("Не удалось запустить скрипт обновления: {e}"))?;
+        } else {
+            // Fallback без скрипта: ручная замена.
+            tracing::warn!("[update] update-macos.sh не найден, попытка замены вручную");
+            let backup = std::path::PathBuf::from(format!("{}.old", install_dir.display()));
+            let _ = std::fs::remove_dir_all(&backup);
+            let _ = std::fs::rename(&install_dir, &backup);
+            std::fs::copy(&new_app, &install_dir)
+                .map_err(|e| format!("Не удалось скопировать новый .app: {e}"))?;
+            let _ = std::fs::remove_dir_all(&backup);
+            let _ = std::process::Command::new("open")
+                .arg("-a")
+                .arg(app_name)
+                .spawn();
+        }
+
+        tracing::info!("[update] macOS обновление запущено");
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: скачали AppImage → скрипт заменяет → перезапуск.
+        let current_exe = std::env::current_exe()
+            .map_err(|e| format!("Не удалось получить путь к exe: {e}"))?;
+
+        // Делаем новый AppImage исполняемым.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(
+                &installer_path,
+                std::fs::Permissions::from_mode(0o755),
+            );
+        }
+
+        // Записываем PID для update-скрипта.
+        let pid_path = std::path::PathBuf::from(format!("{}.update-pid", current_exe.display()));
+        write_pid_file(&pid_path)?;
+
+        // Запускаем update-скрипт.
+        if let Some(script_path) = find_update_script() {
+            std::process::Command::new("bash")
+                .arg(&script_path)
+                .arg(&installer_path)
+                .arg(&current_exe)
+                .spawn()
+                .map_err(|e| format!("Не удалось запустить скрипт обновления: {e}"))?;
+        } else {
+            // Fallback: ручная замена.
+            tracing::warn!("[update] update-linux.sh не найден, попытка замены вручную");
+            let backup = std::path::PathBuf::from(format!("{}.bak", current_exe.display()));
+            let _ = std::fs::remove_file(&backup);
+            let _ = std::fs::rename(&current_exe, &backup);
+            std::fs::rename(&installer_path, &current_exe)
+                .map_err(|e| format!("Не удалось заменить бинарник: {e}"))?;
+            let _ = std::fs::remove_file(&backup);
+            let _ = std::process::Command::new(&current_exe).spawn();
+        }
+
+        tracing::info!("[update] Linux обновление запущено");
     }
 
     emit_progress(

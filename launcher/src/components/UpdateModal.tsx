@@ -28,7 +28,7 @@ function formatEta(seconds: number): string {
 
 const PHASE_LABELS: Record<string, string> = {
   downloading_bootstrap: "Скачивание компонента обновления",
-  downloading_installer: "Скачивание установщика",
+  downloading_installer: "Скачивание обновления",
   verifying_sha256: "Проверка целостности",
   launching: "Запуск обновления",
   error: "Ошибка",

@@ -126,17 +126,46 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
 
-      - name: "⑨ Collect bundles"
+      - name: "⑨ Bundle update script (macOS)"
+        if: matrix.id == 'macos'
+        run: |
+          APP_PATH=$(find target -path '*/bundle/macos/*.app' -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            RESOURCES="$APP_PATH/Contents/Resources"
+            mkdir -p "$RESOURCES"
+            cp scripts/ci/update-macos.sh "$RESOURCES/"
+            chmod +x "$RESOURCES/update-macos.sh"
+            echo "Bundled update-macos.sh in $RESOURCES"
+          fi
+
+      - name: "⑩ Create .app.zip (macOS)"
+        if: matrix.id == 'macos'
+        run: |
+          # Find .app bundle in target directory.
+          APP_PATH=$(find target -path '*/bundle/macos/*.app' -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "WARNING: .app bundle not found, skipping .app.zip"
+            exit 0
+          fi
+          APP_NAME=$(basename "$APP_PATH" .app)
+          ZIP_NAME="${APP_NAME}.app.zip"
+          echo "Creating $ZIP_NAME from $APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
+          mkdir -p dist/launcher-bundles
+          cp "$ZIP_NAME" dist/launcher-bundles/
+          echo "Created $ZIP_NAME ($(du -h "$ZIP_NAME" | cut -f1))"
+
+      - name: "⑪ Collect bundles"
         if: always()
         uses: ./.github/actions/launcher-collect-bundles
 
-      - name: "⑩ Upload CI artifacts"
+      - name: "⑫ Upload CI artifacts"
         if: always()
         uses: ./.github/actions/launcher-upload-ci-artifacts
         with:
           artifact-name: launcher-release-${{ matrix.id }}
 
-      - name: "⑪ Upload GitHub Release"
+      - name: "⑬ Upload GitHub Release"
         if: startsWith(github.ref, 'refs/tags/')
         uses: ./.github/actions/launcher-upload-release
         with:
