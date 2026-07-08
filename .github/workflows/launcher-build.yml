@@ -88,37 +88,15 @@ jobs:
         with:
           platform: ${{ matrix.runner }}
 
-      - name: "⑦b macOS signing"
-        if: matrix.id == 'macos'
-        uses: ./.github/actions/launcher-setup-macos-signing
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-
       - name: "⑧ Tauri build"
         uses: ./.github/actions/launcher-tauri-build
         with:
           tauri-args: ${{ matrix.tauri-args }}
           release-draft: "true"
           prerelease: "true"
+          signing: "false"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: "⑧b DMG webloc"
-        if: matrix.id == 'macos'
-        uses: ./.github/actions/launcher-inject-dmg-webloc
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
 
       - name: "⑨ Collect bundles"
         if: always()
