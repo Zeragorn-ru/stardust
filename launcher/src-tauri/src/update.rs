@@ -264,14 +264,6 @@ fn pick_asset(assets: &[GhAsset]) -> Option<&GhAsset> {
     }
 }
 
-/// Ищет .app.zip ассет в релизе (для macOS автообновления).
-#[cfg(target_os = "macos")]
-fn find_app_zip_asset<'a>(assets: &'a [GhAsset]) -> Option<&'a GhAsset> {
-    assets
-        .iter()
-        .find(|a| a.name.to_lowercase().ends_with(".app.zip"))
-}
-
 /// Извлекает .app из .app.zip.
 /// Принимает путь к скачанному zip-файлу, возвращает путь к .app директории.
 #[cfg(target_os = "macos")]
