@@ -28,40 +28,47 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        platform: ${{ fromJSON(
+          github.event_name == 'push' && '["windows","linux","macos"]' ||
+          github.event.inputs.platform == 'all' && '["windows","linux","macos"]' ||
+          github.event.inputs.platform == 'windows' && '["windows"]' ||
+          github.event.inputs.platform == 'linux' && '["linux"]' ||
+          github.event.inputs.platform == 'macos' && '["macos"]' ||
+          '["windows","linux","macos"]'
+        ) }}
         include:
           - id: windows
-            platform: windows-latest
+            platform: windows
+            runner: windows-latest
             tauri-args: ""
           - id: linux
-            platform: ubuntu-22.04
+            platform: linux
+            runner: ubuntu-22.04
             tauri-args: ""
           - id: macos
-            platform: macos-latest
+            platform: macos
+            runner: macos-latest
             tauri-args: "--target universal-apple-darwin"
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
     # Пустая строка = без deployment environment (только macOS использует launcher-release).
     environment: ${{ matrix.id == 'macos' && 'launcher-release' || '' }}
     env:
       CI: true
       GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-    if: >-
-      github.event_name == 'push' ||
-      github.event.inputs.platform == 'all' ||
-      github.event.inputs.platform == matrix.id
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: "① Linux deps"
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'linux'
         uses: ./.github/actions/launcher-setup-linux
 
       - name: "② Toolchain & caches"
         uses: ./.github/actions/launcher-setup-toolchain
         with:
-          platform: ${{ matrix.platform }}
+          platform: ${{ matrix.runner }}
           cache-key-suffix: release
           save-cache: ${{ startsWith(github.ref, 'refs/tags/') }}
 
@@ -75,7 +82,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') && matrix.id == 'windows'
         uses: ./.github/actions/launcher-build-bootstrap
         with:
-          platform: ${{ matrix.platform }}
+          platform: ${{ matrix.runner }}
 
       - name: "⑥ Set version from tag"
         if: startsWith(github.ref, 'refs/tags/')
