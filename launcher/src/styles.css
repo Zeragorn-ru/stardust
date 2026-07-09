@@ -304,31 +304,7 @@ body {
     border-radius: 50%;
     filter: blur(70px);
     opacity: 0.5;
-    will-change: transform;
-}
-
-.aurora__blob--1 {
-    top: -18%;
-    left: -10%;
-    background: radial-gradient(circle, #7c5cff 0%, transparent 65%);
-    animation: drift1 22s ease-in-out infinite alternate;
-}
-
-.aurora__blob--2 {
-    bottom: -22%;
-    right: -12%;
-    background: radial-gradient(circle, #4f8cff 0%, transparent 65%);
-    animation: drift2 26s ease-in-out infinite alternate;
-}
-
-.aurora__blob--3 {
-    top: 30%;
-    left: 40%;
-    width: 38vmax;
-    height: 38vmax;
-    background: radial-gradient(circle, #18b8a6 0%, transparent 65%);
-    opacity: 0.32;
-    animation: drift3 30s ease-in-out infinite alternate;
+    will-change: left, top;
 }
 
 /* Тонкая «зернистость» поверх, чтобы убрать бандинг градиентов */
@@ -341,31 +317,6 @@ body {
         transparent 0.5px
     );
     background-size: 3px 3px;
-}
-
-@keyframes drift1 {
-    from {
-        transform: translate(0, 0) scale(1);
-    }
-    to {
-        transform: translate(8vmax, 6vmax) scale(1.15);
-    }
-}
-@keyframes drift2 {
-    from {
-        transform: translate(0, 0) scale(1.1);
-    }
-    to {
-        transform: translate(-7vmax, -5vmax) scale(1);
-    }
-}
-@keyframes drift3 {
-    from {
-        transform: translate(-4vmax, 0) scale(0.9);
-    }
-    to {
-        transform: translate(5vmax, -4vmax) scale(1.1);
-    }
 }
 
 /* ============ Анимации входа ============ */

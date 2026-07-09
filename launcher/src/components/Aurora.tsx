@@ -5,46 +5,64 @@ function rand(min: number, max: number) {
   return Math.random() * (max - min) + min;
 }
 
-function generateDriftKeyframes(seed: string) {
+// Зоны движения каждого блоба (в vmax, viewport ≈ 100×100).
+// Зоны расположены так, чтобы50vmax-блобы не пересекались:
+//   1 — верхний левый, 2 — верхний правый, 3 — нижний центр.
+// Расстояние между центрами любых двух зон > 50vmax.
+const ZONES = [
+  { xMin: -20, xMax: 10, yMin: -18, yMax: 15 },
+  { xMin: 40, xMax: 70, yMin: -18, yMax: 15 },
+  { xMin: 8, xMax: 42, yMin: 38, yMax: 68 },
+];
+
+const BLOB_CONFIG = [
+  { color: "#7c5cff", size: "50vmax", opacity: 0.5, dur: 22 },
+  { color: "#4f8cff", size: "50vmax", opacity: 0.5, dur: 26 },
+  { color: "#18b8a6", size: "38vmax", opacity: 0.38, dur: 30 },
+];
+
+// Фиксированные позиции когда анимации выключены.
+const FIXED_POS = [
+  { top: "-18%", left: "-10%" },
+  { top: "-22%", right: "-12%" },
+  { top: "30%", left: "40%" },
+];
+
+function generateDriftKeyframes(seed: string, zone: (typeof ZONES)[0]) {
   const id = `drift-${seed}`;
+  const steps = 5;
   const frames: string[] = [];
 
-  for (let i = 0; i <= 3; i++) {
-    const t = i / 3;
-    const tx = rand(-8, 8);
-    const ty = rand(-7, 7);
-    const sc = rand(0.85, 1.2);
-    frames.push(
-      `${Math.round(t * 100)}% { transform: translate(${tx.toFixed(1)}vmax, ${ty.toFixed(1)}vmax) scale(${sc.toFixed(2)}); }`
-    );
+  for (let i = 0; i <= steps; i++) {
+    const pct = Math.round((i / steps) * 100);
+    const x = rand(zone.xMin, zone.xMax);
+    const y = rand(zone.yMin, zone.yMax);
+    frames.push(`${pct}% { left: ${x.toFixed(1)}vmax; top: ${y.toFixed(1)}vmax; }`);
   }
 
   return `@keyframes ${id} { ${frames.join(" ")} }`;
 }
 
-const BLOB_COLORS = [
-  { bg: "#7c5cff", pos: "top: -18%; left: -10%", size: "50vmax" },
-  { bg: "#4f8cff", pos: "bottom: -22%; right: -12%", size: "50vmax" },
-  { bg: "#18b8a6", pos: "top: 30%; left: 40%", size: "38vmax" },
-];
-
 const Aurora = memo(function Aurora() {
   const anim = animationsEnabled();
   const styleRef = useRef<HTMLStyleElement | null>(null);
 
-  const seeds = useMemo(() => ["a", "b", "c"].map(() => Math.random().toString(36).slice(2, 8)), []);
+  const seeds = useMemo(
+    () => ["a", "b", "c"].map(() => Math.random().toString(36).slice(2, 8)),
+    [],
+  );
 
   useEffect(() => {
     if (!anim) {
-      if (styleRef.current) {
-        styleRef.current.remove();
-        styleRef.current = null;
-      }
+      styleRef.current?.remove();
+      styleRef.current = null;
       return;
     }
 
     const sheet = document.createElement("style");
-    sheet.textContent = seeds.map(generateDriftKeyframes).join("\n");
+    sheet.textContent = seeds
+      .map((s, i) => generateDriftKeyframes(s, ZONES[i]))
+      .join("\n");
     document.head.appendChild(sheet);
     styleRef.current = sheet;
 
@@ -56,21 +74,19 @@ const Aurora = memo(function Aurora() {
 
   return (
     <div className="aurora" aria-hidden="true">
-      {BLOB_COLORS.map((blob, i) => (
+      {BLOB_CONFIG.map((blob, i) => (
         <span
           key={i}
           className="aurora__blob"
           style={{
-            background: `radial-gradient(circle, ${blob.bg} 0%, transparent 65%)`,
-            [blob.pos.includes("top") ? "top" : "bottom"]: blob.pos.includes("top")
-              ? blob.pos.match(/top:\s*([^;]+)/)![1]
-              : blob.pos.match(/bottom:\s*([^;]+)/)![1],
-            [blob.pos.includes("left") ? "left" : "right"]: blob.pos.includes("left")
-              ? blob.pos.match(/left:\s*([^;]+)/)![1]
-              : blob.pos.match(/right:\s*([^;]+)/)![1],
+            background: `radial-gradient(circle, ${blob.color} 0%, transparent 65%)`,
             width: blob.size,
             height: blob.size,
-            animation: anim ? `drift-${seeds[i]} ${20 + i * 4}s ease-in-out infinite alternate` : "none",
+            opacity: blob.opacity,
+            ...(anim ? {} : FIXED_POS[i]),
+            animation: anim
+              ? `drift-${seeds[i]} ${blob.dur}s ease-in-out infinite alternate`
+              : "none",
           }}
         />
       ))}
