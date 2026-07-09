@@ -23,7 +23,7 @@ export default function App() {
   const [view, setView] = useState<View>("login");
   const [exitView, setExitView] = useState<View | null>(null);
   const [exitClass, setExitClass] = useState("");
-  const [enterClass, setEnterClass] = useState("screen-enter");
+  const [enterClass, setEnterClass] = useState("");
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [ready, setReady] = useState(false);
   const { reload: reloadSkin } = useSkin();

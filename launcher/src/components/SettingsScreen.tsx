@@ -139,17 +139,6 @@ export default function SettingsScreen({
     }
   }
 
-  if (!settings) {
-    return (
-      <div className="settings">
-        <div className="settings__loading">
-          <div className="spinner" />
-          <span className="muted">Загрузка настроек…</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="settings">
       <header className="settings__header">
@@ -157,7 +146,7 @@ export default function SettingsScreen({
           ← Назад
         </button>
         <h2>Настройки</h2>
-        {section === "general" && (
+        {section === "general" && settings && (
           <button
             className="btn btn--primary settings__header-save"
             onClick={handleSave}
@@ -202,7 +191,14 @@ export default function SettingsScreen({
           </button>
         </nav>
 
-        {section === "account" ? (
+        {!settings ? (
+          <div className="settings__body settings__body--loading">
+            <div className="settings__loading">
+              <div className="spinner" />
+              <span className="muted">Загрузка настроек…</span>
+            </div>
+          </div>
+        ) : section === "account" ? (
           <div className="settings__body stagger" key="account">
             <AccountSection
               profile={profile}
