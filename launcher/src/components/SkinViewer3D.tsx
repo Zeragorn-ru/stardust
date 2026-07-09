@@ -5,6 +5,7 @@ import { WebGLRendererPlugin } from "@daidr/minecraft-skin-renderer/webgl";
 import type { SkinModel } from "../types";
 import { animationsEnabled } from "../preferences";
 import { useMotion } from "../motion";
+import { normalizeSkinForViewer } from "../skinNormalize";
 
 use(WebGLRendererPlugin);
 
@@ -102,9 +103,13 @@ const SkinViewer3D = memo(function SkinViewer3D({
       lastSkinRef.current = src;
       lastModelRef.current = model;
       viewer.setSlim(model === "slim");
-      viewer.setSkin(src).catch(() => {
-        if (src !== DEFAULT_SKIN) viewer.setSkin(DEFAULT_SKIN);
-      });
+      void normalizeSkinForViewer(src)
+        .then((normalized) => viewer.setSkin(normalized))
+        .catch(() => {
+          viewer.setSkin(src).catch(() => {
+            if (src !== DEFAULT_SKIN) viewer.setSkin(DEFAULT_SKIN);
+          });
+        });
     }
     if (capeUrl !== lastCapeRef.current) {
       lastCapeRef.current = capeUrl;
