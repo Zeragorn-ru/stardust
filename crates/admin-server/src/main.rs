@@ -200,6 +200,10 @@ async fn main() {
         .route("/api/deps-check", get(deps_check))
         .route("/api/settings/sync-stats", post(sync_stats))
         .route(
+            "/api/settings/reset-fingerprint",
+            post(reset_fingerprint),
+        )
+        .route(
             "/api/builds/files/:file_id/content",
             axum::routing::put(update_file_content),
         )
@@ -1283,6 +1287,31 @@ impl russh::client::Handler for SftpHandler {
                 Ok(true)
             }
         }
+    }
+}
+
+/// Удаляет known_hosts.json — сбрасывает отпечаток SSH-ключа сервера.
+/// При следующем подключении ключ будет принят заново.
+async fn reset_fingerprint(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    let path = state.modpack_dir.join("known_hosts.json");
+    match std::fs::remove_file(&path) {
+        Ok(()) => {
+            tracing::info!("[sftp] known_hosts.json удалён — отпечаток сброшен");
+            Ok(StatusCode::NO_CONTENT)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::info!("[sftp] known_hosts.json уже отсутствовал");
+            Ok(StatusCode::NO_CONTENT)
+        }
+        Err(e) => Err(ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Не удалось удалить known_hosts.json: {e}"),
+        )),
     }
 }
 

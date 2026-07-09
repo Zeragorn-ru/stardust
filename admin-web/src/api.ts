@@ -301,6 +301,10 @@ export const api = {
     return request("POST", "/api/settings/sync-stats");
   },
 
+  resetFingerprint(): Promise<void> {
+    return request("POST", "/api/settings/reset-fingerprint");
+  },
+
   buildCheck(buildId?: number): Promise<BuildCheckResult> {
     const qs = buildId != null ? `?build_id=${buildId}` : "";
     return request("GET", `/api/build-check${qs}`);

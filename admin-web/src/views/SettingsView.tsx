@@ -19,6 +19,7 @@ export function SettingsView() {
   const [sftpPassword, setSftpPassword] = useState("");
   const [sftpStatsPath, setSftpStatsPath] = useState("");
   const [savingPanel, setSavingPanel] = useState(false);
+  const [resettingFp, setResettingFp] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -112,6 +113,29 @@ export function SettingsView() {
       );
     } finally {
       setSavingPanel(false);
+    }
+  }
+
+  async function resetFingerprint() {
+    const ok = await confirm({
+      title: "Сбросить отпечаток сервера?",
+      body: "Файл known_hosts.json будет удалён. При следующем подключении ключ хоста будет принят заново. Используйте, если вы сменили SSH-ключ на сервере.",
+      confirmText: "Сбросить",
+      danger: true,
+    });
+    if (!ok) return;
+    setResettingFp(true);
+    try {
+      await api.resetFingerprint();
+      toast.success("Отпечаток сброшен — подключитесь к серверу заново");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось сбросить отпечаток",
+      );
+    } finally {
+      setResettingFp(false);
     }
   }
 
@@ -277,6 +301,13 @@ export function SettingsView() {
               </label>
 
               <div className="modal-actions">
+                <Button
+                  variant="destructive"
+                  disabled={resettingFp}
+                  onClick={resetFingerprint}
+                >
+                  Сбросить отпечаток
+                </Button>
                 <Button
                   disabled={savingPanel}
                   onClick={savePanel}
