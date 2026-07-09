@@ -391,6 +391,11 @@ body {
 
 /* ── Transition system ─────────────────────────────────────── */
 .screen-transition {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
     animation-duration: 380ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     animation-fill-mode: both;
