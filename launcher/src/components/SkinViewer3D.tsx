@@ -160,6 +160,21 @@ const SkinViewer3D = memo(function SkinViewer3D({
 
     let disposed = false;
 
+    function onContextLost(e: Event) {
+      e.preventDefault();
+      stopLoop();
+    }
+    function onContextRestored() {
+      const v = viewerRef.current;
+      if (v && visibleRef.current) {
+        v.resize(width, height);
+        startLoop();
+      }
+    }
+
+    canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
+
     createSkinViewer({
       canvas,
       preferredBackend: "webgl",
@@ -187,6 +202,8 @@ const SkinViewer3D = memo(function SkinViewer3D({
 
     return () => {
       disposed = true;
+      canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
       stopLoop();
       viewerRef.current?.dispose();
       viewerRef.current = null;
@@ -200,8 +217,14 @@ const SkinViewer3D = memo(function SkinViewer3D({
     if (!canvas) return;
     if (visible) {
       canvas.style.removeProperty("display");
+      // Пересчитываем размер после可能出现 display:none, иначе WebGL-буфер
+      // может оказаться 0×0 и отрисовка покажет белый квадрат.
+      const v = viewerRef.current;
+      if (v) {
+        v.resize(width, height);
+        startLoop();
+      }
       resetIdleTimer();
-      startLoop();
     } else {
       canvas.style.display = "none";
       stopLoop();
@@ -276,7 +299,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     <canvas
       ref={canvasRef}
       className="skin-viewer-3d"
-      style={{ width, height, willChange: "transform" }}
+      style={{ width, height }}
     />
   );
 });
