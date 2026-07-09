@@ -109,11 +109,19 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
 
-      - name: "⑧ Tauri build"
+      - name: "⑧ Tauri build (unsigned)"
+        if: matrix.id != 'macos' || steps.signing.outputs.available != 'true'
         uses: ./.github/actions/launcher-tauri-build
         with:
           tauri-args: ${{ matrix.tauri-args }}
-          signing: ${{ matrix.id == 'macos' && steps.signing.outputs.available == 'true' && 'true' || 'false' }}
+          signing: "false"
+
+      - name: "⑧ Tauri build (signed)"
+        if: matrix.id == 'macos' && steps.signing.outputs.available == 'true'
+        uses: ./.github/actions/launcher-tauri-build
+        with:
+          tauri-args: ${{ matrix.tauri-args }}
+          signing: "true"
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
