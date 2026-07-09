@@ -87,7 +87,7 @@ jobs:
         uses: ./.github/actions/launcher-wait-token
 
       - name: "⑦b macOS signing"
-        if: matrix.id == 'macos'
+        if: matrix.id == 'macos' && secrets.APPLE_CERTIFICATE != ''
         uses: ./.github/actions/launcher-setup-macos-signing
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -101,20 +101,21 @@ jobs:
         uses: ./.github/actions/launcher-tauri-build
         with:
           tauri-args: ${{ matrix.tauri-args }}
+          signing: ${{ matrix.id == 'macos' && secrets.APPLE_CERTIFICATE != '' && 'true' || 'false' }}
         env:
-          APPLE_CERTIFICATE: ${{ matrix.id == 'macos' && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ matrix.id == 'macos' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
-          KEYCHAIN_PASSWORD: ${{ matrix.id == 'macos' && secrets.KEYCHAIN_PASSWORD || '' }}
-          APPLE_ID: ${{ matrix.id == 'macos' && secrets.APPLE_ID || '' }}
-          APPLE_PASSWORD: ${{ matrix.id == 'macos' && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.id == 'macos' && secrets.APPLE_TEAM_ID || '' }}
-          APPLE_API_ISSUER: ${{ matrix.id == 'macos' && secrets.APPLE_API_ISSUER || '' }}
-          APPLE_API_KEY: ${{ matrix.id == 'macos' && secrets.APPLE_API_KEY || '' }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
 
       - name: "⑧b DMG webloc"
-        if: matrix.id == 'macos'
+        if: matrix.id == 'macos' && secrets.APPLE_CERTIFICATE != ''
         uses: ./.github/actions/launcher-inject-dmg-webloc
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}

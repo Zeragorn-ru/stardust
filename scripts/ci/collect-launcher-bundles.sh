@@ -16,8 +16,16 @@ while IFS= read -r -d '' file; do
   cp -v "$file" "$out/"
   found=$((found + 1))
 done < <(find target -path '*/bundle/*' -type f \( \
-  -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.msi' \
+  -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.msi' -o -name '*.app.zip' \
 \) -print0)
+
+# macOS .app directory — copy as .app.zip
+while IFS= read -r -d '' app; do
+  zip_name="$(basename "$app" .app).app.zip"
+  echo "Creating $zip_name from $app"
+  ditto -c -k --sequesterRsrc --keepParent "$app" "$out/$zip_name"
+  found=$((found + 1))
+done < <(find target -path '*/bundle/*' -name '*.app' -type d -print0)
 
 if [ -f launcher/src-tauri/nsis/bootstrap.exe ]; then
   cp -v launcher/src-tauri/nsis/bootstrap.exe "$out/"
