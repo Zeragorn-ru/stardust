@@ -3,6 +3,7 @@ import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "..
 import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
+import { useDelayedUnmount } from "../useDelayedUnmount";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
@@ -55,6 +56,9 @@ export default function MainScreen({
   const [playersOpen, setPlayersOpen] = useState(false);
   const [windowFocused, setWindowFocused] = useState(true);
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
+
+  const playersModal = useDelayedUnmount(playersOpen);
+  const skinModal = useDelayedUnmount(skinOpen);
 
   // Загружаем статистику и настройки при монтировании.
   useEffect(() => {
@@ -384,10 +388,10 @@ export default function MainScreen({
         </div>
       </section>
 
-      {playersOpen && (
-        <div className="modal-overlay" onClick={() => setPlayersOpen(false)}>
+      {playersModal.shouldRender && (
+        <div className={"modal-overlay" + (playersModal.visible ? "" : " modal-overlay--closing")} onClick={() => setPlayersOpen(false)}>
           <div
-            className="modal players-modal"
+            className={"modal players-modal" + (playersModal.visible ? "" : " modal--closing")}
             role="dialog"
             aria-modal="true"
             aria-label="Игроки онлайн"
@@ -429,7 +433,13 @@ export default function MainScreen({
         </div>
       )}
 
-      {skinOpen && <CustomizeModal playerName={profile.name} onClose={() => setSkinOpen(false)} />}
+      {skinModal.shouldRender && (
+        <CustomizeModal
+          playerName={profile.name}
+          onClose={() => setSkinOpen(false)}
+          closing={!skinModal.visible}
+        />
+      )}
     </div>
   );
 }

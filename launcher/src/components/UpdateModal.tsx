@@ -5,6 +5,7 @@ import { installUpdate, onUpdateProgress } from "../api";
 interface Props {
   update: UpdateInfo;
   onDismiss: () => void;
+  closing?: boolean;
 }
 
 function formatSize(bytes: number): string {
@@ -69,7 +70,7 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export default function UpdateModal({ update, onDismiss }: Props) {
+export default function UpdateModal({ update, onDismiss, closing }: Props) {
   const [status, setStatus] = useState<"idle" | "installing" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
@@ -109,9 +110,9 @@ export default function UpdateModal({ update, onDismiss }: Props) {
   const phaseIcon = phaseKey ? PHASE_ICONS[phaseKey] ?? "•" : null;
 
   return (
-    <div className="update-overlay" onClick={installing ? undefined : onDismiss}>
+    <div className={"update-overlay" + (closing ? " update-overlay--closing" : "")} onClick={installing ? undefined : onDismiss}>
       <div
-        className="update-card"
+        className={"update-card" + (closing ? " update-card--closing" : "")}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

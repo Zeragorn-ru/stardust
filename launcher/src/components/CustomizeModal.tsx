@@ -7,9 +7,10 @@ type Tab = "skin" | "nick";
 interface Props {
   playerName: string;
   onClose: () => void;
+  closing?: boolean;
 }
 
-export default function CustomizeModal({ playerName, onClose }: Props) {
+export default function CustomizeModal({ playerName, onClose, closing }: Props) {
   const [tab, setTab] = useState<Tab>("skin");
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -23,9 +24,9 @@ export default function CustomizeModal({ playerName, onClose }: Props) {
   }, []);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className={"modal-overlay" + (closing ? " modal-overlay--closing" : "")} onClick={onClose}>
       <div
-        className="modal customize-modal"
+        className={"modal customize-modal" + (closing ? " modal--closing" : "")}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

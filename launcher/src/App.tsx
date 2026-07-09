@@ -3,6 +3,7 @@ import type { PlayerProfile, Progress, UpdateInfo } from "./types";
 import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
+import { useDelayedUnmount } from "./useDelayedUnmount";
 import Aurora from "./components/Aurora";
 import ErrorBoundary from "./components/ErrorBoundary";
 import OnboardingScreen from "./components/OnboardingScreen";
@@ -28,6 +29,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const { reload: reloadSkin } = useSkin();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const updateModal = useDelayedUnmount(update != null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const progressRef = useRef(progress);
@@ -226,8 +228,8 @@ export default function App() {
           )}
         </div>
       </ErrorBoundary>
-      {update && (
-        <UpdateModal update={update} onDismiss={() => setUpdate(null)} />
+      {updateModal.shouldRender && update && (
+        <UpdateModal update={update} onDismiss={() => setUpdate(null)} closing={!updateModal.visible} />
       )}
     </div>
   );
