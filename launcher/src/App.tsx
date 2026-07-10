@@ -4,7 +4,6 @@ import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLaunch
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
 import { useDelayedUnmount } from "./useDelayedUnmount";
-import Aurora from "./components/Aurora";
 import ErrorBoundary from "./components/ErrorBoundary";
 import OnboardingScreen from "./components/OnboardingScreen";
 import LoginScreen from "./components/LoginScreen";
@@ -212,7 +211,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <Aurora />
       <TitleBar />
       <ErrorBoundary>
         <div className="app__content">

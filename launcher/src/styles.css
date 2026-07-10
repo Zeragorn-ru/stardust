@@ -143,7 +143,12 @@ body {
     position: relative;
     height: 100vh;
     overflow: hidden;
-    background: var(--bg-deep);
+    background: radial-gradient(
+        120% 120% at 50% -10%,
+        #141833 0%,
+        var(--bg) 45%,
+        var(--bg-deep) 100%
+    );
     box-shadow:
         0 24px 70px -20px rgba(0, 0, 0, 0.75),
         0 0 0 1px rgba(0, 0, 0, 0.4);
@@ -281,44 +286,6 @@ body {
     place-items: center;
 }
 
-/* ============ Аврора (фон) ============ */
-
-.aurora {
-    position: absolute;
-    inset: 0;
-    z-index: 0;
-    overflow: hidden;
-    pointer-events: none;
-    background: radial-gradient(
-        120% 120% at 50% -10%,
-        #141833 0%,
-        var(--bg) 45%,
-        var(--bg-deep) 100%
-    );
-}
-
-.aurora__blob {
-    position: absolute;
-    width: 50vmax;
-    height: 50vmax;
-    border-radius: 50%;
-    filter: blur(70px);
-    opacity: 0.5;
-    will-change: left, top;
-}
-
-/* Тонкая «зернистость» поверх, чтобы убрать бандинг градиентов */
-.aurora__grain {
-    position: absolute;
-    inset: 0;
-    opacity: 0.04;
-    background-image: radial-gradient(
-        rgba(255, 255, 255, 0.6) 0.5px,
-        transparent 0.5px
-    );
-    background-size: 3px 3px;
-}
-
 /* ============ Анимации входа ============ */
 
 .screen-enter {
@@ -437,22 +404,6 @@ body {
 :root[data-motion="off"] .hero__skin::before {
     animation: none !important;
     filter: none !important;
-}
-:root[data-motion="off"] .aurora__blob {
-    animation: none !important;
-    opacity: 0 !important;
-    will-change: auto !important;
-}
-:root[data-motion="off"] .aurora__grain {
-    display: none !important;
-}
-:root[data-motion="off"] .aurora {
-    background: radial-gradient(
-        120% 120% at 50% -10%,
-        #141833 0%,
-        var(--bg) 45%,
-        var(--bg-deep) 100%
-    ) !important;
 }
 
 .glass-in {
