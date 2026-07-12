@@ -23,13 +23,14 @@
                 <img src="public/stardust-logo.svg?v=three-rings" alt="StarDust" class="logo-icon">
                 <span>StarDust</span>
             </a>
-            <div class="nav-links">
+            <div class="nav-links" id="site-nav">
                 <a href="#features">Возможности</a>
+                <a href="#experience">Что ждёт</a>
                 <a href="#how">Как начать</a>
                 <a href="#faq">FAQ</a>
             </div>
             <a href="#download" class="btn btn-primary btn-sm">Скачать</a>
-            <button class="mobile-menu-btn" aria-label="Меню">
+            <button class="mobile-menu-btn" aria-label="Меню" aria-expanded="false" aria-controls="site-nav">
                 <span></span><span></span><span></span>
             </button>
         </div>
@@ -41,42 +42,106 @@
             <div class="hero-glow-2"></div>
             <div class="hero-particles" id="particles"></div>
         </div>
-        <div class="container hero-content">
-            <div class="hero-logo-wrap reveal">
-                <img src="public/stardust-logo.svg?v=three-rings" alt="StarDust" class="hero-logo">
+        <div class="container hero-content hero-layout">
+            <div class="hero-copy-block">
+                <div class="hero-logo-wrap reveal">
+                    <img src="public/stardust-logo.svg?v=three-rings" alt="StarDust" class="hero-logo">
+                </div>
+                <div class="hero-badge reveal reveal-delay-1"><span class="hero-badge-dot"></span>Приватный Minecraft сервер</div>
+                <h1>Скачай лаунчер.<br><span class="gradient-text">Зайди в мир без ручной сборки.</span></h1>
+                <p class="hero-description">
+                    StarDust сам поставит модпак, NeoForge и обновления. Тебе остаётся
+                    зарегистрироваться, нажать «Играть» и зайти на сервер через несколько минут.
+                </p>
+                <div class="hero-actions">
+                    <a href="#download" class="btn btn-primary btn-xl">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Скачать лаунчер
+                    </a>
+                    <a href="#experience" class="btn btn-ghost btn-lg">Что внутри</a>
+                </div>
+                <div class="hero-platforms">
+                    <span class="platform">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+                        Windows
+                    </span>
+                    <span class="platform-sep"></span>
+                    <span class="platform">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                        macOS
+                    </span>
+                    <span class="platform-sep"></span>
+                    <span class="platform">
+                        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.368 1.884 1.43.274.021.551-.029.822-.09a.42.42 0 00.11-.034c.26-.134.49-.382.664-.67.149-.268.269-.59.327-.94.061-.349.07-.728-.009-1.117-.019-.091-.043-.177-.063-.271-.126-.576-.274-1.158-.665-2.117-.483-1.167-1.327-2.576-2.715-3.668-.991-.75-2.128-1.266-3.109-1.506-.644-.155-1.178-.179-1.535-.154zm-.195 1.578c.313 0 1.258.155 2.093.587.837.437 1.685 1.203 2.332 2.136.647.846 1.094 1.87 1.157 2.633.049.556-.043.879-.15 1.118a2.43 2.43 0 00-.042.334c.013.091.033.169.053.26l.009.04c.163.619.137 1.053-.066 1.405-.066.127-.152.242-.274.35a2.45 2.45 0 01-.157.134c-.01.012-.022.024-.035.035l-.012.012a.86.86 0 01-.277.135c-.252.076-.479.077-.672.021a1.532 1.532 0 01-.234-.098 2.382 2.382 0 01-.113-.067l-.01-.007-.013-.008c-.178-.121-.391-.286-.681-.467-.365-.247-.885-.473-1.655-.588-.485-.054-1.008.04-1.54.135l-.138.027c-.342.074-.681.147-1.017.147-.107 0-.213-.01-.319-.028l-.015-.003a.41.41 0 01-.092-.034l-.013-.007c-.375-.2-.574-.536-.773-.871-.199-.334-.398-.67-.764-.838-.115-.055-.23-.077-.343-.077z"/></svg>
+                        Linux
+                    </span>
+                </div>
+                <div class="hero-stats reveal reveal-delay-2">
+                    <div class="hero-stat-card">
+                        <strong>3–5 минут</strong>
+                        <span>до первого входа в игру</span>
+                    </div>
+                    <div class="hero-stat-card">
+                        <strong>50+ модов</strong>
+                        <span>ставятся автоматически</span>
+                    </div>
+                    <div class="hero-stat-card">
+                        <strong>2FA</strong>
+                        <span>через Telegram по желанию</span>
+                    </div>
+                </div>
             </div>
-            <div class="hero-badge reveal reveal-delay-1"><span class="hero-badge-dot"></span>Приватный Minecraft сервер</div>
-            <h1>Скачай. Установи.<br><span class="gradient-text">Играй.</span></h1>
-            <p class="hero-description">
-                Один лаунчер — и ты в игре. Автоматическая установка модов,
-                кастомизация и обновления. Никакой ручной настройки.
-            </p>
-            <div class="hero-actions">
-                <a href="#download" class="btn btn-primary btn-xl">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    Скачать лаунчер
-                </a>
-                <a href="#how" class="btn btn-ghost btn-lg">Как начать</a>
-            </div>
-            <div class="hero-platforms">
-                <span class="platform">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
-                    Windows
-                </span>
-                <span class="platform-sep"></span>
-                <span class="platform">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-                    macOS
-                </span>
-                <span class="platform-sep"></span>
-                <span class="platform">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.368 1.884 1.43.274.021.551-.029.822-.09a.42.42 0 00.11-.034c.26-.134.49-.382.664-.67.149-.268.269-.59.327-.94.061-.349.07-.728-.009-1.117-.019-.091-.043-.177-.063-.271-.126-.576-.274-1.158-.665-2.117-.483-1.167-1.327-2.576-2.715-3.668-.991-.75-2.128-1.266-3.109-1.506-.644-.155-1.178-.179-1.535-.154zm-.195 1.578c.313 0 1.258.155 2.093.587.837.437 1.685 1.203 2.332 2.136.647.846 1.094 1.87 1.157 2.633.049.556-.043.879-.15 1.118a2.43 2.43 0 00-.042.334c.013.091.033.169.053.26l.009.04c.163.619.137 1.053-.066 1.405-.066.127-.152.242-.274.35a2.45 2.45 0 01-.157.134c-.01.012-.022.024-.035.035l-.012.012a.86.86 0 01-.277.135c-.252.076-.479.077-.672.021a1.532 1.532 0 01-.234-.098 2.382 2.382 0 01-.113-.067l-.01-.007-.013-.008c-.178-.121-.391-.286-.681-.467-.365-.247-.885-.473-1.655-.588-.485-.054-1.008.04-1.54.135l-.138.027c-.342.074-.681.147-1.017.147-.107 0-.213-.01-.319-.028l-.015-.003a.41.41 0 01-.092-.034l-.013-.007c-.375-.2-.574-.536-.773-.871-.199-.334-.398-.67-.764-.838-.115-.055-.23-.077-.343-.077z"/></svg>
-                    Linux
-                </span>
+            <div class="hero-showcase reveal reveal-delay-3">
+                <div class="hero-showcase-card hero-showcase-card--primary">
+                    <div class="showcase-topline">
+                        <span class="showcase-label">Launcher flow</span>
+                        <span class="showcase-pill">Zero manual setup</span>
+                    </div>
+                    <div class="showcase-window">
+                        <div class="showcase-window-bar">
+                            <span></span><span></span><span></span>
+                        </div>
+                        <div class="showcase-window-body">
+                            <div class="showcase-side">
+                                <div class="showcase-side-item active">StarDust</div>
+                                <div class="showcase-side-item">Моды</div>
+                                <div class="showcase-side-item">Профиль</div>
+                                <div class="showcase-side-item">Логи</div>
+                            </div>
+                            <div class="showcase-main">
+                                <div class="showcase-main-head">
+                                    <strong>Launcher ready</strong>
+                                    <small>Minecraft · NeoForge · assets</small>
+                                </div>
+                                <div class="showcase-progress">
+                                    <span style="width: 82%"></span>
+                                </div>
+                                <div class="showcase-info-grid">
+                                    <div><strong>Java 21</strong><span>установится автоматически</span></div>
+                                    <div><strong>2 ГБ</strong><span>модпак загрузится при старте</span></div>
+                                    <div><strong>Обновления</strong><span>только изменённые файлы</span></div>
+                                    <div><strong>Профиль</strong><span>ник, пароль, Telegram 2FA</span></div>
+                                </div>
+                                <div class="showcase-actions-row">
+                                    <span class="showcase-action active">Играть</span>
+                                    <span class="showcase-action">Обновить</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-showcase-card hero-showcase-card--secondary">
+                    <span class="showcase-label">Что получаешь</span>
+                    <ul class="hero-proof-list">
+                        <li><span></span>Лаунчер ставит сборку и NeoForge сам</li>
+                        <li><span></span>Обновления приходят без полной переустановки</li>
+                        <li><span></span>Кастомизация ника и бейджей уже встроена</li>
+                    </ul>
+                </div>
             </div>
         </div>
     </section>
@@ -158,6 +223,50 @@
         </div>
     </section>
 
+    <section class="experience" id="experience">
+        <div class="container">
+            <div class="section-header reveal">
+                <span class="section-tag">Что ждёт внутри</span>
+                <h2>Путь до сервера понятен ещё до установки</h2>
+                <p>Без ручного поиска Java, без папок с модами и без разборов, почему очередная сборка не запускается.</p>
+            </div>
+            <div class="experience-grid">
+                <div class="experience-card experience-card--wide reveal reveal-delay-1">
+                    <div class="experience-copy">
+                        <span class="experience-kicker">Первый запуск</span>
+                        <h3>Лаунчер сам собирает клиент под тебя</h3>
+                        <p>После входа StarDust скачивает модпак, зависимости и нужную версию Java, а потом обновляет только изменённые файлы.</p>
+                    </div>
+                    <div class="experience-timeline" aria-label="Сценарий первого запуска">
+                        <div class="experience-step-chip active"><strong>1</strong><span>Установщик</span></div>
+                        <div class="experience-step-chip active"><strong>2</strong><span>Аккаунт</span></div>
+                        <div class="experience-step-chip active"><strong>3</strong><span>Модпак</span></div>
+                        <div class="experience-step-chip"><strong>4</strong><span>Играть</span></div>
+                    </div>
+                </div>
+                <div class="experience-card reveal reveal-delay-2">
+                    <span class="experience-kicker">Аккаунт</span>
+                    <h3>Доступ под контролем</h3>
+                    <p>Регистрация проходит через собственную систему аккаунтов, а Telegram 2FA можно включить без лишней настройки.</p>
+                    <div class="experience-inline-meta">
+                        <span>Ник + пароль</span>
+                        <span>Telegram код</span>
+                    </div>
+                </div>
+                <div class="experience-card reveal reveal-delay-3">
+                    <span class="experience-kicker">После входа</span>
+                    <h3>Серверная кастомизация уже рядом</h3>
+                    <p>Бейджи, градиенты ника и статусные элементы не требуют сторонних утилит и доступны в экосистеме проекта.</p>
+                    <div class="experience-inline-meta">
+                        <span>Бейджи</span>
+                        <span>Градиенты</span>
+                        <span>Профиль</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="how" id="how">
         <div class="container">
             <div class="section-header reveal">
@@ -207,6 +316,11 @@
                         <h3>Windows</h3>
                     </div>
                     <p>Windows 10/11</p>
+                    <div class="download-meta-list">
+                        <span>Установщик `.exe`</span>
+                        <span>Первый запуск 3–5 минут</span>
+                        <span>Подходит большинству игроков</span>
+                    </div>
                     <a href="https://github.com/Zeragorn-ru/stardust/releases/latest" class="btn btn-primary btn-block btn-lg" target="_blank" rel="noopener">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -225,6 +339,11 @@
                         <h3>macOS</h3>
                     </div>
                     <p>macOS 12+ (Universal)</p>
+                    <div class="download-meta-list">
+                        <span>Пакет `.dmg`</span>
+                        <span>Intel и Apple Silicon</span>
+                        <span>Обновления внутри лаунчера</span>
+                    </div>
                     <a href="https://github.com/Zeragorn-ru/stardust/releases/latest" class="btn btn-primary btn-block" target="_blank" rel="noopener">Скачать .dmg</a>
                     <span class="download-size">~18 МБ</span>
                 </div>
@@ -236,6 +355,11 @@
                         <h3>Linux</h3>
                     </div>
                     <p>Ubuntu / Debian / Fedora</p>
+                    <div class="download-meta-list">
+                        <span>Пакет `.deb`</span>
+                        <span>Подходит для большинства desktop-дистрибутивов</span>
+                        <span>Первый запуск скачает модпак автоматически</span>
+                    </div>
                     <a href="https://github.com/Zeragorn-ru/stardust/releases/latest" class="btn btn-primary btn-block" target="_blank" rel="noopener">Скачать .deb</a>
                     <span class="download-size">~15 МБ</span>
                 </div>
@@ -259,57 +383,57 @@
             </div>
             <div class="faq-list">
                 <div class="faq-item reveal reveal-delay-1">
-                    <button class="faq-question">
+                    <button class="faq-question" aria-expanded="false" aria-controls="faq-answer-1" id="faq-question-1">
                         <span>Скачал лаунчер — что дальше?</span>
                         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
                     </button>
-                    <div class="faq-answer">
+                    <div class="faq-answer" id="faq-answer-1" role="region" aria-labelledby="faq-question-1">
                         <p>Установи лаунчер, создай аккаунт (ник + пароль) и нажми «Играть». Ленчер сам скачает моды, настроит NeoForge и запустит Minecraft. Весь процесс занимает 3-5 минут.</p>
                     </div>
                 </div>
                 <div class="faq-item reveal reveal-delay-2">
-                    <button class="faq-question">
+                    <button class="faq-question" aria-expanded="false" aria-controls="faq-answer-2" id="faq-question-2">
                         <span>Нужно ли устанавливать моды вручную?</span>
                         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
                     </button>
-                    <div class="faq-answer">
+                    <div class="faq-answer" id="faq-answer-2" role="region" aria-labelledby="faq-question-2">
                         <p>Нет. Лаунчер автоматически скачивает и устанавливает всю сборку. Твои личные конфиги не затираются — сохраняй настройки модов как привыкли.</p>
                     </div>
                 </div>
                 <div class="faq-item reveal reveal-delay-3">
-                    <button class="faq-question">
+                    <button class="faq-question" aria-expanded="false" aria-controls="faq-answer-3" id="faq-question-3">
                         <span>Как работает двухфакторная аутентификация?</span>
                         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
                     </button>
-                    <div class="faq-answer">
+                    <div class="faq-answer" id="faq-answer-3" role="region" aria-labelledby="faq-question-3">
                         <p>При входе в лаунчер ты получаешь код в Telegram-бот. Это опциональная, но рекомендуемая защита аккаунта от несанкционированного доступа.</p>
                     </div>
                 </div>
                 <div class="faq-item reveal reveal-delay-4">
-                    <button class="faq-question">
+                    <button class="faq-question" aria-expanded="false" aria-controls="faq-answer-4" id="faq-question-4">
                         <span>Можно ли играть с друзьями?</span>
                         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
                     </button>
-                    <div class="faq-answer">
+                    <div class="faq-answer" id="faq-answer-4" role="region" aria-labelledby="faq-question-4">
                         <p>Конечно! StarDust — приватный сервер для дружной компании. Приглашай друзей, создавай кланы и покоряйте мир вместе.</p>
                     </div>
                 </div>
                 <div class="faq-item reveal reveal-delay-5">
-                    <button class="faq-question">
+                    <button class="faq-question" aria-expanded="false" aria-controls="faq-answer-5" id="faq-question-5">
                         <span>Какие системные требования?</span>
                         <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
                     </button>
-                    <div class="faq-answer">
+                    <div class="faq-answer" id="faq-answer-5" role="region" aria-labelledby="faq-question-5">
                         <p>Минимум: 4 ГБ RAM, 2 ГБ свободного места. Рекомендуется: 8+ ГБ RAM, SSD. Java 21+ установится автоматически при первом запуске.</p>
                     </div>
                 </div>

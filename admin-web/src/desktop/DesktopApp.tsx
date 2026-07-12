@@ -49,6 +49,7 @@ function Shell() {
   const { username, logout } = useAuth();
   const location = useLocation();
   const section = location.pathname.split("/")[1] || "overview";
+  const sectionMeta = sectionDetails(section);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
@@ -138,13 +139,17 @@ function Shell() {
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <div>
+          <div className="topbar-copy">
             <span className="topbar-eyebrow">/{section}</span>
-            <strong>{sectionTitle(section)}</strong>
+            <strong>{sectionMeta.title}</strong>
+            <small className="topbar-description">{sectionMeta.description}</small>
           </div>
-          <div className="topbar-status">
-            <span className="status-dot status-dot--online" />
-            API connected
+          <div className="topbar-actions">
+            <a className="topbar-view-link" href={switchViewHref("mobile")}>Открыть mobile web-app</a>
+            <div className="topbar-status" aria-label="Статус админ-панели">
+              <span className="status-dot status-dot--online" />
+              Сессия активна
+            </div>
           </div>
         </header>
         <main className="content">
@@ -163,17 +168,32 @@ function Shell() {
   );
 }
 
-function sectionTitle(section: string): string {
+function sectionDetails(section: string): { title: string; description: string } {
   switch (section) {
     case "builds":
-      return "Сборки и файлы";
+      return {
+        title: "Сборки и файлы",
+        description: "Релизы, содержимое сборок и проверка клиентских артефактов.",
+      };
     case "accounts":
-      return "Игроки и доступ";
+      return {
+        title: "Игроки и доступ",
+        description: "Поиск, модерация, Telegram-связка и статусы аккаунтов.",
+      };
     case "customization":
-      return "Косметика";
+      return {
+        title: "Косметика",
+        description: "Бейджи, градиенты и элементы идентичности игроков.",
+      };
     case "settings":
-      return "Инфраструктура";
+      return {
+        title: "Инфраструктура",
+        description: "Telegram, SFTP и backend-конфигурация без потери контекста.",
+      };
     default:
-      return "Панель управления";
+      return {
+        title: "Панель управления",
+        description: "Ключевые статусы платформы и быстрые операционные действия.",
+      };
   }
 }

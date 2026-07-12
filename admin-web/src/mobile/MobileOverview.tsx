@@ -65,17 +65,21 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
 
   return (
     <div className="m-screen m-overview">
-      <section className="m-hero-card">
+      <section className="m-hero-card m-hero-card--overview">
         <span className="m-eyebrow">Infrastructure Overview</span>
         <h1>Панель сервера</h1>
         <p>Состояние сборки, игроков и интеграций без перехода в десктопную версию.</p>
+        <div className="m-hero-pills">
+          <span>{activeBuild ? `Активна ${activeBuild.name}` : "Нет активной сборки"}</span>
+          <span>{settings?.telegramTokenSet ? "Telegram подключен" : "Telegram требует настройки"}</span>
+        </div>
       </section>
 
       <div className="m-metric-grid">
-        <Metric label="Builds" value={loading ? "..." : String(builds.length)} hint={activeBuild?.name ?? "нет active"} tone="blue" />
-        <Metric label="Players" value={loading ? "..." : String(accounts.length)} hint={`${stats.admins} admin · ${stats.banned} ban`} tone="green" />
-        <Metric label="Telegram" value={settings?.telegramTokenSet ? "on" : "off"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "not set"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
-        <Metric label="SFTP" value={settings?.sftpPasswordSet ? "ready" : "setup"} hint={settings?.sftpHost || "host empty"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+        <Metric label="Сборки" value={loading ? "..." : String(builds.length)} hint={activeBuild?.name ?? "активная не выбрана"} tone="blue" />
+        <Metric label="Игроки" value={loading ? "..." : String(accounts.length)} hint={`${stats.admins} админ · ${stats.banned} бан`} tone="green" />
+        <Metric label="Telegram" value={settings?.telegramTokenSet ? "online" : "offline"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
+        <Metric label="SFTP" value={settings?.sftpPasswordSet ? "ready" : "setup"} hint={settings?.sftpHost || "хост не задан"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
       </div>
 
       <section className="m-section-card">
@@ -110,12 +114,31 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         </button>
         <button className="m-wide-action" type="button" onClick={() => onOpenTab("accounts")}>
           <span className="m-row-icon"><IconUsers size={16} /></span>
-          <span className="m-row-main"><strong>Аккаунты</strong><small>{stats.linked}/{accounts.length} Telegram linked</small></span>
+          <span className="m-row-main"><strong>Аккаунты</strong><small>{stats.linked}/{accounts.length} связаны с Telegram</small></span>
         </button>
         <button className="m-wide-action" type="button" onClick={() => onOpenTab("customization")}>
           <span className="m-row-icon"><IconBox size={16} /></span>
           <span className="m-row-main"><strong>Косметика</strong><small>Бейджи и градиенты ника</small></span>
         </button>
+      </section>
+
+      <section className="m-section-card">
+        <div className="m-section-head">
+          <div>
+            <span className="m-eyebrow">iPhone / iPad web-app</span>
+            <h2>Частые сценарии</h2>
+          </div>
+        </div>
+        <div className="m-journey-grid">
+          <button className="m-journey-card" type="button" onClick={() => onOpenTab("builds")}>
+            <strong>Сборки</strong>
+            <small>Открыть релизы, файлы и активную версию</small>
+          </button>
+          <button className="m-journey-card" type="button" onClick={() => onOpenTab("settings")}>
+            <strong>Интеграции</strong>
+            <small>Проверить Telegram, SFTP и backend-настройки</small>
+          </button>
+        </div>
       </section>
     </div>
   );

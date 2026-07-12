@@ -61,27 +61,56 @@ export function OverviewView() {
 
   return (
     <div className="view overview-view">
-      <section className="hero-panel">
+      <section className="hero-panel hero-panel--overview">
         <div className="hero-copy">
           <span className="eyebrow">Stardust operations</span>
-          <h1>Infrastructure Overview</h1>
+          <h1>Infrastructure overview</h1>
           <p>
-            Живое состояние внутренней платформы: активная сборка, доступ игроков, Telegram, SFTP и быстрые операции без лишней навигации.
+            Живое состояние платформы: активная сборка, доступ игроков, Telegram, SFTP и быстрые операции без лишней навигации.
           </p>
+          <div className="overview-hero-pills">
+            <span>{activeBuild ? `Активна сборка ${activeBuild.name}` : "Активная сборка не выбрана"}</span>
+            <span>{settings?.telegramTokenSet ? "Telegram подключен" : "Telegram требует настройки"}</span>
+            <span>{settings?.sftpPasswordSet ? "SFTP готов" : "SFTP требует настройки"}</span>
+          </div>
         </div>
-        <div className="hero-actions">
+        <div className="hero-actions hero-actions--overview">
           <Button variant="secondary" onClick={syncStats} disabled={syncing}>
             <IconSync size={15} className={syncing ? "spin" : ""} />
-            {syncing ? "Синхронизация" : "Синхр. статистики"}
+            {syncing ? "Синхронизация" : "Синхронизировать статистику"}
           </Button>
         </div>
       </section>
 
       <section className="ops-grid">
-        <MetricCard label="Сборок" value={loading ? "..." : builds.length} hint={activeBuild ? `Активна: ${activeBuild.name}` : "Активная сборка не выбрана"} tone="blue" />
-        <MetricCard label="Аккаунтов" value={loading ? "..." : accounts.length} hint={`${totals.admins} админ(ов), ${totals.banned} в бане`} tone="green" />
-        <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "online" : "off"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
+        <MetricCard label="Сборки" value={loading ? "..." : builds.length} hint={activeBuild ? `Активна: ${activeBuild.name}` : "Активная сборка не выбрана"} tone="blue" />
+        <MetricCard label="Аккаунты" value={loading ? "..." : accounts.length} hint={`${totals.admins} админ(ов), ${totals.banned} в бане`} tone="green" />
+        <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "online" : "offline"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
         <MetricCard label="SFTP" value={settings?.sftpPasswordSet ? "ready" : "setup"} hint={settings?.sftpHost || "Подключение не настроено"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+      </section>
+
+      <section className="overview-action-grid">
+        <Link className="overview-action-card" to={activeBuild ? `/builds/${activeBuild.id}` : "/builds"}>
+          <span className="row-icon"><IconBox size={16} /></span>
+          <div>
+            <strong>{activeBuild ? "Открыть активную сборку" : "Перейти к сборкам"}</strong>
+            <small>{activeBuild ? `${activeBuild.loaderKind} · MC ${activeBuild.mcVersion}` : "Проверить релизы, файлы и версии"}</small>
+          </div>
+        </Link>
+        <Link className="overview-action-card" to="/accounts">
+          <span className="row-icon"><IconUsers size={16} /></span>
+          <div>
+            <strong>Проверить игроков</strong>
+            <small>{totals.linked}/{accounts.length} аккаунтов связаны с Telegram</small>
+          </div>
+        </Link>
+        <Link className="overview-action-card" to="/settings">
+          <span className="row-icon"><IconSettings size={16} /></span>
+          <div>
+            <strong>Открыть инфраструктуру</strong>
+            <small>Telegram, SFTP и authlib-injector в одном разделе</small>
+          </div>
+        </Link>
       </section>
 
       <section className="overview-columns">

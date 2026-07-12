@@ -1,7 +1,7 @@
 // Мобильная оболочка админки (/m): один web-app экран с выдвижной левой
 // навигацией. Вкладки переключаются локальным состоянием, без смены URL.
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { FeedbackProvider } from "../ui/feedback";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { MobileLogin } from "./MobileLogin";
@@ -58,6 +58,22 @@ function Shell() {
   const [selectedBuildId, setSelectedBuildId] = useState<number | null>(null);
 
   const activeItem = NAV.find((item) => item.tab === activeTab) ?? NAV[0];
+  const quickTabs = useMemo(() => NAV.slice(0, 3), []);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setDrawerOpen(false);
+    }
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [drawerOpen]);
 
   function openTab(tab: MobileTab) {
     setActiveTab(tab);
@@ -79,6 +95,7 @@ function Shell() {
           type="button"
           aria-label="Открыть меню"
           aria-expanded={drawerOpen}
+          aria-controls="mobile-drawer"
           onClick={() => setDrawerOpen(true)}
         >
           <span />
@@ -94,8 +111,27 @@ function Shell() {
         </div>
       </header>
 
+      <div className="m-quick-nav" aria-label="Быстрые разделы">
+        {quickTabs.map((item) => (
+          <button
+            key={item.tab}
+            className={`m-quick-nav-item${activeTab === item.tab && selectedBuildId == null ? " active" : ""}`}
+            type="button"
+            onClick={() => openTab(item.tab)}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
+
       {drawerOpen && <button className="m-drawer-scrim" aria-label="Закрыть меню" onClick={() => setDrawerOpen(false)} />}
-      <aside className={`m-drawer${drawerOpen ? " open" : ""}`} aria-hidden={!drawerOpen}>
+      <aside
+        id="mobile-drawer"
+        className={`m-drawer${drawerOpen ? " open" : ""}`}
+        aria-hidden={!drawerOpen}
+        aria-label="Навигация админки"
+      >
         <div className="m-drawer-brand">
           <span className="m-brand-mark"><span /></span>
           <div>

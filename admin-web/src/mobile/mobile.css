@@ -10,11 +10,12 @@
         radial-gradient(circle at 20% 0%, rgba(115, 215, 255, 0.12), transparent 18rem),
         radial-gradient(circle at 92% 6%, rgba(157, 124, 255, 0.1), transparent 18rem),
         #030406;
+    overflow-x: hidden;
 }
 
 .m-content {
     flex: 1;
-    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 .m-shell-head {
@@ -31,6 +32,44 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
     background: rgba(3, 4, 6, 0.78);
     backdrop-filter: blur(18px);
+}
+
+.m-quick-nav {
+    position: sticky;
+    top: calc(70px + env(safe-area-inset-top, 0px));
+    z-index: 34;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(3, 4, 6, 0.72);
+    backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.m-quick-nav-item {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 15px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.m-quick-nav-item svg {
+    flex: 0 0 auto;
+}
+
+.m-quick-nav-item.active {
+    color: var(--text);
+    border-color: rgba(115, 215, 255, 0.18);
+    background: linear-gradient(135deg, rgba(115, 215, 255, 0.14), rgba(157, 124, 255, 0.12));
 }
 
 .m-menu-button {
@@ -341,6 +380,15 @@
     margin-bottom: 14px;
 }
 
+.m-hero-card--overview {
+    position: relative;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 82% 12%, rgba(115, 215, 255, 0.16), transparent 13rem),
+        radial-gradient(circle at 16% 100%, rgba(157, 124, 255, 0.12), transparent 12rem),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.02));
+}
+
 .m-hero-card h1 {
     margin: 0;
     font-size: 34px;
@@ -351,6 +399,26 @@
     margin: 10px 0 0;
     color: var(--muted);
     line-height: 1.55;
+}
+
+.m-hero-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.m-hero-pills span {
+    min-height: 30px;
+    display: inline-flex;
+    align-items: center;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 750;
 }
 
 .m-metric-grid {
@@ -432,6 +500,36 @@
 
 .m-wide-action + .m-wide-action {
     margin-top: 8px;
+}
+
+.m-journey-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.m-journey-card {
+    min-height: 112px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.028);
+    text-align: left;
+}
+
+.m-journey-card strong {
+    font-size: 15px;
+}
+
+.m-journey-card small {
+    color: var(--muted);
+    line-height: 1.45;
 }
 
 .m-row-icon {
@@ -948,7 +1046,7 @@ button.secondary:hover:not(:disabled) {
 }
 
 .m-screen .fm-bulk {
-    top: 76px;
+    top: calc(132px + env(safe-area-inset-top, 0px));
     margin-inline: 0;
     border-color: rgba(115, 215, 255, 0.28);
     background: rgba(8, 11, 16, 0.96);
@@ -1019,8 +1117,16 @@ button.secondary:hover:not(:disabled) {
         display: none;
     }
 
+    .m-quick-nav-item span {
+        display: none;
+    }
+
     .m-metric-grid {
         gap: 8px;
+    }
+
+    .m-journey-grid {
+        grid-template-columns: 1fr;
     }
 
     .m-card-actions button.icon-only {
