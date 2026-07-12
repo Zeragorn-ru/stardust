@@ -1,12 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ===== FAQ Accordion =====
+    const navbar = document.querySelector('.navbar');
+    const mobileBtn = document.querySelector('.mobile-menu-btn');
+    const navLinks = document.querySelector('.nav-links');
+
     document.querySelectorAll('.faq-question').forEach(btn => {
         btn.addEventListener('click', () => {
             const item = btn.closest('.faq-item');
             const answer = item.querySelector('.faq-answer');
             const isOpen = item.classList.contains('active');
 
-            // Close all
             document.querySelectorAll('.faq-item').forEach(i => {
                 i.classList.remove('active');
                 i.querySelector('.faq-answer').style.maxHeight = null;
@@ -14,65 +16,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!isOpen) {
                 item.classList.add('active');
-                answer.style.maxHeight = answer.scrollHeight + 'px';
+                answer.style.maxHeight = `${answer.scrollHeight}px`;
             }
         });
     });
 
-    // ===== Particles =====
     const particlesContainer = document.getElementById('particles');
     if (particlesContainer) {
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 42; i++) {
             const particle = document.createElement('div');
+            const size = 2 + Math.random() * 4;
             particle.className = 'particle';
-            particle.style.left = Math.random() * 100 + '%';
-            particle.style.top = Math.random() * 100 + '%';
-            particle.style.animationDelay = Math.random() * 15 + 's';
-            particle.style.animationDuration = (10 + Math.random() * 20) + 's';
-            particle.style.width = (2 + Math.random() * 4) + 'px';
-            particle.style.height = particle.style.width;
+            particle.style.left = `${Math.random() * 100}%`;
+            particle.style.top = `${80 + Math.random() * 30}%`;
+            particle.style.animationDelay = `${Math.random() * 18}s`;
+            particle.style.animationDuration = `${14 + Math.random() * 18}s`;
+            particle.style.width = `${size}px`;
+            particle.style.height = `${size}px`;
             particlesContainer.appendChild(particle);
         }
     }
 
-    // ===== Navbar Scroll =====
-    const navbar = document.querySelector('.navbar');
-    window.addEventListener('scroll', () => {
-        if (window.scrollY > 100) {
-            navbar.style.borderBottomColor = 'rgba(35, 35, 51, 0.8)';
-        } else {
-            navbar.style.borderBottomColor = 'var(--border)';
-        }
-    });
-
-    // ===== Mobile Menu =====
-    const mobileBtn = document.querySelector('.mobile-menu-btn');
-    const navLinks = document.querySelector('.nav-links');
-    if (mobileBtn) {
-        mobileBtn.addEventListener('click', () => {
-            navLinks.style.display = navLinks.style.display === 'flex' ? 'none' : 'flex';
-            if (navLinks.style.display === 'flex') {
-                navLinks.style.position = 'absolute';
-                navLinks.style.top = '100%';
-                navLinks.style.left = '0';
-                navLinks.style.right = '0';
-                navLinks.style.flexDirection = 'column';
-                navLinks.style.padding = '24px';
-                navLinks.style.background = 'var(--bg-secondary)';
-                navLinks.style.borderBottom = '1px solid var(--border)';
-                navLinks.style.gap = '16px';
+    const revealObserver = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                revealObserver.unobserve(entry.target);
             }
+        });
+    }, { threshold: 0.12 });
+
+    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+    let lastScrollY = window.scrollY;
+    window.addEventListener('scroll', () => {
+        const currentScrollY = window.scrollY;
+
+        if (navbar) {
+            navbar.style.background = currentScrollY > 80 ? 'rgba(8, 8, 16, 0.9)' : 'rgba(8, 8, 16, 0.75)';
+            navbar.classList.toggle('hidden', currentScrollY > lastScrollY && currentScrollY > 160);
+        }
+
+        lastScrollY = currentScrollY;
+    }, { passive: true });
+
+    if (mobileBtn && navLinks) {
+        mobileBtn.addEventListener('click', () => {
+            navLinks.classList.toggle('open');
         });
     }
 
-    // ===== Smooth Scroll =====
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function(e) {
-            e.preventDefault();
-            const target = document.querySelector(this.getAttribute('href'));
+        anchor.addEventListener('click', event => {
+            const selector = anchor.getAttribute('href');
+            const target = selector === '#' ? document.body : document.querySelector(selector);
+
             if (target) {
+                event.preventDefault();
                 target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                if (navLinks) navLinks.style.display = '';
+                navLinks?.classList.remove('open');
             }
         });
     });

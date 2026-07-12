@@ -3,22 +3,22 @@
   "short_name": "StarDust",
   "icons": [
     {
-      "src": "/apple-touch-icon.png",
+      "src": "/apple-touch-icon.png?v=three-rings",
       "sizes": "180x180",
       "type": "image/png"
     },
     {
-      "src": "/icon-192.png",
+      "src": "/icon-192.png?v=three-rings",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/icon-512.png?v=three-rings",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/icon-1024.png",
+      "src": "/icon-1024.png?v=three-rings",
       "sizes": "1024x1024",
       "type": "image/png"
     }
