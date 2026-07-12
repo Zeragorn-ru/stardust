@@ -18,6 +18,7 @@ on:
           - backend
           - launcher
           - admin-web
+          - website
           - mod
 
 concurrency:
@@ -108,3 +109,32 @@ jobs:
       - name: Build
         working-directory: stardust-mod
         run: ./gradlew build
+
+  website:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.target == 'all' ||
+      github.event.inputs.target == 'website'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate HTML
+        run: |
+          for f in website/index.html; do
+            if [ ! -f "$f" ]; then
+              echo "Missing: $f"
+              exit 1
+            fi
+          done
+          echo "HTML files OK"
+      - name: Check assets exist
+        run: |
+          for f in website/styles.css website/public/main.js website/public/favicon.svg; do
+            if [ ! -f "$f" ]; then
+              echo "Missing: $f"
+              exit 1
+            fi
+          done
+          echo "Assets OK"
+      - name: Build Docker image (dry-run)
+        run: docker build -f deploy/website.Dockerfile -t website-ci .
