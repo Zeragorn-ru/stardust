@@ -8,9 +8,9 @@
       </feMerge>
     </filter>
   </defs>
-  <path d="M 30 150 L 150 30 L 450 30 L 570 150 L 570 450 L 450 570 L 150 570 L 30 450 Z" fill="none" stroke="#ffffff" stroke-width="32" stroke-linejoin="round" filter="url(#glow)" opacity="0.22"/>
-  <path d="M 30 150 L 150 30 L 450 30 L 570 150 L 570 450 L 450 570 L 150 570 L 30 450 Z" fill="none" stroke="#ffffff" stroke-width="24" stroke-linejoin="round" filter="url(#glow)" opacity="0.35"/>
-  <path d="M 30 150 L 150 30 L 450 30 L 570 150 L 570 450 L 450 570 L 150 570 L 30 450 Z" fill="none" stroke="#ffffff" stroke-width="11" stroke-linejoin="round"/>
+  <path d="M 57 165 L 165 57 L 435 57 L 543 165 L 543 435 L 435 543 L 165 543 L 57 435 Z" fill="none" stroke="#ffffff" stroke-width="32" stroke-linejoin="round" filter="url(#glow)" opacity="0.22"/>
+  <path d="M 57 165 L 165 57 L 435 57 L 543 165 L 543 435 L 435 543 L 165 543 L 57 435 Z" fill="none" stroke="#ffffff" stroke-width="24" stroke-linejoin="round" filter="url(#glow)" opacity="0.35"/>
+  <path d="M 57 165 L 165 57 L 435 57 L 543 165 L 543 435 L 435 543 L 165 543 L 57 435 Z" fill="none" stroke="#ffffff" stroke-width="11" stroke-linejoin="round"/>
   <g transform="translate(300 300)">
     <circle r="270" fill="none" stroke="#ffffff" stroke-width="19" opacity="0.13"/>
     <circle r="238" fill="none" stroke="#ffffff" stroke-width="21" opacity="0.20"/>
@@ -18,6 +18,6 @@
     <circle r="166" fill="none" stroke="#ffffff" stroke-width="26" opacity="0.72"/>
     <circle r="130" fill="none" stroke="#f0f0ff" stroke-width="19" opacity="0.92"/>
     <circle r="90" fill="none" stroke="#ffffff" stroke-width="14" opacity="0.98"/>
-    <circle r="47" fill="#050505"/>
+    <circle r="38" fill="#050505"/>
   </g>
 </svg>
