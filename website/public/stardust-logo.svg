@@ -18,6 +18,6 @@
     <circle r="166" fill="none" stroke="#ffffff" stroke-width="26" opacity="0.72"/>
     <circle r="130" fill="none" stroke="#f0f0ff" stroke-width="19" opacity="0.92"/>
     <circle r="90" fill="none" stroke="#ffffff" stroke-width="14" opacity="0.98"/>
-    <circle r="38" fill="#050505"/>
+    <circle r="25" fill="#050505"/>
   </g>
 </svg>
