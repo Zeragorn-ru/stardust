@@ -146,6 +146,17 @@ services:
     networks:
       - launcher-net
 
+  website:
+    # Публичный сайт сервера (лендинг). Статика на nginx.
+    image: ${WEBSITE_IMAGE:-ghcr.io/zeragorn-ru/stardust/website:latest}
+    pull_policy: always
+    container_name: launcher-website
+    restart: unless-stopped
+    ports:
+      - "${WEBSITE_PORT:-8083}:80"
+    networks:
+      - launcher-net
+
 networks:
   launcher-net:
     driver: bridge

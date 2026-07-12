@@ -1,8 +1,9 @@
 # Сборка и публикация Docker-образов бекенда в ghcr.io.
 #
-# Публикуются четыре образа: auth-server, admin-server, telegram-bot (slim,
-# из готовых бинарей через deploy/runtime.Dockerfile) и admin-web (SPA + nginx,
-# deploy/admin-web.Dockerfile).
+# Публикуются пять образов: auth-server, admin-server, telegram-bot (slim,
+# из готовых бинарей через deploy/runtime.Dockerfile), admin-web (SPA + nginx,
+# deploy/admin-web.Dockerfile) и website (лендинг + nginx,
+# deploy/website.Dockerfile).
 #
 # Ключевая оптимизация: тяжёлая Rust-компиляция (lto=fat, codegen-units=1)
 # происходит РОВНО ОДИН РАЗ в job `build` — там же тесты и инкрементальный
@@ -22,9 +23,12 @@ on:
       - "Cargo.lock"
       - "crates/**"
       - "admin-web/**"
+      - "website/**"
       - "deploy/runtime.Dockerfile"
       - "deploy/admin-web.Dockerfile"
       - "deploy/admin-web.nginx.conf"
+      - "deploy/website.Dockerfile"
+      - "deploy/website.nginx.conf"
       - "deploy/squid.conf"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
@@ -92,6 +96,9 @@ jobs:
           # SPA: собирается из исходников (kind: web).
           - name: admin-web
             kind: web
+          # Публичный сайт (лендинг): статика на nginx (kind: web).
+          - name: website
+            kind: web
     steps:
       - uses: actions/checkout@v4
 
@@ -141,12 +148,26 @@ jobs:
 
       # --- admin-web: сборка SPA из исходников ---
       - name: Build and push (web)
-        if: matrix.kind == 'web'
+        if: matrix.kind == 'web' && matrix.name == 'admin-web'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/admin-web.Dockerfile
           target: admin-web
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      # --- website: статика на nginx ---
+      - name: Build and push (website)
+        if: matrix.kind == 'web' && matrix.name == 'website'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/website.Dockerfile
+          target: website
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -191,7 +212,7 @@ jobs:
             docker compose down --remove-orphans
             # Подстраховка от контейнеров, оставшихся от старого имени проекта.
             for name in launcher-auth-db launcher-auth-server launcher-admin-server \
-                        launcher-telegram-bot launcher-squid launcher-admin-web; do
+                        launcher-telegram-bot launcher-squid launcher-admin-web launcher-website; do
               if [ -n "$(docker ps -aq -f "name=^/${name}$")" ]; then
                 docker rm -f "$name" >/dev/null 2>&1 || true
               fi

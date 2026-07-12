@@ -24,7 +24,7 @@ docker compose down --remove-orphans
 # проекта (другое имя каталога/проекта) — down их не тронет. Сносим по именам.
 echo "==> Removing leftover containers by fixed name (if any)..."
 for name in launcher-auth-db launcher-auth-server launcher-admin-server \
-            launcher-telegram-bot launcher-squid launcher-admin-web; do
+            launcher-telegram-bot launcher-squid launcher-admin-web launcher-website; do
   if [ -n "$(docker ps -aq -f "name=^/${name}$")" ]; then
     docker rm -f "$name" >/dev/null 2>&1 || true
   fi
