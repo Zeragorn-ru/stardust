@@ -9,16 +9,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/svg+xml" href="public/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="public/stardust-logo.svg">
 </head>
 <body>
     <nav class="navbar">
         <div class="container nav-container">
             <a href="#" class="logo">
-                <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16 2L2 9v14l14 7 14-7V9L16 2z" stroke="currentColor" stroke-width="2" fill="none"/>
-                    <path d="M16 2v28M2 9l14 7 14-7M2 23l14-7 14 7" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-                </svg>
+                <img src="public/stardust-logo.svg" alt="StarDust" class="logo-icon">
                 <span>StarDust</span>
             </a>
             <div class="nav-links">
@@ -39,6 +36,7 @@
             <div class="hero-particles" id="particles"></div>
         </div>
         <div class="container hero-content">
+            <img src="public/stardust-logo.svg" alt="StarDust" class="hero-logo">
             <div class="hero-badge">Приватный Minecraft сервер</div>
             <h1>Скачай. Установи.<br><span class="gradient-text">Играй.</span></h1>
             <p class="hero-description">
@@ -199,7 +197,7 @@
                         <h3>Windows</h3>
                     </div>
                     <p>Windows 10/11</p>
-                    <a href="#" class="btn btn-primary btn-block btn-lg" id="download-win">
+                    <a href="https://github.com/Zeragorn-ru/stardust/releases/latest" class="btn btn-primary btn-block btn-lg" target="_blank" rel="noopener">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                             <polyline points="7 10 12 15 17 10"/>
@@ -217,7 +215,7 @@
                         <h3>macOS</h3>
                     </div>
                     <p>macOS 12+ (Universal)</p>
-                    <a href="#" class="btn btn-primary btn-block" id="download-mac">Скачать .dmg</a>
+                    <a href="https://github.com/Zeragorn-ru/stardust/releases/latest" class="btn btn-primary btn-block" target="_blank" rel="noopener">Скачать .dmg</a>
                     <span class="download-size">~18 МБ</span>
                 </div>
                 <div class="download-card">
@@ -228,7 +226,7 @@
                         <h3>Linux</h3>
                     </div>
                     <p>Ubuntu / Debian / Fedora</p>
-                    <a href="#" class="btn btn-primary btn-block" id="download-linux">Скачать .deb</a>
+                    <a href="https://github.com/Zeragorn-ru/stardust/releases/latest" class="btn btn-primary btn-block" target="_blank" rel="noopener">Скачать .deb</a>
                     <span class="download-size">~15 МБ</span>
                 </div>
             </div>
@@ -309,32 +307,12 @@
         </div>
     </section>
 
-    <section class="cta">
-        <div class="container">
-            <div class="cta-content">
-                <h2>Готов играть?</h2>
-                <p>Скачай лаунчер прямо сейчас и окажись в игре через несколько минут</p>
-                <a href="#download" class="btn btn-primary btn-xl">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7 10 12 15 17 10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    Скачать StarDust
-                </a>
-            </div>
-        </div>
-    </section>
-
     <footer class="footer">
         <div class="container">
             <div class="footer-content">
                 <div class="footer-brand">
                     <a href="#" class="logo">
-                        <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M16 2L2 9v14l14 7 14-7V9L16 2z" stroke="currentColor" stroke-width="2" fill="none"/>
-                            <path d="M16 2v28M2 9l14 7 14-7M2 23l14-7 14 7" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-                        </svg>
+                        <img src="public/stardust-logo.svg" alt="StarDust" class="logo-icon">
                         <span>StarDust</span>
                     </a>
                     <p>Приватная Minecraft-платформа</p>

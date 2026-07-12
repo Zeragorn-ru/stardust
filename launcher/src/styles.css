@@ -989,6 +989,13 @@ body {
     margin-bottom: 0;
 }
 
+.login__logo-img {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    margin-bottom: 8px;
+}
+
 .login__brand h1 {
     font-size: 24px;
     font-weight: 800;

@@ -74,7 +74,10 @@ body {
 .logo-icon {
     width: 32px;
     height: 32px;
-    color: var(--accent);
+}
+
+img.logo-icon {
+    object-fit: contain;
 }
 
 .nav-links {
@@ -193,6 +196,13 @@ body {
     position: relative;
     z-index: 1;
     text-align: center;
+}
+
+.hero-logo {
+    width: 100px;
+    height: 100px;
+    margin-bottom: 24px;
+    object-fit: contain;
 }
 
 .hero-badge {

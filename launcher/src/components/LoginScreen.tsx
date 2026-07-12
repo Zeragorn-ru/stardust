@@ -272,6 +272,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     return (
       <div className="login">
         <div className="login__brand">
+          <img src="/stardust-logo.svg" alt="" className="login__logo-img" />
           <h1>StarDust</h1>
           <p className="muted">
             {approval.hint ?? "Нажмите кнопку в Telegram, чтобы подтвердить"}
@@ -319,6 +320,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     return (
       <div className="login">
         <div className="login__brand">
+          <img src="/stardust-logo.svg" alt="" className="login__logo-img" />
           <h1>StarDust</h1>
           <p className="muted">Задайте новый пароль</p>
         </div>
@@ -378,6 +380,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     return (
       <div className="login">
         <div className="login__brand">
+          <img src="/stardust-logo.svg" alt="" className="login__logo-img" />
           <h1>StarDust</h1>
           <p className="muted">
             {twoFactor.hint ?? "Введите код из Telegram"}
@@ -420,7 +423,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
   return (
     <div className="login stagger">
       <div className="login__brand stagger-item">
-
+        <img src="/stardust-logo.svg" alt="" className="login__logo-img" />
         <h1>StarDust</h1>
         <p className="muted">
           {isRegister ? "Создайте аккаунт" : "Войдите, чтобы продолжить"}
