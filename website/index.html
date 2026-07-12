@@ -46,7 +46,11 @@
         <div class="container hero-content hero-layout">
             <div class="hero-copy-block">
                 <div class="hero-logo-wrap reveal">
-                    <img src="public/stardust-logo.svg?v=three-rings" alt="StarDust" class="hero-logo">
+                    <div class="hero-emblem" aria-hidden="true">
+                        <span class="hero-emblem-ring hero-emblem-ring--outer"></span>
+                        <span class="hero-emblem-ring hero-emblem-ring--middle"></span>
+                        <span class="hero-emblem-core"></span>
+                    </div>
                 </div>
                 <div class="hero-badge reveal reveal-delay-1"><span class="hero-badge-dot"></span>Приватный Minecraft сервер</div>
                 <h1>Скачай лаунчер.<br><span class="gradient-text">Играй без ручной сборки.</span></h1>
@@ -102,34 +106,58 @@
                         <span class="showcase-label">Launcher flow</span>
                         <span class="showcase-pill">Готов к старту</span>
                     </div>
-                    <div class="showcase-window">
-                        <div class="showcase-window-bar">
-                            <span></span><span></span><span></span>
+                    <div class="launcher-preview" aria-label="Превью главного экрана лаунчера">
+                        <div class="launcher-preview-titlebar">
+                            <span class="launcher-preview-mark"></span>
+                            <strong>StarDust Launcher</strong>
+                            <span class="launcher-preview-window-actions"><i></i><i></i><i></i></span>
                         </div>
-                        <div class="showcase-window-body">
-                            <div class="showcase-side">
-                                <div class="showcase-side-item active">StarDust</div>
-                                <div class="showcase-side-item">Моды</div>
-                                <div class="showcase-side-item">Профиль</div>
-                                <div class="showcase-side-item">Логи</div>
+                        <div class="launcher-preview-header">
+                            <div class="launcher-preview-account">
+                                <span class="launcher-preview-avatar">S</span>
+                                <div>
+                                    <strong>StardustPlayer</strong>
+                                    <small>7f4a...c21b</small>
+                                </div>
                             </div>
-                            <div class="showcase-main">
-                                <div class="showcase-main-head">
-                                    <strong>Сборка готовится автоматически</strong>
-                                    <small>Minecraft · NeoForge · Java · assets</small>
+                            <div class="launcher-preview-actions">
+                                <span>Настройки</span>
+                                <span>Выйти</span>
+                            </div>
+                        </div>
+                        <div class="launcher-preview-main">
+                            <div class="launcher-preview-skin">
+                                <div class="launcher-preview-player" aria-hidden="true">
+                                    <span class="lp-head"></span>
+                                    <span class="lp-body"></span>
+                                    <span class="lp-arm lp-arm--left"></span>
+                                    <span class="lp-arm lp-arm--right"></span>
+                                    <span class="lp-leg lp-leg--left"></span>
+                                    <span class="lp-leg lp-leg--right"></span>
                                 </div>
-                                <div class="showcase-progress">
-                                    <span style="width: 82%"></span>
+                                <span class="launcher-preview-customize">Кастомизация</span>
+                            </div>
+                            <div class="launcher-preview-launch">
+                                <div class="launcher-preview-card">
+                                    <h3>Всё готово к приключению</h3>
+                                    <p>Нажми «Играть» — лаунчер подготовит клиент и запустит игру под твоим именем.</p>
                                 </div>
-                                <div class="showcase-info-grid">
-                                    <div><strong>Java 21</strong><span>установится сама</span></div>
-                                    <div><strong>Модпак</strong><span>загрузится при старте</span></div>
-                                    <div><strong>Патчи</strong><span>только изменённые файлы</span></div>
-                                    <div><strong>Профиль</strong><span>ник, пароль, 2FA</span></div>
+                                <div class="launcher-preview-stats-row">
+                                    <div class="launcher-preview-stat-card">
+                                        <span>Статистика</span>
+                                        <strong>24ч 18м</strong>
+                                        <small>в игре</small>
+                                    </div>
+                                    <div class="launcher-preview-stat-card">
+                                        <span>Сервер</span>
+                                        <strong class="online">Онлайн · 42мс</strong>
+                                        <small>12/48 игроков</small>
+                                    </div>
                                 </div>
-                                <div class="showcase-actions-row">
-                                    <span class="showcase-action active">Играть</span>
-                                    <span class="showcase-action">Обновить</span>
+                                <div class="launcher-preview-play">
+                                    <span class="launcher-preview-play-top">Играть</span>
+                                    <span class="launcher-preview-play-details">Готовим игру… 82%</span>
+                                    <span class="launcher-preview-play-track"><i></i></span>
                                 </div>
                             </div>
                         </div>
@@ -438,19 +466,6 @@
                         <p>Минимум: 4 ГБ RAM, 2 ГБ свободного места. Рекомендуется: 8+ ГБ RAM, SSD. Java 21+ установится автоматически при первом запуске.</p>
                     </div>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <section class="cta" id="cta">
-        <div class="container">
-            <div class="cta-inner reveal">
-                <img src="public/stardust-logo.svg?v=three-rings" alt="StarDust" class="cta-logo">
-                <h2>Готов зайти на сервер?</h2>
-                <p>Скачай лаунчер, создай аккаунт и запусти сборку без ручной установки модов.</p>
-                <a href="#download" class="btn btn-primary btn-xl">
-                    Скачать лаунчер
-                </a>
             </div>
         </div>
     </section>

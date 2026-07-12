@@ -1,7 +1,7 @@
 // Мобильная оболочка админки (/m): один web-app экран с выдвижной левой
 // навигацией. Вкладки переключаются локальным состоянием, без смены URL.
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { FeedbackProvider } from "../ui/feedback";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { MobileLogin } from "./MobileLogin";
@@ -58,7 +58,6 @@ function Shell() {
   const [selectedBuildId, setSelectedBuildId] = useState<number | null>(null);
 
   const activeItem = NAV.find((item) => item.tab === activeTab) ?? NAV[0];
-  const quickTabs = useMemo(() => NAV.slice(0, 3), []);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -110,20 +109,6 @@ function Shell() {
           <a className="m-shell-link" href={switchViewHref("desktop")}>ПК</a>
         </div>
       </header>
-
-      <div className="m-quick-nav" aria-label="Быстрые разделы">
-        {quickTabs.map((item) => (
-          <button
-            key={item.tab}
-            className={`m-quick-nav-item${activeTab === item.tab && selectedBuildId == null ? " active" : ""}`}
-            type="button"
-            onClick={() => openTab(item.tab)}
-          >
-            {item.icon}
-            <span>{item.label}</span>
-          </button>
-        ))}
-      </div>
 
       {drawerOpen && <button className="m-drawer-scrim" aria-label="Закрыть меню" onClick={() => setDrawerOpen(false)} />}
       <aside
