@@ -1,3 +1,5 @@
+import { SkinViewer } from 'skinview3d';
+
 document.addEventListener('DOMContentLoaded', () => {
     const navbar = document.querySelector('.navbar');
     const mobileBtn = document.querySelector('.mobile-menu-btn');
@@ -99,4 +101,112 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    initSkinPreview(prefersReducedMotion).catch(() => {
+        document.querySelector('.launcher-preview-skin')?.classList.remove('skinview-ready');
+    });
 });
+
+function createPreviewSkinDataUrl() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+    ctx.imageSmoothingEnabled = false;
+
+    const skin = '#d9a36d';
+    const skinDark = '#b98659';
+    const hair = '#4b2a1d';
+    const hairDark = '#2e1a13';
+    const shirt = '#4f8cff';
+    const shirtDark = '#3159b7';
+    const pants = '#243f84';
+    const pantsDark = '#172655';
+    const sole = '#111827';
+
+    const rect = (x, y, w, h, color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(x, y, w, h);
+    };
+
+    // Head, all faces in the 64x64 Minecraft skin layout.
+    rect(0, 8, 32, 8, skinDark);
+    rect(8, 0, 16, 8, hair);
+    rect(8, 8, 8, 8, skin);
+    rect(0, 8, 8, 8, skinDark);
+    rect(16, 8, 8, 8, skinDark);
+    rect(24, 8, 8, 8, hairDark);
+    rect(8, 8, 8, 3, hair);
+    rect(9, 12, 2, 2, sole);
+    rect(13, 12, 2, 2, sole);
+    rect(11, 15, 3, 1, '#6b3a2f');
+
+    // Body.
+    rect(16, 20, 24, 12, shirtDark);
+    rect(20, 16, 16, 4, shirtDark);
+    rect(20, 20, 8, 12, shirt);
+    rect(23, 20, 2, 12, 'rgba(255,255,255,0.18)');
+
+    // Right arm.
+    rect(40, 20, 16, 12, shirtDark);
+    rect(44, 16, 8, 4, shirtDark);
+    rect(44, 20, 4, 6, shirt);
+    rect(44, 26, 4, 6, skin);
+
+    // Right leg.
+    rect(0, 20, 16, 12, pantsDark);
+    rect(4, 16, 8, 4, pantsDark);
+    rect(4, 20, 4, 10, pants);
+    rect(4, 30, 4, 2, sole);
+
+    // Left leg (1.8+ layer layout).
+    rect(16, 52, 16, 12, pantsDark);
+    rect(20, 48, 8, 4, pantsDark);
+    rect(20, 52, 4, 10, pants);
+    rect(20, 62, 4, 2, sole);
+
+    // Left arm (1.8+ layer layout).
+    rect(32, 52, 16, 12, shirtDark);
+    rect(36, 48, 8, 4, shirtDark);
+    rect(36, 52, 4, 6, shirt);
+    rect(36, 58, 4, 6, skin);
+
+    return canvas.toDataURL('image/png');
+}
+
+async function initSkinPreview(prefersReducedMotion) {
+    const canvas = document.getElementById('launcher-skin-canvas');
+    const container = canvas?.closest('.launcher-preview-skin');
+    if (!canvas || !container) return;
+
+    const viewer = new SkinViewer({
+        canvas,
+        width: 320,
+        height: 500
+    });
+
+    viewer.controls.enabled = false;
+    viewer.camera.fov = 70;
+    viewer.camera.position.set(24.55, 20.85, 57.84);
+    viewer.controls.target.set(-0.69, 3.91, -3.61);
+    viewer.scene.position.x = 0.8;
+    viewer.scene.position.y = -1.5;
+    viewer.cameraLight.intensity = 1400;
+    viewer.globalLight.intensity = 2.2;
+
+    await viewer.loadSkin(createPreviewSkinDataUrl(), { model: 'default' });
+    container.classList.add('skinview-ready');
+
+    if (!prefersReducedMotion) {
+        let direction = 1;
+        const animate = () => {
+            const rot = viewer.playerWrapper.rotation.y;
+            if (rot > 0.24) direction = -1;
+            if (rot < -0.18) direction = 1;
+            viewer.playerWrapper.rotation.y += direction * 0.002;
+            requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+    }
+}

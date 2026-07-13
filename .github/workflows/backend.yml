@@ -96,7 +96,7 @@ jobs:
           # SPA: собирается из исходников (kind: web).
           - name: admin-web
             kind: web
-          # Публичный сайт (лендинг): статика на nginx (kind: web).
+          # Публичный сайт (лендинг): Vite build + nginx (kind: web).
           - name: website
             kind: web
     steps:
@@ -160,7 +160,7 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
-      # --- website: статика на nginx ---
+      # --- website: Vite build + nginx ---
       - name: Build and push (website)
         if: matrix.kind == 'web' && matrix.name == 'website'
         uses: docker/build-push-action@v6

@@ -2,6 +2,10 @@
 /target
 **/target
 
+# Frontend dependencies / build output
+website/node_modules/
+website/dist/
+
 # Секреты и состояние — НИКОГДА не коммитим
 .env
 *.env

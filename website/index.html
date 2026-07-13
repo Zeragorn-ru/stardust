@@ -9,18 +9,18 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/svg+xml" href="public/stardust-logo.svg?v=three-rings">
-    <link rel="shortcut icon" href="public/favicon.svg?v=three-rings">
-    <link rel="apple-touch-icon" sizes="180x180" href="public/apple-touch-icon.png?v=three-rings">
-    <link rel="apple-touch-icon" sizes="512x512" href="public/icon-512.png?v=three-rings">
-    <link rel="apple-touch-icon" sizes="1024x1024" href="public/icon-1024.png?v=three-rings">
-    <link rel="manifest" href="public/manifest.json?v=three-rings">
+    <link rel="icon" type="image/svg+xml" href="/stardust-logo.svg?v=three-rings">
+    <link rel="shortcut icon" href="/favicon.svg?v=three-rings">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=three-rings">
+    <link rel="apple-touch-icon" sizes="512x512" href="/icon-512.png?v=three-rings">
+    <link rel="apple-touch-icon" sizes="1024x1024" href="/icon-1024.png?v=three-rings">
+    <link rel="manifest" href="/manifest.json?v=three-rings">
 </head>
 <body>
     <nav class="navbar">
         <div class="container nav-container">
             <a href="#" class="logo">
-                <img src="public/stardust-logo.svg?v=three-rings" alt="StarDust" class="logo-icon">
+                <img src="/stardust-logo.svg?v=three-rings" alt="StarDust" class="logo-icon">
                 <span>StarDust</span>
             </a>
             <div class="nav-links" id="site-nav">
@@ -133,6 +133,13 @@
                         <div class="launcher-preview-main">
                             <div class="launcher-preview-skin">
                                 <div class="launcher-preview-nickname">StardustPlayer</div>
+                                <canvas
+                                    id="launcher-skin-canvas"
+                                    class="launcher-skin-canvas"
+                                    width="320"
+                                    height="500"
+                                    aria-label="3D-модель игрока"
+                                ></canvas>
                                 <div class="launcher-preview-player" aria-hidden="true">
                                     <span class="lp-head"></span>
                                     <span class="lp-body"></span>
@@ -481,7 +488,7 @@
             <div class="footer-content">
                 <div class="footer-brand">
                     <a href="#" class="logo">
-                        <img src="public/stardust-logo.svg?v=three-rings" alt="StarDust" class="logo-icon">
+                        <img src="/stardust-logo.svg?v=three-rings" alt="StarDust" class="logo-icon">
                         <span>StarDust</span>
                     </a>
                     <p>Приватная Minecraft-платформа</p>
@@ -500,6 +507,6 @@
         </div>
     </footer>
 
-    <script src="public/main.js"></script>
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>

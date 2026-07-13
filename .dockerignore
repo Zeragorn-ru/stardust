@@ -15,6 +15,10 @@ launcher/package-lock.json
 launcher/vite.config.*
 launcher/tsconfig*.json
 
+# Публичный сайт собирается внутри Docker; локальные артефакты не нужны.
+website/node_modules/
+website/dist/
+
 # Сборочные артефакты Tauri.
 launcher/src-tauri/target/
 launcher/src-tauri/gen/

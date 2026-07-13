@@ -78,6 +78,20 @@ build-admin-web: admin-web-deps ## Собрать admin-web SPA
 dev-admin-web: admin-web-deps ## Dev-сервер admin-web (:1430)
 	cd admin-web && $(NPM) run dev
 
+# ─── Website ──────────────────────────────────────────────────────────────────
+
+.PHONY: website-deps
+website-deps: ## npm ci в website/
+	cd website && $(NPM) ci
+
+.PHONY: build-website
+build-website: website-deps ## Собрать публичный сайт
+	cd website && $(NPM) run build
+
+.PHONY: dev-website
+dev-website: website-deps ## Dev-сервер публичного сайта (:5173)
+	cd website && $(NPM) run dev
+
 # ─── Minecraft mod ────────────────────────────────────────────────────────────
 
 .PHONY: build-mod
@@ -91,7 +105,7 @@ clean-mod: ## Очистить Gradle-сборку мода
 # ─── Агрегаты (как в CI) ──────────────────────────────────────────────────────
 
 .PHONY: ci
-ci: test-backend clippy-backend clippy-launcher build-admin-web build-mod ## Все проверки без релизной сборки лаунчера
+ci: test-backend clippy-backend clippy-launcher build-admin-web build-website build-mod ## Все проверки без релизной сборки лаунчера
 
 .PHONY: ci-launcher
 ci-launcher: clippy-launcher build-launcher collect-launcher-bundles ## Полная сборка лаунчера + сбор артефактов
