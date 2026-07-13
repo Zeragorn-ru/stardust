@@ -25,6 +25,7 @@ import {
   IconCornerUp,
   IconDownload,
   IconFile,
+  IconFilter,
   IconFolder,
   IconHome,
   IconPencil,
@@ -88,7 +89,30 @@ function buildListing(files: BuildFile[], dir: string): Listing {
   };
 }
 
-const KIND_FILTERS = ["all", "mod", "config", "resource", "other"];
+const KIND_FILTERS = ["mod", "config", "resource", "other"] as const;
+const SIDE_FILTERS = ["client", "server", "both"] as const;
+
+interface FileFilters {
+  kind: string;
+  side: string;
+  optional: "all" | "yes" | "no";
+  disabled: "all" | "yes" | "no";
+  enabledByDefault: "all" | "yes" | "no";
+  overwrite: "all" | "yes" | "no";
+}
+
+const EMPTY_FILTERS: FileFilters = {
+  kind: "all",
+  side: "all",
+  optional: "all",
+  disabled: "all",
+  enabledByDefault: "all",
+  overwrite: "all",
+};
+
+function hasActiveFilters(f: FileFilters): boolean {
+  return Object.values(f).some((v) => v !== "all");
+}
 
 export function FileManager({
   buildId,
@@ -103,7 +127,8 @@ export function FileManager({
   const confirm = useConfirm();
   const [dir, setDir] = useState("");
   const [query, setQuery] = useState("");
-  const [kindFilter, setKindFilter] = useState("all");
+  const [filters, setFilters] = useState<FileFilters>(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [editing, setEditing] = useState<BuildFile | null>(null);
   // Файл, чьи свойства открыты в выезжающей панели справа.
@@ -144,26 +169,38 @@ export function FileManager({
     uploadRef.current?.addFromDataTransfer(e.dataTransfer);
   }
 
-  const searching = query.trim().length > 0 || kindFilter !== "all";
+  const activeFilters = hasActiveFilters(filters);
+  const searching = query.trim().length > 0 || activeFilters;
 
   const listing = useMemo(() => buildListing(files, dir), [files, dir]);
 
-  // При активном поиске показываем плоский список совпадений по всем папкам.
+  // При активных фильтрах/поиске показываем плоский список совпадений по всем папкам.
   const searchResults = useMemo(() => {
     if (!searching) return [];
     const q = query.trim().toLowerCase();
     return files
       .filter((f) => {
-        if (kindFilter !== "all" && f.kind !== kindFilter) return false;
+        if (filters.kind !== "all" && f.kind !== filters.kind) return false;
+        if (filters.side !== "all" && f.side !== filters.side) return false;
+        if (filters.optional === "yes" && !f.optional) return false;
+        if (filters.optional === "no" && f.optional) return false;
+        if (filters.disabled === "yes" && !f.disabled) return false;
+        if (filters.disabled === "no" && f.disabled) return false;
+        if (filters.enabledByDefault === "yes" && !f.enabledByDefault) return false;
+        if (filters.enabledByDefault === "no" && f.enabledByDefault) return false;
+        if (filters.overwrite === "yes" && !f.overwrite) return false;
+        if (filters.overwrite === "no" && f.overwrite) return false;
         if (!q) return true;
         return (
           f.path.toLowerCase().includes(q) ||
           (f.displayName?.toLowerCase().includes(q) ?? false) ||
-          (f.modId?.toLowerCase().includes(q) ?? false)
+          (f.description?.toLowerCase().includes(q) ?? false) ||
+          (f.modId?.toLowerCase().includes(q) ?? false) ||
+          f.sha1.toLowerCase().includes(q)
         );
       })
       .sort((a, b) => a.path.localeCompare(b.path));
-  }, [files, query, kindFilter, searching]);
+  }, [files, query, filters, searching]);
 
   const crumbs = useMemo(() => {
     const norm = normalizeDir(dir);
@@ -328,7 +365,7 @@ export function FileManager({
     const clean = normalizeDir(name);
     if (!clean) return;
     setQuery("");
-    setKindFilter("all");
+    setFilters(EMPTY_FILTERS);
     setDir(dir ? `${dir}/${clean}` : clean);
   }
 
@@ -392,26 +429,180 @@ export function FileManager({
           onFolder={() => setCreating("folder")}
           onFile={() => setCreating("file")}
         />
-        <div className="seg">
-          {KIND_FILTERS.map((k) => (
-            <button
-              key={k}
-              className={`seg-btn${kindFilter === k ? " active" : ""}`}
-              onClick={() => setKindFilter(k)}
-            >
-              {k === "all" ? "все" : k}
-            </button>
-          ))}
-        </div>
         <div className="search">
           <IconSearch />
           <input
-            placeholder="Поиск по всем папкам"
+            placeholder="Поиск"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+        <button
+          className={`fm-filter-btn${filtersOpen ? " active" : ""}${activeFilters ? " has-filters" : ""}`}
+          onClick={() => setFiltersOpen((v) => !v)}
+        >
+          <IconFilter size={15} />
+          Фильтры
+          {activeFilters && <span className="fm-filter-badge" />}
+        </button>
       </div>
+
+      {activeFilters && (
+        <div className="fm-chips">
+          {filters.kind !== "all" && (
+            <span className="fm-chip">
+              Тип: {filters.kind}
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, kind: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.side !== "all" && (
+            <span className="fm-chip">
+              {sideLabel(filters.side)}
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, side: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.optional === "yes" && (
+            <span className="fm-chip">
+              Опциональные
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, optional: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.optional === "no" && (
+            <span className="fm-chip">
+              Обязательные
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, optional: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.disabled === "yes" && (
+            <span className="fm-chip">
+              Отключённые
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, disabled: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.disabled === "no" && (
+            <span className="fm-chip">
+              Включённые
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, disabled: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.enabledByDefault === "yes" && (
+            <span className="fm-chip">
+              Вкл. по умолч.
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, enabledByDefault: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.enabledByDefault === "no" && (
+            <span className="fm-chip">
+              Выкл. по умолч.
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, enabledByDefault: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.overwrite === "yes" && (
+            <span className="fm-chip">
+              Перезапись
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, overwrite: "all" }))}>×</button>
+            </span>
+          )}
+          {filters.overwrite === "no" && (
+            <span className="fm-chip">
+              Без перезаписи
+              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, overwrite: "all" }))}>×</button>
+            </span>
+          )}
+          <button className="fm-chip fm-chip-reset" onClick={() => setFilters(EMPTY_FILTERS)}>
+            Сбросить все
+          </button>
+        </div>
+      )}
+
+      {filtersOpen && (
+        <div className="fm-filter-panel">
+          <div className="fm-filter-group">
+            <span className="fm-filter-label">Тип</span>
+            <div className="fm-filter-options">
+              {(["all", ...KIND_FILTERS] as const).map((k) => (
+                <button
+                  key={k}
+                  className={`fm-filter-opt${filters.kind === k ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, kind: k }))}
+                >
+                  {k === "all" ? "все" : k}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="fm-filter-group">
+            <span className="fm-filter-label">Сторона</span>
+            <div className="fm-filter-options">
+              {(["all", ...SIDE_FILTERS] as const).map((s) => (
+                <button
+                  key={s}
+                  className={`fm-filter-opt${filters.side === s ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, side: s }))}
+                >
+                  {s === "all" ? "все" : sideLabel(s)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="fm-filter-group">
+            <span className="fm-filter-label">Опциональность</span>
+            <div className="fm-filter-options">
+              {(["all", "yes", "no"] as const).map((v) => (
+                <button
+                  key={v}
+                  className={`fm-filter-opt${filters.optional === v ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, optional: v }))}
+                >
+                  {v === "all" ? "все" : v === "yes" ? "опц." : "обяз."}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="fm-filter-group">
+            <span className="fm-filter-label">Статус</span>
+            <div className="fm-filter-options">
+              {(["all", "yes", "no"] as const).map((v) => (
+                <button
+                  key={v}
+                  className={`fm-filter-opt${filters.disabled === v ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, disabled: v }))}
+                >
+                  {v === "all" ? "все" : v === "yes" ? "откл." : "вкл."}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="fm-filter-group">
+            <span className="fm-filter-label">По умолчанию</span>
+            <div className="fm-filter-options">
+              {(["all", "yes", "no"] as const).map((v) => (
+                <button
+                  key={v}
+                  className={`fm-filter-opt${filters.enabledByDefault === v ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, enabledByDefault: v }))}
+                >
+                  {v === "all" ? "все" : v === "yes" ? "вкл." : "выкл."}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="fm-filter-group">
+            <span className="fm-filter-label">Перезапись</span>
+            <div className="fm-filter-options">
+              {(["all", "yes", "no"] as const).map((v) => (
+                <button
+                  key={v}
+                  className={`fm-filter-opt${filters.overwrite === v ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, overwrite: v }))}
+                >
+                  {v === "all" ? "все" : v === "yes" ? "да" : "нет"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <FileUpload
         ref={uploadRef}
@@ -477,7 +668,7 @@ export function FileManager({
                 onEdit={() => setEditing(f)}
                 onOpenDir={(d) => {
                   setQuery("");
-                  setKindFilter("all");
+                  setFilters(EMPTY_FILTERS);
                   setDir(d);
                 }}
               />
@@ -1002,8 +1193,8 @@ function FileRow({
   );
 }
 
-// Модальное окно свойств файла: настройки разложены вертикально, чтобы не
-// ломать строку файла и не уезжать вбок на узких экранах.
+// Модальное окно свойств файла: новый дизайн с крупным заголовком и
+// чётко разделёнными секциями.
 function FileSettingsDrawer({
   file,
   onClose,
@@ -1082,13 +1273,14 @@ function FileSettingsDrawer({
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="fm-drawer-head">
-          <div className="fm-drawer-title fm-properties-title">
-            <span className="fm-file-avatar"><IconFile size={18} /></span>
-            <div>
+        <header className="fm-drawer-head fm-drawer-head--hero">
+          <div className="fm-drawer-hero-info">
+            <span className="fm-file-avatar fm-file-avatar--lg"><IconFile size={22} /></span>
+            <div className="fm-drawer-hero-text">
               <span className="fm-drawer-eyebrow muted">Свойства файла</span>
-              <strong title={file.path}>{baseName(file.path)}</strong>
-              <small className="muted" title={file.path}>{file.path}</small>
+              <strong className="fm-drawer-hero-name" title={file.path}>{baseName(file.path)}</strong>
+              <span className="fm-drawer-hero-path muted" title={file.path}>{file.path}</span>
+              <span className="fm-drawer-hero-meta muted">{formatSize(file.sizeBytes)} · {shortSha(file.sha1)}</span>
             </div>
           </div>
           <button className="icon-only" title="Закрыть" onClick={onClose}>
@@ -1096,7 +1288,7 @@ function FileSettingsDrawer({
           </button>
         </header>
 
-        <div className="fm-drawer-body">
+        <div className="fm-drawer-body fm-drawer-body--props">
           <section className="fm-properties-section">
             <div className="fm-properties-section-head">
               <strong>Доставка</strong>
@@ -1139,7 +1331,7 @@ function FileSettingsDrawer({
                 checked={overwrite}
                 onChange={(e) => setOverwrite(e.target.checked)}
               />
-              <span>Перезаписывать</span>
+              <span>Перезаписывать при обновлении</span>
             </label>
           </section>
 
@@ -1156,48 +1348,51 @@ function FileSettingsDrawer({
                 onChange={(e) => {
                   const v = e.target.checked;
                   setOptional(v);
-                  // Подставляем modId из имени файла при включении, если пусто.
                   if (v && !modId.trim()) setModId(slugifyModId(file.path));
                 }}
               />
-              <span>Опциональный</span>
-            </label>
-
-            <label
-              className={`fm-edit-check${optional ? "" : " disabled"}`}
-              title={optional ? "" : "Только для опциональных"}
-            >
-              <input
-                type="checkbox"
-                checked={enabledByDefault}
-                disabled={!optional}
-                onChange={(e) => setEnabledByDefault(e.target.checked)}
-              />
-              <span>Вкл. по умолчанию</span>
+              <span>Опциональный мод</span>
             </label>
 
             {optional && (
-              <div className="fm-drawer-field">
-                <span
-                  className="fm-edit-label muted"
-                  title="Стабильный идентификатор мода. По нему лаунчер запоминает выбор игрока — выбор не сбросится при обновлении/переименовании файла. Обычно modid или slug."
-                >
-                  modId
-                </span>
-                <input
-                  className="fm-edit-input"
-                  placeholder="напр. sodium"
-                  value={modId}
-                  onChange={(e) => setModId(e.target.value)}
-                />
-              </div>
+              <>
+                <label className="fm-edit-check">
+                  <input
+                    type="checkbox"
+                    checked={enabledByDefault}
+                    onChange={(e) => setEnabledByDefault(e.target.checked)}
+                  />
+                  <span>Включён по умолчанию</span>
+                </label>
+
+                <div className="fm-drawer-field">
+                  <span
+                    className="fm-edit-label muted"
+                    title="Стабильный идентификатор мода. По нему лаунчер запоминает выбор игрока — выбор не сбросится при обновлении/переименовании файла. Обычно modid или slug."
+                  >
+                    modId
+                  </span>
+                  <input
+                    className="fm-edit-input"
+                    placeholder="напр. sodium"
+                    value={modId}
+                    onChange={(e) => setModId(e.target.value)}
+                  />
+                  <span className="fm-edit-hint muted">
+                    Идентификатор для сохранения выбора игрока. Автозаполняется из имени файла.
+                  </span>
+                </div>
+              </>
             )}
           </section>
 
-          <section className="fm-properties-section">
+          <section className="fm-properties-section fm-properties-section--wide">
             <div className="fm-properties-section-head">
               <strong>Витрина</strong>
-              <span className="muted">название и описание для клиента</span>
+              <span className="muted">
+                отображается в лаунчере
+                {optional && " · особенно важно для опциональных модов"}
+              </span>
             </div>
 
             <label className="fm-edit-check">
@@ -1210,23 +1405,30 @@ function FileSettingsDrawer({
             </label>
 
             <div className="fm-drawer-field">
-              <span className="fm-edit-label muted">Имя</span>
+              <span className="fm-edit-label muted">Отображаемое имя</span>
               <input
                 className="fm-edit-input"
-                placeholder="Отображаемое имя"
+                placeholder="Имя мода для показа игроку"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
               />
+              <span className="fm-edit-hint muted">
+                Если пусто, лаунчер попробует имя из metadata jar, затем имя файла.
+              </span>
             </div>
 
             <div className="fm-drawer-field">
               <span className="fm-edit-label muted">Описание</span>
-              <input
-                className="fm-edit-input"
-                placeholder="Короткое описание"
+              <textarea
+                className="fm-edit-input fm-edit-textarea"
+                placeholder="Короткое описание для списка модов в лаунчере"
+                rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
+              <span className="fm-edit-hint muted">
+                Показывается под именем мода. Если пусто — из metadata jar или не показывается.
+              </span>
             </div>
           </section>
         </div>

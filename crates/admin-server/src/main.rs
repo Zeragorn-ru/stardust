@@ -1063,11 +1063,12 @@ struct UpdateFileMeta {
     #[serde(rename = "enabledByDefault")]
     enabled_by_default: Option<bool>,
     disabled: Option<bool>,
+    /// `None` = не передано, `Some(None)` = явно null (очистить), `Some(Some(s))` = строка.
     #[serde(rename = "modId")]
-    mod_id: Option<String>,
+    mod_id: Option<Option<String>>,
     #[serde(rename = "displayName")]
-    display_name: Option<String>,
-    description: Option<String>,
+    display_name: Option<Option<String>>,
+    description: Option<Option<String>>,
 }
 
 /// Частичное обновление метаданных файла (сторона, опциональность и т.д.).
@@ -1092,9 +1093,19 @@ async fn update_file(
             .enabled_by_default
             .unwrap_or(current.enabled_by_default),
         disabled: patch.disabled.unwrap_or(current.disabled),
-        mod_id: patch.mod_id.or(current.mod_id),
-        display_name: patch.display_name.or(current.display_name),
-        description: patch.description.or(current.description),
+        // None = не передано, Some(None) = очистить (null), Some(Some(s)) = строка.
+        mod_id: patch
+            .mod_id
+            .unwrap_or(current.mod_id)
+            .filter(|s| !s.trim().is_empty()),
+        display_name: patch
+            .display_name
+            .unwrap_or(current.display_name)
+            .filter(|s| !s.trim().is_empty()),
+        description: patch
+            .description
+            .unwrap_or(current.description)
+            .filter(|s| !s.trim().is_empty()),
     };
 
     let row = state

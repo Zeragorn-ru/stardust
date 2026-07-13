@@ -937,6 +937,22 @@ button.secondary:hover:not(:disabled) {
     width: 100%;
 }
 
+.m-screen .fm-filter-btn {
+    width: 100%;
+    justify-content: center;
+}
+
+.m-screen .fm-filter-panel {
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+}
+
+.m-screen .fm-filter-options {
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
 .m-screen .seg {
     display: grid;
     grid-auto-flow: column;
@@ -1053,6 +1069,20 @@ button.secondary:hover:not(:disabled) {
 
 .m-screen .fm-drawer-head {
     padding: 14px;
+}
+
+.m-screen .fm-drawer-head--hero {
+    padding: 16px;
+}
+
+.m-screen .fm-file-avatar--lg {
+    width: 44px;
+    height: 44px;
+}
+
+.m-screen .fm-drawer-body--props {
+    padding: 14px;
+    gap: 10px;
 }
 
 .m-screen .fm-drawer-foot {
