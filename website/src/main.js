@@ -1,5 +1,7 @@
 const RELEASE_URL = 'https://github.com/Zeragorn-ru/stardust/releases/latest';
 const MAP_ATTRIBUTE = 'data-server-map-url';
+const ADMIN_API_ATTRIBUTE = 'data-admin-api-url';
+const AUTH_API_ATTRIBUTE = 'data-auth-api-url';
 const STEVE_SKIN_URL = '/steve.png';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,6 +13,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const mapFrame = mapDialog?.querySelector('iframe');
   const mapHint = document.querySelector('[data-map-hint]');
   const mapUrl = document.documentElement.getAttribute(MAP_ATTRIBUTE)?.trim() || '';
+  const adminApiUrl = normalizeBaseUrl(document.documentElement.getAttribute(ADMIN_API_ATTRIBUTE));
+  const authApiUrl = normalizeBaseUrl(document.documentElement.getAttribute(AUTH_API_ATTRIBUTE));
 
   const closeMenu = () => {
     navLinks?.classList.remove('open');
@@ -86,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
   applyReleaseLinks();
   wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint });
   decoratePixelAvatar();
+  hydrateBackendStatus({ adminApiUrl, authApiUrl });
 });
 
 function setFaqState(item, expanded) {
@@ -131,12 +136,12 @@ function wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint }) {
   if (mapUrl) {
     mapDialog.classList.add('has-map');
     if (mapFrame) mapFrame.src = mapUrl;
-    if (mapHint) mapHint.textContent = 'Карта откроется внутри сайта и в новой вкладке по той же ссылке.';
+    if (mapHint) mapHint.textContent = `Карта откроется на ${new URL(mapUrl).host}.`;
   }
 
   openButtons.forEach((button) => {
     button.addEventListener('click', () => {
-      if (mapUrl && window.innerWidth < 900) {
+      if (mapUrl) {
         window.open(mapUrl, '_blank', 'noopener');
         return;
       }
@@ -171,4 +176,75 @@ function decoratePixelAvatar() {
     avatar.style.backgroundPosition = 'center';
   };
   image.src = STEVE_SKIN_URL;
+}
+
+async function hydrateBackendStatus({ adminApiUrl, authApiUrl }) {
+  const healthBadge = document.querySelector('[data-health-badge]');
+  const healthLabel = document.querySelector('[data-health-label]');
+  const healthStatus = document.querySelector('[data-health-status]');
+  const launcherStatus = document.querySelector('[data-launcher-status]');
+  const launcherPlayers = document.querySelector('[data-launcher-players]');
+  const buildLoader = document.querySelector('[data-build-loader]');
+  const buildVersion = document.querySelector('[data-build-version]');
+  const buildSummary = document.querySelector('[data-build-summary]');
+
+  const [adminHealth, authHealth, manifest] = await Promise.allSettled([
+    fetchText(`${adminApiUrl}/health`),
+    fetchText(`${authApiUrl}/health`),
+    fetchJson(`${adminApiUrl}/manifest`),
+  ]);
+
+  const adminOnline = adminHealth.status === 'fulfilled' && adminHealth.value.trim().toLowerCase() === 'ok';
+  const authOnline = authHealth.status === 'fulfilled' && authHealth.value.trim().toLowerCase() === 'ok';
+  const online = adminOnline || authOnline;
+
+  healthBadge?.classList.toggle('live-badge--offline', !online);
+  if (healthLabel) healthLabel.textContent = online ? 'backend online' : 'backend status unavailable';
+  if (healthStatus) healthStatus.textContent = online ? 'Онлайн' : 'Недоступен';
+  if (launcherStatus) launcherStatus.textContent = online ? 'Онлайн' : '—';
+  if (launcherPlayers) launcherPlayers.textContent = online ? 'play.stardust-mc.xyz' : 'статус не отдан';
+
+  if (manifest.status === 'fulfilled' && manifest.value) {
+    const loader = manifest.value.loader;
+    const loaderLabel = loader ? `${formatLoader(loader.kind)} ${loader.minecraft}` : 'активная сборка';
+    const versionLabel = manifest.value.version ? `build ${manifest.value.version}` : manifest.value.name;
+    if (buildLoader) buildLoader.textContent = loaderLabel;
+    if (buildVersion) buildVersion.textContent = versionLabel || 'активная сборка';
+    if (buildSummary) buildSummary.textContent = `${manifest.value.name || 'Активная сборка'} · ${versionLabel || 'версия актуальна'}`;
+  } else if (buildSummary) {
+    buildSummary.textContent = 'Активная сборка будет загружена лаунчером';
+  }
+}
+
+function normalizeBaseUrl(value) {
+  const base = value?.trim();
+  return base ? base.replace(/\/$/, '') : '';
+}
+
+async function fetchText(url) {
+  const response = await fetchWithTimeout(url, { headers: { Accept: 'text/plain' } });
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  return response.text();
+}
+
+async function fetchJson(url) {
+  const response = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Request failed: ${response.status}`);
+  return response.json();
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 2500);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function formatLoader(kind) {
+  if (!kind) return 'Loader';
+  if (kind.toLowerCase() === 'neoforge') return 'NeoForge';
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
 }
