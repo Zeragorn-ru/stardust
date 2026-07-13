@@ -75,9 +75,20 @@ const SkinViewer3D = memo(function SkinViewer3D({
   const lastModelRef = useRef<SkinModel>("classic");
   const lastCapeRef = useRef<string | null>(null);
 
+  /** Отрисовать один кадр без постоянного requestAnimationFrame. */
+  function renderOnce() {
+    const v = viewerRef.current;
+    if (!v || !visibleRef.current || document.hidden) return;
+    v.render();
+  }
+
   /** Запустить встроенный цикл рендера (если не на паузе и visible). */
   function startLoop() {
     const v = viewerRef.current;
+    if (!interactive) {
+      renderOnce();
+      return;
+    }
     if (!v || idleRef.current || !visibleRef.current || !focusedRef.current || document.hidden) return;
     v.startRenderLoop();
   }
@@ -89,6 +100,10 @@ const SkinViewer3D = memo(function SkinViewer3D({
 
   /** Сбросить таймер бездействия. */
   function resetIdleTimer() {
+    if (!interactive) {
+      renderOnce();
+      return;
+    }
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (idleRef.current) {
       idleRef.current = false;
@@ -110,10 +125,11 @@ const SkinViewer3D = memo(function SkinViewer3D({
       viewer.setSlim(model === "slim");
       void normalizeSkinForViewer(src)
         .then((normalized) => viewer.setSkin(normalized))
+        .then(renderOnce)
         .catch(() => {
           viewer.setSkin(src).catch(() => {
             if (src !== DEFAULT_SKIN) viewer.setSkin(DEFAULT_SKIN);
-          });
+          }).finally(renderOnce);
         });
     }
     if (capeUrl !== lastCapeRef.current) {
@@ -121,10 +137,11 @@ const SkinViewer3D = memo(function SkinViewer3D({
       if (capeUrl) {
         viewer.setCape(capeUrl).catch(() => {
           viewer.setBackEquipment("none");
-        });
+        }).finally(renderOnce);
         viewer.setBackEquipment("cape");
       } else {
         viewer.setBackEquipment("none");
+        renderOnce();
       }
     }
   }
@@ -173,7 +190,8 @@ const SkinViewer3D = memo(function SkinViewer3D({
       const v = viewerRef.current;
       if (v && visibleRef.current) {
         v.resize(width, height);
-        startLoop();
+        if (interactive) startLoop();
+        else renderOnce();
       }
     }
 
@@ -252,7 +270,8 @@ const SkinViewer3D = memo(function SkinViewer3D({
       const v = viewerRef.current;
       if (v) {
         v.resize(width, height);
-        startLoop();
+        if (interactive) startLoop();
+        else renderOnce();
       }
       resetIdleTimer();
     } else {
@@ -269,6 +288,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (!interactive) return;
 
     let lastMove = 0;
     function onMouseMove() {

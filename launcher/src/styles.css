@@ -212,7 +212,6 @@ body {
     border-radius: 999px;
     background: var(--accent-grad);
     box-shadow: 0 0 18px rgba(124, 92, 255, 0.9);
-    animation: markPulse 2.8s ease-in-out infinite;
 }
 
 @keyframes markPulse {
@@ -496,7 +495,7 @@ body {
 }
 
 .float {
-    animation: float 4s ease-in-out infinite;
+    transform: translateY(0);
 }
 
 @keyframes float {
@@ -672,7 +671,7 @@ body {
 }
 /* Мягкое «дыхание» свечения, пока кнопка готова к запуску. */
 .btn--play:not(:disabled) {
-    animation: playPulse 3.2s ease-in-out infinite;
+    box-shadow: 0 12px 36px -20px rgba(16, 185, 129, 0.7);
 }
 /* На наведении отдаём приоритет hover-тени, чтобы не было конфликта. */
 .btn--play:hover:not(:disabled) {
@@ -704,7 +703,11 @@ body {
         transparent
     );
     transform: skewX(-20deg);
-    animation: sheen 3.5s ease-in-out infinite;
+    transition: left 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.btn--play:hover:not(:disabled)::after {
+    left: 120%;
 }
 
 /* Кнопка «Попробовать снова» при ошибке — компактная, без зелёного. */
@@ -925,12 +928,11 @@ body {
 }
 .orb--a {
     background: var(--accent);
-    animation: orbit 3s linear infinite;
+    transform: translateX(18px);
 }
 .orb--b {
     background: var(--accent-2);
-    animation: orbit 3s linear infinite reverse;
-    animation-delay: -1.5s;
+    transform: translateX(-18px);
 }
 
 @keyframes orbit {
@@ -1035,7 +1037,6 @@ body {
 .login__approval-waiting {
     font-size: 14px;
     color: var(--muted);
-    animation: approval-pulse 2s ease-in-out infinite;
 }
 
 @keyframes approval-pulse {
@@ -1227,7 +1228,6 @@ body {
     );
     filter: blur(8px);
     z-index: 0;
-    animation: platformGlow 4s ease-in-out infinite;
     pointer-events: none;
 }
 
@@ -1248,7 +1248,6 @@ body {
     filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.5));
     position: relative;
     z-index: 1;
-    animation: skinFloat 5s ease-in-out infinite;
 }
 
 @keyframes skinFloat {
@@ -1529,14 +1528,7 @@ body {
 .server-player__loading {
     position: absolute;
     inset: 0;
-    background: linear-gradient(
-        100deg,
-        transparent 30%,
-        rgba(255, 255, 255, 0.08) 50%,
-        transparent 70%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.2s ease-in-out infinite;
+    background: rgba(255, 255, 255, 0.06);
 }
 
 @keyframes shimmer {
@@ -1991,10 +1983,8 @@ body {
     display: inline-block;
     width: 60px;
     height: 1em;
-    background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.06) 75%);
-    background-size: 200% 100%;
+    background: rgba(255,255,255,0.08);
     border-radius: 4px;
-    animation: skeleton-shimmer 1.5s ease-in-out infinite;
 }
 
 @keyframes skeleton-shimmer {
