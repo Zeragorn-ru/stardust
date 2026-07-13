@@ -222,7 +222,7 @@ export default function MainScreen({
               capeUrl={skin.capeUrl}
               width={240}
               height={340}
-              visible={windowFocused && !running}
+              visible={windowFocused && !running && !skinOpen}
             />
           ) : (
             <FaceAvatar dataUrl={skin.dataUrl} size={240} />

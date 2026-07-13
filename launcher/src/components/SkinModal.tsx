@@ -133,6 +133,7 @@ export default function SkinModal({ onClose, embedded = false }: Props) {
               capeUrl={previewCape}
               width={220}
               height={300}
+              interactive
             />
             <p className="muted skin-modal__hint">Покрутите модель мышью</p>
           </div>
