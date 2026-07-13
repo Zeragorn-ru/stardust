@@ -1,162 +1,174 @@
-import { SkinViewer } from 'skinview3d';
-
+const RELEASE_URL = 'https://github.com/Zeragorn-ru/stardust/releases/latest';
+const MAP_ATTRIBUTE = 'data-server-map-url';
 const STEVE_SKIN_URL = '/steve.png';
 
 document.addEventListener('DOMContentLoaded', () => {
-    const navbar = document.querySelector('.navbar');
-    const mobileBtn = document.querySelector('.mobile-menu-btn');
-    const navLinks = document.querySelector('.nav-links');
-    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const navbar = document.querySelector('.navbar');
+  const mobileBtn = document.querySelector('.mobile-menu-btn');
+  const navLinks = document.querySelector('.nav-links');
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const mapDialog = document.querySelector('.map-dialog');
+  const mapFrame = mapDialog?.querySelector('iframe');
+  const mapHint = document.querySelector('[data-map-hint]');
+  const mapUrl = document.documentElement.getAttribute(MAP_ATTRIBUTE)?.trim() || '';
 
-    const closeMobileMenu = () => {
-        navLinks?.classList.remove('open');
-        mobileBtn?.setAttribute('aria-expanded', 'false');
-    };
+  const closeMenu = () => {
+    navLinks?.classList.remove('open');
+    mobileBtn?.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('menu-open');
+  };
 
-    const setFaqState = (item, expanded) => {
-        const button = item.querySelector('.faq-question');
-        const answer = item.querySelector('.faq-answer');
-        item.classList.toggle('active', expanded);
-        button?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-        answer.style.maxHeight = expanded ? `${answer.scrollHeight}px` : null;
-    };
-
-    document.querySelectorAll('.faq-question').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const item = btn.closest('.faq-item');
-            const isOpen = item.classList.contains('active');
-
-            document.querySelectorAll('.faq-item').forEach(i => setFaqState(i, false));
-            if (!isOpen) setFaqState(item, true);
-        });
+  if (mobileBtn && navLinks) {
+    mobileBtn.addEventListener('click', () => {
+      const isOpen = navLinks.classList.toggle('open');
+      mobileBtn.setAttribute('aria-expanded', String(isOpen));
+      document.body.classList.toggle('menu-open', isOpen);
     });
 
-    const particlesContainer = document.getElementById('particles');
-    if (particlesContainer && !prefersReducedMotion) {
-        for (let i = 0; i < 24; i++) {
-            const particle = document.createElement('div');
-            const size = 2 + Math.random() * 4;
-            particle.className = 'particle';
-            particle.style.left = `${Math.random() * 100}%`;
-            particle.style.top = `${80 + Math.random() * 30}%`;
-            particle.style.animationDelay = `${Math.random() * 18}s`;
-            particle.style.animationDuration = `${16 + Math.random() * 18}s`;
-            particle.style.width = `${size}px`;
-            particle.style.height = `${size}px`;
-            particlesContainer.appendChild(particle);
-        }
-    }
-
-    if (!prefersReducedMotion) {
-        const revealObserver = new IntersectionObserver(entries => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    revealObserver.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.12 });
-
-        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
-    } else {
-        document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
-    }
-
-    let lastScrollY = window.scrollY;
-    window.addEventListener('scroll', () => {
-        const currentScrollY = window.scrollY;
-
-        if (navbar) {
-            navbar.style.background = currentScrollY > 80 ? 'rgba(8, 8, 16, 0.92)' : 'rgba(8, 8, 16, 0.75)';
-            navbar.classList.toggle('hidden', !prefersReducedMotion && currentScrollY > lastScrollY && currentScrollY > 160);
-        }
-
-        lastScrollY = currentScrollY;
-    }, { passive: true });
-
-    if (mobileBtn && navLinks) {
-        mobileBtn.addEventListener('click', () => {
-            const isOpen = navLinks.classList.toggle('open');
-            mobileBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        });
-
-        document.addEventListener('click', event => {
-            if (!navLinks.classList.contains('open')) return;
-            if (navLinks.contains(event.target) || mobileBtn.contains(event.target)) return;
-            closeMobileMenu();
-        });
-
-        window.addEventListener('keydown', event => {
-            if (event.key === 'Escape') closeMobileMenu();
-        });
-    }
-
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', event => {
-            const selector = anchor.getAttribute('href');
-            const target = selector === '#' ? document.body : document.querySelector(selector);
-
-            if (target) {
-                event.preventDefault();
-                target.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
-                closeMobileMenu();
-            }
-        });
+    document.addEventListener('click', (event) => {
+      if (!navLinks.classList.contains('open')) return;
+      if (navLinks.contains(event.target) || mobileBtn.contains(event.target)) return;
+      closeMenu();
     });
+  }
 
-    initAvatarPreview();
-    initSkinPreview(prefersReducedMotion).catch(() => {
-        document.querySelector('.launcher-preview-skin')?.classList.remove('skinview-ready');
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      closeMenu();
+      if (mapDialog?.open) mapDialog.close();
+    }
+  });
+
+  document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
+    anchor.addEventListener('click', (event) => {
+      const selector = anchor.getAttribute('href');
+      const target = selector === '#' ? document.body : document.querySelector(selector);
+      if (!target) return;
+      event.preventDefault();
+      target.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'start' });
+      closeMenu();
     });
+  });
+
+  let lastScrollY = window.scrollY;
+  window.addEventListener('scroll', () => {
+    const currentScrollY = window.scrollY;
+    if (!navbar) return;
+    navbar.classList.toggle('scrolled', currentScrollY > 16);
+    navbar.classList.toggle('hidden', !prefersReducedMotion && currentScrollY > lastScrollY && currentScrollY > 180);
+    lastScrollY = currentScrollY;
+  }, { passive: true });
+
+  document.querySelectorAll('.faq-question').forEach((button) => {
+    button.addEventListener('click', () => {
+      const item = button.closest('.faq-item');
+      const isOpen = item.classList.contains('active');
+      document.querySelectorAll('.faq-item').forEach((faq) => setFaqState(faq, false));
+      setFaqState(item, !isOpen);
+    });
+  });
+
+  if (!prefersReducedMotion) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.14 });
+
+    document.querySelectorAll('.reveal').forEach((element) => observer.observe(element));
+  } else {
+    document.querySelectorAll('.reveal').forEach((element) => element.classList.add('visible'));
+  }
+
+  createParticles(prefersReducedMotion);
+  applyReleaseLinks();
+  wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint });
+  decoratePixelAvatar();
 });
 
-function initAvatarPreview() {
-    const canvas = document.getElementById('launcher-avatar-canvas');
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
-
-    const img = new Image();
-    img.onload = () => {
-        ctx.imageSmoothingEnabled = false;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 8, 8, 8, 8, 0, 0, 8, 8);
-        ctx.drawImage(img, 40, 8, 8, 8, 0, 0, 8, 8);
-    };
-    img.src = STEVE_SKIN_URL;
+function setFaqState(item, expanded) {
+  const button = item?.querySelector('.faq-question');
+  const answer = item?.querySelector('.faq-answer');
+  if (!item || !button || !answer) return;
+  item.classList.toggle('active', expanded);
+  button.setAttribute('aria-expanded', String(expanded));
+  answer.style.maxHeight = expanded ? `${answer.scrollHeight}px` : '0px';
 }
 
-async function initSkinPreview(prefersReducedMotion) {
-    const canvas = document.getElementById('launcher-skin-canvas');
-    const container = canvas?.closest('.launcher-preview-skin');
-    if (!canvas || !container) return;
+function createParticles(prefersReducedMotion) {
+  if (prefersReducedMotion) return;
+  const container = document.getElementById('particles');
+  if (!container) return;
 
-    const viewer = new SkinViewer({
-        canvas,
-        width: 320,
-        height: 500
+  for (let i = 0; i < 22; i += 1) {
+    const particle = document.createElement('span');
+    const size = 2 + Math.random() * 4;
+    particle.className = 'particle';
+    particle.style.left = `${Math.random() * 100}%`;
+    particle.style.top = `${68 + Math.random() * 32}%`;
+    particle.style.width = `${size}px`;
+    particle.style.height = `${size}px`;
+    particle.style.animationDelay = `${Math.random() * 14}s`;
+    particle.style.animationDuration = `${12 + Math.random() * 10}s`;
+    container.appendChild(particle);
+  }
+}
+
+function applyReleaseLinks() {
+  document.querySelectorAll('a[href="https://github.com/Zeragorn-ru/stardust/releases/latest"]').forEach((link) => {
+    link.href = RELEASE_URL;
+  });
+}
+
+function wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint }) {
+  if (!mapDialog) return;
+
+  const closeButton = mapDialog.querySelector('.map-dialog-close');
+  const openButtons = document.querySelectorAll('[data-map-open]');
+
+  if (mapUrl) {
+    mapDialog.classList.add('has-map');
+    if (mapFrame) mapFrame.src = mapUrl;
+    if (mapHint) mapHint.textContent = 'Карта откроется внутри сайта и в новой вкладке по той же ссылке.';
+  }
+
+  openButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      if (mapUrl && window.innerWidth < 900) {
+        window.open(mapUrl, '_blank', 'noopener');
+        return;
+      }
+      mapDialog.showModal();
     });
+  });
 
-    viewer.controls.enabled = false;
-    viewer.camera.fov = 70;
-    viewer.camera.position.set(24.55, 20.85, 57.84);
-    viewer.controls.target.set(-0.69, 3.91, -3.61);
-    viewer.scene.position.x = 0.8;
-    viewer.scene.position.y = -1.5;
-    viewer.cameraLight.intensity = 1400;
-    viewer.globalLight.intensity = 2.2;
+  closeButton?.addEventListener('click', () => mapDialog.close());
+  mapDialog.addEventListener('click', (event) => {
+    const rect = mapDialog.getBoundingClientRect();
+    const inside = rect.top <= event.clientY && event.clientY <= rect.bottom && rect.left <= event.clientX && event.clientX <= rect.right;
+    if (!inside) mapDialog.close();
+  });
+}
 
-    await viewer.loadSkin(STEVE_SKIN_URL, { model: 'default' });
-    container.classList.add('skinview-ready');
+function decoratePixelAvatar() {
+  const avatar = document.querySelector('.pixel-avatar');
+  if (!avatar) return;
 
-    if (!prefersReducedMotion) {
-        let direction = 1;
-        const animate = () => {
-            const rot = viewer.playerWrapper.rotation.y;
-            if (rot > 0.24) direction = -1;
-            if (rot < -0.18) direction = 1;
-            viewer.playerWrapper.rotation.y += direction * 0.002;
-            requestAnimationFrame(animate);
-        };
-        requestAnimationFrame(animate);
-    }
+  const image = new Image();
+  image.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 8;
+    canvas.height = 8;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+    context.imageSmoothingEnabled = false;
+    context.drawImage(image, 8, 8, 8, 8, 0, 0, 8, 8);
+    context.drawImage(image, 40, 8, 8, 8, 0, 0, 8, 8);
+    avatar.style.backgroundImage = `url(${canvas.toDataURL()})`;
+    avatar.style.backgroundSize = 'cover';
+    avatar.style.backgroundPosition = 'center';
+  };
+  image.src = STEVE_SKIN_URL;
 }
