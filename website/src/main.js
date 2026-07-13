@@ -1,5 +1,7 @@
 import { SkinViewer } from 'skinview3d';
 
+const STEVE_SKIN_URL = '/steve.png';
+
 document.addEventListener('DOMContentLoaded', () => {
     const navbar = document.querySelector('.navbar');
     const mobileBtn = document.querySelector('.mobile-menu-btn');
@@ -108,108 +110,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-let steveSkinDataUrl = '';
-
-function createSteveSkinDataUrl() {
-    const canvas = document.createElement('canvas');
-    canvas.width = 64;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-    ctx.imageSmoothingEnabled = false;
-
-    ctx.clearRect(0, 0, 64, 64);
-
-    const skin = '#b77a56';
-    const skinLight = '#c98b65';
-    const skinDark = '#8f573c';
-    const hair = '#3a271d';
-    const hairDark = '#241711';
-    const shirt = '#00a6a6';
-    const shirtDark = '#007f7f';
-    const shirtLight = '#18bcbc';
-    const pants = '#3b47a7';
-    const pantsDark = '#222c78';
-    const shoes = '#2d1b14';
-
-    const rect = (x, y, w, h, color) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, w, h);
-    };
-
-    const noise = (x, y, w, h, colors) => {
-        for (let yy = y; yy < y + h; yy++) {
-            for (let xx = x; xx < x + w; xx++) {
-                rect(xx, yy, 1, 1, colors[(xx + yy * 3) % colors.length]);
-            }
-        }
-    };
-
-    // Classic Steve 64x64 layout: head.
-    noise(8, 0, 8, 8, [hair, hairDark]);
-    noise(16, 0, 8, 8, [hair, hairDark]);
-    noise(0, 8, 8, 8, [skinDark, skin]);
-    noise(8, 8, 8, 8, [skin, skinLight]);
-    noise(16, 8, 8, 8, [skin, skinDark]);
-    noise(24, 8, 8, 8, [hair, hairDark]);
-    rect(8, 8, 8, 3, hair);
-    rect(8, 11, 1, 1, hairDark);
-    rect(15, 11, 1, 1, hairDark);
-    rect(9, 12, 2, 1, '#2a1d17');
-    rect(13, 12, 2, 1, '#2a1d17');
-    rect(11, 15, 3, 1, '#6b3a2f');
-
-    // Body.
-    noise(20, 16, 8, 4, [shirtDark, shirt]);
-    noise(28, 16, 8, 4, [shirtDark, shirt]);
-    noise(16, 20, 4, 12, [shirtDark, shirt]);
-    noise(20, 20, 8, 12, [shirt, shirtLight]);
-    noise(28, 20, 4, 12, [shirtDark, shirt]);
-    noise(32, 20, 8, 12, [shirtDark, shirt]);
-    rect(23, 20, 2, 12, 'rgba(255,255,255,0.12)');
-
-    // Right arm.
-    noise(44, 16, 4, 4, [skinDark, skin]);
-    noise(48, 16, 4, 4, [skin, skinLight]);
-    noise(40, 20, 4, 12, [skinDark, skin]);
-    noise(44, 20, 4, 12, [shirt, shirtLight]);
-    noise(48, 20, 4, 12, [skin, skinLight]);
-    noise(52, 20, 4, 12, [skinDark, skin]);
-
-    // Right leg.
-    noise(4, 16, 4, 4, [pantsDark, pants]);
-    noise(8, 16, 4, 4, [pants, pantsDark]);
-    noise(0, 20, 4, 12, [pantsDark, pants]);
-    noise(4, 20, 4, 10, [pants, pantsDark]);
-    noise(8, 20, 4, 10, [pants, pantsDark]);
-    noise(12, 20, 4, 12, [pantsDark, pants]);
-    rect(4, 30, 8, 2, shoes);
-
-    // Left leg (1.8+ layout).
-    noise(20, 48, 4, 4, [pantsDark, pants]);
-    noise(24, 48, 4, 4, [pants, pantsDark]);
-    noise(16, 52, 4, 12, [pantsDark, pants]);
-    noise(20, 52, 4, 10, [pants, pantsDark]);
-    noise(24, 52, 4, 10, [pants, pantsDark]);
-    noise(28, 52, 4, 12, [pantsDark, pants]);
-    rect(20, 62, 8, 2, shoes);
-
-    // Left arm (1.8+ layout).
-    noise(36, 48, 4, 4, [skinDark, skin]);
-    noise(40, 48, 4, 4, [skin, skinLight]);
-    noise(32, 52, 4, 12, [skinDark, skin]);
-    noise(36, 52, 4, 12, [shirt, shirtLight]);
-    noise(40, 52, 4, 12, [skin, skinLight]);
-    noise(44, 52, 4, 12, [skinDark, skin]);
-
-    return canvas.toDataURL('image/png');
-}
-
-function getSteveSkinDataUrl() {
-    if (!steveSkinDataUrl) steveSkinDataUrl = createSteveSkinDataUrl();
-    return steveSkinDataUrl;
-}
-
 function initAvatarPreview() {
     const canvas = document.getElementById('launcher-avatar-canvas');
     const ctx = canvas?.getContext('2d');
@@ -222,7 +122,7 @@ function initAvatarPreview() {
         ctx.drawImage(img, 8, 8, 8, 8, 0, 0, 8, 8);
         ctx.drawImage(img, 40, 8, 8, 8, 0, 0, 8, 8);
     };
-    img.src = getSteveSkinDataUrl();
+    img.src = STEVE_SKIN_URL;
 }
 
 async function initSkinPreview(prefersReducedMotion) {
@@ -245,7 +145,7 @@ async function initSkinPreview(prefersReducedMotion) {
     viewer.cameraLight.intensity = 1400;
     viewer.globalLight.intensity = 2.2;
 
-    await viewer.loadSkin(getSteveSkinDataUrl(), { model: 'default' });
+    await viewer.loadSkin(STEVE_SKIN_URL, { model: 'default' });
     container.classList.add('skinview-ready');
 
     if (!prefersReducedMotion) {
