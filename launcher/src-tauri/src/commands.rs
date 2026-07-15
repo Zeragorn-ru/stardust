@@ -1144,7 +1144,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     // Не даём запустить вторую копию, пока предыдущая жива. Сам `Child`
     // принадлежит фоновой задаче, чтобы она не потеряла exit status при краше.
     {
-        let mut guard = state.game.lock().unwrap();
+        let guard = state.game.lock().unwrap();
         if guard.is_some() {
             if crate::game_guard::is_running(&data_dir) {
                 return Err("Игра уже запущена".into());
@@ -1299,7 +1299,7 @@ fn collect_crash_diagnostics(
         return None;
     }
 
-    files.sort_by(|a, b| b.1.cmp(&a.1));
+    files.sort_by_key(|file| std::cmp::Reverse(file.1));
     files.dedup_by(|a, b| a.0 == b.0);
 
     let mut parts = Vec::new();
@@ -1461,7 +1461,7 @@ async fn set_mod_enabled(
 #[tauri::command]
 fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
     let data_dir = paths::data_dir(&app);
-    let mut guard = state.game.lock().unwrap();
+    let guard = state.game.lock().unwrap();
     if guard.is_some() {
         if crate::game_guard::is_running(&data_dir) {
             return true;
