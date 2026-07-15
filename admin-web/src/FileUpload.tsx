@@ -101,6 +101,7 @@ export const FileUpload = forwardRef<
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dirInputRef = useRef<HTMLInputElement>(null);
+  const stopRequested = useRef(false);
 
   function addFiles(files: FileList | File[]) {
     const arr = Array.from(files).map((f) => makeItem(f, baseDir));
@@ -172,12 +173,19 @@ export const FileUpload = forwardRef<
     addFromDataTransfer(e.dataTransfer);
   }
 
-  async function uploadAll() {
+  async function uploadAll(onlyErrors = false) {
+    stopRequested.current = false;
     setBusy(true);
     let ok = 0;
     let failed = 0;
+    let skipped = 0;
+    const queue = onlyErrors ? items.filter((it) => it.status === "error") : items;
     // Грузим последовательно: меньше нагрузка и предсказуемый прогресс.
-    for (const it of items) {
+    for (const it of queue) {
+      if (stopRequested.current) {
+        skipped++;
+        continue;
+      }
       if (it.status === "done") continue;
       if (!it.path.trim()) {
         patch(it.id, { status: "error", error: "Пустой путь" });
@@ -213,13 +221,17 @@ export const FileUpload = forwardRef<
     setBusy(false);
     if (ok) {
       toast.success(`Загружено файлов: ${ok}`);
-      // Убираем успешно загруженные из очереди.
       setItems((cur) => cur.filter((it) => it.status !== "done"));
       onUploaded();
     }
     if (failed) toast.error(`Не удалось загрузить: ${failed}`);
+    if (skipped) toast.info(`Остановлено, осталось в очереди: ${skipped}`);
   }
 
+  const queuedCount = items.filter((it) => it.status === "queued").length;
+  const uploadingCount = items.filter((it) => it.status === "uploading").length;
+  const doneCount = items.filter((it) => it.status === "done").length;
+  const errorCount = items.filter((it) => it.status === "error").length;
   const pending = items.filter((it) => it.status !== "done").length;
   const target = baseDir ? `.minecraft/${baseDir.replace(/\/+$/, "")}/` : "";
 
@@ -282,6 +294,12 @@ export const FileUpload = forwardRef<
 
       {items.length > 0 && (
         <>
+          <div className="queue-summary" aria-live="polite">
+            <span>В очереди: {queuedCount}</span>
+            {uploadingCount > 0 && <span>загружается: {uploadingCount}</span>}
+            {doneCount > 0 && <span>готово: {doneCount}</span>}
+            {errorCount > 0 && <span className="queue-summary-error">ошибки: {errorCount}</span>}
+          </div>
           <div className="queue">
             {items.map((it) => (
               <QueueRow
@@ -298,13 +316,37 @@ export const FileUpload = forwardRef<
             <button type="button" onClick={() => setItems([])} disabled={busy}>
               Очистить
             </button>
-            <button
-              className="primary"
-              onClick={uploadAll}
-              disabled={busy || pending === 0}
-            >
-              {busy ? "Загрузка…" : `Загрузить (${pending})`}
-            </button>
+            {doneCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setItems((cur) => cur.filter((it) => it.status !== "done"))}
+                disabled={busy}
+              >
+                Убрать готовые
+              </button>
+            )}
+            {errorCount > 0 && (
+              <button
+                type="button"
+                onClick={() => uploadAll(true)}
+                disabled={busy}
+              >
+                Повторить ошибки ({errorCount})
+              </button>
+            )}
+            {busy ? (
+              <button type="button" onClick={() => (stopRequested.current = true)}>
+                Остановить после текущего
+              </button>
+            ) : (
+              <button
+                className="primary"
+                onClick={() => uploadAll()}
+                disabled={pending === 0}
+              >
+                Загрузить ({pending})
+              </button>
+            )}
           </div>
         </>
       )}

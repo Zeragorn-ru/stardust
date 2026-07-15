@@ -1,4 +1,5 @@
 const RELEASE_URL = 'https://github.com/Zeragorn-ru/stardust/releases/latest';
+const RELEASE_API_URL = 'https://api.github.com/repos/Zeragorn-ru/stardust/releases/latest';
 const MAP_ATTRIBUTE = 'data-server-map-url';
 const ADMIN_API_ATTRIBUTE = 'data-admin-api-url';
 const AUTH_API_ATTRIBUTE = 'data-auth-api-url';
@@ -11,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const mapDialog = document.querySelector('.map-dialog');
   const mapFrame = mapDialog?.querySelector('iframe');
-  const mapHint = document.querySelector('[data-map-hint]');
   const mapUrl = document.documentElement.getAttribute(MAP_ATTRIBUTE)?.trim() || '';
   const adminApiUrl = normalizeBaseUrl(document.documentElement.getAttribute(ADMIN_API_ATTRIBUTE));
   const authApiUrl = normalizeBaseUrl(document.documentElement.getAttribute(AUTH_API_ATTRIBUTE));
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       closeMenu();
-      if (mapDialog?.open) mapDialog.close();
+      if (mapDialog?.open) closeMapDialog(mapDialog);
     }
   });
 
@@ -87,8 +87,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   createParticles(prefersReducedMotion);
-  applyReleaseLinks();
-  wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint });
+  applyPlatformHint();
+  applyReleaseLinks().finally(applyPlatformHint);
+  wireMapDialog({ mapUrl, mapDialog, mapFrame });
+  wireServerAddressCopy();
   decoratePixelAvatar();
   hydrateBackendStatus({ adminApiUrl, authApiUrl });
 });
@@ -121,13 +123,81 @@ function createParticles(prefersReducedMotion) {
   }
 }
 
-function applyReleaseLinks() {
-  document.querySelectorAll('a[href="https://github.com/Zeragorn-ru/stardust/releases/latest"]').forEach((link) => {
+async function applyReleaseLinks() {
+  const releaseStatus = document.querySelector('[data-release-status]');
+  const links = [...document.querySelectorAll('[data-platform]')];
+  links.forEach((link) => {
     link.href = RELEASE_URL;
   });
+
+  try {
+    const release = await fetchJson(RELEASE_API_URL);
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    const assetLinks = {
+      windows: findAssetUrl(assets, [/\.exe$/i, /setup/i]) || findAssetUrl(assets, [/\.msi$/i]) || findAssetUrl(assets, [/\.exe$/i]),
+      macos: findAssetUrl(assets, [/\.dmg$/i]),
+      linux: findAssetUrl(assets, [/\.AppImage$/i]) || findAssetUrl(assets, [/\.deb$/i]) || findAssetUrl(assets, [/\.rpm$/i]),
+    };
+
+    links.forEach((link) => {
+      const url = assetLinks[link.dataset.platform];
+      if (url) link.href = url;
+    });
+
+    const readyCount = Object.values(assetLinks).filter(Boolean).length;
+    if (releaseStatus) releaseStatus.textContent = readyCount > 0 ? `Прямые ссылки обновлены из ${release.tag_name || 'последнего релиза'}.` : 'Прямые asset-ссылки не найдены, откроем страницу последнего релиза.';
+  } catch {
+    if (releaseStatus) releaseStatus.textContent = 'GitHub не ответил, откроем страницу последнего релиза.';
+  }
 }
 
-function wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint }) {
+function applyPlatformHint() {
+  const platform = detectPlatform();
+  const label = platformLabels[platform] || 'Windows, macOS или Linux';
+  const platformBadge = document.querySelector('[data-detected-platform]');
+  const downloadTitle = document.querySelector('[data-download-title]');
+  const downloadHint = document.querySelector('[data-download-hint]');
+  const primaryDownload = document.querySelector('[data-primary-download]');
+  const buttons = [...document.querySelectorAll('[data-platform]')];
+  const activeButton = buttons.find((button) => button.dataset.platform === platform) || buttons[0];
+
+  buttons.forEach((button) => {
+    button.classList.toggle('platform-button--active', button === activeButton);
+    if (button === activeButton) button.setAttribute('aria-current', 'true');
+    else button.removeAttribute('aria-current');
+  });
+
+  if (platformBadge) platformBadge.textContent = platform ? `${label} определена` : 'Выбери платформу';
+  if (downloadTitle) downloadTitle.textContent = platform ? `Скачать для ${label}` : 'Скачать лаунчер';
+  if (downloadHint) downloadHint.textContent = platform ? `Похоже, тебе нужен установщик для ${label}. Если это не так, выбери другую платформу.` : 'Выбери платформу вручную. Все варианты ведут к последнему релизу.';
+  if (primaryDownload && activeButton) primaryDownload.href = activeButton.href;
+}
+
+function findAssetUrl(assets, patterns) {
+  const asset = assets.find((item) => {
+    const name = item.name || '';
+    if (/\.sha256$/i.test(name) || /bootstrap/i.test(name)) return false;
+    return patterns.every((pattern) => pattern.test(name));
+  });
+  return asset?.browser_download_url || '';
+}
+
+const platformLabels = {
+  windows: 'Windows',
+  macos: 'macOS',
+  linux: 'Linux',
+};
+
+function detectPlatform() {
+  const userAgent = window.navigator.userAgent.toLowerCase();
+  const platform = window.navigator.platform?.toLowerCase() || '';
+  if (userAgent.includes('windows') || platform.includes('win')) return 'windows';
+  if (userAgent.includes('mac os') || platform.includes('mac')) return 'macos';
+  if (userAgent.includes('linux') || platform.includes('linux')) return 'linux';
+  return '';
+}
+
+function wireMapDialog({ mapUrl, mapDialog, mapFrame }) {
   if (!mapDialog) return;
 
   const closeButton = mapDialog.querySelector('.map-dialog-close');
@@ -136,7 +206,6 @@ function wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint }) {
   if (mapUrl) {
     mapDialog.classList.add('has-map');
     if (mapFrame) mapFrame.src = mapUrl;
-    if (mapHint) mapHint.textContent = `Карта откроется на ${new URL(mapUrl).host}.`;
   }
 
   openButtons.forEach((button) => {
@@ -145,15 +214,47 @@ function wireMapDialog({ mapUrl, mapDialog, mapFrame, mapHint }) {
         window.open(mapUrl, '_blank', 'noopener');
         return;
       }
-      mapDialog.showModal();
+      openMapDialog(mapDialog, button);
     });
   });
 
-  closeButton?.addEventListener('click', () => mapDialog.close());
+  closeButton?.addEventListener('click', () => closeMapDialog(mapDialog));
   mapDialog.addEventListener('click', (event) => {
     const rect = mapDialog.getBoundingClientRect();
     const inside = rect.top <= event.clientY && event.clientY <= rect.bottom && rect.left <= event.clientX && event.clientX <= rect.right;
-    if (!inside) mapDialog.close();
+    if (!inside) closeMapDialog(mapDialog);
+  });
+}
+
+let lastMapTrigger = null;
+
+function openMapDialog(mapDialog, trigger) {
+  lastMapTrigger = trigger;
+  mapDialog.showModal();
+  mapDialog.querySelector('.map-dialog-close')?.focus();
+}
+
+function closeMapDialog(mapDialog) {
+  mapDialog.close();
+  lastMapTrigger?.focus();
+  lastMapTrigger = null;
+}
+
+function wireServerAddressCopy() {
+  const copyButton = document.querySelector('[data-copy-server]');
+  const address = document.querySelector('[data-server-address]')?.textContent?.trim() || '';
+  if (!copyButton || !address) return;
+
+  copyButton.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(address);
+      copyButton.textContent = 'Скопировано';
+      window.setTimeout(() => {
+        copyButton.textContent = 'Скопировать';
+      }, 1800);
+    } catch {
+      copyButton.textContent = address;
+    }
   });
 }
 
@@ -187,6 +288,13 @@ async function hydrateBackendStatus({ adminApiUrl, authApiUrl }) {
   const buildLoader = document.querySelector('[data-build-loader]');
   const buildVersion = document.querySelector('[data-build-version]');
   const buildSummary = document.querySelector('[data-build-summary]');
+  const serverStatusPanel = document.querySelector('[data-server-status-panel]');
+  const serverStatusTitle = document.querySelector('[data-server-status-title]');
+  const serverStatusText = document.querySelector('[data-server-status-text]');
+  const authStatus = document.querySelector('[data-status-auth]');
+  const adminStatus = document.querySelector('[data-status-admin]');
+  const buildStatus = document.querySelector('[data-status-build]');
+  const buildMeta = document.querySelector('[data-status-build-meta]');
 
   const [adminHealth, authHealth, manifest] = await Promise.allSettled([
     fetchText(`${adminApiUrl}/health`),
@@ -199,10 +307,15 @@ async function hydrateBackendStatus({ adminApiUrl, authApiUrl }) {
   const online = adminOnline || authOnline;
 
   healthBadge?.classList.toggle('live-badge--offline', !online);
+  serverStatusPanel?.classList.toggle('server-status-panel--offline', !online);
   if (healthLabel) healthLabel.textContent = online ? 'backend online' : 'backend status unavailable';
   if (healthStatus) healthStatus.textContent = online ? 'Онлайн' : 'Недоступен';
   if (launcherStatus) launcherStatus.textContent = online ? 'Онлайн' : '—';
   if (launcherPlayers) launcherPlayers.textContent = online ? 'play.stardust-mc.xyz' : 'статус не отдан';
+  if (serverStatusTitle) serverStatusTitle.textContent = online ? 'Сервисы отвечают' : 'Backend временно недоступен';
+  if (serverStatusText) serverStatusText.textContent = online ? 'Лаунчер, авторизация и выдача сборки доступны. Если Minecraft-сервер перезапускается, попробуй зайти ещё раз через минуту.' : 'Можно скачать лаунчер сейчас. Если сайт не получил статус, лаунчер повторит проверку при запуске.';
+  if (authStatus) authStatus.textContent = authOnline ? 'Онлайн' : 'Нет ответа';
+  if (adminStatus) adminStatus.textContent = adminOnline ? 'Онлайн' : 'Нет ответа';
 
   if (manifest.status === 'fulfilled' && manifest.value) {
     const loader = manifest.value.loader;
@@ -211,8 +324,12 @@ async function hydrateBackendStatus({ adminApiUrl, authApiUrl }) {
     if (buildLoader) buildLoader.textContent = loaderLabel;
     if (buildVersion) buildVersion.textContent = versionLabel || 'активная сборка';
     if (buildSummary) buildSummary.textContent = `${manifest.value.name || 'Активная сборка'} · ${versionLabel || 'версия актуальна'}`;
-  } else if (buildSummary) {
-    buildSummary.textContent = 'Активная сборка будет загружена лаунчером';
+    if (buildStatus) buildStatus.textContent = manifest.value.name || 'Готова';
+    if (buildMeta) buildMeta.textContent = versionLabel || 'версия актуальна';
+  } else {
+    if (buildSummary) buildSummary.textContent = 'Активная сборка будет загружена лаунчером';
+    if (buildStatus) buildStatus.textContent = 'Fallback';
+    if (buildMeta) buildMeta.textContent = 'лаунчер проверит сам';
   }
 }
 
@@ -234,6 +351,7 @@ async function fetchJson(url) {
 }
 
 async function fetchWithTimeout(url, options = {}) {
+  if (!url) throw new Error('Request URL is empty');
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 2500);
   try {

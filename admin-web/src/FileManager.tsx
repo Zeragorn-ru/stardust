@@ -22,6 +22,7 @@ import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import {
   IconChevronRight,
   IconClose,
+  IconCopy,
   IconCornerUp,
   IconDownload,
   IconFile,
@@ -114,6 +115,10 @@ function hasActiveFilters(f: FileFilters): boolean {
   return Object.values(f).some((v) => v !== "all");
 }
 
+function publicUrl(path: string): string {
+  return new URL(path, window.location.origin).toString();
+}
+
 export function FileManager({
   buildId,
   files,
@@ -167,6 +172,15 @@ export function FileManager({
     e.preventDefault();
     setDragDepth(0);
     uploadRef.current?.addFromDataTransfer(e.dataTransfer);
+  }
+
+  async function copyPublicLink(path: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(publicUrl(path));
+      toast.success(`${label} скопирована`);
+    } catch {
+      toast.error(`Не удалось скопировать ${label.toLowerCase()}`);
+    }
   }
 
   const activeFilters = hasActiveFilters(filters);
@@ -429,6 +443,14 @@ export function FileManager({
           onFolder={() => setCreating("folder")}
           onFile={() => setCreating("file")}
         />
+        <button
+          type="button"
+          className="icon-only"
+          title="Скопировать ссылку на manifest"
+          onClick={() => copyPublicLink("/manifest", "Ссылка на manifest")}
+        >
+          <IconCopy size={15} />
+        </button>
         <div className="search">
           <IconSearch />
           <input
@@ -1112,6 +1134,16 @@ function FileRow({
   onOpenDir?: (dir: string) => void;
 }) {
   const editable = isEditable(file);
+  const toast = useToast();
+
+  async function copyFileField(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success(`${label} скопирован`);
+    } catch {
+      toast.error(`Не удалось скопировать ${label.toLowerCase()}`);
+    }
+  }
 
   return (
     <div
@@ -1172,6 +1204,30 @@ function FileRow({
           onClick={onEditProps}
         >
           <IconSettings size={15} />
+        </button>
+        <button
+          type="button"
+          className="icon-only"
+          title="Скопировать путь"
+          onClick={() => copyFileField(file.path, "Путь")}
+        >
+          <IconCopy size={15} />
+        </button>
+        <button
+          type="button"
+          className="icon-only"
+          title="Скопировать SHA-1"
+          onClick={() => copyFileField(file.sha1, "SHA-1")}
+        >
+          <IconCopy size={15} />
+        </button>
+        <button
+          type="button"
+          className="icon-only"
+          title="Скопировать ссылку на файл"
+          onClick={() => copyFileField(publicUrl(`/files/${file.sha1}`), "Ссылка на файл")}
+        >
+          <IconCopy size={15} />
         </button>
         <a
           className="icon-only"

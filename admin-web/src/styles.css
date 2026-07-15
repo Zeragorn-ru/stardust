@@ -480,6 +480,71 @@ label {
     box-shadow: none;
 }
 
+.accounts-filter-panel {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.8fr) repeat(5, minmax(130px, 1fr)) auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.accounts-filter-panel label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.accounts-filter-panel select {
+    min-height: 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+    color: var(--text);
+    padding: 0 10px;
+}
+
+.accounts-filter-panel select:focus-visible {
+    border-color: var(--accent);
+}
+
+.filter-summary {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+}
+
+.filter-summary strong {
+    font-size: 20px;
+}
+
+.filter-summary span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.account-stats-warning {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-color: rgba(216, 162, 58, 0.42);
+    background: rgba(216, 162, 58, 0.08);
+}
+
+.account-stats-warning div {
+    display: grid;
+    gap: 4px;
+}
+
+.account-stats-warning span {
+    color: var(--muted);
+    font-size: 12px;
+}
+
 /* --- Login --- */
 .login-wrap {
     min-height: 100vh;
@@ -934,6 +999,28 @@ label {
     gap: 10px;
 }
 
+.copy-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.copy-cell > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.copy-inline {
+    opacity: 0.65;
+    flex-shrink: 0;
+}
+
+.copy-inline:hover:not(:disabled) {
+    opacity: 1;
+}
+
 /* --- Files table --- */
 table {
     width: 100%;
@@ -1084,11 +1171,33 @@ td.num {
     text-decoration: underline;
 }
 
+.queue-summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.queue-summary span {
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--panel-2);
+}
+
+.queue-summary-error {
+    color: var(--danger);
+    border-color: rgba(229, 83, 75, 0.35) !important;
+}
+
 .queue {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: 16px;
+    margin-top: 12px;
 }
 
 .q-item {
@@ -2553,6 +2662,12 @@ td.num {
         min-width: 0;
         flex: 1;
     }
+    .accounts-filter-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .filter-summary {
+        grid-column: 1 / -1;
+    }
 }
 
 /* Телефоны: таблица аккаунтов превращается в карточки, тап-таргеты крупнее,
@@ -2580,6 +2695,19 @@ td.num {
     /* Поиск в шапке — на всю ширину отдельной строкой. */
     .view-head .search {
         flex-basis: 100%;
+    }
+    .accounts-filter-panel {
+        grid-template-columns: 1fr;
+    }
+    .accounts-filter-panel button {
+        justify-content: center;
+    }
+    .account-stats-warning {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .account-stats-warning button {
+        justify-content: center;
     }
 
     /* Таблица аккаунтов → карточки. */

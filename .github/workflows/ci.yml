@@ -88,11 +88,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: admin-web/package-lock.json
       - name: Build
         working-directory: admin-web
-        run: npm ci && npm run build
+        run: npm install --no-package-lock && npm run build
 
   mod:
     if: >-
@@ -121,10 +119,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: website/package-lock.json
       - name: Build
         working-directory: website
-        run: npm ci && npm run build
+        run: npm install --no-package-lock && npm run build
       - name: Build Docker image (dry-run)
         run: docker build -f deploy/website.Dockerfile -t website-ci .
