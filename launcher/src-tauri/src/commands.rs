@@ -4,7 +4,7 @@
 // данных (портативную или системную — см. модуль `paths`). Скины хранятся
 // на auth-сервере и привязаны к аккаунту, а не к устройству.
 
-use std::process::Child;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -197,9 +197,9 @@ pub struct AppState {
     pub token: Mutex<Option<String>>,
     /// HTTP-клиент к auth-серверу (переиспользуется между запросами).
     pub http: Mutex<reqwest::Client>,
-    /// Запущенный процесс игры, если он есть. Не даём запустить вторую копию,
+    /// PID запущенной игры, если он есть. Не даём запустить вторую копию,
     /// пока предыдущая не завершилась.
-    pub game: Mutex<Option<Child>>,
+    pub game: Mutex<Option<u32>>,
     /// Асинхронный лок на весь цикл play_game: guard → check → launch → record.
     /// Гарантирует, что два одновременных вызова не пройдут проверку параллельно.
     pub launch_lock: tokio::sync::Mutex<()>,
@@ -1141,20 +1141,15 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
 
     let data_dir = paths::data_dir(&app);
 
-    // Не даём запустить вторую копию, пока предыдущая жива.
-    // try_wait() попутно собирает завершённый процесс (zombie reaping).
+    // Не даём запустить вторую копию, пока предыдущая жива. Сам `Child`
+    // принадлежит фоновой задаче, чтобы она не потеряла exit status при краше.
     {
         let mut guard = state.game.lock().unwrap();
-        if let Some(child) = guard.as_mut() {
-            match child.try_wait() {
-                Ok(Some(_)) | Err(_) => {
-                    *guard = None;
-                    crate::game_guard::clear(&data_dir);
-                }
-                Ok(None) => {
-                    return Err("Игра уже запущена".into());
-                }
+        if guard.is_some() {
+            if crate::game_guard::is_running(&data_dir) {
+                return Err("Игра уже запущена".into());
             }
+            return Err("Игра завершает работу, попробуйте снова через пару секунд".into());
         }
     }
 
@@ -1178,7 +1173,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .ok_or_else(|| "Сессия не найдена, войдите снова".to_string())?;
     let settings = get_settings_cached(&state, &app);
 
-    let child = minecraft::launch(
+    let mut child = minecraft::launch(
         app.clone(),
         &state.http(),
         paths::data_dir(&app),
@@ -1194,86 +1189,45 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default();
 
-    crate::game_guard::record(&data_dir, child.id());
+    let child_pid = child.id();
+    crate::game_guard::record(&data_dir, child_pid);
     // Сохраняем на диск: если лаунчер закроется пока игра работает,
     // при следующем старте bootstrap восстановит и запишет сессию.
-    crate::game_guard::write_session(&data_dir, child.id(), &launched_at_str);
-    *state.game.lock().unwrap() = Some(child);
+    crate::game_guard::write_session(&data_dir, child_pid, &launched_at_str);
+    *state.game.lock().unwrap() = Some(child_pid);
 
     // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
     let http = state.http().clone();
     let data_dir2 = data_dir.clone();
     let app_handle = app.clone();
     tokio::spawn(async move {
-        let mut exit_status = None;
-        loop {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        let wait_result = tauri::async_runtime::spawn_blocking(move || child.wait()).await;
+        let (exit_status, wait_error) = match wait_result {
+            Ok(Ok(status)) => (Some(status), None),
+            Ok(Err(e)) => (None, Some(e.to_string())),
+            Err(e) => (None, Some(e.to_string())),
+        };
 
+        {
             let state2 = app_handle.state::<AppState>();
             let mut guard = state2.game.lock().unwrap();
-            if let Some(child) = guard.as_mut() {
-                match child.try_wait() {
-                    Ok(Some(status)) => {
-                        exit_status = Some(status);
-                        *guard = None;
-                        crate::game_guard::clear(&data_dir2);
-                        break;
-                    }
-                    Ok(None) => {}
-                    Err(_) => {
-                        *guard = None;
-                        crate::game_guard::clear(&data_dir2);
-                        break;
-                    }
-                }
-            } else {
-                break;
+            if *guard == Some(child_pid) {
+                *guard = None;
             }
         }
+        crate::game_guard::clear(&data_dir2);
 
         let duration = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds().max(0);
         crate::game_guard::clear_session(&data_dir2);
 
-        let is_crash = if let Some(status) = exit_status {
-            !status.success()
-        } else {
-            false
-        };
+        let game_dir = data_dir2.join("minecraft").join("game");
+        let has_crash_diagnostics = has_fresh_crash_diagnostics(&game_dir, launched_at);
+        let is_crash = exit_status.map(|status| !status.success()).unwrap_or(true)
+            || has_crash_diagnostics;
 
         if is_crash {
-            let game_dir = data_dir2.join("minecraft").join("game");
-            let latest_log_path = game_dir.join("logs").join("latest.log");
-            let log_content = std::fs::read_to_string(&latest_log_path)
-                .unwrap_or_else(|_| "Не удалось прочитать latest.log".to_string());
-            let log_content = trim_report_text(log_content, 900_000);
-
-            let mut crash_content = None;
-            let crash_reports_dir = game_dir.join("crash-reports");
-            if let Ok(entries) = std::fs::read_dir(crash_reports_dir) {
-                let mut latest_file = None;
-                let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
-                for entry in entries.flatten() {
-                    if let Ok(metadata) = entry.metadata() {
-                        if metadata.is_file() {
-                            if let Ok(modified) = metadata.modified() {
-                                if modified > latest_time {
-                                    latest_time = modified;
-                                    latest_file = Some(entry.path());
-                                }
-                            }
-                        }
-                    }
-                }
-                if let Some(path) = latest_file {
-                    if let Ok(duration) = std::time::SystemTime::now().duration_since(latest_time) {
-                        if duration.as_secs() < 15 {
-                            if let Ok(content) = std::fs::read_to_string(path) {
-                                crash_content = Some(trim_report_text(content, 900_000));
-                            }
-                        }
-                    }
-                }
-            }
+            let log_content = collect_minecraft_log(&game_dir, wait_error.as_deref());
+            let crash_content = collect_crash_diagnostics(&game_dir, launched_at);
 
             let exit_code = exit_status.and_then(|s| s.code());
             if let Err(e) = backend::report_crash(
@@ -1301,6 +1255,145 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     });
 
     Ok(())
+}
+
+fn collect_minecraft_log(game_dir: &Path, wait_error: Option<&str>) -> String {
+    let mut parts = Vec::new();
+    if let Some(error) = wait_error {
+        parts.push(format!(
+            "[Stardust] Не удалось дождаться процесса Minecraft: {error}"
+        ));
+    }
+
+    for relative in ["logs/latest.log", "logs/debug.log"] {
+        let path = game_dir.join(relative);
+        match std::fs::read_to_string(&path) {
+            Ok(content) => parts.push(format!(
+                "[Stardust] Файл: {}\n{}",
+                path.display(),
+                trim_report_text(content, 450_000)
+            )),
+            Err(e) if relative == "logs/latest.log" => {
+                parts.push(format!(
+                    "[Stardust] Не удалось прочитать {}: {e}",
+                    path.display()
+                ));
+            }
+            Err(_) => {}
+        }
+    }
+
+    if parts.is_empty() {
+        return "[Stardust] Логи Minecraft не найдены".to_string();
+    }
+
+    trim_report_text(parts.join("\n\n"), 900_000)
+}
+
+fn collect_crash_diagnostics(
+    game_dir: &Path,
+    launched_at: time::OffsetDateTime,
+) -> Option<String> {
+    let mut files = fresh_crash_diagnostic_files(game_dir, launched_at);
+    if files.is_empty() {
+        return None;
+    }
+
+    files.sort_by(|a, b| b.1.cmp(&a.1));
+    files.dedup_by(|a, b| a.0 == b.0);
+
+    let mut parts = Vec::new();
+    for (path, _) in files.into_iter().take(8) {
+        match std::fs::read_to_string(&path) {
+            Ok(content) => parts.push(format!(
+                "[Stardust] Файл диагностики: {}\n{}",
+                path.display(),
+                trim_report_text(content, 300_000)
+            )),
+            Err(e) => parts.push(format!(
+                "[Stardust] Не удалось прочитать файл диагностики {}: {e}",
+                path.display()
+            )),
+        }
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(trim_report_text(parts.join("\n\n"), 900_000))
+    }
+}
+
+fn has_fresh_crash_diagnostics(game_dir: &Path, launched_at: time::OffsetDateTime) -> bool {
+    !fresh_crash_diagnostic_files(game_dir, launched_at).is_empty()
+}
+
+fn fresh_crash_diagnostic_files(
+    game_dir: &Path,
+    launched_at: time::OffsetDateTime,
+) -> Vec<(PathBuf, std::time::SystemTime)> {
+    let since = system_time_from_offset(launched_at)
+        .checked_sub(std::time::Duration::from_secs(30))
+        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    let mut files = Vec::new();
+
+    collect_recent_files(&game_dir.join("crash-reports"), since, |_| true, &mut files);
+    collect_recent_files(
+        game_dir,
+        since,
+        |path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(|name| {
+                    (name.starts_with("hs_err_pid") || name.starts_with("replay_pid"))
+                        && name.ends_with(".log")
+                })
+                .unwrap_or(false)
+        },
+        &mut files,
+    );
+
+    files
+}
+
+fn collect_recent_files(
+    dir: &Path,
+    since: std::time::SystemTime,
+    include: impl Fn(&Path) -> bool,
+    out: &mut Vec<(PathBuf, std::time::SystemTime)>,
+) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !include(&path) {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        if modified >= since {
+            out.push((path, modified));
+        }
+    }
+}
+
+fn system_time_from_offset(time: time::OffsetDateTime) -> std::time::SystemTime {
+    if time.unix_timestamp() >= 0 {
+        std::time::SystemTime::UNIX_EPOCH
+            + std::time::Duration::from_secs(time.unix_timestamp() as u64)
+    } else {
+        std::time::SystemTime::UNIX_EPOCH
+            - std::time::Duration::from_secs(time.unix_timestamp().unsigned_abs())
+    }
 }
 
 fn trim_report_text(mut text: String, max_bytes: usize) -> String {
@@ -1369,17 +1462,15 @@ async fn set_mod_enabled(
 fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
     let data_dir = paths::data_dir(&app);
     let mut guard = state.game.lock().unwrap();
-    match guard.as_mut() {
-        Some(child) => match child.try_wait() {
-            Ok(Some(_)) | Err(_) => {
-                *guard = None;
-                crate::game_guard::clear(&data_dir);
-                false
-            }
-            Ok(None) => true,
-        },
-        None => false,
+    if guard.is_some() {
+        if crate::game_guard::is_running(&data_dir) {
+            return true;
+        }
+        // Процесс уже завершился, но фоновая задача ещё собирает exit status и логи.
+        return true;
     }
+
+    false
 }
 
 /// Пинг Minecraft-сервера: резолвит SRV-запись `_minecraft._tcp.<host>`,
