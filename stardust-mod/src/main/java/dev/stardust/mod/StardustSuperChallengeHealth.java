@@ -10,6 +10,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.AdvancementEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 /**
  * Начисление HP за супер-челленджи BACAP.
@@ -62,6 +63,19 @@ public final class StardustSuperChallengeHealth {
                     player.getName().getString(), count,
                     Math.min(count * HP_PER_CHALLENGE, MAX_BONUS_HP));
         }
+    }
+
+    /**
+     * После смерти Minecraft создаёт новую сущность игрока, поэтому модификатор
+     * MAX_HEALTH нужно заново повесить до следующего перезахода.
+     */
+    public static void onPlayerClone(PlayerEvent.Clone event) {
+        if (!event.isWasDeath()) return;
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+
+        int count = countCompletedChallenges(player);
+        setCompletedCount(player, count);
+        applyHealthBonus(player, count);
     }
 
     /**

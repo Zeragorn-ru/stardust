@@ -36,6 +36,7 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(this::onServerStarted);
         NeoForge.EVENT_BUS.addListener(this::onCommandsRegister);
         NeoForge.EVENT_BUS.addListener(StardustSuperChallengeHealth::onAdvancementEarned);
+        NeoForge.EVENT_BUS.addListener(StardustSuperChallengeHealth::onPlayerClone);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
