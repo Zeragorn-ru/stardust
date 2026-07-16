@@ -84,3 +84,19 @@ Rust закреплён в `rust-toolchain.toml` (1.96.0). Локально: `ma
 - Миграции добавлены при изменении схемы БД.
 - Frontend labels соответствуют текущей бизнес-логике.
 - Если поставлен тег, он указывает на нужный коммит и запушен отдельно от ветки.
+
+## Learned User Preferences
+
+- Отвечать пользователю по-русски, когда запрос на русском.
+- Коммиты и PR вести через fork `mitsuki-kagamin/stardust`, затем PR в upstream; не пушить напрямую в `origin` master без явной просьбы.
+- UX лаунчера держать в духе Modrinth App + Prism Launcher, но проще и под одну кураторскую сборку/сервер.
+- macOS — приоритетная платформа: menu bar, кейбинды, апдейтер, логи и честный lifecycle процессов.
+- Когда просят проверку — собирать и гонять локально (в т.ч. `.dmg`), а не ограничиваться теорией.
+
+## Learned Workspace Facts
+
+- Remotes в этом checkout: `origin` → `Zeragorn-ru/stardust`, `fork` → `mitsuki-kagamin/stardust`.
+- Данные лаунчера на macOS лежат в `~/Library/Application Support/com.stardust.launcher/`.
+- Релизные macOS-сборки могут быть без Apple Developer cert; установка опирается на гайд/ссылки, а не на notarization.
+- Optional mods и конфликты (например Distant Horizons ↔ Voxy) — осознанная часть продукта; vision/non-goals в `docs/ROADMAP.md`.
+- Локальный Mac-checkout часто в `~/Projects/experiments/stardusty`; путь `/opt/stardust` в базовых правилах относится к серверному/каноническому корню.

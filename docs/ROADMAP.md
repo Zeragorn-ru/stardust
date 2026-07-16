@@ -4,6 +4,94 @@
 исторических шагов «как начинали»; только то, что уже сделано, и то, что ещё
 имеет смысл добивать.
 
+## Vision
+
+**Stardust Launcher** — десктопный лаунчер одной кураторской сборки и одного
+сервера. Ощущение: **Modrinth App + Prism Launcher**, но проще и цельнее — без
+мульти-инстансов, без браузера модов, с интеграцией auth/скин/ban/playtime из
+коробки.
+
+## Goals
+
+- Запуск «Играть → sync → Minecraft» без сюрпризов на macOS / Windows / Linux
+- Curated optional mods с конфликтами (DH ↔ Voxy) и категориями
+- Нативный desktop UX: title bar, shortcuts, скролл, честный progress
+- Безопасность auth/2FA/sessions на уровне production
+- Админка для сборки без ручного SFTP-хаоса
+
+## Non-goals
+
+- Универсальный менеджер инстансов (как Prism для десятков профилей)
+- Встроенный CurseForge/Modrinth browser и произвольная установка модов
+- Поддержка нескольких независимых серверов/сборок в одном лаунчере
+- Редактор модов, скриптинг, плагины лаунчера
+- Замена полноценного server panel (только sync + manifest + ops API)
+
+## Приоритеты (P0 / P1 / P2)
+
+### P0 — блокеры и доверие
+
+| Область | Задача |
+|---------|--------|
+| Auth | Yggdrasil authenticate не обходит Telegram 2FA; rate limits |
+| Store | Session tokens только SHA-256 в БД (`create_session`) |
+| Admin | Закрыть `/api/build-check`, `/api/deps-check` без auth |
+| Launch | `-Xms` ≠ `-Xmx`; default RAM не 16 GB |
+| Update | macOS `get_install_dir` → `.app`, обязательный SHA-256 |
+| UX | Скролл настроек/модов; Java progress не блокирует Play |
+| macOS | Native Overlay title bar, Cmd+W, Escape не убивает окно над модалками |
+
+*Часть P0 UX (macOS bar, scroll, conflicts UI) — в незакоммиченных изменениях ветки `integrate/launcher-patches`.*
+
+### P1 — «Modrinth + Prism для одной сборки»
+
+- Mod cards + категории optional mods (оптимизация / визуал / QoL)
+- `conflictsWith` в admin UI и manifest
+- Platform matrix для **лаунчера и игры** (см. ниже)
+- Rename не сбрасывает ban; `PlayerProfile` camelCase
+- Prism-style launch log + retry на экране Play
+- Рекомендации optional mods: [`modpack-optional-mods.md`](modpack-optional-mods.md)
+
+### P2 — полировка
+
+- FancyMenu / Drippy / Seamless loading в curated optional
+- Fusion CTM вместо Continuity на чистом NeoForge
+- Mod cards с иконками из jar; bulk enable «performance pack»
+- In-game keybind presets per platform в доке + дефолтный resource pack hints
+
+## Platform matrix: кейбинды
+
+### Лаунчер (Tauri / WebView)
+
+| Действие | macOS | Windows / Linux |
+|----------|-------|-----------------|
+| Закрыть окно | Cmd+W | Alt+F4 / Ctrl+W (по желанию) |
+| Назад из настроек | Escape | Escape |
+| Закрыть модалку | Escape (не закрывает окно) | Escape |
+| Quit | Cmd+Q (native menu) | Alt+F4 |
+
+### Minecraft / моды (боль игроков)
+
+| Проблема | macOS | Win/Linux |
+|----------|-------|-----------|
+| «Ctrl» в подсказках модов | Часто нужен **Cmd** (GLFW) | Ctrl |
+| Fullscreen / F3 debug | Fn+F3, Option+клик | F3 |
+| Inventar / drop | Q без conflicts | Q |
+| Sodium/Iris меню | Зависит от binding; не пересекать с OS | Аналогично |
+| Modrinth «Controlling» | Искать по **Cmd** | Ctrl |
+
+**План:** документ `docs/KEYBINDS.md` + optional mod **Controlling** + в лаунчере
+ссылка «Кейбинды на Mac»; для сборки — не включать DH и Voxy одновременно;
+проверять conflicts в ModsSection.
+
+## Метрики успеха
+
+- Первый запуск → Play без рестарта devtools / лаунчера
+- macOS: нативные traffic lights, без кастомного «Windows title bar»
+- 0 critical из P0 security после релиза
+- Optional mods: видны конфликты до запуска игры
+- Время до «Minecraft main menu» не регрессирует после UX-правок
+
 ## Уже сделано
 
 ### 1. Базовая платформа
