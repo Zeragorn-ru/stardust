@@ -4,7 +4,7 @@
 // данных (портативную или системную — см. модуль `paths`). Скины хранятся
 // на auth-сервере и привязаны к аккаунту, а не к устройству.
 
-use std::path::{Path, PathBuf};
+use std::process::Child;
 use std::sync::Mutex;
 use tauri::Manager;
 
@@ -15,6 +15,7 @@ use tauri::{AppHandle, Emitter, State};
 use protocol::PlayerProfile;
 
 use crate::backend;
+use crate::java::{self, JavaInstallation, JavaProvider};
 use crate::minecraft;
 use crate::paths;
 
@@ -45,6 +46,12 @@ pub struct Settings {
     pub show_3d_model: bool,
     #[serde(rename = "proxyType", default)]
     pub proxy_type: ProxyType,
+    /// Источник Java для запуска игры.
+    #[serde(rename = "javaProvider", default)]
+    pub java_provider: JavaProvider,
+    /// Путь к `java`/`javaw`, если `javaProvider` = custom.
+    #[serde(rename = "javaCustomPath", default)]
+    pub java_custom_path: Option<String>,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -63,10 +70,12 @@ fn default_true() -> bool {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            memory_mb: 16384,
+            memory_mb: 4096,
             download_concurrency: default_concurrency(),
             show_3d_model: true,
             proxy_type: ProxyType::default(),
+            java_provider: JavaProvider::default(),
+            java_custom_path: None,
         }
     }
 }
@@ -197,9 +206,9 @@ pub struct AppState {
     pub token: Mutex<Option<String>>,
     /// HTTP-клиент к auth-серверу (переиспользуется между запросами).
     pub http: Mutex<reqwest::Client>,
-    /// PID запущенной игры, если он есть. Не даём запустить вторую копию,
+    /// Запущенный процесс игры, если он есть. Не даём запустить вторую копию,
     /// пока предыдущая не завершилась.
-    pub game: Mutex<Option<u32>>,
+    pub game: Mutex<Option<Child>>,
     /// Асинхронный лок на весь цикл play_game: guard → check → launch → record.
     /// Гарантирует, что два одновременных вызова не пройдут проверку параллельно.
     pub launch_lock: tokio::sync::Mutex<()>,
@@ -237,13 +246,19 @@ pub(crate) fn read_settings(app: &AppHandle) -> Settings {
         Ok(s) => match serde_json::from_str(&s) {
             Ok(settings) => settings,
             Err(e) => {
-                tracing::warn!("[settings] ошибка парсинга {}: {e}, используются значения по умолчанию", path.display());
+                tracing::warn!(
+                    "[settings] ошибка парсинга {}: {e}, используются значения по умолчанию",
+                    path.display()
+                );
                 Settings::default()
             }
         },
         Err(e) => {
             if e.kind() != std::io::ErrorKind::NotFound {
-                tracing::warn!("[settings] не удалось прочитать {}: {e}, используются значения по умолчанию", path.display());
+                tracing::warn!(
+                    "[settings] не удалось прочитать {}: {e}, используются значения по умолчанию",
+                    path.display()
+                );
             }
             Settings::default()
         }
@@ -364,7 +379,11 @@ fn migrate_appdata(app: &AppHandle) {
         if let Err(e) = std::fs::rename(&old_dir, &new_dir) {
             tracing::warn!("appdata migration failed: {e}");
         } else {
-            tracing::info!("appdata migrated: {} -> {}", old_dir.display(), new_dir.display());
+            tracing::info!(
+                "appdata migrated: {} -> {}",
+                old_dir.display(),
+                new_dir.display()
+            );
         }
     }
 }
@@ -413,8 +432,7 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
         .unwrap_or(0);
         crate::game_guard::clear_session(&data_dir);
         if duration > 0 {
-            if let Err(e) =
-                backend::record_session(&http, &token, duration, &launched_at_str).await
+            if let Err(e) = backend::record_session(&http, &token, duration, &launched_at_str).await
             {
                 tracing::warn!("[stats] восстановление сессии: не удалось записать: {e}");
                 save_pending_session(&data_dir, &token, duration, &launched_at_str);
@@ -468,12 +486,19 @@ async fn drain_pending_sessions(
     if sessions.is_empty() {
         return;
     }
-    tracing::info!("[stats] повтор отправки {} сессий из очереди", sessions.len());
+    tracing::info!(
+        "[stats] повтор отправки {} сессий из очереди",
+        sessions.len()
+    );
     let mut remaining = Vec::new();
     for s in &sessions {
         // Используем токен из записи (может отличаться от текущего).
         if let Err(e) = backend::record_session(http, &s.token, s.duration, &s.launched_at).await {
-            tracing::warn!("[stats] повтор сессии {}/{} не удался: {e}", s.duration, s.launched_at);
+            tracing::warn!(
+                "[stats] повтор сессии {}/{} не удался: {e}",
+                s.duration,
+                s.launched_at
+            );
             remaining.push(s.clone());
         }
     }
@@ -744,10 +769,8 @@ fn spawn_stats_poller(app: &AppHandle, state: &AppState) {
             match backend::get_stats(&http, &token).await {
                 Ok(stats) => {
                     // Кешируем на диск (best-effort).
-                    let _ = std::fs::write(
-                        &cache_path,
-                        serde_json::to_vec(&stats).unwrap_or_default(),
-                    );
+                    let _ =
+                        std::fs::write(&cache_path, serde_json::to_vec(&stats).unwrap_or_default());
                     let _ = app.emit("stats-updated", stats);
                 }
                 Err(e) => {
@@ -820,11 +843,52 @@ fn get_settings(state: State<'_, AppState>, app: AppHandle) -> Settings {
 }
 
 #[tauri::command]
-fn save_settings(settings: Settings, state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+fn save_settings(
+    settings: Settings,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
     write_settings(&app, &settings)?;
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
     *state.settings.lock().unwrap() = Some(settings);
     Ok(())
+}
+
+#[tauri::command]
+fn list_java_installations(app: AppHandle) -> Vec<JavaInstallation> {
+    java::list_installations(&paths::data_dir(&app))
+}
+
+#[tauri::command]
+fn list_java_installations_deep(app: AppHandle) -> Vec<JavaInstallation> {
+    java::list_installations_deep(&paths::data_dir(&app))
+}
+
+#[tauri::command]
+fn list_java_download_vendors() -> Vec<java::JavaVendorInfo> {
+    java::list_download_vendors()
+}
+
+#[tauri::command]
+async fn download_java(
+    vendor: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let vendor = java::JavaVendor::parse(&vendor)
+        .ok_or_else(|| format!("Неизвестный поставщик Java: {vendor}"))?;
+    let data_dir = paths::data_dir(&app);
+    let progress = crate::progress::Progress::new(app.clone());
+    let path = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+async fn download_temurin_java(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    download_java("temurin".to_string(), app, state).await
 }
 
 // ---------- Среда запуска ----------
@@ -883,16 +947,13 @@ async fn get_skin(state: State<'_, AppState>, app: AppHandle) -> Result<Skin, St
 
     let (skin_result, cape_result) = {
         let http = state.http();
-        tokio::join!(
-            backend::get_skin(&http, &uuid),
-            async {
-                backend::get_cape(&http, &uuid)
-                    .await
-                    .ok()
-                    .flatten()
-                    .map(|b64| format!("data:image/png;base64,{b64}"))
-            },
-        )
+        tokio::join!(backend::get_skin(&http, &uuid), async {
+            backend::get_cape(&http, &uuid)
+                .await
+                .ok()
+                .flatten()
+                .map(|b64| format!("data:image/png;base64,{b64}"))
+        },)
     };
 
     let result = match skin_result? {
@@ -924,7 +985,10 @@ async fn get_skin(state: State<'_, AppState>, app: AppHandle) -> Result<Skin, St
 /// Прочитать кеш скина с диска (без сети, мгновенно).
 /// Вызывается при старте для мгновенного отображения, пока идёт запрос к серверу.
 #[tauri::command]
-async fn load_skin_cache(state: State<'_, AppState>, app: AppHandle) -> Result<Option<Skin>, String> {
+async fn load_skin_cache(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Option<Skin>, String> {
     let uuid = match state.profile.lock().unwrap().as_ref() {
         Some(p) => p.id.clone(),
         None => return Ok(None),
@@ -1025,8 +1089,7 @@ async fn open_external(url: String) -> Result<(), String> {
         return Err("недопустимая схема ссылки".into());
     }
 
-    open::that(&url)
-        .map_err(|e| format!("не удалось открыть ссылку: {e}"))
+    open::that(&url).map_err(|e| format!("не удалось открыть ссылку: {e}"))
 }
 
 /// Открыть папку в файловом менеджере.
@@ -1055,14 +1118,232 @@ async fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let game_dir_canonical = game_dir.canonicalize().ok();
 
     let is_descendant = target_canonical.starts_with(&data_dir_canonical)
-        || game_dir_canonical.map(|gd| target_canonical.starts_with(gd)).unwrap_or(false);
+        || game_dir_canonical
+            .map(|gd| target_canonical.starts_with(gd))
+            .unwrap_or(false);
 
     if !is_descendant {
         return Err("доступ к указанному пути запрещен".into());
     }
 
-    open::that(&target_canonical)
-        .map_err(|e| format!("не удалось открыть папку: {e}"))
+    open::that(&target_canonical).map_err(|e| format!("не удалось открыть папку: {e}"))
+}
+
+// ---------- Логи ----------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogPaths {
+    launcher_log_dir: String,
+    launcher_log_latest: String,
+    minecraft_logs_dir: String,
+    minecraft_latest_log: String,
+    minecraft_debug_log: String,
+    crash_reports_dir: String,
+    data_dir: String,
+    crash_reports_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogTail {
+    path: String,
+    lines: Vec<String>,
+    truncated: bool,
+    exists: bool,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum LogFolderKind {
+    LauncherLogs,
+    MinecraftLogs,
+    CrashReports,
+}
+
+fn launcher_log_dir() -> std::path::PathBuf {
+    paths::exe_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("logs")
+}
+
+fn resolve_launcher_log_latest(log_dir: &std::path::Path) -> std::path::PathBuf {
+    let current = log_dir.join("launcher.log");
+    if current.exists() {
+        return current;
+    }
+    let mut latest: Option<(std::time::SystemTime, std::path::PathBuf)> = None;
+    if let Ok(entries) = std::fs::read_dir(log_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if !name.starts_with("launcher.log.") {
+                continue;
+            }
+            if let Ok(meta) = entry.metadata() {
+                if meta.is_file() {
+                    if let Ok(modified) = meta.modified() {
+                        if latest.as_ref().map(|(t, _)| modified > *t).unwrap_or(true) {
+                            latest = Some((modified, entry.path()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    latest.map(|(_, path)| path).unwrap_or(current)
+}
+
+fn allowed_log_roots(app: &AppHandle) -> Result<Vec<std::path::PathBuf>, String> {
+    let mut roots = Vec::new();
+
+    let data_dir = paths::data_dir(app);
+    if let Ok(c) = data_dir.canonicalize() {
+        roots.push(c);
+    }
+
+    let log_dir = launcher_log_dir();
+    let _ = std::fs::create_dir_all(&log_dir);
+    if let Ok(c) = log_dir.canonicalize() {
+        roots.push(c);
+    }
+
+    if roots.is_empty() {
+        return Err("ошибка получения разрешённых путей логов".into());
+    }
+    Ok(roots)
+}
+
+fn validate_log_path(
+    app: &AppHandle,
+    path: &std::path::Path,
+) -> Result<std::path::PathBuf, String> {
+    if path.as_os_str().is_empty()
+        || path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+    {
+        return Err("путь содержит недопустимые элементы".into());
+    }
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "путь не существует или недоступен".to_string())?;
+    for root in allowed_log_roots(app)? {
+        if canonical.starts_with(&root) {
+            return Ok(canonical);
+        }
+    }
+    Err("доступ к указанному пути запрещён".into())
+}
+
+fn read_file_tail(path: &std::path::Path, max_bytes: usize) -> Result<String, String> {
+    use std::io::{Read, Seek, SeekFrom};
+
+    const MAX_BYTES: usize = 500 * 1024;
+    let cap = max_bytes.min(MAX_BYTES);
+
+    let mut file =
+        std::fs::File::open(path).map_err(|e| format!("не удалось открыть файл: {e}"))?;
+    let len = file.metadata().map_err(|e| e.to_string())?.len();
+    let start = len.saturating_sub(cap as u64);
+    file.seek(SeekFrom::Start(start))
+        .map_err(|e| format!("не удалось прочитать файл: {e}"))?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)
+        .map_err(|e| format!("не удалось прочитать файл: {e}"))?;
+    if start > 0 {
+        // Обрезали начало посередине строки — пропускаем первую неполную строку.
+        if let Some(idx) = buf.iter().position(|b| *b == b'\n') {
+            buf.drain(..=idx);
+        }
+    }
+    Ok(String::from_utf8_lossy(&buf).into_owned())
+}
+
+/// Пути к логам лаунчера и Minecraft.
+#[tauri::command]
+fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
+    let data_dir = paths::data_dir(&app);
+    let log_dir = launcher_log_dir();
+    let _ = std::fs::create_dir_all(&log_dir);
+
+    let game_dir = game_dir(&app);
+    let minecraft_logs_dir = game_dir.join("logs");
+    let crash_reports_dir = game_dir.join("crash-reports");
+
+    Ok(LogPaths {
+        launcher_log_dir: log_dir.to_string_lossy().into_owned(),
+        launcher_log_latest: resolve_launcher_log_latest(&log_dir)
+            .to_string_lossy()
+            .into_owned(),
+        minecraft_logs_dir: minecraft_logs_dir.to_string_lossy().into_owned(),
+        minecraft_latest_log: minecraft_logs_dir
+            .join("latest.log")
+            .to_string_lossy()
+            .into_owned(),
+        minecraft_debug_log: minecraft_logs_dir
+            .join("debug.log")
+            .to_string_lossy()
+            .into_owned(),
+        crash_reports_dir: crash_reports_dir.to_string_lossy().into_owned(),
+        data_dir: data_dir.to_string_lossy().into_owned(),
+        crash_reports_exists: crash_reports_dir.is_dir(),
+    })
+}
+
+/// Прочитать последние N строк лог-файла (безопасно: только разрешённые каталоги).
+#[tauri::command]
+fn read_log_tail(app: AppHandle, path: String, lines: Option<u32>) -> Result<LogTail, String> {
+    const MAX_LINES: usize = 2000;
+    let max_lines = lines.unwrap_or(200).clamp(1, MAX_LINES as u32) as usize;
+
+    if path.contains("..") {
+        return Err("путь содержит недопустимые элементы".into());
+    }
+
+    let target = std::path::Path::new(&path);
+    if !target.exists() {
+        return Ok(LogTail {
+            path,
+            lines: vec![],
+            truncated: false,
+            exists: false,
+        });
+    }
+
+    let canonical = validate_log_path(&app, target)?;
+    let path_str = canonical.to_string_lossy().into_owned();
+    let content = read_file_tail(&canonical, 500 * 1024)?;
+    let all_lines: Vec<String> = content.lines().map(str::to_string).collect();
+    let truncated = all_lines.len() > max_lines
+        || canonical
+            .metadata()
+            .map(|m| m.len() as usize > 500 * 1024)
+            .unwrap_or(false);
+    let skip = all_lines.len().saturating_sub(max_lines);
+    let lines_out = all_lines[skip..].to_vec();
+
+    Ok(LogTail {
+        path: path_str,
+        lines: lines_out,
+        truncated,
+        exists: true,
+    })
+}
+
+/// Открыть папку логов в файловом менеджере.
+#[tauri::command]
+async fn open_log_folder(app: AppHandle, kind: LogFolderKind) -> Result<(), String> {
+    let path = match kind {
+        LogFolderKind::LauncherLogs => launcher_log_dir(),
+        LogFolderKind::MinecraftLogs => game_dir(&app).join("logs"),
+        LogFolderKind::CrashReports => game_dir(&app).join("crash-reports"),
+    };
+    let _ = std::fs::create_dir_all(&path);
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "путь не существует или недоступен".to_string())?;
+    open::that(&canonical).map_err(|e| format!("не удалось открыть папку: {e}"))
 }
 
 /// Отвязать Telegram (отключить 2FA).
@@ -1141,15 +1422,20 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
 
     let data_dir = paths::data_dir(&app);
 
-    // Не даём запустить вторую копию, пока предыдущая жива. Сам `Child`
-    // принадлежит фоновой задаче, чтобы она не потеряла exit status при краше.
+    // Не даём запустить вторую копию, пока предыдущая жива.
+    // try_wait() попутно собирает завершённый процесс (zombie reaping).
     {
-        let guard = state.game.lock().unwrap();
-        if guard.is_some() {
-            if crate::game_guard::is_running(&data_dir) {
-                return Err("Игра уже запущена".into());
+        let mut guard = state.game.lock().unwrap();
+        if let Some(child) = guard.as_mut() {
+            match child.try_wait() {
+                Ok(Some(_)) | Err(_) => {
+                    *guard = None;
+                    crate::game_guard::clear(&data_dir);
+                }
+                Ok(None) => {
+                    return Err("Игра уже запущена".into());
+                }
             }
-            return Err("Игра завершает работу, попробуйте снова через пару секунд".into());
         }
     }
 
@@ -1173,12 +1459,14 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .ok_or_else(|| "Сессия не найдена, войдите снова".to_string())?;
     let settings = get_settings_cached(&state, &app);
 
-    let mut child = minecraft::launch(
+    let child = minecraft::launch(
         app.clone(),
         &state.http(),
         paths::data_dir(&app),
         settings.memory_mb.clamp(512, 32768),
         settings.download_concurrency as usize,
+        settings.java_provider,
+        settings.java_custom_path.clone(),
         profile,
         token.clone(),
     )
@@ -1189,63 +1477,135 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default();
 
-    let child_pid = child.id();
-    crate::game_guard::record(&data_dir, child_pid);
+    crate::game_guard::record(&data_dir, child.id());
     // Сохраняем на диск: если лаунчер закроется пока игра работает,
     // при следующем старте bootstrap восстановит и запишет сессию.
-    crate::game_guard::write_session(&data_dir, child_pid, &launched_at_str);
-    *state.game.lock().unwrap() = Some(child_pid);
+    crate::game_guard::write_session(&data_dir, child.id(), &launched_at_str);
+    *state.game.lock().unwrap() = Some(child);
 
     // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
     let http = state.http().clone();
     let data_dir2 = data_dir.clone();
     let app_handle = app.clone();
     tokio::spawn(async move {
-        let wait_result = tauri::async_runtime::spawn_blocking(move || child.wait()).await;
-        let (exit_status, wait_error) = match wait_result {
-            Ok(Ok(status)) => (Some(status), None),
-            Ok(Err(e)) => (None, Some(e.to_string())),
-            Err(e) => (None, Some(e.to_string())),
-        };
+        const EARLY_WINDOW_SECS: i64 = 15;
+        let mut exit_status = None;
+        loop {
+            let elapsed = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds();
+            let sleep = if elapsed < EARLY_WINDOW_SECS {
+                std::time::Duration::from_millis(500)
+            } else {
+                std::time::Duration::from_secs(2)
+            };
+            tokio::time::sleep(sleep).await;
 
-        {
             let state2 = app_handle.state::<AppState>();
             let mut guard = state2.game.lock().unwrap();
-            if *guard == Some(child_pid) {
-                *guard = None;
+            if let Some(child) = guard.as_mut() {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        exit_status = Some(status);
+                        *guard = None;
+                        crate::game_guard::clear(&data_dir2);
+                        break;
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        tracing::warn!("[game] try_wait: {e}");
+                        *guard = None;
+                        crate::game_guard::clear(&data_dir2);
+                        break;
+                    }
+                }
+            } else {
+                break;
             }
         }
-        crate::game_guard::clear(&data_dir2);
 
-        let duration = (time::OffsetDateTime::now_utc() - launched_at).whole_seconds().max(0);
+        let duration = (time::OffsetDateTime::now_utc() - launched_at)
+            .whole_seconds()
+            .max(0);
         crate::game_guard::clear_session(&data_dir2);
 
-        let game_dir = data_dir2.join("minecraft").join("game");
-        let has_crash_diagnostics = has_fresh_crash_diagnostics(&game_dir, launched_at);
-        let is_crash = exit_status.map(|status| !status.success()).unwrap_or(true)
-            || has_crash_diagnostics;
+        let exit_code = exit_status.and_then(|s| s.code());
+        tracing::warn!(
+            "[game] процесс Minecraft завершился: код={:?}, длительность={}с",
+            exit_code,
+            duration
+        );
 
-        if is_crash {
-            let log_content = collect_minecraft_log(&game_dir, wait_error.as_deref());
-            let crash_content = collect_crash_diagnostics(&game_dir, launched_at);
+        let quick_exit = duration < EARLY_WINDOW_SECS;
+        let is_crash = if let Some(status) = exit_status {
+            !status.success()
+        } else {
+            true
+        };
 
-            let exit_code = exit_status.and_then(|s| s.code());
-            if let Err(e) = backend::report_crash(
-                &http,
-                &token,
-                exit_code,
-                &log_content,
-                crash_content.as_deref(),
-            )
-            .await
-            {
-                tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
+        if quick_exit || is_crash {
+            let game_dir = data_dir2.join("minecraft").join("game");
+            let latest_log_path = game_dir.join("logs").join("latest.log");
+            let log_content =
+                std::fs::read_to_string(&latest_log_path).unwrap_or_else(|_| String::new());
+
+            if quick_exit {
+                let label = launch_failure_label(&log_content, exit_code);
+                crate::progress::Progress::error(&app_handle, label);
+            }
+
+            if is_crash {
+                let log_content = if log_content.is_empty() {
+                    "Не удалось прочитать latest.log".to_string()
+                } else {
+                    trim_report_text(log_content, 900_000)
+                };
+
+                let mut crash_content = None;
+                let crash_reports_dir = game_dir.join("crash-reports");
+                if let Ok(entries) = std::fs::read_dir(crash_reports_dir) {
+                    let mut latest_file = None;
+                    let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
+                    for entry in entries.flatten() {
+                        if let Ok(metadata) = entry.metadata() {
+                            if metadata.is_file() {
+                                if let Ok(modified) = metadata.modified() {
+                                    if modified > latest_time {
+                                        latest_time = modified;
+                                        latest_file = Some(entry.path());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(path) = latest_file {
+                        if let Ok(duration) =
+                            std::time::SystemTime::now().duration_since(latest_time)
+                        {
+                            if duration.as_secs() < 15 {
+                                if let Ok(content) = std::fs::read_to_string(path) {
+                                    crash_content = Some(trim_report_text(content, 900_000));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let exit_code = exit_status.and_then(|s| s.code());
+                if let Err(e) = backend::report_crash(
+                    &http,
+                    &token,
+                    exit_code,
+                    &log_content,
+                    crash_content.as_deref(),
+                )
+                .await
+                {
+                    tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
+                }
             }
         }
 
         if duration > 0 {
-            if let Err(e) =
-                backend::record_session(&http, &token, duration, &launched_at_str).await
+            if let Err(e) = backend::record_session(&http, &token, duration, &launched_at_str).await
             {
                 tracing::warn!("[stats] не удалось записать сессию: {e}, сохраняем в очередь");
                 // Сохраняем в очередь для повтора при следующем запуске.
@@ -1257,143 +1617,28 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     Ok(())
 }
 
-fn collect_minecraft_log(game_dir: &Path, wait_error: Option<&str>) -> String {
-    let mut parts = Vec::new();
-    if let Some(error) = wait_error {
-        parts.push(format!(
-            "[Stardust] Не удалось дождаться процесса Minecraft: {error}"
-        ));
+fn launch_failure_label(log_content: &str, exit_code: Option<i32>) -> String {
+    let code_part = exit_code.map(|c| format!(" (код {c})")).unwrap_or_default();
+    let base = format!("Minecraft завершился при запуске{code_part}");
+    let snippet = minecraft_log_snippet(log_content, 8);
+    match snippet {
+        Some(s) => format!("{base}\n{s}"),
+        None => base,
     }
-
-    for relative in ["logs/latest.log", "logs/debug.log"] {
-        let path = game_dir.join(relative);
-        match std::fs::read_to_string(&path) {
-            Ok(content) => parts.push(format!(
-                "[Stardust] Файл: {}\n{}",
-                path.display(),
-                trim_report_text(content, 450_000)
-            )),
-            Err(e) if relative == "logs/latest.log" => {
-                parts.push(format!(
-                    "[Stardust] Не удалось прочитать {}: {e}",
-                    path.display()
-                ));
-            }
-            Err(_) => {}
-        }
-    }
-
-    if parts.is_empty() {
-        return "[Stardust] Логи Minecraft не найдены".to_string();
-    }
-
-    trim_report_text(parts.join("\n\n"), 900_000)
 }
 
-fn collect_crash_diagnostics(
-    game_dir: &Path,
-    launched_at: time::OffsetDateTime,
-) -> Option<String> {
-    let mut files = fresh_crash_diagnostic_files(game_dir, launched_at);
-    if files.is_empty() {
+fn minecraft_log_snippet(log_content: &str, max_lines: usize) -> Option<String> {
+    let mut lines: Vec<&str> = log_content
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .collect();
+    if lines.is_empty() {
         return None;
     }
-
-    files.sort_by_key(|file| std::cmp::Reverse(file.1));
-    files.dedup_by(|a, b| a.0 == b.0);
-
-    let mut parts = Vec::new();
-    for (path, _) in files.into_iter().take(8) {
-        match std::fs::read_to_string(&path) {
-            Ok(content) => parts.push(format!(
-                "[Stardust] Файл диагностики: {}\n{}",
-                path.display(),
-                trim_report_text(content, 300_000)
-            )),
-            Err(e) => parts.push(format!(
-                "[Stardust] Не удалось прочитать файл диагностики {}: {e}",
-                path.display()
-            )),
-        }
+    if lines.len() > max_lines {
+        lines = lines[lines.len() - max_lines..].to_vec();
     }
-
-    if parts.is_empty() {
-        None
-    } else {
-        Some(trim_report_text(parts.join("\n\n"), 900_000))
-    }
-}
-
-fn has_fresh_crash_diagnostics(game_dir: &Path, launched_at: time::OffsetDateTime) -> bool {
-    !fresh_crash_diagnostic_files(game_dir, launched_at).is_empty()
-}
-
-fn fresh_crash_diagnostic_files(
-    game_dir: &Path,
-    launched_at: time::OffsetDateTime,
-) -> Vec<(PathBuf, std::time::SystemTime)> {
-    let since = system_time_from_offset(launched_at)
-        .checked_sub(std::time::Duration::from_secs(30))
-        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
-    let mut files = Vec::new();
-
-    collect_recent_files(&game_dir.join("crash-reports"), since, |_| true, &mut files);
-    collect_recent_files(
-        game_dir,
-        since,
-        |path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .map(|name| {
-                    (name.starts_with("hs_err_pid") || name.starts_with("replay_pid"))
-                        && name.ends_with(".log")
-                })
-                .unwrap_or(false)
-        },
-        &mut files,
-    );
-
-    files
-}
-
-fn collect_recent_files(
-    dir: &Path,
-    since: std::time::SystemTime,
-    include: impl Fn(&Path) -> bool,
-    out: &mut Vec<(PathBuf, std::time::SystemTime)>,
-) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !include(&path) {
-            continue;
-        }
-        let Ok(metadata) = entry.metadata() else {
-            continue;
-        };
-        if !metadata.is_file() {
-            continue;
-        }
-        let Ok(modified) = metadata.modified() else {
-            continue;
-        };
-        if modified >= since {
-            out.push((path, modified));
-        }
-    }
-}
-
-fn system_time_from_offset(time: time::OffsetDateTime) -> std::time::SystemTime {
-    if time.unix_timestamp() >= 0 {
-        std::time::SystemTime::UNIX_EPOCH
-            + std::time::Duration::from_secs(time.unix_timestamp() as u64)
-    } else {
-        std::time::SystemTime::UNIX_EPOCH
-            - std::time::Duration::from_secs(time.unix_timestamp().unsigned_abs())
-    }
+    Some(lines.join("\n"))
 }
 
 fn trim_report_text(mut text: String, max_bytes: usize) -> String {
@@ -1461,16 +1706,18 @@ async fn set_mod_enabled(
 #[tauri::command]
 fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
     let data_dir = paths::data_dir(&app);
-    let guard = state.game.lock().unwrap();
-    if guard.is_some() {
-        if crate::game_guard::is_running(&data_dir) {
-            return true;
-        }
-        // Процесс уже завершился, но фоновая задача ещё собирает exit status и логи.
-        return true;
+    let mut guard = state.game.lock().unwrap();
+    match guard.as_mut() {
+        Some(child) => match child.try_wait() {
+            Ok(Some(_)) | Err(_) => {
+                *guard = None;
+                crate::game_guard::clear(&data_dir);
+                false
+            }
+            Ok(None) => true,
+        },
+        None => false,
     }
-
-    false
 }
 
 /// Пинг Minecraft-сервера: резолвит SRV-запись `_minecraft._tcp.<host>`,
@@ -1533,8 +1780,8 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
 
         // Read response
         let _pkt_len = mc_read_varint(&mut stream).await?;
-        let _pkt_id  = mc_read_varint(&mut stream).await?;
-        let str_len  = mc_read_varint(&mut stream).await? as usize;
+        let _pkt_id = mc_read_varint(&mut stream).await?;
+        let str_len = mc_read_varint(&mut stream).await? as usize;
         let mut buf = vec![0u8; str_len.min(8192)];
         stream.read_exact(&mut buf).await?;
         let json: serde_json::Value =
@@ -1556,11 +1803,11 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
                 .and_then(|p| p.get("sample"))
                 .cloned()
                 .unwrap_or_else(|| serde_json::json!([]));
-                
-            serde_json::json!({ 
-                "online": true, 
-                "players": players, 
-                "max": max, 
+
+            serde_json::json!({
+                "online": true,
+                "players": players,
+                "max": max,
                 "ping": ping_ms,
                 "sample": sample
             })
@@ -1573,9 +1820,13 @@ fn mc_write_varint(buf: &mut Vec<u8>, mut v: u32) {
     loop {
         let mut b = (v & 0x7f) as u8;
         v >>= 7;
-        if v != 0 { b |= 0x80; }
+        if v != 0 {
+            b |= 0x80;
+        }
         buf.push(b);
-        if v == 0 { break; }
+        if v == 0 {
+            break;
+        }
     }
 }
 
@@ -1585,11 +1836,14 @@ async fn mc_read_varint(stream: &mut tokio::net::TcpStream) -> std::io::Result<u
     loop {
         let b = stream.read_u8().await?;
         result |= ((b & 0x7f) as u32) << shift;
-        if b & 0x80 == 0 { break; }
+        if b & 0x80 == 0 {
+            break;
+        }
         shift += 7;
         if shift >= 35 {
             return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData, "varint overflow",
+                std::io::ErrorKind::InvalidData,
+                "varint overflow",
             ));
         }
     }
@@ -1603,9 +1857,10 @@ async fn get_customization(app: tauri::AppHandle) -> Result<protocol::PlayerCust
     let state = app.state::<AppState>();
     let token = { state.token.lock().unwrap().clone() }
         .ok_or_else(|| "Нет токена авторизации".to_string())?;
-    let base = std::env::var("LAUNCHER_AUTH_URL")
-        .unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
-    let resp = state.http()
+    let base =
+        std::env::var("LAUNCHER_AUTH_URL").unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
+    let resp = state
+        .http()
         .get(format!("{base}/api/me/customization"))
         .header("Authorization", format!("Bearer {token}"))
         .send()
@@ -1628,9 +1883,10 @@ async fn set_active_customization(
     let state = app.state::<AppState>();
     let token = { state.token.lock().unwrap().clone() }
         .ok_or_else(|| "Нет токена авторизации".to_string())?;
-    let base = std::env::var("LAUNCHER_AUTH_URL")
-        .unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
-    let resp = state.http()
+    let base =
+        std::env::var("LAUNCHER_AUTH_URL").unwrap_or_else(|_| "https://auth.zeragorn.xyz".into());
+    let resp = state
+        .http()
         .put(format!("{base}/api/me/active"))
         .header("Authorization", format!("Bearer {token}"))
         .json(&serde_json::json!({ "badge_id": badge_id, "gradient_id": gradient_id }))
@@ -1648,7 +1904,10 @@ async fn set_active_customization(
 /// Скин другого игрока по UUID (для аватарок в списке онлайн).
 /// Использует публичный эндпоинт `/api/skin/:uuid` без авторизации.
 #[tauri::command]
-async fn get_player_skin(state: State<'_, AppState>, uuid: String) -> Result<Option<String>, String> {
+async fn get_player_skin(
+    state: State<'_, AppState>,
+    uuid: String,
+) -> Result<Option<String>, String> {
     let http = state.http();
     match backend::get_skin(&http, &uuid).await? {
         Some(fetched) => Ok(Some(format!(
@@ -1677,6 +1936,11 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             current_profile,
             get_settings,
             save_settings,
+            list_java_installations,
+            list_java_installations_deep,
+            list_java_download_vendors,
+            download_java,
+            download_temurin_java,
             app_info,
             get_skin,
             load_skin_cache,
@@ -1686,6 +1950,9 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             telegram_link_start,
             open_external,
             open_path,
+            get_log_paths,
+            read_log_tail,
+            open_log_folder,
             telegram_unlink,
             change_username,
             change_password,

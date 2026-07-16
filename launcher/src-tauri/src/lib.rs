@@ -4,6 +4,7 @@
 mod backend;
 mod commands;
 mod game_guard;
+mod java;
 mod minecraft;
 mod modpack;
 mod paths;
@@ -24,8 +25,13 @@ pub fn run() {
     let file_appender = tracing_appender::rolling::daily(&log_dir, "launcher.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
 
+    let default_level = if cfg!(debug_assertions) {
+        "launcher=debug"
+    } else {
+        "launcher=info"
+    };
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| "launcher=info".into());
+        .unwrap_or_else(|_| default_level.into());
 
     use tracing_subscriber::prelude::*;
 

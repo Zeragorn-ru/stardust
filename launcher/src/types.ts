@@ -89,6 +89,24 @@ export interface TelegramLinkResponse {
   deepLink?: string;
 }
 
+export type JavaProvider = "auto" | "temurin" | "system" | "custom";
+
+/** Найденная установка Java 21+. */
+export interface JavaInstallation {
+  path: string;
+  home: string;
+  version: string;
+  major: number;
+  source: string;
+}
+
+/** Поставщик Java для скачивания. */
+export interface JavaVendorInfo {
+  id: string;
+  name: string;
+  label: string;
+}
+
 export interface Settings {
   /** Выделяемая память JVM, МБ. */
   memoryMb: number;
@@ -97,6 +115,10 @@ export interface Settings {
   /** Показывать 3D-модель скина на главном экране. */
   show3dModel: boolean;
   proxyType: "system" | "builtin" | "none";
+  /** Источник Java для запуска игры. */
+  javaProvider?: JavaProvider;
+  /** Путь к java, если javaProvider = custom. */
+  javaCustomPath?: string | null;
 }
 
 /** Режим запуска лаунчера. */
@@ -207,3 +229,25 @@ export interface PlayerStats {
   /** ISO-8601 дата последнего подтверждённого захода на сервер, либо null. */
   lastJoinedAt: string | null;
 }
+
+/** Пути к логам лаунчера и Minecraft. */
+export interface LogPaths {
+  launcherLogDir: string;
+  launcherLogLatest: string;
+  minecraftLogsDir: string;
+  minecraftLatestLog: string;
+  minecraftDebugLog: string;
+  crashReportsDir: string;
+  dataDir: string;
+  crashReportsExists: boolean;
+}
+
+/** Хвост лог-файла. */
+export interface LogTail {
+  path: string;
+  lines: string[];
+  truncated: boolean;
+  exists: boolean;
+}
+
+export type LogFolderKind = "launcherLogs" | "minecraftLogs" | "crashReports";

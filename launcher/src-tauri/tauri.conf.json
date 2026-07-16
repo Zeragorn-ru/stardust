@@ -24,7 +24,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://auth.zeragorn.xyz https://admin.zeragorn.xyz https://api.github.com https://resources.download.minecraft.net https://piston-meta.mojang.com https://maven.neoforged.net https://api.adoptium.net https://authlib-injector.yushi.moe; img-src 'self' data: blob: https:; font-src 'self' data:"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://auth.zeragorn.xyz https://admin.zeragorn.xyz https://api.github.com https://resources.download.minecraft.net https://piston-meta.mojang.com https://maven.neoforged.net https://api.adoptium.net https://api.azul.com https://cdn.azul.com https://corretto.aws https://aka.ms https://download.oracle.com https://authlib-injector.yushi.moe; img-src 'self' data: blob: https:; font-src 'self' data:"
     }
   },
   "bundle": {
@@ -43,23 +43,7 @@
       }
     },
     "macOS": {
-      "entitlements": "./Entitlements.plist",
-      "hardenedRuntime": true,
-      "dmg": {
-        "background": "images/dmg-background.png",
-        "windowSize": {
-          "width": 660,
-          "height": 440
-        },
-        "appPosition": {
-          "x": 180,
-          "y": 200
-        },
-        "applicationFolderPosition": {
-          "x": 480,
-          "y": 200
-        }
-      }
+      "dmg": {}
     },
     "windows": {
       "nsis": {

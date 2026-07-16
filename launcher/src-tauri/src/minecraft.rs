@@ -28,20 +28,6 @@ const NEOFORGE_METADATA_URL: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
 const VERSION_MANIFEST_URL: &str =
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-const JAVA_VERSION: u32 = 21;
-
-fn temurin_url() -> String {
-    let (os, arch) = if cfg!(target_os = "macos") {
-        ("mac", if cfg!(target_arch = "aarch64") { "aarch64" } else { "x64" })
-    } else if cfg!(target_os = "linux") {
-        ("linux", "x64")
-    } else {
-        ("windows", "x64")
-    };
-    format!(
-        "https://api.adoptium.net/v3/binary/latest/21/ga/{os}/{arch}/jre/hotspot/normal/eclipse"
-    )
-}
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
@@ -51,6 +37,8 @@ pub async fn launch(
     data_dir: PathBuf,
     settings_memory_mb: u32,
     download_concurrency: usize,
+    java_provider: crate::java::JavaProvider,
+    java_custom_path: Option<String>,
     profile: PlayerProfile,
     access_token: String,
 ) -> Result<Child, String> {
@@ -70,7 +58,14 @@ pub async fn launch(
     let concurrency = download_concurrency.clamp(1, 16);
 
     let progress = Progress::new(app.clone());
-    let java = ensure_java(&progress, http, &data_dir).await?;
+    let java = crate::java::resolve_java(
+        java_provider,
+        java_custom_path.as_deref(),
+        &progress,
+        http,
+        &data_dir,
+    )
+    .await?;
 
     let version = ensure_version(&progress, http, &root, &version_id).await?;
     ensure_client(&progress, http, &root, &version).await?;
@@ -105,7 +100,7 @@ pub async fn launch(
         "extracting",
         "Распаковываем native-библиотеки…",
     );
-    extract_natives(&root, &version)?;
+    extract_natives(&root, &version, &loader.libraries)?;
 
     let game_dir = root.join("game");
     fs::create_dir_all(&game_dir).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
@@ -127,7 +122,22 @@ pub async fn launch(
     let natives_dir = natives_dir(&root, &version.id);
 
     let memory = settings_memory_mb;
+    let natives_path = natives_dir.to_string_lossy().to_string();
     let mut args = Vec::<String>::new();
+
+    // На macOS GLFW/LWJGL требуют -XstartOnFirstThread среди первых JVM-флагов.
+    if cfg!(target_os = "macos") {
+        args.push("-XstartOnFirstThread".into());
+    }
+
+    // Vanilla ruled JVM args: natives paths, OS-specific flags и т.д.
+    args.extend(vanilla_jvm_args(&version, &natives_path));
+
+    // На macOS раннее окно NeoForge (fmlearlywindow) часто падает при старте GLFW.
+    if cfg!(target_os = "macos") {
+        args.push("-Dfml.earlyWindowControl=false".into());
+    }
+
     // Фиксированный heap — без этого JVM стартует с крошечной кучей и
     // перестраивает её по мере роста, что на слабых системах вызывает
     // длинные GC-паузы, из-за которых игрок может не успеть создаться.
@@ -140,10 +150,7 @@ pub async fn launch(
     args.push("-XX:+ParallelRefProcEnabled".into());
     args.push("-XX:+DisableExplicitGC".into());
     args.push("-XX:MaxGCPauseMillis=200".into());
-    args.push(format!(
-        "-Djava.library.path={}",
-        natives_dir.to_string_lossy()
-    ));
+
     // JVM-аргументы NeoForge (module-path, --add-opens и т.д.) с подстановкой
     // плейсхолдеров. Без них BootstrapLauncher не стартует.
     args.extend(modloader_jvm_args(&root, &version, &loader));
@@ -190,160 +197,12 @@ pub async fn launch(
     Ok(child)
 }
 
-async fn ensure_java(
-    progress: &Progress,
-    http: &reqwest::Client,
-    data_dir: &Path,
-) -> Result<PathBuf, String> {
-    let runtime_dir = data_dir.join("runtime").join("java-21");
-    if let Some(java) = bundled_java(&runtime_dir) {
-        return Ok(java);
-    }
-
-    if let Some(java) = system_java_21() {
-        return Ok(java);
-    }
-
-    progress.begin(Stage::Java, "downloading", "Скачиваем приватную Java 21…");
-    fs::create_dir_all(&runtime_dir)
-        .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
-
-    let url = temurin_url();
-    if cfg!(windows) {
-        let archive = data_dir.join("runtime").join("java-21.zip");
-        download_to(progress, http, &url, &archive, "Java 21 runtime", None, None).await?;
-        progress.set_label("extracting", "Распаковываем Java 21…");
-        extract_java_zip(&archive, &runtime_dir)?;
-        let _ = fs::remove_file(&archive);
-    } else {
-        let archive = data_dir.join("runtime").join("java-21.tar.gz");
-        download_to(progress, http, &url, &archive, "Java 21 runtime", None, None).await?;
-        progress.set_label("extracting", "Распаковываем Java 21…");
-        extract_java_tar_gz(&archive, &runtime_dir)?;
-        let _ = fs::remove_file(&archive);
-    }
-
-    bundled_java(&runtime_dir).ok_or_else(|| "Java 21 скачана, но java не найдена".to_string())
-}
-
-fn bundled_java(runtime_dir: &Path) -> Option<PathBuf> {
-    let direct = runtime_dir
-        .join("bin")
-        .join(if cfg!(windows) { "javaw.exe" } else { "java" });
-    if direct.exists() {
-        return Some(direct);
-    }
-    for entry in fs::read_dir(runtime_dir).ok()? {
-        let path = entry.ok()?.path();
-        let java = path
-            .join("bin")
-            .join(if cfg!(windows) { "javaw.exe" } else { "java" });
-        if java.exists() {
-            return Some(java);
-        }
-    }
-    None
-}
-
-fn system_java_21() -> Option<PathBuf> {
-    if let Ok(home) = std::env::var("JAVA_HOME") {
-        let exe = if cfg!(windows) { "javaw.exe" } else { "java" };
-        let path = PathBuf::from(home).join("bin").join(exe);
-        if path.exists() && java_is_21(&path) {
-            return Some(path);
-        }
-    }
-    let java = PathBuf::from(if cfg!(windows) { "javaw" } else { "java" });
-    if java_is_21(&java) {
-        Some(java)
-    } else {
-        None
-    }
-}
-
 #[cfg_attr(not(windows), allow(unused_variables))]
 fn hide_console(command: &mut Command) {
     #[cfg(windows)]
     {
         command.creation_flags(CREATE_NO_WINDOW);
     }
-}
-
-fn java_is_21(java: &Path) -> bool {
-    let java_check = if cfg!(windows) {
-        let mut p = java.to_path_buf();
-        p.set_file_name("java.exe");
-        p
-    } else {
-        java.to_path_buf()
-    };
-    let mut command = Command::new(java_check);
-    command.arg("-version");
-    hide_console(&mut command);
-    let Ok(output) = command.output() else {
-        return false;
-    };
-    let text = String::from_utf8_lossy(&output.stderr);
-    parse_java_major(&text).is_some_and(|major| major >= JAVA_VERSION)
-}
-
-fn parse_java_major(text: &str) -> Option<u32> {
-    let marker = "version \"";
-    let start = text.find(marker)? + marker.len();
-    let rest = &text[start..];
-    let version = rest.split('"').next()?;
-    let first = version.split('.').next()?;
-    if first == "1" {
-        version.split('.').nth(1)?.parse().ok()
-    } else {
-        first.parse().ok()
-    }
-}
-
-fn extract_java_zip(archive: &Path, target: &Path) -> Result<(), String> {
-    let file =
-        fs::File::open(archive).map_err(|e| format!("Не удалось открыть Java archive: {e}"))?;
-    let mut zip = zip::ZipArchive::new(file).map_err(|e| format!("Некорректный Java zip: {e}"))?;
-    for i in 0..zip.len() {
-        let mut file = zip.by_index(i).map_err(|e| e.to_string())?;
-        let name = file.name().replace('\\', "/");
-        if name.ends_with('/') {
-            continue;
-        }
-        let stripped = name.split_once('/').map(|(_, rest)| rest).unwrap_or(&name);
-        if stripped.is_empty() {
-            continue;
-        }
-        // Защита от zip-slip: отвергаем любой путь, содержащий `..`-компоненты.
-        // Это надёжнее canonicalize, который не работает для несуществующих файлов.
-        if Path::new(stripped)
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            return Err(format!(
-                "Небезопасный путь в zip: {name} (попытка выхода за пределы {})",
-                target.display()
-            ));
-        }
-        let out = target.join(stripped);
-        if let Some(parent) = out.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        }
-        let mut out_file = fs::File::create(&out).map_err(|e| e.to_string())?;
-        std::io::copy(&mut file, &mut out_file).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-fn extract_java_tar_gz(archive: &Path, target: &Path) -> Result<(), String> {
-    let file =
-        fs::File::open(archive).map_err(|e| format!("Не удалось открыть Java archive: {e}"))?;
-    let dec = flate2::read::GzDecoder::new(file);
-    let mut tar = tar::Archive::new(dec);
-    tar.set_overwrite(false);
-    tar.unpack(target)
-        .map_err(|e| format!("Ошибка распаковки Java tar.gz: {e}"))?;
-    Ok(())
 }
 
 async fn ensure_version(
@@ -371,7 +230,16 @@ async fn ensure_version(
         let Some(entry) = manifest.versions.into_iter().find(|v| v.id == version_id) else {
             return Err(format!("Версия Minecraft {version_id} не найдена"));
         };
-        download_to(progress, http, &entry.url, &version_path, "version json", None, None).await?;
+        download_to(
+            progress,
+            http,
+            &entry.url,
+            &version_path,
+            "version json",
+            None,
+            None,
+        )
+        .await?;
     }
     progress.set_stage_fraction(1.0);
 
@@ -392,7 +260,16 @@ async fn ensure_client(
         return Err("В version json нет client jar".into());
     };
     if !file_matches(&path, client.sha1.as_deref(), client.size)? {
-        download_to(progress, http, &client.url, &path, "client jar", client.sha1.as_deref(), client.size).await?;
+        download_to(
+            progress,
+            http,
+            &client.url,
+            &path,
+            "client jar",
+            client.sha1.as_deref(),
+            client.size,
+        )
+        .await?;
     }
     progress.set_stage_fraction(1.0);
     Ok(())
@@ -425,7 +302,10 @@ async fn download_libraries(
     concurrency: usize,
 ) -> Result<(), String> {
     let mut jobs: Vec<DownloadJob> = Vec::new();
-    for lib in libraries.iter().filter(|lib| rules_allow(&lib.rules)) {
+    for lib in libraries
+        .iter()
+        .filter(|lib| rules_allow(&lib.rules, &LaunchFeatures::default()))
+    {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             let path = root.join("libraries").join(&artifact.path);
             if !artifact.url.is_empty()
@@ -474,7 +354,11 @@ async fn ensure_assets(
     let indexes = root.join("assets").join("indexes");
     fs::create_dir_all(&indexes).map_err(|e| e.to_string())?;
     let index_path = indexes.join(format!("{}.json", version.asset_index.id));
-    if !file_matches(&index_path, version.asset_index.sha1.as_deref(), version.asset_index.size)? {
+    if !file_matches(
+        &index_path,
+        version.asset_index.sha1.as_deref(),
+        version.asset_index.size,
+    )? {
         download_to(
             progress,
             http,
@@ -592,7 +476,16 @@ async fn download_jobs(
     let mut stream = stream::iter(jobs.into_iter().map(|job| {
         let http = http.clone();
         async move {
-            let res = download_to_counted(progress, &http, &job.url, &job.path, &job.label, job.expected_sha1.as_deref(), job.expected_size).await;
+            let res = download_to_counted(
+                progress,
+                &http,
+                &job.url,
+                &job.path,
+                &job.label,
+                job.expected_sha1.as_deref(),
+                job.expected_size,
+            )
+            .await;
             (job.label, res)
         }
     }))
@@ -605,25 +498,44 @@ async fn download_jobs(
     Ok(())
 }
 
-fn extract_natives(root: &Path, version: &VersionJson) -> Result<(), String> {
+fn extract_natives(
+    root: &Path,
+    version: &VersionJson,
+    loader_libraries: &[Library],
+) -> Result<(), String> {
     let dir = natives_dir(root, &version.id);
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
-    for lib in active_libraries(version) {
-        let Some(classifier) = native_classifier(lib) else {
-            continue;
-        };
-        let Some(classifiers) = lib.downloads.classifiers.as_ref() else {
-            continue;
-        };
-        let Some(artifact) = classifiers.get(&classifier) else {
-            continue;
-        };
-        let jar_path = root.join("libraries").join(&artifact.path);
-        if !jar_path.exists() {
-            continue;
+    let mut extracted = std::collections::HashSet::new();
+    let launch_features = LaunchFeatures::default();
+    let libraries = version
+        .libraries
+        .iter()
+        .chain(loader_libraries.iter())
+        .filter(|lib| rules_allow(&lib.rules, &launch_features));
+
+    for lib in libraries {
+        // Старый формат: natives: {osx: "natives-macos"} + classifiers.
+        if let Some(classifier) = native_classifier(lib) {
+            if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
+                if let Some(artifact) = classifiers.get(&classifier) {
+                    let jar_path = root.join("libraries").join(&artifact.path);
+                    if jar_path.exists() && extracted.insert(artifact.path.clone()) {
+                        extract_zip(&jar_path, &dir)?;
+                    }
+                }
+            }
         }
-        extract_zip(&jar_path, &dir)?;
+
+        // MC 1.21+: отдельные записи вида group:artifact:version:natives-macos.
+        if let Some(artifact) = lib.downloads.artifact.as_ref() {
+            if native_artifact_for_current_os(&artifact.path, lib.name.as_deref()) {
+                let jar_path = root.join("libraries").join(&artifact.path);
+                if jar_path.exists() && extracted.insert(artifact.path.clone()) {
+                    extract_zip(&jar_path, &dir)?;
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -662,7 +574,12 @@ fn build_modloader_classpath(
     let mut paths = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    for lib in loader.libraries.iter().filter(|l| rules_allow(&l.rules)) {
+    let launch_features = LaunchFeatures::default();
+    for lib in loader
+        .libraries
+        .iter()
+        .filter(|l| rules_allow(&l.rules, &launch_features))
+    {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             if let Some(key) = library_dedup_key(lib) {
                 seen.insert(key);
@@ -716,13 +633,9 @@ fn game_args(
     profile: &PlayerProfile,
     access_token: &str,
 ) -> Vec<String> {
-    let assets_dir = root.join("assets");
-    let mut args = if let Some(arguments) = version.arguments.as_ref() {
-        arguments
-            .game
-            .iter()
-            .filter_map(argument_value)
-            .collect::<Vec<_>>()
+    let features = LaunchFeatures::default();
+    let args = if let Some(arguments) = version.arguments.as_ref() {
+        resolve_arguments(&arguments.game, &features)
     } else {
         version
             .minecraft_arguments
@@ -733,7 +646,24 @@ fn game_args(
             .collect::<Vec<_>>()
     };
 
-    let replacements = HashMap::from([
+    let replacements = game_arg_replacements(root, game_dir, version, profile, access_token);
+    args.into_iter()
+        .map(|arg| substitute_tokens(&arg, &replacements))
+        .collect()
+}
+
+/// Плейсхолдеры vanilla game-аргументов. Неизвестные quickPlay/resolution
+/// подставляем безопасными значениями — на случай если ruled-блок всё же
+/// попал в командную строку.
+fn game_arg_replacements(
+    root: &Path,
+    game_dir: &Path,
+    version: &VersionJson,
+    profile: &PlayerProfile,
+    access_token: &str,
+) -> HashMap<&'static str, String> {
+    let assets_dir = root.join("assets");
+    HashMap::from([
         ("${auth_player_name}", profile.name.clone()),
         ("${version_name}", version.id.clone()),
         ("${game_directory}", game_dir.to_string_lossy().to_string()),
@@ -743,25 +673,90 @@ fn game_args(
         ("${auth_access_token}", access_token.to_string()),
         ("${user_type}", "msa".to_string()),
         ("${version_type}", version.version_type.clone()),
-        ("${clientid}", "".to_string()),
-        ("${auth_xuid}", "".to_string()),
-    ]);
-
-    for arg in &mut args {
-        if let Some(value) = replacements.get(arg.as_str()) {
-            *arg = value.clone();
-        }
-    }
-    args
+        ("${clientid}", String::new()),
+        ("${auth_xuid}", String::new()),
+        ("${resolution_width}", "1280".to_string()),
+        ("${resolution_height}", "720".to_string()),
+        ("${quickPlayPath}", String::new()),
+        ("${quickPlaySingleplayer}", String::new()),
+        ("${quickPlayMultiplayer}", String::new()),
+        ("${quickPlayRealms}", String::new()),
+    ])
 }
 
-fn argument_value(value: &Value) -> Option<String> {
+/// Разворачивает vanilla JVM-аргументы с OS/feature rules и подставляет
+/// плейсхолдеры natives directory и launcher metadata.
+/// `-cp` / `${classpath}` из version json пропускаем — classpath задаём ниже.
+fn vanilla_jvm_args(version: &VersionJson, natives_directory: &str) -> Vec<String> {
+    let replacements = HashMap::from([
+        ("${natives_directory}", natives_directory.to_string()),
+        ("${launcher_name}", "StarDust".to_string()),
+        ("${launcher_version}", env!("CARGO_PKG_VERSION").to_string()),
+    ]);
+    let features = LaunchFeatures::default();
+    let args = version
+        .arguments
+        .as_ref()
+        .map(|a| resolve_arguments(&a.jvm, &features))
+        .unwrap_or_default();
+    args.into_iter()
+        .map(|arg| substitute_tokens(&arg, &replacements))
+        .filter(|arg| arg != "-cp" && arg != "${classpath}")
+        .collect()
+}
+
+/// Разворачивает список аргументов Minecraft (jvm/game) с учётом rules.
+fn resolve_arguments(values: &[Value], features: &LaunchFeatures) -> Vec<String> {
+    let mut out = Vec::new();
+    for value in values {
+        out.extend(resolve_argument(value, features));
+    }
+    out
+}
+
+fn resolve_argument(value: &Value, features: &LaunchFeatures) -> Vec<String> {
     match value {
-        Value::String(s) => Some(s.clone()),
-        // Условные аргументы (feature/OS rules) пока пропускаем. Для NeoForge на
-        // десктопе они не требуются — jvm/game-аргументы там простые строки.
-        Value::Object(_) => None,
-        _ => None,
+        Value::String(s) => vec![s.clone()],
+        Value::Object(obj) => {
+            let rules = obj
+                .get("rules")
+                .and_then(|r| serde_json::from_value::<Vec<Rule>>(r.clone()).ok());
+            if !rules_allow(&rules, features) {
+                return Vec::new();
+            }
+            match obj.get("value") {
+                Some(Value::String(s)) => vec![s.clone()],
+                Some(Value::Array(arr)) => arr
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect(),
+                _ => Vec::new(),
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Проверяет, что путь артефакта — native-библиотека для текущей ОС/архитектуры.
+fn native_artifact_for_current_os(path: &str, name: Option<&str>) -> bool {
+    let haystack = format!(
+        "{} {}",
+        path.to_ascii_lowercase(),
+        name.unwrap_or("").to_ascii_lowercase()
+    );
+    if !haystack.contains("natives") {
+        return false;
+    }
+    if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            haystack.contains("natives-macos-arm64")
+        } else {
+            haystack.contains("natives-macos") && !haystack.contains("arm64")
+        }
+    } else if cfg!(target_os = "windows") {
+        haystack.contains("natives-windows")
+    } else {
+        haystack.contains("natives-linux")
     }
 }
 
@@ -790,10 +785,11 @@ fn modloader_jvm_args(
         ("${version_name}", vanilla.id.clone()),
     ]);
 
+    let features = LaunchFeatures::default();
     arguments
         .jvm
         .iter()
-        .filter_map(argument_value)
+        .flat_map(|value| resolve_argument(value, &features))
         .map(|arg| substitute_tokens(&arg, &replacements))
         .collect()
 }
@@ -804,7 +800,12 @@ fn modloader_game_args(loader: &ModLoaderProfile) -> Vec<String> {
     let Some(arguments) = loader.arguments.as_ref() else {
         return Vec::new();
     };
-    arguments.game.iter().filter_map(argument_value).collect()
+    let features = LaunchFeatures::default();
+    arguments
+        .game
+        .iter()
+        .flat_map(|value| resolve_argument(value, &features))
+        .collect()
 }
 
 /// Заменяет все вхождения `${...}`-плейсхолдеров внутри строки.
@@ -845,14 +846,39 @@ fn active_libraries(version: &VersionJson) -> impl Iterator<Item = &Library> {
     version
         .libraries
         .iter()
-        .filter(|lib| rules_allow(&lib.rules))
+        .filter(|lib| rules_allow(&lib.rules, &LaunchFeatures::default()))
 }
 
-fn rules_allow(rules: &Option<Vec<Rule>>) -> bool {
+/// Feature-флаги запуска для ruled game/jvm аргументов Minecraft.
+#[derive(Debug, Clone, Default)]
+struct LaunchFeatures {
+    is_demo_user: bool,
+    has_custom_resolution: bool,
+    has_quick_plays_support: bool,
+    is_quick_play_singleplayer: bool,
+    is_quick_play_multiplayer: bool,
+    is_quick_play_realms: bool,
+}
+
+impl LaunchFeatures {
+    fn feature(&self, name: &str) -> bool {
+        match name {
+            "is_demo_user" => self.is_demo_user,
+            "has_custom_resolution" => self.has_custom_resolution,
+            "has_quick_plays_support" => self.has_quick_plays_support,
+            "is_quick_play_singleplayer" => self.is_quick_play_singleplayer,
+            "is_quick_play_multiplayer" => self.is_quick_play_multiplayer,
+            "is_quick_play_realms" => self.is_quick_play_realms,
+            _ => false,
+        }
+    }
+}
+
+fn rules_allow(rules: &Option<Vec<Rule>>, features: &LaunchFeatures) -> bool {
     let Some(rules) = rules else { return true };
     let mut allowed = false;
     for rule in rules {
-        if rule.matches_current_os() {
+        if rule.matches(features) {
             allowed = rule.action == "allow";
         }
     }
@@ -948,7 +974,9 @@ async fn ensure_neoforge(
     // чтобы installer запустился заново.
     if marker.exists() {
         let _ = fs::remove_file(&marker);
-        tracing::warn!("[neoforge] обнаружена неполная установка (нет patched client), переустанавливаем");
+        tracing::warn!(
+            "[neoforge] обнаружена неполная установка (нет patched client), переустанавливаем"
+        );
     }
 
     // Installer отказывается работать без launcher_profiles.json в целевой папке.
@@ -989,9 +1017,21 @@ async fn ensure_neoforge(
             "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar",
             neoforge_version
         );
-        if let Err(e) = download_to(progress, http, &url, &installer, "NeoForge installer", None, None).await {
+        if let Err(e) = download_to(
+            progress,
+            http,
+            &url,
+            &installer,
+            "NeoForge installer",
+            None,
+            None,
+        )
+        .await
+        {
             last_err = e;
-            tracing::warn!("[neoforge] ошибка скачивания installer (попытка {attempt}): {last_err}");
+            tracing::warn!(
+                "[neoforge] ошибка скачивания installer (попытка {attempt}): {last_err}"
+            );
             continue;
         }
 
@@ -1101,10 +1141,7 @@ fn load_modloader_profile(root: &Path, profile_id: &str) -> Result<ModLoaderProf
 
 async fn latest_neoforge_21_1(http: &reqwest::Client) -> Result<String, String> {
     let resp = http_get_with_retry(http, NEOFORGE_METADATA_URL, "метаданные NeoForge", 5).await?;
-    let xml = resp
-        .text()
-        .await
-        .map_err(network_error)?;
+    let xml = resp.text().await.map_err(network_error)?;
 
     xml.split("<version>")
         .filter_map(|part| {
@@ -1152,7 +1189,17 @@ async fn ensure_authlib_injector(
 
     // Путь 1: admin-server (наш сервер, доверяем ему).
     let admin_url = format!("{}/authlib-injector.jar", crate::backend::admin_base_url());
-    if let Err(e) = download_to(progress, http, &admin_url, &jar, "authlib-injector", None, None).await {
+    if let Err(e) = download_to(
+        progress,
+        http,
+        &admin_url,
+        &jar,
+        "authlib-injector",
+        None,
+        None,
+    )
+    .await
+    {
         tracing::warn!("admin-server не отдал authlib-injector ({e}), пробую апстрим");
         // Путь 2: прямой апстрим с проверкой SHA-256 из latest.json.
         let meta = fetch_injector_meta(http).await?;
@@ -1164,7 +1211,8 @@ async fn ensure_authlib_injector(
             "authlib-injector",
             None,
             None,
-        ).await?;
+        )
+        .await?;
         // Верификация SHA-256 после скачивания.
         if let Some(expected) = &meta.sha256 {
             tauri::async_runtime::spawn_blocking({
@@ -1246,7 +1294,17 @@ pub(crate) async fn download_to(
     expected_sha1: Option<&str>,
     expected_size: Option<u64>,
 ) -> Result<(), String> {
-    download_inner(progress, http, url, path, label, DownloadScope::Stage, expected_sha1, expected_size).await
+    download_inner(
+        progress,
+        http,
+        url,
+        path,
+        label,
+        DownloadScope::Stage,
+        expected_sha1,
+        expected_size,
+    )
+    .await
 }
 
 /// Скачивает один файл многофайлового этапа: долей этапа управляет счётчик
@@ -1260,7 +1318,17 @@ pub(crate) async fn download_to_counted(
     expected_sha1: Option<&str>,
     expected_size: Option<u64>,
 ) -> Result<(), String> {
-    download_inner(progress, http, url, path, label, DownloadScope::Item, expected_sha1, expected_size).await
+    download_inner(
+        progress,
+        http,
+        url,
+        path,
+        label,
+        DownloadScope::Item,
+        expected_sha1,
+        expected_size,
+    )
+    .await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1381,16 +1449,17 @@ async fn download_inner(
                 move || -> Result<Sha1, String> {
                     let mut f = fs::File::open(&tmp)
                         .map_err(|e| format!("Не удалось прочитать файл для хеша: {e}"))?;
-                    
+
                     let mut temp_hasher = Sha1::new();
                     let mut remaining = actual_offset;
                     let mut buf = vec![0u8; 64 * 1024]; // 64 KB chunk
-                    
+
                     while remaining > 0 {
                         let to_read = std::cmp::min(remaining, buf.len() as u64) as usize;
                         let slice = &mut buf[..to_read];
-                        f.read_exact(slice)
-                            .map_err(|e| format!("Не удалось прочитать файл для хеша (resume): {e}"))?;
+                        f.read_exact(slice).map_err(|e| {
+                            format!("Не удалось прочитать файл для хеша (resume): {e}")
+                        })?;
                         temp_hasher.update(slice);
                         remaining -= to_read as u64;
                     }
@@ -1418,9 +1487,7 @@ async fn download_inner(
                     }
                     downloaded += chunk.len() as u64;
                     match scope {
-                        DownloadScope::Stage => {
-                            progress.download_tick(downloaded, total, started)
-                        }
+                        DownloadScope::Stage => progress.download_tick(downloaded, total, started),
                         DownloadScope::Item => progress.add_bytes(chunk.len() as u64),
                     }
                 }
@@ -1430,9 +1497,7 @@ async fn download_inner(
                     break;
                 }
                 Err(_elapsed) => {
-                    chunk_err = Some(format!(
-                        "Таймаут {label}: нет данных {CHUNK_TIMEOUT:?}"
-                    ));
+                    chunk_err = Some(format!("Таймаут {label}: нет данных {CHUNK_TIMEOUT:?}"));
                     break;
                 }
             }
@@ -1453,9 +1518,8 @@ async fn download_inner(
         // ── Верификация размера ──
         if let Some(expected) = expected_size {
             if downloaded != expected {
-                last_err = format!(
-                    "Размер {label}: скачано {downloaded} байт, ожидалось {expected}"
-                );
+                last_err =
+                    format!("Размер {label}: скачано {downloaded} байт, ожидалось {expected}");
                 tracing::warn!("[download] неверный размер (попытка {attempt}): {last_err}");
                 let _ = fs::remove_file(&tmp);
                 continue;
@@ -1536,8 +1600,8 @@ async fn http_get_with_retry(
 
 fn compute_sha1(path: &Path) -> Result<String, String> {
     use sha1::{Digest, Sha1};
-    let bytes =
-        fs::read(path).map_err(|e| format!("Не удалось прочитать файл для хеша {}: {e}", path.display()))?;
+    let bytes = fs::read(path)
+        .map_err(|e| format!("Не удалось прочитать файл для хеша {}: {e}", path.display()))?;
     let mut hasher = Sha1::new();
     hasher.update(&bytes);
     Ok(format!("{:x}", hasher.finalize()))
@@ -1658,29 +1722,67 @@ struct LibraryArtifact {
     size: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct Rule {
     action: String,
     #[serde(default)]
     os: Option<RuleOs>,
+    #[serde(default)]
+    features: Option<HashMap<String, bool>>,
 }
 
 impl Rule {
-    fn matches_current_os(&self) -> bool {
-        let Some(os) = self.os.as_ref() else {
-            return true;
-        };
-        let Some(name) = os.name.as_ref() else {
-            return true;
-        };
-        name == current_os_name()
+    fn matches(&self, launch: &LaunchFeatures) -> bool {
+        if let Some(os) = self.os.as_ref() {
+            if let Some(name) = os.name.as_ref() {
+                if name != current_os_name() {
+                    return false;
+                }
+            }
+            if let Some(arch) = os.arch.as_ref() {
+                if !arch_matches(arch) {
+                    return false;
+                }
+            }
+        }
+        if let Some(features) = self.features.as_ref() {
+            for (name, expected) in features {
+                if launch.feature(name) != *expected {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct RuleOs {
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    arch: Option<String>,
+}
+
+fn arch_matches(rule_arch: &str) -> bool {
+    match rule_arch {
+        "x86" => cfg!(any(target_arch = "x86", target_arch = "x86_64")),
+        "x86_64" => cfg!(target_arch = "x86_64"),
+        "aarch64" => cfg!(target_arch = "aarch64"),
+        other => current_arch_name() == other,
+    }
+}
+
+fn current_arch_name() -> &'static str {
+    if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else if cfg!(target_arch = "x86") {
+        "x86"
+    } else {
+        "unknown"
+    }
 }
 
 fn current_os_name() -> &'static str {
@@ -1696,40 +1798,16 @@ fn current_os_name() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn parse_java_major_old_style() {
-        assert_eq!(
-            parse_java_major("java version \"1.8.0_301\""),
-            Some(8)
-        );
-    }
-
-    #[test]
-    fn parse_java_major_new_style() {
-        assert_eq!(
-            parse_java_major("openjdk version \"21.0.1\" 2024-04-16"),
-            Some(21)
-        );
-    }
-
-    #[test]
-    fn parse_java_major_empty() {
-        assert_eq!(parse_java_major(""), None);
-    }
-
-    #[test]
-    fn parse_java_major_no_version() {
-        assert_eq!(parse_java_major("some random text"), None);
-    }
 
     #[test]
     fn substitute_tokens_basic() {
         let mut replacements: HashMap<&str, String> = HashMap::new();
         replacements.insert("${auth_player_name}", "Steve".to_string());
         replacements.insert("${version_name}", "1.21.1".to_string());
-        let result = substitute_tokens("--username ${auth_player_name} --version ${version_name}", &replacements);
+        let result = substitute_tokens(
+            "--username ${auth_player_name} --version ${version_name}",
+            &replacements,
+        );
         assert_eq!(result, "--username Steve --version 1.21.1");
     }
 
@@ -1742,65 +1820,28 @@ mod tests {
 
     #[test]
     fn rules_allow_none_rules() {
-        assert!(rules_allow(&None));
+        let features = LaunchFeatures::default();
+        assert!(rules_allow(&None, &features));
     }
 
     #[test]
     fn rules_allow_empty_rules() {
-        assert!(!rules_allow(&Some(vec![])));
+        let features = LaunchFeatures::default();
+        assert!(!rules_allow(&Some(vec![]), &features));
     }
 
     #[test]
-    fn extract_java_zip_rejects_slip() {
-        let dir = std::env::temp_dir().join("stardust_test_zip_slip");
-        let _ = std::fs::create_dir_all(&dir);
-        let target = dir.join("target");
-        let _ = std::fs::create_dir_all(&target);
-
-        // Create a zip with a malicious entry that tries to escape.
-        let zip_path = dir.join("malicious.zip");
-        {
-            let file = fs::File::create(&zip_path).unwrap();
-            let mut zip = zip::ZipWriter::new(file);
-            let options = zip::write::SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored);
-            // This entry tries to write outside the target directory.
-            zip.start_file("jdk/bin/../../etc/passwd", options).unwrap();
-            zip.write_all(b"malicious").unwrap();
-            zip.finish().unwrap();
-        }
-
-        let result = extract_java_zip(&zip_path, &target);
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.contains("Небезопасный путь"), "Error was: {err}");
-
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn extract_java_zip_accepts_valid() {
-        let dir = std::env::temp_dir().join("stardust_test_zip_valid");
-        let _ = std::fs::create_dir_all(&dir);
-        let target = dir.join("target");
-        let _ = std::fs::create_dir_all(&target);
-
-        let zip_path = dir.join("valid.zip");
-        {
-            let file = fs::File::create(&zip_path).unwrap();
-            let mut zip = zip::ZipWriter::new(file);
-            let options = zip::write::SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored);
-            zip.start_file("jdk/bin/java", options).unwrap();
-            zip.write_all(b"fake java binary").unwrap();
-            zip.finish().unwrap();
-        }
-
-        let result = extract_java_zip(&zip_path, &target);
-        assert!(result.is_ok(), "Error: {:?}", result.err());
-        assert!(target.join("bin/java").exists());
-
-        let _ = std::fs::remove_dir_all(&dir);
+    fn rules_allow_demo_only_when_feature_set() {
+        let rules: Vec<Rule> =
+            serde_json::from_str(r#"[{"action":"allow","features":{"is_demo_user":true}}]"#)
+                .unwrap();
+        let features = LaunchFeatures::default();
+        assert!(!rules_allow(&Some(rules.clone()), &features));
+        let demo = LaunchFeatures {
+            is_demo_user: true,
+            ..LaunchFeatures::default()
+        };
+        assert!(rules_allow(&Some(rules), &demo));
     }
 
     #[test]
@@ -1811,10 +1852,162 @@ mod tests {
         std::fs::write(&path, b"hello world").unwrap();
         let hash = compute_sha1(&path).unwrap();
         // SHA-1 of "hello world" is well-known.
-        assert_eq!(
-            hash,
-            "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed"
-        );
+        assert_eq!(hash, "2aae6c35c94fcfb415dbe95f408b9ce91ee846ed");
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_argument_osx_rule() {
+        let value: Value = serde_json::from_str(
+            r#"{"rules":[{"action":"allow","os":{"name":"osx"}}],"value":["-XstartOnFirstThread"]}"#,
+        )
+        .unwrap();
+        let features = LaunchFeatures::default();
+        let args = resolve_argument(&value, &features);
+        if cfg!(target_os = "macos") {
+            assert_eq!(args, vec!["-XstartOnFirstThread"]);
+        } else {
+            assert!(args.is_empty());
+        }
+    }
+
+    #[test]
+    fn resolve_argument_string_value() {
+        let value = Value::String("-Dfoo=bar".into());
+        let features = LaunchFeatures::default();
+        assert_eq!(resolve_argument(&value, &features), vec!["-Dfoo=bar"]);
+    }
+
+    #[test]
+    fn vanilla_jvm_args_substitutes_natives_directory() {
+        let version: VersionJson = serde_json::from_str(
+            r#"{
+                "id":"1.21.1","type":"release","mainClass":"x",
+                "assetIndex":{"id":"1.21","url":"http://x"},
+                "downloads":{"client":{"url":"http://x"}},
+                "libraries":[],
+                "arguments":{"jvm":["-Djava.library.path=${natives_directory}"]}
+            }"#,
+        )
+        .unwrap();
+        let args = vanilla_jvm_args(&version, "/tmp/natives");
+        assert!(args.contains(&"-Djava.library.path=/tmp/natives".to_string()));
+    }
+
+    #[test]
+    fn native_artifact_for_current_os_detects_macos_jar() {
+        let path = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-macos.jar";
+        if cfg!(target_os = "macos") && !cfg!(target_arch = "aarch64") {
+            assert!(native_artifact_for_current_os(path, None));
+        }
+        let arm_path = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-macos-arm64.jar";
+        if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+            assert!(native_artifact_for_current_os(arm_path, None));
+        }
+        if cfg!(target_os = "macos") && !cfg!(target_arch = "aarch64") {
+            assert!(!native_artifact_for_current_os(arm_path, None));
+        }
+    }
+
+    /// Хвост `arguments.game` из официального 1.21.1 version json (без внешних скобок).
+    const GAME_ARGS_1211_TAIL: &str = r#"
+        {"rules":[{"action":"allow","features":{"is_demo_user":true}}],"value":"--demo"},
+        {"rules":[{"action":"allow","features":{"has_custom_resolution":true}}],
+         "value":["--width","${resolution_width}","--height","${resolution_height}"]},
+        {"rules":[{"action":"allow","features":{"has_quick_plays_support":true}}],
+         "value":["--quickPlayPath","${quickPlayPath}"]}
+    "#;
+
+    fn version_json_with_game_args(game_tail: &str) -> VersionJson {
+        let tail = if game_tail.trim().is_empty() {
+            String::new()
+        } else {
+            format!(",{game_tail}")
+        };
+        serde_json::from_str(&format!(
+            r#"{{
+                "id":"1.21.1","type":"release","mainClass":"net.minecraft.client.main.Main",
+                "assetIndex":{{"id":"1.21","url":"http://x"}},
+                "downloads":{{"client":{{"url":"http://x"}}}},
+                "libraries":[],
+                "arguments":{{"game":[
+                    "--username","${{auth_player_name}}",
+                    "--version","${{version_name}}"
+                    {tail}
+                ]}}
+            }}"#
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn resolve_game_args_1211_excludes_feature_gated_on_normal_launch() {
+        let version = version_json_with_game_args(GAME_ARGS_1211_TAIL);
+        let features = LaunchFeatures::default();
+        let args = resolve_arguments(&version.arguments.as_ref().unwrap().game, &features);
+        assert!(!args.contains(&"--demo".to_string()));
+        assert!(!args.contains(&"--width".to_string()));
+        assert!(!args.contains(&"${resolution_width}".to_string()));
+        assert!(!args.contains(&"--quickPlayPath".to_string()));
+    }
+
+    #[test]
+    fn resolve_game_args_1211_includes_demo_when_feature_set() {
+        let version = version_json_with_game_args(GAME_ARGS_1211_TAIL);
+        let features = LaunchFeatures {
+            is_demo_user: true,
+            ..LaunchFeatures::default()
+        };
+        let args = resolve_arguments(&version.arguments.as_ref().unwrap().game, &features);
+        assert!(args.contains(&"--demo".to_string()));
+    }
+
+    #[test]
+    fn game_args_substitutes_tokens_from_1211_fragment() {
+        let version = version_json_with_game_args("");
+        let root = std::env::temp_dir().join("stardust_test_game_args");
+        let game_dir = root.join("game");
+        let _ = std::fs::create_dir_all(&game_dir);
+        let profile = PlayerProfile {
+            id: "00000000000000000000000000000000".to_string(),
+            name: "Steve".to_string(),
+            active_badge: None,
+            active_gradient: None,
+            ban: None,
+        };
+        let args = game_args(&root, &game_dir, &version, &profile, "token123");
+        assert!(args.contains(&"Steve".to_string()));
+        assert!(args.contains(&"1.21.1".to_string()));
+        assert!(!args.iter().any(|a| a.contains("${")));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn game_args_substitutes_resolution_defaults_when_forced_in() {
+        let version = version_json_with_game_args(
+            r#"{"rules":[{"action":"allow","features":{"has_custom_resolution":true}}],
+               "value":["--width","${resolution_width}","--height","${resolution_height}"]}"#,
+        );
+        let mut features = LaunchFeatures::default();
+        features.has_custom_resolution = true;
+        let resolved = resolve_arguments(&version.arguments.as_ref().unwrap().game, &features);
+        let root = std::env::temp_dir().join("stardust_test_resolution_args");
+        let game_dir = root.join("game");
+        let _ = std::fs::create_dir_all(&game_dir);
+        let profile = PlayerProfile {
+            id: "00000000000000000000000000000000".to_string(),
+            name: "Steve".to_string(),
+            active_badge: None,
+            active_gradient: None,
+            ban: None,
+        };
+        let replacements = game_arg_replacements(&root, &game_dir, &version, &profile, "token");
+        let args: Vec<String> = resolved
+            .into_iter()
+            .map(|arg| substitute_tokens(&arg, &replacements))
+            .collect();
+        assert!(args.contains(&"1280".to_string()));
+        assert!(args.contains(&"720".to_string()));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

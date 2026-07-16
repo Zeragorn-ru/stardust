@@ -3,7 +3,7 @@ import type { PlayerProfile, Progress, UpdateInfo } from "./types";
 import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
-import { useDelayedUnmount } from "./useDelayedUnmount";
+import Aurora from "./components/Aurora";
 import ErrorBoundary from "./components/ErrorBoundary";
 import OnboardingScreen from "./components/OnboardingScreen";
 import LoginScreen from "./components/LoginScreen";
@@ -13,7 +13,7 @@ import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 
 type View = "onboarding" | "login" | "main" | "settings";
-type SettingsSection = "general" | "account";
+type SettingsSection = "general" | "account" | "logs";
 
 const VIEW_ORDER: View[] = ["onboarding", "login", "main", "settings"];
 const TRANSITION_MS = 380;
@@ -23,12 +23,11 @@ export default function App() {
   const [view, setView] = useState<View>("login");
   const [exitView, setExitView] = useState<View | null>(null);
   const [exitClass, setExitClass] = useState("");
-  const [enterClass, setEnterClass] = useState("");
+  const [enterClass, setEnterClass] = useState("screen-enter");
   const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
   const [ready, setReady] = useState(false);
   const { reload: reloadSkin } = useSkin();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
-  const updateModal = useDelayedUnmount(update != null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const progressRef = useRef(progress);
@@ -82,7 +81,12 @@ export default function App() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
-    onLauncherProgress(setProgress).then((fn) => { unlisten = fn; });
+    onLauncherProgress((p) => {
+      setProgress(p);
+      if (p.phase === "error") {
+        setRunning(false);
+      }
+    }).then((fn) => { unlisten = fn; });
     return () => unlisten?.();
   }, []);
 
@@ -100,7 +104,9 @@ export default function App() {
     const id = setInterval(async () => {
       if (!(await gameRunning())) {
         setRunning(false);
-        setProgress(null);
+        if (progressRef.current?.phase !== "error") {
+          setProgress(null);
+        }
       }
     }, 1500);
     return () => clearInterval(id);
@@ -211,6 +217,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <Aurora />
       <TitleBar />
       <ErrorBoundary>
         <div className="app__content">
@@ -226,8 +233,8 @@ export default function App() {
           )}
         </div>
       </ErrorBoundary>
-      {updateModal.shouldRender && update && (
-        <UpdateModal update={update} onDismiss={() => setUpdate(null)} closing={!updateModal.visible} />
+      {update && (
+        <UpdateModal update={update} onDismiss={() => setUpdate(null)} />
       )}
     </div>
   );

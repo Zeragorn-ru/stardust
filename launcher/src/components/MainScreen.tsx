@@ -3,7 +3,6 @@ import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "..
 import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
-import { useDelayedUnmount } from "../useDelayedUnmount";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
@@ -30,7 +29,7 @@ interface Props {
   busy: boolean;
   onProgressChange: (p: Progress | null) => void;
   onRunningChange: (r: boolean) => void;
-  onOpenSettings: (section?: "general" | "account") => void;
+  onOpenSettings: (section?: "general" | "account" | "logs") => void;
   onLogout: () => void;
 }
 
@@ -56,9 +55,6 @@ export default function MainScreen({
   const [playersOpen, setPlayersOpen] = useState(false);
   const [windowFocused, setWindowFocused] = useState(true);
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
-
-  const playersModal = useDelayedUnmount(playersOpen);
-  const skinModal = useDelayedUnmount(skinOpen);
 
   // Загружаем статистику и настройки при монтировании.
   useEffect(() => {
@@ -222,8 +218,7 @@ export default function MainScreen({
               capeUrl={skin.capeUrl}
               width={240}
               height={340}
-              interactive
-              visible={windowFocused && !running && !skinOpen}
+              visible={windowFocused && !running}
             />
           ) : (
             <FaceAvatar dataUrl={skin.dataUrl} size={240} />
@@ -389,10 +384,10 @@ export default function MainScreen({
         </div>
       </section>
 
-      {playersModal.shouldRender && (
-        <div className={"modal-overlay" + (playersModal.visible ? "" : " modal-overlay--closing")} onClick={() => setPlayersOpen(false)}>
+      {playersOpen && (
+        <div className="modal-overlay" onClick={() => setPlayersOpen(false)}>
           <div
-            className={"modal players-modal" + (playersModal.visible ? "" : " modal--closing")}
+            className="modal players-modal"
             role="dialog"
             aria-modal="true"
             aria-label="Игроки онлайн"
@@ -434,13 +429,7 @@ export default function MainScreen({
         </div>
       )}
 
-      {skinModal.shouldRender && (
-        <CustomizeModal
-          playerName={profile.name}
-          onClose={() => setSkinOpen(false)}
-          closing={!skinModal.visible}
-        />
-      )}
+      {skinOpen && <CustomizeModal playerName={profile.name} onClose={() => setSkinOpen(false)} />}
     </div>
   );
 }
