@@ -39,7 +39,7 @@ async function getInvoke(): Promise<InvokeFn | null> {
 }
 
 const FALLBACK_SETTINGS: Settings = {
-  memoryMb: 4096,
+  memoryMb: 16384,
   downloadConcurrency: 6,
   show3dModel: true,
   proxyType: "builtin",

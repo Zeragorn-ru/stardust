@@ -63,7 +63,7 @@ fn default_true() -> bool {
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            memory_mb: 4096,
+            memory_mb: 16384,
             download_concurrency: default_concurrency(),
             show_3d_model: true,
             proxy_type: ProxyType::default(),

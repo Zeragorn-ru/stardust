@@ -413,7 +413,7 @@ export default function SettingsScreen({
             <button
               type="button"
               className="btn btn--ghost stagger-item"
-              onClick={() => setSettings({ memoryMb: 4096, downloadConcurrency: 6, show3dModel: true, proxyType: "builtin" })}
+              onClick={() => setSettings({ memoryMb: 16384, downloadConcurrency: 6, show3dModel: true, proxyType: "builtin" })}
             >
               Сбросить настройки по умолчанию
             </button>
