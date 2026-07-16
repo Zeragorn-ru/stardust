@@ -1462,13 +1462,15 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     let child = minecraft::launch(
         app.clone(),
         &state.http(),
-        paths::data_dir(&app),
-        settings.memory_mb.clamp(512, 32768),
-        settings.download_concurrency as usize,
-        settings.java_provider,
-        settings.java_custom_path.clone(),
-        profile,
-        token.clone(),
+        minecraft::LaunchOptions {
+            data_dir: paths::data_dir(&app),
+            settings_memory_mb: settings.memory_mb.clamp(512, 32768),
+            download_concurrency: settings.download_concurrency as usize,
+            java_provider: settings.java_provider,
+            java_custom_path: settings.java_custom_path.clone(),
+            profile,
+            access_token: token.clone(),
+        },
     )
     .await?;
 

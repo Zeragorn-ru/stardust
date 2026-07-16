@@ -31,17 +31,31 @@ const VERSION_MANIFEST_URL: &str =
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+pub struct LaunchOptions {
+    pub data_dir: PathBuf,
+    pub settings_memory_mb: u32,
+    pub download_concurrency: usize,
+    pub java_provider: crate::java::JavaProvider,
+    pub java_custom_path: Option<String>,
+    pub profile: PlayerProfile,
+    pub access_token: String,
+}
+
 pub async fn launch(
     app: AppHandle,
     http: &reqwest::Client,
-    data_dir: PathBuf,
-    settings_memory_mb: u32,
-    download_concurrency: usize,
-    java_provider: crate::java::JavaProvider,
-    java_custom_path: Option<String>,
-    profile: PlayerProfile,
-    access_token: String,
+    options: LaunchOptions,
 ) -> Result<Child, String> {
+    let LaunchOptions {
+        data_dir,
+        settings_memory_mb,
+        download_concurrency,
+        java_provider,
+        java_custom_path,
+        profile,
+        access_token,
+    } = options;
+
     if let Err(cheat_name) = crate::game_guard::scan_for_cheats() {
         return Err(format!(
             "Обнаружена запрещённая программа: {cheat_name}. Закройте её перед запуском игры."

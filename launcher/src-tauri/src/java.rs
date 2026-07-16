@@ -218,13 +218,11 @@ fn validate_java_exe(path: &Path) -> Result<(), String> {
 }
 
 fn launch_exe_from(path: &Path) -> PathBuf {
-    if cfg!(windows) {
-        if path.file_name().and_then(|n| n.to_str()) == Some("java.exe") {
-            let parent = path.parent().unwrap_or(path);
-            let javaw = parent.join("javaw.exe");
-            if javaw.exists() {
-                return javaw;
-            }
+    if cfg!(windows) && path.file_name().and_then(|n| n.to_str()) == Some("java.exe") {
+        let parent = path.parent().unwrap_or(path);
+        let javaw = parent.join("javaw.exe");
+        if javaw.exists() {
+            return javaw;
         }
     }
     path.to_path_buf()
@@ -320,7 +318,7 @@ pub async fn download_java(
     progress.begin(
         crate::progress::Stage::Java,
         "downloading",
-        &format!("Скачиваем {vendor_name} Java {JAVA_VERSION}…"),
+        format!("Скачиваем {vendor_name} Java {JAVA_VERSION}…"),
     );
 
     let runtime_dir = data_dir.join("runtime").join("java-21");
