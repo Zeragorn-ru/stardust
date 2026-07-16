@@ -37,7 +37,12 @@ const INTERACTIVE_IDLE_TIMEOUT_MS = 3_000;
 function isWebGLAvailable(): boolean {
   try {
     const c = document.createElement("canvas");
-    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+    const gl = c.getContext("webgl2") || c.getContext("webgl");
+    if (!gl) return false;
+    // Освобождаем контекст probe-canvas, иначе он держит WebGL-слот.
+    const lose = (gl as WebGLRenderingContext).getExtension("WEBGL_lose_context");
+    lose?.loseContext();
+    return true;
   } catch {
     return false;
   }

@@ -75,6 +75,14 @@ pub struct FileEntry {
     /// Короткое описание мода для UI.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// `modId` других опциональных модов, с которыми этот мод конфликтует
+    /// (взаимоисключающие пары вроде Distant Horizons ↔ Voxy).
+    #[serde(
+        default,
+        rename = "conflictsWith",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub conflicts_with: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -138,16 +146,17 @@ impl Manifest {
 
 /// Профиль игрока, возвращаемый auth-сервером после логина.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PlayerProfile {
     /// UUID без дефисов (формат Mojang). Генерируется сервером при регистрации.
     pub id: String,
     /// Имя игрока.
     pub name: String,
     /// Активный бейдж (эмодзи-префикс), если выбран.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_badge: Option<Badge>,
     /// Активный градиент (раскраска ника), если выбран.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_gradient: Option<Gradient>,
     /// Активная блокировка входа на Minecraft-сервер. Лаунчер всё ещё доступен.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -295,7 +304,38 @@ pub struct PasswordlessLoginRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::{Badge, Gradient, PlayerCustomization, ServerPlayerCustomization};
+    use super::{Badge, BanInfo, Gradient, PlayerCustomization, PlayerProfile, ServerPlayerCustomization};
+
+    #[test]
+    fn player_profile_uses_camel_case_for_frontends() {
+        let dto = PlayerProfile {
+            id: "abc".into(),
+            name: "Steve".into(),
+            active_badge: Some(Badge {
+                id: 1,
+                emoji: "⭐".into(),
+                label: "VIP".into(),
+                color: "#ffd700".into(),
+            }),
+            active_gradient: Some(Gradient {
+                id: 2,
+                label: "Огонь".into(),
+                color_start: "#ff0000".into(),
+                color_end: "#ffaa00".into(),
+            }),
+            ban: Some(BanInfo {
+                banned_until: Some("2026-01-01T00:00:00Z".into()),
+                reason: Some("test".into()),
+            }),
+        };
+
+        let json = serde_json::to_value(dto).unwrap();
+        assert!(json.get("activeBadge").is_some());
+        assert!(json.get("activeGradient").is_some());
+        assert_eq!(json["activeGradient"]["colorStart"], "#ff0000");
+        assert_eq!(json["ban"]["bannedUntil"], "2026-01-01T00:00:00Z");
+        assert!(json.get("active_badge").is_none());
+    }
 
     #[test]
     fn player_customization_uses_camel_case_for_frontends() {

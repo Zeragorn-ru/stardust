@@ -3,6 +3,7 @@ import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "..
 import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
+import { useDelayedUnmount } from "../useDelayedUnmount";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
@@ -56,6 +57,10 @@ export default function MainScreen({
   const [windowFocused, setWindowFocused] = useState(true);
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
 
+  const playersModal = useDelayedUnmount(playersOpen);
+  const skinModal = useDelayedUnmount(skinOpen);
+  const playLockRef = useRef(false);
+
   // Загружаем статистику и настройки при монтировании.
   useEffect(() => {
     getStats().then(setStats).catch(() => undefined);
@@ -83,6 +88,7 @@ export default function MainScreen({
   // Обновляем статистику после завершения сессии.
   useEffect(() => {
     if (!running) {
+      playLockRef.current = false;
       getStats().then(setStats).catch(() => undefined);
     }
   }, [running]);
@@ -154,16 +160,20 @@ export default function MainScreen({
   }, [serverOnline]);
 
   async function handlePlay() {
-    if (ban) {
-      onProgressChange({ phase: "error", label: banPlayMessage(ban), fraction: null });
+    if (playLockRef.current || busy || ban) {
+      if (ban && !busy) {
+        onProgressChange({ phase: "error", label: banPlayMessage(ban), fraction: null });
+      }
       return;
     }
+    playLockRef.current = true;
     onProgressChange({ phase: "checking", label: "Готовим игру…", fraction: null });
     try {
       await playGame();
       onRunningChange(true);
       onProgressChange({ phase: "running", label: "Игра запущена", fraction: null });
     } catch (err) {
+      playLockRef.current = false;
       onProgressChange({
         phase: "error",
         label: err instanceof Error ? err.message : String(err),
@@ -173,6 +183,7 @@ export default function MainScreen({
   }
 
   function handleDismissError() {
+    playLockRef.current = false;
     onProgressChange(null);
   }
 
@@ -449,11 +460,18 @@ const pendingFetches = new Map<string, Promise<string | null>>();
 function fetchPlayerSkin(uuid: string): Promise<string | null> {
   const cached = pendingFetches.get(uuid);
   if (cached) return cached;
-  const p = getPlayerSkin(uuid).then((dataUrl) => {
-    skinCache.set(uuid, dataUrl);
-    pendingFetches.delete(uuid);
-    return dataUrl;
-  });
+  const p = getPlayerSkin(uuid)
+    .then((dataUrl) => {
+      skinCache.set(uuid, dataUrl);
+      return dataUrl;
+    })
+    .catch(() => {
+      skinCache.set(uuid, null);
+      return null;
+    })
+    .finally(() => {
+      pendingFetches.delete(uuid);
+    });
   pendingFetches.set(uuid, p);
   return p;
 }

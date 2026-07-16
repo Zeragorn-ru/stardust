@@ -10,7 +10,7 @@ import {
   listJavaDownloadVendors,
   listJavaInstallations,
   listJavaInstallationsDeep,
-  onLauncherProgress,
+  onJavaProgress,
   onUpdateProgress,
   openLogFolder,
   openPath,
@@ -155,6 +155,22 @@ export default function SettingsScreen({
     onClose();
   }
 
+  // Escape — назад из настроек (с проверкой несохранённых изменений).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (logViewer) return; // LogViewerModal сам закроется
+      if (document.querySelector(".modal-overlay, [aria-modal='true']")) return;
+      e.preventDefault();
+      if (isDirty && !window.confirm("Есть несохранённые изменения. Покинуть настройки?")) {
+        return;
+      }
+      onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isDirty, logViewer, onClose]);
+
   async function handleCheckUpdate() {
     setUpdateStatus("checking");
     setUpdateError(null);
@@ -205,7 +221,7 @@ export default function SettingsScreen({
     setDownloadingVendor(vendorId);
     setJavaDownloadError(null);
     setJavaProgress(null);
-    const unlisten = await onLauncherProgress((p) => {
+    const unlisten = await onJavaProgress((p) => {
       setJavaProgress(p);
     });
     try {

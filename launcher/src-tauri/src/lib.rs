@@ -52,6 +52,46 @@ pub fn run() {
         }))
         .setup(|app| {
             commands::bootstrap(app.handle())?;
+
+            // macOS: нативная полоса с traffic lights (Overlay задаётся в
+            // tauri.macos.conf.json). Дополнительно — стандартное меню приложения,
+            // чтобы Cmd+Q / About работали как у остальных Mac-приложений.
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{MenuBuilder, SubmenuBuilder};
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(true);
+                    let _ = window.set_title_bar_style(tauri::TitleBarStyle::Overlay);
+                }
+                if let Ok(app_menu) = SubmenuBuilder::new(app, "StarDust")
+                    .about(None)
+                    .separator()
+                    .services()
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .quit()
+                    .build()
+                {
+                    if let Ok(window_menu) = SubmenuBuilder::new(app, "Окно")
+                        .minimize()
+                        .separator()
+                        .close_window()
+                        .build()
+                    {
+                        if let Ok(menu) = MenuBuilder::new(app)
+                            .item(&app_menu)
+                            .item(&window_menu)
+                            .build()
+                        {
+                            let _ = app.set_menu(menu);
+                        }
+                    }
+                }
+            }
+
             Ok(())
         });
     commands::init(builder)

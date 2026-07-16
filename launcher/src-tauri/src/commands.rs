@@ -421,6 +421,12 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
             return;
         }
     };
+    let profile_id = state
+        .profile
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| p.id.clone());
     let http = state.http().clone();
     let launched_at_str = pending.launched_at.clone();
     tauri::async_runtime::spawn(async move {
@@ -435,10 +441,12 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
             if let Err(e) = backend::record_session(&http, &token, duration, &launched_at_str).await
             {
                 tracing::warn!("[stats] восстановление сессии: не удалось записать: {e}");
-                save_pending_session(&data_dir, &token, duration, &launched_at_str);
+                if let Some(profile_id) = profile_id.as_deref() {
+                    save_pending_session(&data_dir, profile_id, duration, &launched_at_str);
+                }
             }
         }
-        // Повторяем ранее.failed сессии.
+        // Повторяем ранее failed сессии.
         drain_pending_sessions(&http, &data_dir, &token).await;
     });
 }
@@ -447,9 +455,25 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct PendingSession {
+    /// ID профиля — токен берётся из keyring при drain, на диск не пишется.
+    profile_id: String,
+    duration: i64,
+    launched_at: String,
+}
+
+/// Устаревший формат с сырым bearer-токеном на диске (одноразово дочищаем).
+#[derive(serde::Deserialize)]
+struct LegacyPendingSession {
     token: String,
     duration: i64,
     launched_at: String,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum PendingSessionRecord {
+    Current(PendingSession),
+    Legacy(LegacyPendingSession),
 }
 
 /// Путь к файлу очереди неотправленных сессий.
@@ -457,15 +481,20 @@ fn pending_sessions_path(data_dir: &std::path::Path) -> std::path::PathBuf {
     data_dir.join("pending-sessions.json")
 }
 
-/// Сохраняет сессию в очередь для повтора.
-fn save_pending_session(data_dir: &std::path::Path, token: &str, duration: i64, launched_at: &str) {
+/// Сохраняет сессию в очередь для повтора (только profile id, без токена).
+fn save_pending_session(
+    data_dir: &std::path::Path,
+    profile_id: &str,
+    duration: i64,
+    launched_at: &str,
+) {
     let path = pending_sessions_path(data_dir);
     let mut sessions: Vec<PendingSession> = std::fs::read(&path)
         .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
+        .and_then(|b| serde_json::from_slice::<Vec<PendingSession>>(&b).ok())
         .unwrap_or_default();
     sessions.push(PendingSession {
-        token: token.to_string(),
+        profile_id: profile_id.to_string(),
         duration,
         launched_at: launched_at.to_string(),
     });
@@ -473,33 +502,63 @@ fn save_pending_session(data_dir: &std::path::Path, token: &str, duration: i64, 
 }
 
 /// Пытается отправить все сессии из очереди. Успешные удаляются.
+/// Токен читается из keyring по `profile_id`; legacy-записи с токеном
+/// отправляются один раз и не перезаписываются на диск.
 async fn drain_pending_sessions(
     http: &reqwest::Client,
     data_dir: &std::path::Path,
     _current_token: &str,
 ) {
     let path = pending_sessions_path(data_dir);
-    let sessions: Vec<PendingSession> = match std::fs::read(&path) {
+    let records: Vec<PendingSessionRecord> = match std::fs::read(&path) {
         Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
         Err(_) => return,
     };
-    if sessions.is_empty() {
+    if records.is_empty() {
         return;
     }
-    tracing::info!(
-        "[stats] повтор отправки {} сессий из очереди",
-        sessions.len()
-    );
+    tracing::info!("[stats] повтор отправки {} сессий из очереди", records.len());
     let mut remaining = Vec::new();
-    for s in &sessions {
-        // Используем токен из записи (может отличаться от текущего).
-        if let Err(e) = backend::record_session(http, &s.token, s.duration, &s.launched_at).await {
-            tracing::warn!(
-                "[stats] повтор сессии {}/{} не удался: {e}",
-                s.duration,
-                s.launched_at
-            );
-            remaining.push(s.clone());
+    for record in records {
+        match record {
+            PendingSessionRecord::Current(s) => {
+                let token = match session_entry(&s.profile_id).and_then(|e| {
+                    e.get_password()
+                        .map_err(|err| format!("keyring: {err}"))
+                }) {
+                    Ok(t) => t,
+                    Err(e) => {
+                        tracing::warn!(
+                            "[stats] нет токена в keyring для {}: {e}",
+                            s.profile_id
+                        );
+                        remaining.push(s);
+                        continue;
+                    }
+                };
+                if let Err(e) =
+                    backend::record_session(http, &token, s.duration, &s.launched_at).await
+                {
+                    tracing::warn!(
+                        "[stats] повтор сессии {}/{} не удался: {e}",
+                        s.duration,
+                        s.launched_at
+                    );
+                    remaining.push(s);
+                }
+            }
+            PendingSessionRecord::Legacy(s) => {
+                // Одноразовая отправка старой записи; при ошибке не сохраняем токен обратно.
+                if let Err(e) =
+                    backend::record_session(http, &s.token, s.duration, &s.launched_at).await
+                {
+                    tracing::warn!(
+                        "[stats] legacy-сессия {}/{} не отправлена и отброшена: {e}",
+                        s.duration,
+                        s.launched_at
+                    );
+                }
+            }
         }
     }
     if remaining.is_empty() {
@@ -812,9 +871,14 @@ async fn current_profile(
             spawn_stats_poller(&app, &state);
             Ok(Some(profile))
         }
+        Err(backend::SessionError::Unauthorized(e)) => {
+            tracing::warn!("[session] сессия недействительна ({e}), очищаем");
+            clear_runtime_session(&state);
+            remove_saved_session(&app);
+            Ok(None)
+        }
         Err(e) => {
-            // Сервер недоступен — НЕ удаляем сессию, работаем оффлайн.
-            // Используем сохранённый профиль, чтобы лаунчер мог запускать игру.
+            // Сеть/5xx — НЕ удаляем сессию, работаем оффлайн.
             tracing::warn!("[session] сервер недоступен ({e}), работаем оффлайн");
             let profile = saved.profile.clone();
             set_runtime_session(&state, profile.clone(), saved.token);
@@ -878,7 +942,9 @@ async fn download_java(
     let vendor = java::JavaVendor::parse(&vendor)
         .ok_or_else(|| format!("Неизвестный поставщик Java: {vendor}"))?;
     let data_dir = paths::data_dir(&app);
-    let progress = crate::progress::Progress::new(app.clone());
+    // Отдельный канал: иначе Settings → «Скачать Java» залипает в глобальном
+    // progress и блокирует кнопку «Играть» на главном экране.
+    let progress = crate::progress::Progress::for_java_download(app.clone());
     let path = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
     Ok(path.to_string_lossy().into_owned())
 }
@@ -1451,6 +1517,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .unwrap()
         .clone()
         .ok_or_else(|| "Сначала войдите в аккаунт".to_string())?;
+    let profile_id = profile.id.clone();
     let token = state
         .token
         .lock()
@@ -1611,7 +1678,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
             {
                 tracing::warn!("[stats] не удалось записать сессию: {e}, сохраняем в очередь");
                 // Сохраняем в очередь для повтора при следующем запуске.
-                save_pending_session(&data_dir2, &token, duration, &launched_at_str);
+                save_pending_session(&data_dir2, &profile_id, duration, &launched_at_str);
             }
         }
     });

@@ -93,6 +93,20 @@ export async function onLauncherProgress(
   }
 }
 
+/** Прогресс загрузки Java из настроек (не влияет на кнопку «Играть»). */
+export async function onJavaProgress(
+  handler: (progress: Progress) => void,
+): Promise<() => void> {
+  try {
+    const mod = await import("@tauri-apps/api/event");
+    return mod.listen<Progress>("launcher://java-progress", (event) => {
+      handler(event.payload);
+    });
+  } catch {
+    return () => undefined;
+  }
+}
+
 export async function onStatsUpdated(
   handler: (stats: PlayerStats) => void,
 ): Promise<() => void> {

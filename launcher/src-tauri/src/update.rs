@@ -663,13 +663,13 @@ fn launch_bootstrap(
 /// Определяет папку установки по текущему exe.
 ///
 /// macOS: текущий exe — `StarDust.app/Contents/MacOS/launcher`,
-///   install_dir = `StarDust.app` (parent of Contents/).
+///   install_dir = `StarDust.app` (родитель Contents/).
 #[cfg(target_os = "macos")]
 fn get_install_dir() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
     // macOS: exe is at <App>.app/Contents/MacOS/<binary>
-    // Install dir is <App>.app (two levels up).
-    exe.parent()?.parent().map(|p| p.to_path_buf())
+    // Install dir is <App>.app (three levels up from the binary).
+    exe.parent()?.parent()?.parent().map(|p| p.to_path_buf())
 }
 
 /// Записывает PID текущего процесса в файл, чтобы update-скрипт дождался выхода.
@@ -779,25 +779,23 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
     let bootstrap_path = {
         let bootstrap_asset = find_bootstrap_asset(&release.assets)
             .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
+        let bootstrap_sha_asset = find_sha256_asset(&release.assets, &bootstrap_asset.name)
+            .ok_or_else(|| {
+                "В релизе нет bootstrap.exe.sha256 — обновление прервано".to_string()
+            })?;
+        let expected_hex =
+            fetch_expected_sha256(&http, &bootstrap_sha_asset.browser_download_url).await?;
         let path = std::env::temp_dir().join(sanitize_filename(&bootstrap_asset.name)?);
-        let hash_path = std::path::PathBuf::from(format!("{}.sha256", path.display()));
 
-        let cached = if hash_path.exists() && path.exists() {
-            let expected = std::fs::read_to_string(&hash_path)
-                .ok()
-                .map(|s| s.trim().to_lowercase());
-            if let Some(expected) = expected {
-                let actual = tauri::async_runtime::spawn_blocking({
-                    let p = path.clone();
-                    move || compute_sha256(&p)
-                })
-                .await
-                .ok()
-                .and_then(|r| r.ok());
-                actual.is_some_and(|a| a == expected)
-            } else {
-                false
-            }
+        let cached = if path.exists() {
+            let actual = tauri::async_runtime::spawn_blocking({
+                let p = path.clone();
+                move || compute_sha256(&p)
+            })
+            .await
+            .ok()
+            .and_then(|r| r.ok());
+            actual.is_some_and(|a| a == expected_hex)
         } else {
             false
         };
@@ -830,15 +828,21 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
             )
             .await?;
 
-            if let Some(hash) = tauri::async_runtime::spawn_blocking({
+            let actual = tauri::async_runtime::spawn_blocking({
                 let p2 = p.clone();
                 move || compute_sha256(&p2)
             })
             .await
-            .ok()
-            .and_then(|r| r.ok())
-            {
-                let _ = std::fs::write(&hash_path, hash);
+            .map_err(|e| format!("Ошибка потока SHA-256 bootstrap: {e}"))?
+            .map_err(|e| {
+                let _ = std::fs::remove_file(&p);
+                format!("Не удалось проверить bootstrap.exe: {e}")
+            })?;
+            if actual != expected_hex {
+                let _ = std::fs::remove_file(&p);
+                return Err(
+                    "Повреждён bootstrap.exe (SHA-256 не совпал). Скачайте заново.".to_string(),
+                );
             }
 
             p
@@ -872,44 +876,38 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         },
     );
 
-    let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name);
-    match sha256_asset {
-        Some(sha256_a) => {
-            let expected = fetch_expected_sha256(&http, &sha256_a.browser_download_url).await;
-            match expected {
-                Ok(expected_hex) => {
-                    let actual = tauri::async_runtime::spawn_blocking({
-                        let p = installer_path.clone();
-                        move || compute_sha256(&p)
-                    })
-                    .await
-                    .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
-                    match actual {
-                        Ok(actual_hex) if actual_hex == expected_hex => {
-                            tracing::debug!("[update] SHA-256 OK");
-                        }
-                        Ok(_mismatched_hex) => {
-                            let _ = std::fs::remove_file(&installer_path);
-                            return Err(
-                                "Повреждён файл установщика (SHA-256 не совпал). Скачайте заново."
-                                    .to_string(),
-                            );
-                        }
-                        Err(e) => {
-                            let _ = std::fs::remove_file(&installer_path);
-                            return Err(format!("Не удалось проверить файл: {e}"));
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "[update] предупреждение: не удалось проверить SHA-256 ({e}), продолжаем без верификации"
-                    );
-                }
-            }
+    let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name)
+        .ok_or_else(|| {
+            format!(
+                "В релизе нет файла целостности {}.sha256 — обновление прервано",
+                installer_asset.name
+            )
+        })?;
+    let expected_hex = fetch_expected_sha256(&http, &sha256_asset.browser_download_url)
+        .await
+        .map_err(|e| {
+            let _ = std::fs::remove_file(&installer_path);
+            format!("Не удалось получить SHA-256 установщика: {e}")
+        })?;
+    let actual = tauri::async_runtime::spawn_blocking({
+        let p = installer_path.clone();
+        move || compute_sha256(&p)
+    })
+    .await
+    .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
+    match actual {
+        Ok(actual_hex) if actual_hex == expected_hex => {
+            tracing::debug!("[update] SHA-256 OK");
         }
-        None => {
-            tracing::warn!("[update] предупреждение: .sha256 файл не найден в релизе, продолжаем без верификации хеша");
+        Ok(_mismatched_hex) => {
+            let _ = std::fs::remove_file(&installer_path);
+            return Err(
+                "Повреждён файл установщика (SHA-256 не совпал). Скачайте заново.".to_string(),
+            );
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&installer_path);
+            return Err(format!("Не удалось проверить файл: {e}"));
         }
     }
 

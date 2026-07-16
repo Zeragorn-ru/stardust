@@ -1,20 +1,54 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OptionalMod } from "../types";
 import { listOptionalMods, setModEnabled } from "../api";
 import { formatBytes } from "../format";
 
+function normalizeId(id: string): string {
+  return id.trim().toLowerCase();
+}
+
 export default function ModsSection() {
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
   // modId-ы, по которым идёт переключение (блокируем повторные клики).
   const [pending, setPending] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    listOptionalMods()
-      .then(setMods)
-      .catch((e) => setLoadError(e instanceof Error ? e.message : String(e)));
+  const loadMods = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const list = await listOptionalMods();
+      setMods(list);
+    } catch (e) {
+      setMods(null);
+      setLoadError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadMods();
+  }, [loadMods]);
+
+  const byId = useMemo(() => {
+    const map = new Map<string, OptionalMod>();
+    for (const m of mods ?? []) {
+      map.set(normalizeId(m.modId), m);
+    }
+    return map;
+  }, [mods]);
+
+  /** Активные конфликты для мода: включённые моды из conflictsWith. */
+  function activeConflicts(mod: OptionalMod): OptionalMod[] {
+    if (!mod.enabled) return [];
+    const ids = mod.conflictsWith ?? [];
+    return ids
+      .map((id) => byId.get(normalizeId(id)))
+      .filter((other): other is OptionalMod => other != null && other.enabled);
+  }
 
   async function toggle(mod: OptionalMod) {
     const next = !mod.enabled;
@@ -49,11 +83,14 @@ export default function ModsSection() {
     return (
       <div className="mods-section">
         <p className="muted">Не удалось загрузить список модов: {loadError}</p>
+        <button type="button" className="btn btn--ghost" onClick={() => void loadMods()}>
+          Повторить
+        </button>
       </div>
     );
   }
 
-  if (!mods) {
+  if (loading || !mods) {
     return (
       <div className="mods-section">
         <div className="settings__loading">
@@ -70,6 +107,9 @@ export default function ModsSection() {
         <p className="muted">
           В активной сборке нет дополнительных модов для настройки.
         </p>
+        <button type="button" className="btn btn--ghost" onClick={() => void loadMods()}>
+          Обновить
+        </button>
       </div>
     );
   }
@@ -100,6 +140,7 @@ export default function ModsSection() {
       )}
       {filtered.map((mod) => {
         const busy = pending.has(mod.modId);
+        const conflicts = activeConflicts(mod);
         return (
           <div className="toggle-row stagger-item" key={mod.modId}>
             <div className="toggle-row__text">
@@ -114,6 +155,13 @@ export default function ModsSection() {
               </span>
               {mod.description && (
                 <span className="muted toggle-row__desc">{mod.description}</span>
+              )}
+              {conflicts.length > 0 && (
+                <span className="mods-section__conflict" role="alert">
+                  Конфликт с{" "}
+                  {conflicts.map((c) => c.name).join(", ")}. Вместе лучше не
+                  включать — выключите один из модов.
+                </span>
               )}
             </div>
             <button
