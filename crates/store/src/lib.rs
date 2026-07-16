@@ -109,6 +109,10 @@ pub struct Account {
     pub active_badge_id: Option<i32>,
     /// Активный градиент (id).
     pub active_gradient_id: Option<i32>,
+    /// Разрешённый бейдж (заполняется find_*).
+    pub active_badge: Option<Badge>,
+    /// Разрешённый градиент (заполняется find_*).
+    pub active_gradient: Option<Gradient>,
 }
 
 /// Активная блокировка аккаунта.
@@ -157,8 +161,8 @@ impl Account {
         PlayerProfile {
             id: self.uuid.clone(),
             name: self.username.clone(),
-            active_badge: None,
-            active_gradient: None,
+            active_badge: self.active_badge.clone(),
+            active_gradient: self.active_gradient.clone(),
             ban: self.active_ban_info(),
         }
     }
@@ -326,6 +330,7 @@ impl Store {
     }
 
     /// Меняет пароль аккаунта после проверки текущего.
+    /// Как и `set_password`, аннулирует все активные сессии аккаунта.
     pub async fn change_password(
         &self,
         uuid: &str,
@@ -342,6 +347,7 @@ impl Store {
             .bind(&account.uuid)
             .execute(&self.pool)
             .await?;
+        self.destroy_sessions_for(&account.uuid).await?;
         Ok(())
     }
 
@@ -389,13 +395,9 @@ impl Store {
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
-        Ok(PlayerProfile {
-            id: uuid,
-            name: new_username.to_string(),
-            active_badge: None,
-            active_gradient: None,
-            ban: None,
-        })
+        // Перечитываем аккаунт, чтобы сохранить ban (и ids косметики) в профиле.
+        let account = self.find_by_uuid(&uuid).await.ok_or(StoreError::NotFound)?;
+        Ok(account.profile())
     }
 
     /// Привязывает/отвязывает Telegram chat_id (точка интеграции с ботом 2FA).
@@ -520,26 +522,26 @@ impl Store {
     pub async fn find_by_uuid(&self, uuid: &str) -> Option<Account> {
         let uuid = normalize_uuid(uuid);
         let sql = format!("SELECT {ACCOUNT_COLUMNS} FROM accounts WHERE uuid = $1");
-        sqlx::query(&sql)
+        let row = sqlx::query(&sql)
             .bind(&uuid)
             .fetch_optional(&self.pool)
             .await
             .ok()
-            .flatten()
-            .map(|row| row_to_account(&row))
+            .flatten()?;
+        Some(self.attach_cosmetics(row_to_account(&row)).await)
     }
 
     /// Находит аккаунт по нику.
     pub async fn find_by_name(&self, username: &str) -> Option<Account> {
         let key = username.to_lowercase();
         let sql = format!("SELECT {ACCOUNT_COLUMNS} FROM accounts WHERE username_lower = $1");
-        sqlx::query(&sql)
+        let row = sqlx::query(&sql)
             .bind(&key)
             .fetch_optional(&self.pool)
             .await
             .ok()
-            .flatten()
-            .map(|row| row_to_account(&row))
+            .flatten()?;
+        Some(self.attach_cosmetics(row_to_account(&row)).await)
     }
 
     /// Находит аккаунты по никам (пакетный запрос, один SELECT).
@@ -644,10 +646,12 @@ impl Store {
     // ───────────────────────── Сессии ─────────────────────────
 
     /// Создаёт сессию для аккаунта и возвращает bearer-токен.
+    /// В БД сохраняется только SHA-256 хеш токена (см. миграцию 0013).
     pub async fn create_session(&self, uuid: &str) -> Result<String, StoreError> {
         let token = random_token();
+        let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         sqlx::query("INSERT INTO sessions (token, account_uuid) VALUES ($1, $2)")
-            .bind(&token)
+            .bind(&token_hash)
             .bind(normalize_uuid(uuid))
             .execute(&self.pool)
             .await?;
@@ -655,11 +659,12 @@ impl Store {
     }
 
     /// Проверяет bearer-токен и возвращает UUID аккаунта, если сессия жива.
+    /// Ищет по SHA-256; OR с plaintext оставлен для сессий, созданных до миграции.
     pub async fn validate_session(&self, token: &str) -> Option<String> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         sqlx::query_scalar("SELECT account_uuid FROM sessions WHERE token = $1 OR token = $2")
-            .bind(token)
             .bind(&token_hash)
+            .bind(token)
             .fetch_optional(&self.pool)
             .await
             .ok()
@@ -670,8 +675,8 @@ impl Store {
     pub async fn destroy_session(&self, token: &str) -> Result<(), StoreError> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         sqlx::query("DELETE FROM sessions WHERE token = $1 OR token = $2")
-            .bind(token)
             .bind(&token_hash)
+            .bind(token)
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -734,7 +739,7 @@ impl Store {
     ) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
-             SET playtime_seconds = $2
+             SET playtime_seconds = GREATEST(playtime_seconds, $2)
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
@@ -940,11 +945,44 @@ impl Store {
     }
 
     /// Установить активные бейдж и градиент игрока.
+    /// Бейдж/градиент должны быть выданы игроку (`player_badges` / `player_gradients`),
+    /// иначе — `NotFound` (нельзя активировать чужой id).
     pub async fn set_active_customization(&self, uuid: &str, badge_id: Option<i32>, gradient_id: Option<i32>) -> Result<(), StoreError> {
+        let uuid = normalize_uuid(uuid);
+        if let Some(id) = badge_id {
+            let owned: bool = sqlx::query_scalar(
+                "SELECT EXISTS(
+                     SELECT 1 FROM player_badges
+                     WHERE account_uuid = $1 AND badge_id = $2
+                 )",
+            )
+            .bind(&uuid)
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
+            if !owned {
+                return Err(StoreError::NotFound);
+            }
+        }
+        if let Some(id) = gradient_id {
+            let owned: bool = sqlx::query_scalar(
+                "SELECT EXISTS(
+                     SELECT 1 FROM player_gradients
+                     WHERE account_uuid = $1 AND gradient_id = $2
+                 )",
+            )
+            .bind(&uuid)
+            .bind(id)
+            .fetch_one(&self.pool)
+            .await?;
+            if !owned {
+                return Err(StoreError::NotFound);
+            }
+        }
         sqlx::query(
             "UPDATE accounts SET active_badge_id = $2, active_gradient_id = $3 WHERE uuid = $1",
         )
-        .bind(normalize_uuid(uuid))
+        .bind(&uuid)
         .bind(badge_id)
         .bind(gradient_id)
         .execute(&self.pool)
@@ -1005,6 +1043,43 @@ impl Store {
         }
         Ok(result)
     }
+
+    /// Подгружает объекты бейджа/градиента по active_*_id.
+    async fn attach_cosmetics(&self, mut account: Account) -> Account {
+        if let Some(id) = account.active_badge_id {
+            if let Ok(Some(row)) = sqlx::query(
+                "SELECT id, emoji, label, color FROM badges WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            {
+                account.active_badge = Some(Badge {
+                    id: row.get("id"),
+                    emoji: row.get("emoji"),
+                    label: row.get("label"),
+                    color: row.get("color"),
+                });
+            }
+        }
+        if let Some(id) = account.active_gradient_id {
+            if let Ok(Some(row)) = sqlx::query(
+                "SELECT id, label, color_start, color_end FROM gradients WHERE id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            {
+                account.active_gradient = Some(Gradient {
+                    id: row.get("id"),
+                    label: row.get("label"),
+                    color_start: row.get("color_start"),
+                    color_end: row.get("color_end"),
+                });
+            }
+        }
+        account
+    }
 }
 
 fn row_to_account(row: &PgRow) -> Account {
@@ -1051,6 +1126,8 @@ fn row_to_account(row: &PgRow) -> Account {
         },
         active_badge_id: row.get("active_badge_id"),
         active_gradient_id: row.get("active_gradient_id"),
+        active_badge: None,
+        active_gradient: None,
     }
 }
 

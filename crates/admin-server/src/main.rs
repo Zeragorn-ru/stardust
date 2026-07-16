@@ -339,23 +339,27 @@ struct LoginResponse {
     uuid: String,
 }
 
-fn get_client_ip(
-    headers: &HeaderMap,
-    addr: std::net::SocketAddr,
-) -> std::net::IpAddr {
-    if let Some(forwarded_for) = headers.get("x-forwarded-for") {
-        if let Ok(val) = forwarded_for.to_str() {
-            if let Some(first_ip) = val.split(',').next() {
-                if let Ok(ip) = first_ip.trim().parse::<std::net::IpAddr>() {
-                    return ip;
+/// IP для rate-limit. Заголовки `X-Forwarded-For` / `X-Real-IP` учитываются
+/// только при `TRUST_PROXY=1|true` (за reverse-proxy); иначе — `ConnectInfo`.
+fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::IpAddr {
+    let trust_proxy = std::env::var("TRUST_PROXY")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if trust_proxy {
+        if let Some(forwarded_for) = headers.get("x-forwarded-for") {
+            if let Ok(val) = forwarded_for.to_str() {
+                if let Some(first_ip) = val.split(',').next() {
+                    if let Ok(ip) = first_ip.trim().parse::<std::net::IpAddr>() {
+                        return ip;
+                    }
                 }
             }
         }
-    }
-    if let Some(real_ip) = headers.get("x-real-ip") {
-        if let Ok(val) = real_ip.to_str() {
-            if let Ok(ip) = val.trim().parse::<std::net::IpAddr>() {
-                return ip;
+        if let Some(real_ip) = headers.get("x-real-ip") {
+            if let Ok(val) = real_ip.to_str() {
+                if let Ok(ip) = val.trim().parse::<std::net::IpAddr>() {
+                    return ip;
+                }
             }
         }
     }
@@ -380,19 +384,25 @@ async fn login(
             "Слишком много попыток входа. Пожалуйста, попробуйте позже.",
         ));
     }
+    // Единый 401 для «нет аккаунта / неверный пароль / не админ» — без oracle.
+    let invalid = || ApiError::new(StatusCode::UNAUTHORIZED, "Неверный логин или пароль");
+
     let profile = state
         .store
         .login(&req.username, &req.password)
         .await
-        .map_err(|_| ApiError::new(StatusCode::UNAUTHORIZED, "Неверный логин или пароль"))?;
+        .map_err(|_| invalid())?;
 
     let account = state
         .store
         .find_by_uuid(&profile.id)
         .await
-        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+        .ok_or_else(invalid)?;
+    if account.is_banned() {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Аккаунт заблокирован"));
+    }
     if !account.is_admin() {
-        return Err(ApiError::new(StatusCode::FORBIDDEN, "Недостаточно прав"));
+        return Err(invalid());
     }
 
     let token = state
@@ -1851,8 +1861,11 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
             )
         })?;
 
+    // Имя ассета из GitHub не должно содержать path-traversal (`..`, `/`, `\`).
+    let jar_name = sanitize_asset_filename(&jar_asset.name)?;
+
     update_deploy_mod_status(&state, |s| {
-        s.phase = format!("Скачивание {}", jar_asset.name);
+        s.phase = format!("Скачивание {jar_name}");
     })
     .await;
 
@@ -1871,10 +1884,7 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
     let sha1 = sha1_hex(&jar_bytes);
 
     tracing::info!(
-        "deploy-mod: скачан {} ({} байт, sha1={})",
-        jar_asset.name,
-        size_bytes,
-        sha1
+        "deploy-mod: скачан {jar_name} ({size_bytes} байт, sha1={sha1})",
     );
 
     // 3. Сохраняем jar в контент-адресное хранилище (modpack_dir/sha1).
@@ -1928,7 +1938,7 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
         state.store.delete_build_file(file_id).await.map_err(map_store)?;
     }
 
-    let file_path = format!("mods/{}", jar_asset.name);
+    let file_path = format!("mods/{jar_name}");
 
     let file_input = store::BuildFileInput {
         path: file_path.clone(),
@@ -1953,10 +1963,8 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
         .map_err(map_store)?;
 
     tracing::info!(
-        "deploy-mod: {} добавлен в сборку #{} (путь: {})",
-        jar_asset.name,
+        "deploy-mod: {jar_name} добавлен в сборку #{} (путь: {file_path})",
         build.header.id,
-        file_path
     );
 
     Ok(version)
@@ -2648,8 +2656,11 @@ struct BuildCheckQuery {
 
 async fn build_check(
     State(state): State<Shared>,
+    headers: HeaderMap,
     Query(q): Query<BuildCheckQuery>,
 ) -> Result<Json<BuildCheckResult>, ApiError> {
+    require_admin(&state, &headers).await?;
+
     let record = if let Some(id) = q.build_id {
         state
             .store
@@ -2696,7 +2707,8 @@ async fn build_check(
                     path: f.path.clone(),
                     sha1: f.sha1.clone(),
                     kind: "missing".into(),
-                    detail: format!("файл не найден: {}", path.display()),
+                    // Без абсолютного пути сервера — только факт отсутствия по sha1.
+                    detail: format!("файл не найден в хранилище (sha1={})", f.sha1),
                 });
             }
         }
@@ -2819,8 +2831,11 @@ fn read_neoforge_toml(jar_path: &std::path::Path) -> Option<String> {
 
 async fn deps_check(
     State(state): State<Shared>,
+    headers: HeaderMap,
     Query(q): Query<BuildCheckQuery>,
 ) -> Result<Json<DepsCheckResult>, ApiError> {
+    require_admin(&state, &headers).await?;
+
     let record = if let Some(id) = q.build_id {
         state
             .store
@@ -3009,7 +3024,7 @@ async fn fetch_injector(http: &reqwest::Client) -> Result<Vec<u8>, String> {
 
 // ───────────────────────── Хелперы ─────────────────────────
 
-/// Проверяет bearer-токен и роль `admin`.
+/// Проверяет bearer-токен, отсутствие бана и роль `admin`.
 async fn require_admin(state: &Shared, headers: &HeaderMap) -> Result<store::Account, ApiError> {
     let token = bearer_token(headers)?;
     let uuid = state
@@ -3022,10 +3037,33 @@ async fn require_admin(state: &Shared, headers: &HeaderMap) -> Result<store::Acc
         .find_by_uuid(&uuid)
         .await
         .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+    if account.is_banned() {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Аккаунт заблокирован"));
+    }
     if !account.is_admin() {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Недостаточно прав"));
     }
     Ok(account)
+}
+
+/// Имя файла из GitHub asset: только basename, без `..` и разделителей пути.
+fn sanitize_asset_filename(name: &str) -> Result<String, ApiError> {
+    let base = std::path::Path::new(name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("");
+    if base.is_empty()
+        || base.contains("..")
+        || base.contains('/')
+        || base.contains('\\')
+        || !base.ends_with(".jar")
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            format!("небезопасное имя jar-ассета: {name}"),
+        ));
+    }
+    Ok(base.to_string())
 }
 
 fn bearer_token(headers: &HeaderMap) -> Result<String, ApiError> {

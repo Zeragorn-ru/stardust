@@ -213,15 +213,26 @@ impl Store {
             return Err(StoreError::NotFound);
         }
 
+        // Один chat_id — один аккаунт: снимаем привязку с остальных.
+        let mut tx = self.pool.begin().await?;
+        sqlx::query(
+            "UPDATE accounts SET telegram_chat_id = NULL
+             WHERE telegram_chat_id = $1 AND uuid <> $2",
+        )
+        .bind(chat_id)
+        .bind(&account_uuid)
+        .execute(&mut *tx)
+        .await?;
         sqlx::query("UPDATE accounts SET telegram_chat_id = $1 WHERE uuid = $2")
             .bind(chat_id)
             .bind(&account_uuid)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         sqlx::query("DELETE FROM telegram_link_tokens WHERE code = $1")
             .bind(code)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
 
         let username: String = sqlx::query_scalar("SELECT username FROM accounts WHERE uuid = $1")
             .bind(&account_uuid)
@@ -354,12 +365,13 @@ impl Store {
         allowed_purposes: &[&str],
     ) -> Result<String, StoreError> {
         let now = OffsetDateTime::now_utc();
+        let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT account_uuid, code, expires_at, attempts, status, purpose
-             FROM telegram_2fa_codes WHERE challenge = $1",
+             FROM telegram_2fa_codes WHERE challenge = $1 FOR UPDATE",
         )
         .bind(challenge)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?
         .ok_or(StoreError::NotFound)?;
 
@@ -375,8 +387,9 @@ impl Store {
         if expires_at <= now || attempts >= MAX_2FA_ATTEMPTS || status == "denied" || !purpose_ok {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
+            tx.commit().await?;
             return Err(StoreError::NotFound);
         }
 
@@ -385,20 +398,22 @@ impl Store {
                 "UPDATE telegram_2fa_codes SET attempts = attempts + 1 WHERE challenge = $1",
             )
             .bind(challenge)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+            tx.commit().await?;
             return Err(StoreError::BadPassword);
         }
 
         sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
             .bind(challenge)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
         Ok(account_uuid)
     }
 
     /// Опрос статуса challenge лаунчером (после нажатия кнопки в Telegram).
-    /// При `approved`/`denied`/`expired` запись удаляется (одноразовость).
+    /// При `approved`/`denied`/`expired` запись удаляется атомарно (`DELETE … RETURNING`).
     /// При `expected_purpose = Some(p)` чужое назначение трактуется как NotFound.
     pub async fn poll_challenge(
         &self,
@@ -406,9 +421,47 @@ impl Store {
         expected_purpose: Option<&str>,
     ) -> Result<ChallengeOutcome, StoreError> {
         let now = OffsetDateTime::now_utc();
+        // Атомарный consume терминальных состояний: параллельные poll не выдадут
+        // сессию дважды.
         let row = sqlx::query(
-            "SELECT account_uuid, expires_at, attempts, status, purpose
-             FROM telegram_2fa_codes WHERE challenge = $1",
+            "DELETE FROM telegram_2fa_codes
+             WHERE challenge = $1
+               AND ($2::text IS NULL OR purpose = $2)
+               AND (
+                   status IN ('approved', 'denied')
+                   OR expires_at <= $3
+                   OR attempts >= $4
+               )
+             RETURNING account_uuid, status, expires_at, attempts",
+        )
+        .bind(challenge)
+        .bind(expected_purpose)
+        .bind(now)
+        .bind(MAX_2FA_ATTEMPTS)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = row {
+            let account_uuid: String = row.get("account_uuid");
+            let status: String = row.get("status");
+            let expires_at: OffsetDateTime = row.get("expires_at");
+            let attempts: i32 = row.get("attempts");
+            if status == "approved" {
+                return Ok(ChallengeOutcome::Approved(account_uuid));
+            }
+            if status == "denied" {
+                return Ok(ChallengeOutcome::Denied);
+            }
+            if expires_at <= now || attempts >= MAX_2FA_ATTEMPTS {
+                return Ok(ChallengeOutcome::Expired);
+            }
+            // Неожиданный статус после DELETE — считаем истекшим.
+            return Ok(ChallengeOutcome::Expired);
+        }
+
+        // Запись есть, но ещё pending (или чужой purpose / отсутствует).
+        let row = sqlx::query(
+            "SELECT status, purpose FROM telegram_2fa_codes WHERE challenge = $1",
         )
         .bind(challenge)
         .fetch_optional(&self.pool)
@@ -416,34 +469,9 @@ impl Store {
         let Some(row) = row else {
             return Ok(ChallengeOutcome::NotFound);
         };
-
-        let account_uuid: String = row.get("account_uuid");
-        let expires_at: OffsetDateTime = row.get("expires_at");
-        let attempts: i32 = row.get("attempts");
-        let status: String = row.get("status");
         let purpose: String = row.get("purpose");
-
         if expected_purpose.map(|p| p != purpose).unwrap_or(false) {
             return Ok(ChallengeOutcome::NotFound);
-        }
-
-        // Завершающие состояния — удаляем запись после прочтения.
-        let outcome = if status == "approved" {
-            Some(ChallengeOutcome::Approved(account_uuid.clone()))
-        } else if status == "denied" {
-            Some(ChallengeOutcome::Denied)
-        } else if expires_at <= now || attempts >= MAX_2FA_ATTEMPTS {
-            Some(ChallengeOutcome::Expired)
-        } else {
-            None
-        };
-
-        if let Some(outcome) = outcome {
-            sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
-                .bind(challenge)
-                .execute(&self.pool)
-                .await?;
-            return Ok(outcome);
         }
         Ok(ChallengeOutcome::Pending)
     }
@@ -565,65 +593,22 @@ impl Store {
         purpose: &str,
     ) -> Result<String, StoreError> {
         let now = OffsetDateTime::now_utc();
-        let row = sqlx::query(
-            "SELECT account_uuid, expires_at, status, purpose
-             FROM telegram_2fa_codes WHERE challenge = $1",
+        // Атомарный одноразовый consume: два параллельных вызова не получат один UUID.
+        let account_uuid: Option<String> = sqlx::query_scalar(
+            "DELETE FROM telegram_2fa_codes
+             WHERE challenge = $1
+               AND status = 'approved'
+               AND purpose = $2
+               AND expires_at > $3
+             RETURNING account_uuid",
         )
         .bind(challenge)
+        .bind(purpose)
+        .bind(now)
         .fetch_optional(&self.pool)
-        .await?
-        .ok_or(StoreError::NotFound)?;
-
-        let account_uuid: String = row.get("account_uuid");
-        let expires_at: OffsetDateTime = row.get("expires_at");
-        let status: String = row.get("status");
-        let row_purpose: String = row.get("purpose");
-
-        let ok = status == "approved" && row_purpose == purpose && expires_at > now;
-        // В любом случае запись больше не нужна.
-        sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
-            .bind(challenge)
-            .execute(&self.pool)
-            .await?;
-        if ok {
-            Ok(account_uuid)
-        } else {
-            Err(StoreError::NotFound)
-        }
+        .await?;
+        account_uuid.ok_or(StoreError::NotFound)
     }
-
-fn ip_equal(ip1: &str, ip2: &str) -> bool {
-    let parse_ip = |s: &str| -> Option<std::net::IpAddr> {
-        if let Ok(ip) = s.parse::<std::net::IpAddr>() {
-            return Some(ip);
-        }
-        if let Ok(addr) = s.parse::<std::net::SocketAddr>() {
-            return Some(addr.ip());
-        }
-        if let Some(pos) = s.rfind(':') {
-            let part = &s[..pos];
-            let clean = part.trim_matches(|c| c == '[' || c == ']');
-            if let Ok(ip) = clean.parse::<std::net::IpAddr>() {
-                return Some(ip);
-            }
-        }
-        None
-    };
-
-    let parsed1 = parse_ip(ip1);
-    let parsed2 = parse_ip(ip2);
-
-    match (parsed1, parsed2) {
-        (Some(i1), Some(i2)) => {
-            if i1.is_loopback() && i2.is_loopback() {
-                true
-            } else {
-                i1 == i2
-            }
-        }
-        _ => ip1.trim() == ip2.trim(),
-    }
-}
 
     /// Проверяет 6-значный код сброса пароля, сопоставляет IP-адрес клиента и возвращает UUID аккаунта при успехе.
     pub async fn verify_reset_challenge(
@@ -633,39 +618,46 @@ fn ip_equal(ip1: &str, ip2: &str) -> bool {
         client_ip: &str,
     ) -> Result<String, StoreError> {
         let now = OffsetDateTime::now_utc();
+        let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT account_uuid, code, expires_at, purpose, client_ip
-             FROM telegram_2fa_codes WHERE challenge = $1",
+            "SELECT account_uuid, code, expires_at, attempts, purpose, client_ip
+             FROM telegram_2fa_codes WHERE challenge = $1 FOR UPDATE",
         )
         .bind(challenge)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?
         .ok_or(StoreError::NotFound)?;
 
         let account_uuid: String = row.get("account_uuid");
         let expected_code: String = row.get("code");
         let expires_at: OffsetDateTime = row.get("expires_at");
+        let attempts: i32 = row.get("attempts");
         let purpose: String = row.get("purpose");
         let stored_ip: Option<String> = row.get("client_ip");
 
-        if expires_at <= now || purpose != CHALLENGE_PASSWORD_RESET {
+        if expires_at <= now
+            || purpose != CHALLENGE_PASSWORD_RESET
+            || attempts >= MAX_2FA_ATTEMPTS
+        {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
+            tx.commit().await?;
             return Err(StoreError::NotFound);
         }
 
         let ip_matched = match &stored_ip {
-            Some(stored) => Self::ip_equal(stored, client_ip),
+            Some(stored) => ip_equal(stored, client_ip),
             None => true,
         };
 
         if !ip_matched {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
+            tx.commit().await?;
             return Err(StoreError::NotFound);
         }
 
@@ -674,15 +666,17 @@ fn ip_equal(ip1: &str, ip2: &str) -> bool {
                 "UPDATE telegram_2fa_codes SET attempts = attempts + 1 WHERE challenge = $1",
             )
             .bind(challenge)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+            tx.commit().await?;
             return Err(StoreError::BadPassword);
         }
 
         sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
             .bind(challenge)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
 
         Ok(account_uuid)
     }
@@ -860,6 +854,40 @@ fn ip_equal(ip1: &str, ip2: &str) -> bool {
 }
 
 /// Случайный буквенно-цифровой код (без похожих символов) заданной длины.
+
+fn ip_equal(ip1: &str, ip2: &str) -> bool {
+    let parse_ip = |s: &str| -> Option<std::net::IpAddr> {
+        if let Ok(ip) = s.parse::<std::net::IpAddr>() {
+            return Some(ip);
+        }
+        if let Ok(addr) = s.parse::<std::net::SocketAddr>() {
+            return Some(addr.ip());
+        }
+        if let Some(pos) = s.rfind(':') {
+            let part = &s[..pos];
+            let clean = part.trim_matches(|c| c == '[' || c == ']');
+            if let Ok(ip) = clean.parse::<std::net::IpAddr>() {
+                return Some(ip);
+            }
+        }
+        None
+    };
+
+    let parsed1 = parse_ip(ip1);
+    let parsed2 = parse_ip(ip2);
+
+    match (parsed1, parsed2) {
+        (Some(i1), Some(i2)) => {
+            if i1.is_loopback() && i2.is_loopback() {
+                true
+            } else {
+                i1 == i2
+            }
+        }
+        _ => ip1.trim() == ip2.trim(),
+    }
+}
+
 fn random_code(len: usize) -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let mut rng = rand::thread_rng();
