@@ -2656,6 +2656,42 @@ body {
 
 /* ============ Java (настройки) ============ */
 
+.advanced-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 18px;
+    background:
+        linear-gradient(135deg, rgba(124, 92, 255, 0.1), rgba(79, 140, 255, 0.04)),
+        rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(124, 92, 255, 0.2);
+    border-radius: var(--radius-sm);
+}
+
+.advanced-card__head,
+.advanced-card__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.advanced-card__section {
+    padding-top: 16px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.advanced-card__section:first-of-type {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.advanced-card__section--network {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    align-items: center;
+    gap: 16px;
+}
+
 .java-card {
     display: flex;
     flex-direction: column;
@@ -2684,6 +2720,56 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.java-provider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px;
+}
+
+.java-provider {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-height: 104px;
+    padding: 12px 14px;
+    color: var(--text);
+    text-align: left;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    transition:
+        border-color var(--t-fast),
+        background var(--t-fast),
+        transform var(--t-fast);
+}
+
+.java-provider:hover {
+    border-color: rgba(124, 92, 255, 0.45);
+    background: rgba(124, 92, 255, 0.08);
+    transform: translateY(-1px);
+}
+
+.java-provider--selected {
+    border-color: var(--accent);
+    background: rgba(124, 92, 255, 0.16);
+    box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.16) inset;
+}
+
+.java-provider__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.java-provider__desc {
+    font-size: 12px;
+    line-height: 1.45;
 }
 
 .java-vendors {
@@ -3299,6 +3385,21 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .java-card__head,
+    .advanced-card__section--network {
+        grid-template-columns: 1fr;
+    }
+
+    .java-card__head {
+        flex-direction: column;
+    }
+
+    .java-card__head-actions {
+        justify-content: flex-start;
+    }
 }
 
 select {

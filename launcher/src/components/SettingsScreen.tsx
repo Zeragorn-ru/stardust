@@ -56,10 +56,17 @@ function formatEta(seconds: number): string {
 }
 
 const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
-  auto: "Авто",
-  temurin: "Temurin (лаунчер)",
-  system: "Системная",
+  auto: "Автоматически",
+  temurin: "Java лаунчера",
+  system: "Системная Java",
   custom: "Свой путь",
+};
+
+const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
+  auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
+  temurin: "Использовать управляемую Java 21, которую скачивает и обновляет лаунчер.",
+  system: "Использовать Java из PATH/JAVA_HOME. Подходит, если вы сами управляете Java.",
+  custom: "Указать конкретный java/java.exe или выбрать его из найденных установок.",
 };
 
 export default function SettingsScreen({
@@ -209,13 +216,13 @@ export default function SettingsScreen({
       setJavaProgress(p);
     });
     try {
-      const path = await downloadJava(vendorId);
+      await downloadJava(vendorId);
       setSettings((prev) =>
         prev
           ? {
               ...prev,
-              javaProvider: "custom",
-              javaCustomPath: path,
+              javaProvider: "temurin",
+              javaCustomPath: null,
             }
           : prev,
       );
@@ -237,6 +244,18 @@ export default function SettingsScreen({
             ...prev,
             javaProvider: "custom",
             javaCustomPath: install.path,
+          }
+        : prev,
+    );
+  }
+
+  function selectJavaProvider(provider: JavaProvider) {
+    setSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            javaProvider: provider,
+            javaCustomPath: provider === "custom" ? prev.javaCustomPath ?? null : null,
           }
         : prev,
     );
@@ -639,147 +658,6 @@ export default function SettingsScreen({
               </div>
             </div>
 
-            {settings && (
-              <div className="java-card stagger-item">
-                <div className="java-card__head">
-                  <div className="toggle-row__text">
-                    <span className="toggle-row__title">Java</span>
-                    <span className="muted toggle-row__desc">
-                      Minecraft 1.21 требует Java 21+. Выберите источник или укажите путь к
-                      исполняемому файлу.
-                    </span>
-                  </div>
-                  <div className="java-card__head-actions">
-                    <button
-                      type="button"
-                      className="btn btn--ghost"
-                      onClick={() => void refreshJavaList(false)}
-                      disabled={javaRefreshing || javaDeepSearching}
-                    >
-                      {javaRefreshing ? "Поиск…" : "Обновить список"}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn--ghost"
-                      onClick={() => void handleDeepJavaSearch()}
-                      disabled={javaRefreshing || javaDeepSearching || javaDownloading}
-                    >
-                      {javaDeepSearching ? "Глубокий поиск…" : "Глубокий поиск"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="field">
-                  <span>Источник Java</span>
-                  <select
-                    value={settings.javaProvider ?? "auto"}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        javaProvider: e.target.value as JavaProvider,
-                      })
-                    }
-                  >
-                    <option value="auto">{JAVA_PROVIDER_LABELS.auto} (Temurin → система → скачать)</option>
-                    <option value="temurin">{JAVA_PROVIDER_LABELS.temurin}</option>
-                    <option value="system">{JAVA_PROVIDER_LABELS.system}</option>
-                    <option value="custom">{JAVA_PROVIDER_LABELS.custom}</option>
-                  </select>
-                </div>
-
-                {(settings.javaProvider ?? "auto") === "custom" && (
-                  <div className="field">
-                    <span>Путь к java</span>
-                    <input
-                      type="text"
-                      className="input"
-                      placeholder="/path/to/java или C:\Program Files\...\bin\java.exe"
-                      value={settings.javaCustomPath ?? ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          javaCustomPath: e.target.value || null,
-                        })
-                      }
-                    />
-                  </div>
-                )}
-
-                <div className="java-card__download">
-                  <span className="toggle-row__title">Скачать Java 21</span>
-                  <div className="java-vendors">
-                    {javaVendors.map((vendor) => (
-                      <button
-                        key={vendor.id}
-                        type="button"
-                        className="java-vendors__item"
-                        onClick={() => void handleDownloadJava(vendor.id)}
-                        disabled={javaDownloading}
-                      >
-                        <span className="java-vendors__name">{vendor.name}</span>
-                        <span className="muted java-vendors__label">{vendor.label}</span>
-                        {downloadingVendor === vendor.id && (
-                          <span className="muted java-vendors__status">Скачивание…</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  {javaDownloading && javaProgress && (
-                    <p className="muted java-card__msg">
-                      {javaProgress.label}
-                      {Number.isFinite(javaProgress.fraction) &&
-                        ` ${Math.round(javaProgress.fraction! * 100)}%`}
-                    </p>
-                  )}
-                </div>
-
-                {javaDownloadError && (
-                  <p className="muted java-card__msg">Ошибка скачивания: {javaDownloadError}</p>
-                )}
-                {javaListError && (
-                  <p className="muted java-card__msg">Ошибка поиска: {javaListError}</p>
-                )}
-
-                {javaInstalls === null && !javaListError && (
-                  <p className="muted java-card__msg">Ищем установки Java…</p>
-                )}
-
-                {javaInstalls && javaInstalls.length === 0 && (
-                  <p className="muted java-card__msg">
-                    Java 21+ не найдена. Скачайте Temurin или укажите путь вручную.
-                  </p>
-                )}
-
-                {javaInstalls && javaInstalls.length > 0 && (
-                  <div className="java-list">
-                    {javaInstalls.map((install) => {
-                      const selected =
-                        (settings.javaProvider ?? "auto") === "custom" &&
-                        settings.javaCustomPath === install.path;
-                      return (
-                        <button
-                          key={`${install.path}-${install.source}`}
-                          type="button"
-                          className={
-                            "java-list__item" + (selected ? " java-list__item--selected" : "")
-                          }
-                          onClick={() => selectJavaInstall(install)}
-                          title={install.path}
-                        >
-                          <span className="java-list__title">
-                            Java {install.major}
-                            <span className="muted"> · {install.version}</span>
-                          </span>
-                          <span className="muted java-list__source">{install.source}</span>
-                          <span className="java-list__path">{install.path}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
             <div className="toggle-row stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Анимации</span>
@@ -815,30 +693,6 @@ export default function SettingsScreen({
                 >
                   <span className="switch__knob" />
                 </button>
-              </div>
-            )}
-
-            {settings && (
-              <div className="toggle-row stagger-item">
-                <div className="toggle-row__text">
-                  <span className="toggle-row__title">Прокси-сервер</span>
-                  <span className="muted toggle-row__desc">
-                    Использовать системные настройки, встроенный прокси или отключить его.
-                  </span>
-                </div>
-                <select
-                  value={settings.proxyType}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      proxyType: e.target.value as "system" | "builtin" | "none",
-                    })
-                  }
-                >
-                  <option value="system">Системный прокси</option>
-                  <option value="builtin">Встроенный прокси</option>
-                  <option value="none">Без прокси</option>
-                </select>
               </div>
             )}
 
@@ -899,6 +753,189 @@ export default function SettingsScreen({
                 </div>
               </div>
             )}
+
+            <div className="advanced-card stagger-item">
+              <div className="advanced-card__head">
+                <span className="toggle-row__title">Для опытных пользователей</span>
+                <span className="muted toggle-row__desc">
+                  Java и прокси обычно не нужно менять. Эти параметры полезны для
+                  диагностики запуска, корпоративных сетей и ручной настройки JVM.
+                </span>
+              </div>
+
+              <div className="advanced-card__section">
+                <div className="java-card__head">
+                  <div className="toggle-row__text">
+                    <span className="toggle-row__title">Java</span>
+                    <span className="muted toggle-row__desc">
+                      Minecraft 1.21 требует Java 21+. Оставьте автоматический режим,
+                      если не уверены, что нужно выбрать.
+                    </span>
+                  </div>
+                  <div className="java-card__head-actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => void refreshJavaList(false)}
+                      disabled={javaRefreshing || javaDeepSearching}
+                    >
+                      {javaRefreshing ? "Поиск…" : "Обновить список"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => void handleDeepJavaSearch()}
+                      disabled={javaRefreshing || javaDeepSearching || javaDownloading}
+                    >
+                      {javaDeepSearching ? "Глубокий поиск…" : "Глубокий поиск"}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="java-provider-grid" role="radiogroup" aria-label="Источник Java">
+                  {(["auto", "temurin", "system", "custom"] as JavaProvider[]).map((provider) => {
+                    const selected = (settings.javaProvider ?? "auto") === provider;
+                    return (
+                      <button
+                        key={provider}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={
+                          "java-provider" + (selected ? " java-provider--selected" : "")
+                        }
+                        onClick={() => selectJavaProvider(provider)}
+                      >
+                        <span className="java-provider__title">
+                          {JAVA_PROVIDER_LABELS[provider]}
+                          {provider === "auto" && <span className="badge">рекомендуется</span>}
+                        </span>
+                        <span className="muted java-provider__desc">
+                          {JAVA_PROVIDER_DESCRIPTIONS[provider]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {(settings.javaProvider ?? "auto") === "custom" && (
+                  <div className="field">
+                    <span>Путь к java</span>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="/path/to/java или C:\Program Files\...\bin\java.exe"
+                      value={settings.javaCustomPath ?? ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          javaCustomPath: e.target.value || null,
+                        })
+                      }
+                    />
+                  </div>
+                )}
+
+                <div className="java-card__download">
+                  <span className="toggle-row__title">Скачать Java 21 для лаунчера</span>
+                  <span className="muted toggle-row__desc">
+                    После скачивания будет выбран режим «Java лаунчера».
+                  </span>
+                  <div className="java-vendors">
+                    {javaVendors.map((vendor) => (
+                      <button
+                        key={vendor.id}
+                        type="button"
+                        className="java-vendors__item"
+                        onClick={() => void handleDownloadJava(vendor.id)}
+                        disabled={javaDownloading}
+                      >
+                        <span className="java-vendors__name">{vendor.name}</span>
+                        <span className="muted java-vendors__label">{vendor.label}</span>
+                        {downloadingVendor === vendor.id && (
+                          <span className="muted java-vendors__status">Скачивание…</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {javaDownloading && javaProgress && (
+                    <p className="muted java-card__msg">
+                      {javaProgress.label}
+                      {Number.isFinite(javaProgress.fraction) &&
+                        ` ${Math.round(javaProgress.fraction! * 100)}%`}
+                    </p>
+                  )}
+                </div>
+
+                {javaDownloadError && (
+                  <p className="muted java-card__msg">Ошибка скачивания: {javaDownloadError}</p>
+                )}
+                {javaListError && (
+                  <p className="muted java-card__msg">Ошибка поиска: {javaListError}</p>
+                )}
+
+                {javaInstalls === null && !javaListError && (
+                  <p className="muted java-card__msg">Ищем установки Java…</p>
+                )}
+
+                {javaInstalls && javaInstalls.length === 0 && (
+                  <p className="muted java-card__msg">
+                    Java 21+ не найдена. Скачайте Java лаунчера или укажите путь вручную.
+                  </p>
+                )}
+
+                {javaInstalls && javaInstalls.length > 0 && (
+                  <div className="java-list">
+                    {javaInstalls.map((install) => {
+                      const selected =
+                        (settings.javaProvider ?? "auto") === "custom" &&
+                        settings.javaCustomPath === install.path;
+                      return (
+                        <button
+                          key={`${install.path}-${install.source}`}
+                          type="button"
+                          className={
+                            "java-list__item" + (selected ? " java-list__item--selected" : "")
+                          }
+                          onClick={() => selectJavaInstall(install)}
+                          title={install.path}
+                        >
+                          <span className="java-list__title">
+                            Java {install.major}
+                            <span className="muted"> · {install.version}</span>
+                          </span>
+                          <span className="muted java-list__source">{install.source}</span>
+                          <span className="java-list__path">{install.path}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="advanced-card__section advanced-card__section--network">
+                <div className="toggle-row__text">
+                  <span className="toggle-row__title">Прокси-сервер</span>
+                  <span className="muted toggle-row__desc">
+                    Меняйте только если загрузки не проходят напрямую или сеть требует
+                    специальный маршрут.
+                  </span>
+                </div>
+                <select
+                  value={settings.proxyType}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      proxyType: e.target.value as "system" | "builtin" | "none",
+                    })
+                  }
+                >
+                  <option value="builtin">Встроенный прокси Stardust</option>
+                  <option value="system">Системный прокси</option>
+                  <option value="none">Без прокси</option>
+                </select>
+              </div>
+            </div>
           </div>
         )}
       </div>
