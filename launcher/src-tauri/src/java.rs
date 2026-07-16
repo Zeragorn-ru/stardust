@@ -766,7 +766,7 @@ fn discover_macos(push_home: &mut impl FnMut(PathBuf, &str)) {
             if let Some(home) = line
                 .split_whitespace()
                 .filter(|t| t.starts_with('/'))
-                .last()
+                .next_back()
             {
                 push_home(PathBuf::from(home.trim_matches('"')), "macOS java_home");
             }
@@ -883,6 +883,8 @@ fn finalize_extracted_java(runtime_dir: &Path) -> Result<(), String> {
             runtime_dir.to_string_lossy()
         )
     })?;
+    #[cfg(windows)]
+    let _ = &home;
 
     #[cfg(unix)]
     {
