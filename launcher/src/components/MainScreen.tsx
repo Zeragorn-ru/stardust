@@ -222,6 +222,7 @@ export default function MainScreen({
               capeUrl={skin.capeUrl}
               width={240}
               height={340}
+              interactive
               visible={windowFocused && !running && !skinOpen}
             />
           ) : (

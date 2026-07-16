@@ -284,25 +284,31 @@ const SkinViewer3D = memo(function SkinViewer3D({
     }
   }, [visible]);
 
-  // Отслеживаем движение мыши на canvas для idle-timeout (throttled).
+  // Отслеживаем активность на canvas для idle-timeout (throttled).
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     if (!interactive) return;
 
     let lastMove = 0;
-    function onMouseMove() {
+    function onActivity() {
       const now = Date.now();
       if (now - lastMove < 500) return; // throttle to 2Hz
       lastMove = now;
       resetIdleTimer();
     }
 
-    canvas.addEventListener("mousemove", onMouseMove);
+    canvas.addEventListener("pointerdown", onActivity);
+    canvas.addEventListener("pointermove", onActivity);
+    canvas.addEventListener("touchstart", onActivity, { passive: true });
+    canvas.addEventListener("wheel", onActivity, { passive: true });
     resetIdleTimer();
 
     return () => {
-      canvas.removeEventListener("mousemove", onMouseMove);
+      canvas.removeEventListener("pointerdown", onActivity);
+      canvas.removeEventListener("pointermove", onActivity);
+      canvas.removeEventListener("touchstart", onActivity);
+      canvas.removeEventListener("wheel", onActivity);
     };
   }, []);
 
