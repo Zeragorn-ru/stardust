@@ -763,11 +763,7 @@ fn discover_macos(push_home: &mut impl FnMut(PathBuf, &str)) {
     if let Ok(output) = Command::new("/usr/libexec/java_home").arg("-V").output() {
         let text = String::from_utf8_lossy(&output.stderr);
         for line in text.lines().skip(1) {
-            if let Some(home) = line
-                .split_whitespace()
-                .filter(|t| t.starts_with('/'))
-                .next_back()
-            {
+            if let Some(home) = line.split_whitespace().rfind(|t| t.starts_with('/')) {
                 push_home(PathBuf::from(home.trim_matches('"')), "macOS java_home");
             }
         }
