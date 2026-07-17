@@ -48,7 +48,7 @@ const FALLBACK_SETTINGS: Settings = {
   downloadConcurrency: 6,
   show3dModel: true,
   proxyType: "builtin",
-  javaProvider: "auto",
+  javaProvider: "temurin",
   javaCustomPath: null,
 };
 
@@ -397,6 +397,13 @@ export async function saveSettings(settings: Settings): Promise<void> {
   const invoke = await getInvoke();
   if (!invoke) return;
   await invoke<void>("save_settings", { settings });
+}
+
+/** Сбросить настройки лаунчера до значений по умолчанию. */
+export async function resetSettings(): Promise<Settings> {
+  const invoke = await getInvoke();
+  if (!invoke) return { ...FALLBACK_SETTINGS };
+  return invoke<Settings>("reset_settings");
 }
 
 /** Список установок Java 21+ (быстрый поиск). */

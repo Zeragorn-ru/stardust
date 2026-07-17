@@ -855,6 +855,15 @@ fn save_settings(
 }
 
 #[tauri::command]
+fn reset_settings(state: State<'_, AppState>, app: AppHandle) -> Result<Settings, String> {
+    let settings = Settings::default();
+    write_settings(&app, &settings)?;
+    *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
+    *state.settings.lock().unwrap() = Some(settings.clone());
+    Ok(settings)
+}
+
+#[tauri::command]
 fn list_java_installations(app: AppHandle) -> Vec<JavaInstallation> {
     java::list_installations(&paths::data_dir(&app))
 }
@@ -1732,7 +1741,7 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
     use hickory_resolver::TokioResolver;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpStream;
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{Duration, timeout};
 
     // 1. SRV-запись _minecraft._tcp.<host>
     let (target_host, target_port): (String, u16) = {
@@ -1938,6 +1947,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             current_profile,
             get_settings,
             save_settings,
+            reset_settings,
             list_java_installations,
             list_java_installations_deep,
             list_java_download_vendors,

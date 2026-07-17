@@ -14,6 +14,7 @@ import {
   onUpdateProgress,
   openLogFolder,
   openPath,
+  resetSettings,
   saveSettings,
 } from "../api";
 import { useMotion } from "../motion";
@@ -62,9 +63,11 @@ const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
   custom: "Свой путь",
 };
 
+const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
+
 const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
   auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
-  temurin: "Использовать управляемую Java 21, которую скачивает и обновляет лаунчер.",
+  temurin: "Использовать управляемую Java 21 Temurin из Adoptium. На Windows скачивается zip-архив.",
   system: "Использовать Java из PATH/JAVA_HOME. Подходит, если вы сами управляете Java.",
   custom: "Указать конкретный java/java.exe или выбрать его из найденных установок.",
 };
@@ -152,7 +155,8 @@ export default function SettingsScreen({
       settings.downloadConcurrency !== initialSettings.downloadConcurrency ||
       settings.show3dModel !== initialSettings.show3dModel ||
       settings.proxyType !== initialSettings.proxyType ||
-      (settings.javaProvider ?? "auto") !== (initialSettings.javaProvider ?? "auto") ||
+      (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) !==
+        (initialSettings.javaProvider ?? DEFAULT_JAVA_PROVIDER) ||
       (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? ""));
 
   function handleClose() {
@@ -268,6 +272,25 @@ export default function SettingsScreen({
       await saveSettings(settings);
       setInitialSettings(settings);
       onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleResetSettings() {
+    if (!window.confirm("Сбросить настройки лаунчера до значений по умолчанию?")) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const defaults = await resetSettings();
+      const next = {
+        ...defaults,
+        javaProvider: defaults.javaProvider ?? DEFAULT_JAVA_PROVIDER,
+        javaCustomPath: null,
+      } satisfies Settings;
+      setSettings(next);
+      setInitialSettings(next);
     } finally {
       setSaving(false);
     }
@@ -699,18 +722,10 @@ export default function SettingsScreen({
             <button
               type="button"
               className="btn btn--ghost stagger-item"
-              onClick={() =>
-                setSettings({
-                  memoryMb: 4096,
-                  downloadConcurrency: 6,
-                  show3dModel: true,
-                  proxyType: "builtin",
-                  javaProvider: "auto",
-                  javaCustomPath: null,
-                })
-              }
+              onClick={() => void handleResetSettings()}
+              disabled={saving}
             >
-              Сбросить настройки по умолчанию
+              Сбросить настройки лаунчера
             </button>
 
             {info && (
@@ -768,8 +783,8 @@ export default function SettingsScreen({
                   <div className="toggle-row__text">
                     <span className="toggle-row__title">Java</span>
                     <span className="muted toggle-row__desc">
-                      Minecraft 1.21 требует Java 21+. Оставьте автоматический режим,
-                      если не уверены, что нужно выбрать.
+                      Minecraft 1.21 требует Java 21+. По умолчанию лаунчер скачивает
+                      управляемую Java Temurin из Adoptium.
                     </span>
                   </div>
                   <div className="java-card__head-actions">
@@ -794,7 +809,7 @@ export default function SettingsScreen({
 
                 <div className="java-provider-grid" role="radiogroup" aria-label="Источник Java">
                   {(["auto", "temurin", "system", "custom"] as JavaProvider[]).map((provider) => {
-                    const selected = (settings.javaProvider ?? "auto") === provider;
+                    const selected = (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === provider;
                     return (
                       <button
                         key={provider}
@@ -808,7 +823,7 @@ export default function SettingsScreen({
                       >
                         <span className="java-provider__title">
                           {JAVA_PROVIDER_LABELS[provider]}
-                          {provider === "auto" && <span className="badge">рекомендуется</span>}
+                          {provider === DEFAULT_JAVA_PROVIDER && <span className="badge">по умолчанию</span>}
                         </span>
                         <span className="muted java-provider__desc">
                           {JAVA_PROVIDER_DESCRIPTIONS[provider]}
@@ -818,7 +833,7 @@ export default function SettingsScreen({
                   })}
                 </div>
 
-                {(settings.javaProvider ?? "auto") === "custom" && (
+                {(settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === "custom" && (
                   <div className="field">
                     <span>Путь к java</span>
                     <input
@@ -888,7 +903,7 @@ export default function SettingsScreen({
                   <div className="java-list">
                     {javaInstalls.map((install) => {
                       const selected =
-                        (settings.javaProvider ?? "auto") === "custom" &&
+                        (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === "custom" &&
                         settings.javaCustomPath === install.path;
                       return (
                         <button

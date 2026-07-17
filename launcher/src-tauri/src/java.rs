@@ -15,9 +15,9 @@ pub const JAVA_VERSION: u32 = 21;
 #[serde(rename_all = "camelCase")]
 pub enum JavaProvider {
     /// Кэш Temurin → системные установки → скачивание.
-    #[default]
     Auto,
     /// Только встроенная/скачанная Temurin (Adoptium).
+    #[default]
     Temurin,
     /// Только Java, найденная в системе.
     System,
@@ -66,24 +66,15 @@ pub struct JavaVendorInfo {
 }
 
 pub fn list_download_vendors() -> Vec<JavaVendorInfo> {
-    [
-        (JavaVendor::Temurin, "Eclipse Temurin", "Adoptium"),
-        (JavaVendor::Corretto, "Amazon Corretto", "AWS"),
-        (
-            JavaVendor::Microsoft,
-            "Microsoft Build of OpenJDK",
-            "Microsoft",
-        ),
-        (JavaVendor::Zulu, "Azul Zulu", "Azul"),
-        (JavaVendor::Oracle, "Oracle OpenJDK", "Oracle"),
-    ]
-    .into_iter()
-    .map(|(vendor, name, label)| JavaVendorInfo {
-        id: vendor.id().to_string(),
-        name: name.to_string(),
-        label: label.to_string(),
-    })
-    .collect()
+    vec![JavaVendorInfo {
+        id: JavaVendor::Temurin.id().to_string(),
+        name: "Eclipse Temurin".to_string(),
+        label: if cfg!(windows) {
+            "Adoptium, Java 21 JRE, Windows x64 zip".to_string()
+        } else {
+            "Adoptium, Java 21 JRE".to_string()
+        },
+    }]
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -527,11 +518,7 @@ async fn resolve_zulu_url(http: &reqwest::Client) -> Result<String, String> {
 }
 
 fn java_bin_name() -> &'static str {
-    if cfg!(windows) {
-        "javaw.exe"
-    } else {
-        "java"
-    }
+    if cfg!(windows) { "javaw.exe" } else { "java" }
 }
 
 fn version_check_bin(home: &Path) -> PathBuf {
