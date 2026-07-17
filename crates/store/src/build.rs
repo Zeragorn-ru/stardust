@@ -450,6 +450,9 @@ impl BuildFileRow {
             mod_id: self.mod_id.clone(),
             display_name: self.display_name.clone(),
             description: self.description.clone(),
+            // Пока не хранится в БД — конфликты задаются вручную в JSON или
+            // статическими правилами лаунчера (см. modpack::KNOWN_CONFLICTS).
+            conflicts_with: Vec::new(),
         }
     }
 }

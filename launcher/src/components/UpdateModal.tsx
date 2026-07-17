@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { UpdateInfo, UpdateProgress } from "../types";
 import { installUpdate, onUpdateProgress } from "../api";
 
@@ -74,6 +74,17 @@ export default function UpdateModal({ update, onDismiss, closing }: Props) {
   const [status, setStatus] = useState<"idle" | "installing" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && status !== "installing") {
+        e.preventDefault();
+        onDismiss();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onDismiss, status]);
 
   async function handleInstall() {
     setStatus("installing");

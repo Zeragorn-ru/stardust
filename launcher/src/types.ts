@@ -193,6 +193,8 @@ export interface OptionalMod {
   enabled: boolean;
   /** Размер файла в байтах. */
   size: number;
+  /** modId конфликтующих опциональных модов. */
+  conflictsWith: string[];
 }
 
 /** Этап работы лаунчера, влияет на отображаемый экран/состояние. */

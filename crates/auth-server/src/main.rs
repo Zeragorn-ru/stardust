@@ -29,7 +29,7 @@ use std::time::Duration;
 use tracing_subscriber::prelude::*;
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{ConnectInfo, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -179,7 +179,10 @@ async fn main() {
         .unwrap_or_else(|e| panic!("не удалось привязаться к {addr}: {e}"));
     tracing::info!("auth-server слушает на http://{addr}");
 
-    axum::serve(listener, app)
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
         .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("ошибка сервера");
@@ -248,10 +251,31 @@ async fn health() -> &'static str {
     "ok"
 }
 
+/// Лимит чувствительных auth-эндпоинтов: 5 запросов / 60 с на IP.
+const AUTH_RATE_MAX: usize = 5;
+const AUTH_RATE_WINDOW_SECS: u64 = 60;
+
+fn rate_limited(state: &Shared, ip: std::net::IpAddr) -> Result<(), ApiError> {
+    if state
+        .store
+        .check_rate_limit(ip, AUTH_RATE_MAX, AUTH_RATE_WINDOW_SECS)
+    {
+        Err(ApiError::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Слишком много попыток. Подождите немного и попробуйте снова",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 async fn register(
     State(state): State<Shared>,
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(creds): Json<Credentials>,
 ) -> Result<Json<AuthResponse>, ApiError> {
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let username = creds.username.trim();
     if username.len() < 3 {
         return Err(ApiError::new(
@@ -285,16 +309,30 @@ async fn register(
 async fn login(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(creds): Json<Credentials>,
 ) -> Result<Json<LoginResult>, ApiError> {
+    let ip = get_client_ip(&headers, addr);
+    rate_limited(&state, ip)?;
+    // Единый ответ при NotFound и BadPassword — без enumeration аккаунтов.
+    let invalid = || {
+        ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "Неверный логин или пароль",
+        )
+    };
     let profile = state
         .store
         .login(creds.username.trim(), &creds.password)
-        .await?;
+        .await
+        .map_err(|e| match e {
+            StoreError::NotFound | StoreError::BadPassword => invalid(),
+            other => other.into(),
+        })?;
     // Если у аккаунта привязан Telegram — требуем второй фактор: генерируем
     // код, кладём его в outbox на доставку ботом и возвращаем challenge.
     // start_2fa возвращает None, если Telegram не привязан (2FA неприменима).
-    let client_ip = get_client_ip(&headers);
+    let client_ip = ip.to_string();
     match state.store.start_2fa(&profile.id, Some(&client_ip)).await? {
         Some(challenge) => Ok(Json(LoginResult::TwoFactorRequired {
             challenge,
@@ -368,6 +406,7 @@ async fn login_passwordless_status(
 async fn login_passwordless(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<PasswordlessLoginRequest>,
 ) -> Result<Json<LoginResult>, ApiError> {
     let unavailable = || {
@@ -381,7 +420,7 @@ async fn login_passwordless(
         .uuid_for_telegram_login(req.username.trim())
         .await?
         .ok_or_else(unavailable)?;
-    let client_ip = get_client_ip(&headers);
+    let client_ip = get_client_ip(&headers, addr).to_string();
     let challenge = state
         .store
         .start_challenge(&uuid, CHALLENGE_PASSWORDLESS, Some(&client_ip))
@@ -399,6 +438,7 @@ async fn login_passwordless(
 async fn password_reset_start(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<PasswordResetRequest>,
 ) -> Result<Json<LoginResult>, ApiError> {
     let unavailable = || {
@@ -412,7 +452,7 @@ async fn password_reset_start(
         .uuid_for_telegram_login(req.username.trim())
         .await?
         .ok_or_else(unavailable)?;
-    let client_ip = get_client_ip(&headers);
+    let client_ip = get_client_ip(&headers, addr).to_string();
     let challenge = state
         .store
         .start_challenge(&uuid, CHALLENGE_PASSWORD_RESET, Some(&client_ip))
@@ -452,15 +492,18 @@ async fn password_reset_status(
 async fn password_reset_confirm(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<PasswordResetConfirm>,
 ) -> Result<StatusCode, ApiError> {
+    let ip = get_client_ip(&headers, addr);
+    rate_limited(&state, ip)?;
     if req.new_password.len() < 6 {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Пароль: минимум 6 символов",
         ));
     }
-    let client_ip = get_client_ip(&headers);
+    let client_ip = ip.to_string();
     let uuid = state
         .store
         .verify_reset_challenge(&req.challenge, &req.code, &client_ip)
@@ -547,19 +590,31 @@ async fn profile(
     Ok(Json(account.profile()))
 }
 
-fn get_client_ip(headers: &HeaderMap) -> String {
-    headers
-        .get("x-forwarded-for")
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .map(|s| s.trim().to_string())
-        .or_else(|| {
-            headers
-                .get("x-real-ip")
-                .and_then(|h| h.to_str().ok())
-                .map(|s| s.trim().to_string())
-        })
-        .unwrap_or_else(|| "127.0.0.1".to_string())
+/// IP для rate-limit и привязки challenge. Заголовки `X-Forwarded-For` /
+/// `X-Real-IP` учитываются только при `TRUST_PROXY=1|true`; иначе — `ConnectInfo`.
+fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::IpAddr {
+    let trust_proxy = std::env::var("TRUST_PROXY")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if trust_proxy {
+        if let Some(forwarded_for) = headers.get("x-forwarded-for") {
+            if let Ok(val) = forwarded_for.to_str() {
+                if let Some(first_ip) = val.split(',').next() {
+                    if let Ok(ip) = first_ip.trim().parse::<std::net::IpAddr>() {
+                        return ip;
+                    }
+                }
+            }
+        }
+        if let Some(real_ip) = headers.get("x-real-ip") {
+            if let Ok(val) = real_ip.to_str() {
+                if let Ok(ip) = val.trim().parse::<std::net::IpAddr>() {
+                    return ip;
+                }
+            }
+        }
+    }
+    addr.ip()
 }
 
 /// Разрешает беарер-сессию в аккаунт владельца.
@@ -931,10 +986,25 @@ struct AuthenticateReq {
 }
 
 /// `POST /authserver/authenticate` — логин по нику/паролю, выдаёт токен.
+/// При привязанном Telegram сессию не выдаём: тот же gate, что у `/api/login`
+/// (Ygg-клиент не умеет пройти 2FA — нужен лаунчер).
 async fn ygg_authenticate(
     State(state): State<Shared>,
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<AuthenticateReq>,
 ) -> Response {
+    let ip = get_client_ip(&headers, addr);
+    if state
+        .store
+        .check_rate_limit(ip, AUTH_RATE_MAX, AUTH_RATE_WINDOW_SECS)
+    {
+        return ygg_error(
+            StatusCode::TOO_MANY_REQUESTS,
+            "ForbiddenOperationException",
+            "Too many requests.",
+        );
+    }
     let profile = match state.store.login(req.username.trim(), &req.password).await {
         Ok(p) => p,
         Err(_) => {
@@ -945,6 +1015,20 @@ async fn ygg_authenticate(
             )
         }
     };
+    // Не стартуем 2FA-challenge здесь (спам в Telegram): только проверяем привязку.
+    let needs_2fa = state
+        .store
+        .find_by_uuid(&profile.id)
+        .await
+        .map(|a| a.has_telegram())
+        .unwrap_or(false);
+    if needs_2fa {
+        return ygg_error(
+            StatusCode::FORBIDDEN,
+            "ForbiddenOperationException",
+            "Account requires two-factor authentication. Sign in via the launcher.",
+        );
+    }
     let access_token = match state.store.create_session(&profile.id).await {
         Ok(t) => t,
         Err(_) => {

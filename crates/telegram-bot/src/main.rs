@@ -313,6 +313,19 @@ async fn handle_message(store: &Store, message: Message) {
     let chat_id = message.chat.id.to_string();
     let text = text.trim();
 
+    // Привязка и 2FA рассчитаны на личные чаты; в группах отказываем явно.
+    if message.chat.chat_type.as_deref().is_some_and(|t| t != "private") {
+        if text.starts_with("/start") || text.starts_with("/unlink") {
+            enqueue(
+                store,
+                &chat_id,
+                "Привязка аккаунта работает только в личных сообщениях с ботом.                  Напишите мне в личку.",
+            )
+            .await;
+        }
+        return;
+    }
+
     if let Some(rest) = text.strip_prefix("/start") {
         let code = rest.trim();
         if code.is_empty() {
@@ -320,7 +333,7 @@ async fn handle_message(store: &Store, message: Message) {
                 store,
                 &chat_id,
                 "Привет! Чтобы привязать аккаунт, откройте привязку в лаунчере или \
-                 веб-админке и нажмите кнопку — я открою этот чат с кодом автоматически.",
+                 веб-админке и нажмите кнопку — я открою этот личный чат с кодом автоматически (в группах привязка не работает).",
             )
             .await;
             return;
@@ -499,6 +512,8 @@ struct Message {
 #[derive(serde::Deserialize)]
 struct Chat {
     id: i64,
+    #[serde(default, rename = "type")]
+    chat_type: Option<String>,
 }
 
 #[derive(serde::Deserialize)]

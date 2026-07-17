@@ -173,6 +173,13 @@ body {
     overflow: hidden;
 }
 
+/* macOS Overlay titlebar: контент на всю высоту, сверху отступ под traffic lights. */
+.app--macos .app__content {
+    height: 100%;
+    margin-top: 0;
+    padding-top: 38px;
+}
+
 .titlebar {
     position: absolute;
     top: 0;
@@ -189,6 +196,18 @@ body {
     backdrop-filter: blur(18px) saturate(140%);
     -webkit-backdrop-filter: blur(18px) saturate(140%);
     -webkit-app-region: drag;
+}
+
+/* Прозрачная drag-зона под нативные traffic lights (без фейковых кнопок). */
+.titlebar--macos-drag {
+    justify-content: flex-start;
+    padding: 0;
+    border-bottom: none;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    /* Слева оставляем место под close/minimize/zoom. */
+    padding-left: 78px;
 }
 
 .titlebar__brand {
@@ -1880,7 +1899,8 @@ body {
     max-width: 560px;
     width: 100%;
     margin: 0 auto;
-    contain: layout style paint;
+    /* Не использовать contain: paint — в WKWebView (macOS) ломает scroll
+       и после ошибок вкладка «Сборка» залипает до перезагрузки. */
     animation: panelIn var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1916,6 +1936,14 @@ body {
 
 .mods-section__size {
     font-weight: 400;
+}
+
+.mods-section__conflict {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #ffb4a8;
 }
 
 .account-form {

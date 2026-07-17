@@ -154,8 +154,10 @@ pub async fn launch(
 
     // Фиксированный heap — без этого JVM стартует с крошечной кучей и
     // перестраивает её по мере роста, что на слабых системах вызывает
-    // длинные GC-паузы, из-за которых игрок может не успеть создаться.
-    args.push(format!("-Xms{memory}M"));
+    // длинные GC-паузы. Xms держим меньше Xmx (до 512M), чтобы ОС не
+    // резервировала весь лимит сразу.
+    let xms = memory.min(512);
+    args.push(format!("-Xms{xms}M"));
     args.push(format!("-Xmx{memory}M"));
     // G1GC — наилучший выбор для Minecraft: короткие паузы ценой
     // небольшого оверхеда. На Temurin JRE default GC зависит от
@@ -768,9 +770,17 @@ fn native_artifact_for_current_os(path: &str, name: Option<&str>) -> bool {
             haystack.contains("natives-macos") && !haystack.contains("arm64")
         }
     } else if cfg!(target_os = "windows") {
-        haystack.contains("natives-windows")
+        if cfg!(target_arch = "aarch64") {
+            haystack.contains("natives-windows-arm64")
+        } else {
+            haystack.contains("natives-windows") && !haystack.contains("arm64")
+        }
+    } else if cfg!(target_arch = "aarch64") {
+        haystack.contains("natives-linux-arm64") || haystack.contains("natives-linux-aarch64")
     } else {
         haystack.contains("natives-linux")
+            && !haystack.contains("arm64")
+            && !haystack.contains("aarch64")
     }
 }
 

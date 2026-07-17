@@ -57,6 +57,40 @@ pub struct OptionalMod {
     pub enabled: bool,
     /// Размер файла в байтах.
     pub size: u64,
+    /// `modId` конфликтующих опциональных модов (манифест + статические правила).
+    pub conflicts_with: Vec<String>,
+}
+
+/// Известные взаимоисключающие пары опциональных модов (modId ↔ modId).
+/// Дополняют поле `conflictsWith` из манифеста.
+const KNOWN_CONFLICTS: &[(&str, &str)] = &[
+    // Distant Horizons и Voxy оба рисуют дальние чанки — вместе крашат/ломают LOD.
+    ("distanthorizons", "voxy"),
+];
+
+fn normalize_mod_id(id: &str) -> String {
+    id.trim().to_ascii_lowercase()
+}
+
+/// Собирает список конфликтов для мода: манифест + симметричные статические правила.
+fn conflicts_for(mod_id: &str, entry: &protocol::FileEntry) -> Vec<String> {
+    let key = normalize_mod_id(mod_id);
+    let mut out: Vec<String> = entry
+        .conflicts_with
+        .iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+    for &(a, b) in KNOWN_CONFLICTS {
+        if key == a {
+            out.push(b.to_string());
+        } else if key == b {
+            out.push(a.to_string());
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
 }
 
 /// Стабильный ключ опционального мода для хранения выбора игрока.
@@ -281,12 +315,14 @@ pub async fn list_optional_mods(
                 .description
                 .clone()
                 .or_else(|| jar_meta.as_ref().and_then(|m| m.description.clone()));
+            let conflicts_with = conflicts_for(&mod_id, entry);
             OptionalMod {
                 mod_id,
                 name,
                 description,
                 enabled,
                 size: entry.size,
+                conflicts_with,
             }
         })
         .collect();

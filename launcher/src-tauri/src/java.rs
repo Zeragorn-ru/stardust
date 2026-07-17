@@ -380,24 +380,25 @@ struct Platform {
 }
 
 fn current_platform() -> Platform {
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
+    } else {
+        "x64"
+    };
     if cfg!(target_os = "macos") {
         Platform {
             os: "macos",
-            arch: if cfg!(target_arch = "aarch64") {
-                "aarch64"
-            } else {
-                "x64"
-            },
+            arch,
         }
     } else if cfg!(target_os = "linux") {
         Platform {
             os: "linux",
-            arch: "x64",
+            arch,
         }
     } else {
         Platform {
             os: "windows",
-            arch: "x64",
+            arch,
         }
     }
 }
@@ -416,19 +417,17 @@ async fn resolve_download_url(
 }
 
 fn temurin_url() -> String {
-    let (os, arch) = if cfg!(target_os = "macos") {
-        (
-            "mac",
-            if cfg!(target_arch = "aarch64") {
-                "aarch64"
-            } else {
-                "x64"
-            },
-        )
-    } else if cfg!(target_os = "linux") {
-        ("linux", "x64")
+    let arch = if cfg!(target_arch = "aarch64") {
+        "aarch64"
     } else {
-        ("windows", "x64")
+        "x64"
+    };
+    let os = if cfg!(target_os = "macos") {
+        "mac"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "windows"
     };
     format!(
         "https://api.adoptium.net/v3/binary/latest/{JAVA_VERSION}/ga/{os}/{arch}/jre/hotspot/normal/eclipse"
@@ -444,8 +443,14 @@ fn corretto_url() -> String {
         ("macos", "x64") => {
             "https://corretto.aws/downloads/latest/amazon-corretto-21-x64-macos-jdk.tar.gz"
         }
+        ("linux", "aarch64") => {
+            "https://corretto.aws/downloads/latest/amazon-corretto-21-aarch64-linux-jdk.tar.gz"
+        }
         ("linux", "x64") => {
             "https://corretto.aws/downloads/latest/amazon-corretto-21-x64-linux-jdk.tar.gz"
+        }
+        ("windows", "aarch64") => {
+            "https://corretto.aws/downloads/latest/amazon-corretto-21-aarch64-windows-jdk.zip"
         }
         ("windows", "x64") => {
             "https://corretto.aws/downloads/latest/amazon-corretto-21-x64-windows-jdk.zip"
@@ -462,7 +467,13 @@ fn microsoft_url() -> String {
             "https://aka.ms/download-jdk/microsoft-jdk-21.0.7-macOS-aarch64.tar.gz"
         }
         ("macos", "x64") => "https://aka.ms/download-jdk/microsoft-jdk-21.0.7-macOS-x64.tar.gz",
+        ("linux", "aarch64") => {
+            "https://aka.ms/download-jdk/microsoft-jdk-21.0.7-linux-aarch64.tar.gz"
+        }
         ("linux", "x64") => "https://aka.ms/download-jdk/microsoft-jdk-21.0.7-linux-x64.tar.gz",
+        ("windows", "aarch64") => {
+            "https://aka.ms/download-jdk/microsoft-jdk-21.0.7-windows-aarch64.zip"
+        }
         ("windows", "x64") => "https://aka.ms/download-jdk/microsoft-jdk-21.0.7-windows-x64.zip",
         _ => "https://aka.ms/download-jdk/microsoft-jdk-21.0.7-linux-x64.tar.gz",
     }
@@ -475,15 +486,15 @@ fn oracle_url() -> String {
         ("macos", "aarch64") => {
             "https://download.oracle.com/java/21/latest/jdk-21_macos-aarch64_bin.tar.gz"
         }
-        ("macos", "x64") => {
-            "https://download.oracle.com/java/21/latest/jdk-21_macos-x64_bin.tar.gz"
+        ("macos", "x64") => "https://download.oracle.com/java/21/latest/jdk-21_macos-x64_bin.tar.gz",
+        ("linux", "aarch64") => {
+            "https://download.oracle.com/java/21/latest/jdk-21_linux-aarch64_bin.tar.gz"
         }
-        ("linux", "x64") => {
-            "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz"
+        ("linux", "x64") => "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz",
+        ("windows", "aarch64") => {
+            "https://download.oracle.com/java/21/latest/jdk-21_windows-aarch64_bin.zip"
         }
-        ("windows", "x64") => {
-            "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.zip"
-        }
+        ("windows", "x64") => "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.zip",
         _ => "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz",
     }
     .to_string()
@@ -499,7 +510,9 @@ async fn resolve_zulu_url(http: &reqwest::Client) -> Result<String, String> {
     let (os, arch) = match (platform.os, platform.arch) {
         ("macos", "aarch64") => ("macos", "arm"),
         ("macos", "x64") => ("macos", "x86_64"),
+        ("linux", "aarch64") => ("linux", "aarch64"),
         ("linux", "x64") => ("linux", "x86_64"),
+        ("windows", "aarch64") => ("windows", "aarch64"),
         ("windows", "x64") => ("windows", "x86_64"),
         _ => ("linux", "x86_64"),
     };

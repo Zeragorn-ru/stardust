@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PlayerProfile, Progress, UpdateInfo } from "./types";
 import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
+import { isMac, isModKey } from "./platform";
 import { useSkin } from "./skin";
 import Aurora from "./components/Aurora";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -17,6 +18,15 @@ type SettingsSection = "general" | "account" | "logs";
 
 const VIEW_ORDER: View[] = ["onboarding", "login", "main", "settings"];
 const TRANSITION_MS = 380;
+
+/** Открыт ли оверлей/модалка, которой положено самой обработать Escape. */
+function hasOpenOverlay(): boolean {
+  return Boolean(
+    document.querySelector(
+      '.modal-overlay, .update-overlay, [aria-modal="true"]',
+    ),
+  );
+}
 
 export default function App() {
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
@@ -34,7 +44,10 @@ export default function App() {
   progressRef.current = progress;
   const runningRef = useRef(running);
   runningRef.current = running;
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const navigatingRef = useRef(false);
+  const mac = isMac();
 
   const navigateRef = useRef<((next: View) => void) | null>(null);
   navigateRef.current = navigate;
@@ -113,14 +126,43 @@ export default function App() {
   }, [running]);
 
   useEffect(() => {
+    if (mac) {
+      document.documentElement.dataset.platform = "macos";
+    }
+  }, [mac]);
+
+  const handleCloseSettings = useCallback(() => {
+    navigateRef.current?.("main");
+  }, []);
+
+  useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && !runningRef.current && !progressRef.current) {
+      // Cmd/Ctrl+W — закрыть окно (нативный жест macOS / Windows).
+      if (isModKey(e) && e.key.toLowerCase() === "w") {
+        e.preventDefault();
+        if (!runningRef.current) {
+          void closeWindow();
+        }
+        return;
+      }
+
+      if (e.key !== "Escape") return;
+
+      // Модалки / настройки сами обрабатывают Escape.
+      if (hasOpenOverlay() || updateModal.visible || viewRef.current === "settings") {
+        return;
+      }
+
+      // На macOS Escape не закрывает окно — только Cmd+W / меню «Закрыть».
+      if (mac) return;
+
+      if (!runningRef.current && !progressRef.current) {
         void closeWindow();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [mac, updateModal.visible]);
 
   useEffect(() => {
     if (!isOnboarded()) {
@@ -166,12 +208,16 @@ export default function App() {
   async function handleLogout() {
     await logout();
     setProfile(null);
+    setRunning(false);
+    setProgress(null);
     navigate("login");
     reloadSkin();
   }
 
   function handleAccountDeleted() {
     setProfile(null);
+    setRunning(false);
+    setProgress(null);
     navigate("login");
     reloadSkin();
   }
@@ -179,10 +225,6 @@ export default function App() {
   const handleOpenSettings = useCallback((section?: SettingsSection) => {
     setSettingsSection(section ?? "general");
     navigateRef.current?.("settings");
-  }, []);
-
-  const handleCloseSettings = useCallback(() => {
-    navigateRef.current?.("main");
   }, []);
 
   function renderScreen(v: View, cls: string, key: string) {
@@ -216,9 +258,13 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={"app" + (mac ? " app--macos" : "")}>
       <Aurora />
-      <TitleBar />
+      {/* На macOS — нативные traffic lights (Overlay), кастомный бар не нужен. */}
+      {!mac && <TitleBar />}
+      {mac && (
+        <div className="titlebar titlebar--macos-drag" data-tauri-drag-region aria-hidden />
+      )}
       <ErrorBoundary>
         <div className="app__content">
           {!ready ? (

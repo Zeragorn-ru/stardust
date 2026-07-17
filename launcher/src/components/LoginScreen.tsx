@@ -218,8 +218,11 @@ export default function LoginScreen({ onAuthenticated }: Props) {
   useEffect(() => {
     if (!approval) return;
     let cancelled = false;
+    let inFlight = false;
 
     async function poll() {
+      if (inFlight || cancelled) return;
+      inFlight = true;
       // approval гарантированно не null внутри эффекта.
       const active = approval!;
       let outcome: ChallengeOutcome;
@@ -232,6 +235,8 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         setError(err instanceof Error ? err.message : String(err));
         setApproval(null);
         return;
+      } finally {
+        inFlight = false;
       }
       if (cancelled) return;
 

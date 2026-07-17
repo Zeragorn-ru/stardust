@@ -78,7 +78,12 @@ pub enum DownloadScope {
     Item,
 }
 
-/// Payload события `launcher://progress`. `fraction` — общий прогресс 0..1.
+/// Канал прогресса запуска/синхронизации игры (кнопка «Играть»).
+pub const LAUNCH_PROGRESS_EVENT: &str = "launcher://progress";
+/// Отдельный канал для загрузки Java из настроек — не блокирует Play.
+pub const JAVA_PROGRESS_EVENT: &str = "launcher://java-progress";
+
+/// Payload события прогресса. `fraction` — общий прогресс 0..1.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProgressPayload {
@@ -118,13 +123,25 @@ const TOTAL_WEIGHT: f64 = 100.0;
 /// сообщают о готовности из разных задач.
 pub struct Progress {
     app: AppHandle,
+    /// Имя Tauri-события (`launcher://progress` или `launcher://java-progress`).
+    event: &'static str,
     inner: Mutex<Inner>,
 }
 
 impl Progress {
     pub fn new(app: AppHandle) -> Self {
+        Self::with_event(app, LAUNCH_PROGRESS_EVENT)
+    }
+
+    /// Прогресс для фоновой загрузки Java из настроек (не трогает Play).
+    pub fn for_java_download(app: AppHandle) -> Self {
+        Self::with_event(app, JAVA_PROGRESS_EVENT)
+    }
+
+    fn with_event(app: AppHandle, event: &'static str) -> Self {
         Self {
             app,
+            event,
             inner: Mutex::new(Inner {
                 completed_weight: 0.0,
                 current: Stage::Java,
@@ -258,7 +275,7 @@ impl Progress {
     /// Сообщает UI об ошибке запуска (phase = "error").
     pub fn error(app: &AppHandle, label: impl Into<String>) {
         let _ = app.emit(
-            "launcher://progress",
+            LAUNCH_PROGRESS_EVENT,
             ProgressPayload {
                 phase: "error".into(),
                 label: label.into(),
@@ -277,7 +294,7 @@ impl Progress {
             / TOTAL_WEIGHT)
             .clamp(0.0, 1.0);
         let _ = self.app.emit(
-            "launcher://progress",
+            self.event,
             ProgressPayload {
                 phase: inner.phase.clone(),
                 label: inner.label.clone(),

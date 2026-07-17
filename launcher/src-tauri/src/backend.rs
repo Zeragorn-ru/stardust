@@ -173,22 +173,6 @@ fn network_error(e: reqwest::Error) -> String {
     }
 }
 
-async fn parse_profile(resp: reqwest::Response) -> Result<PlayerProfile, String> {
-    let status = resp.status();
-    if status.is_success() {
-        return resp
-            .json::<SessionResponse>()
-            .await
-            .map(|s| s.profile)
-            .map_err(|e| format!("Некорректный ответ сервера: {e}"));
-    }
-
-    match resp.json::<ErrorBody>().await {
-        Ok(body) => Err(body.error),
-        Err(_) => Err(format!("Ошибка сервера ({})", status.as_u16())),
-    }
-}
-
 /// POST `/api/login`. Возвращает либо сессию, либо требование 2FA.
 pub async fn login(
     client: &reqwest::Client,
@@ -462,15 +446,53 @@ pub async fn import_skin(
     }
 }
 
+/// Ошибка проверки сессии: важно отличать невалидный токен от оффлайна.
+#[derive(Debug)]
+pub enum SessionError {
+    /// 401/403 — токен протух или отозван; локальную сессию нужно очистить.
+    Unauthorized(String),
+    /// Сеть недоступна / таймаут — можно работать оффлайн с кешем.
+    Network(String),
+    /// Прочий ответ сервера (5xx и т.п.) — тоже не сбрасываем сессию.
+    Other(String),
+}
+
+impl std::fmt::Display for SessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unauthorized(m) | Self::Network(m) | Self::Other(m) => f.write_str(m),
+        }
+    }
+}
+
 /// GET `/api/session`. Проверяет сохранённый токен и возвращает профиль.
-pub async fn session(client: &reqwest::Client, token: &str) -> Result<PlayerProfile, String> {
+pub async fn session(client: &reqwest::Client, token: &str) -> Result<PlayerProfile, SessionError> {
     let resp = client
         .get(format!("{}/api/session", base_url()))
         .bearer_auth(token)
         .send()
         .await
-        .map_err(network_error)?;
-    parse_profile(resp).await
+        .map_err(|e| SessionError::Network(network_error(e)))?;
+
+    let status = resp.status();
+    if status.is_success() {
+        return resp
+            .json::<SessionResponse>()
+            .await
+            .map(|s| s.profile)
+            .map_err(|e| SessionError::Other(format!("Некорректный ответ сервера: {e}")));
+    }
+
+    let message = match resp.json::<ErrorBody>().await {
+        Ok(body) => body.error,
+        Err(_) => format!("Ошибка сервера ({})", status.as_u16()),
+    };
+
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        Err(SessionError::Unauthorized(message))
+    } else {
+        Err(SessionError::Other(message))
+    }
 }
 
 /// POST `/api/logout`.

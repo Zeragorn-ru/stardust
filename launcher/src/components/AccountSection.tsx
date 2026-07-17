@@ -129,9 +129,17 @@ export default function AccountSection({
     setNameStatus("saving");
     try {
       const updated = await changeUsername(trimmed);
-      onProfileChange(updated);
-      setInfo((prev) => (prev ? { ...prev, profile: updated } : prev));
-      setUsername(updated.name);
+      // Сервер при rename может не вернуть ban/cosmetics — мержим с текущим.
+      const merged: PlayerProfile = {
+        ...(profile ?? updated),
+        ...updated,
+        ban: updated.ban ?? profile?.ban,
+        activeBadge: updated.activeBadge ?? profile?.activeBadge,
+        activeGradient: updated.activeGradient ?? profile?.activeGradient,
+      };
+      onProfileChange(merged);
+      setInfo((prev) => (prev ? { ...prev, profile: merged } : prev));
+      setUsername(merged.name);
       setNameMsg("Ник обновлён");
     } catch (e) {
       setNameErr(e instanceof Error ? e.message : String(e));
