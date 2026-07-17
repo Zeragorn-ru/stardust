@@ -7,9 +7,9 @@
 use base64::Engine;
 use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
-    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
-    PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
-    PlayerStats, RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
+    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult, PasswordResetConfirm,
+    PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile, PlayerStats,
+    RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
     TelegramLinkResponse, TwoFactorRequest,
 };
 use serde::Deserialize;
@@ -81,17 +81,13 @@ pub async fn fetch_manifest(
                     tracing::debug!("[manifest] скачан и закеширован");
                     Ok(Some(manifest))
                 }
-                Err(e) => {
-                    Err(format!("Некорректный манифест сборки: {e}"))
-                }
+                Err(e) => Err(format!("Некорректный манифест сборки: {e}")),
             }
         }
-        Ok(resp) => {
-            Err(format!(
-                "Ошибка сервера сборок ({})",
-                resp.status().as_u16()
-            ))
-        }
+        Ok(resp) => Err(format!(
+            "Ошибка сервера сборок ({})",
+            resp.status().as_u16()
+        )),
         Err(e) => {
             // Сетевая ошибка — пробуем кеш.
             tracing::warn!("[manifest] сетевая ошибка ({e}), пробуем кеш");

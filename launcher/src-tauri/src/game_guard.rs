@@ -35,7 +35,10 @@ pub struct PendingSession {
 
 /// Записывает PID и `launched_at` на диск.
 pub fn write_session(data_dir: &Path, pid: u32, launched_at: &str) {
-    let s = PendingSession { launched_at: launched_at.to_owned(), pid };
+    let s = PendingSession {
+        launched_at: launched_at.to_owned(),
+        pid,
+    };
     if let Ok(json) = serde_json::to_string(&s) {
         let _ = std::fs::write(data_dir.join(SESSION_FILE), json);
     }
@@ -137,7 +140,7 @@ const BANNED_PROCESSES: &[&str] = &[
     "xenos.exe",
     "vea.exe", // Vape
     "koid.exe", // Koid
-    // добавьте другие .exe по желанию
+               // добавьте другие .exe по желанию
 ];
 
 /// Сканирует запущенные в системе процессы (Windows) на предмет известных читов.
@@ -169,11 +172,13 @@ pub fn scan_for_cheats() -> Result<(), String> {
 
     let mut success = unsafe { Process32First(snapshot, &mut entry) };
     while success != 0 {
-        let exe_bytes: Vec<u8> = entry.szExeFile.iter()
+        let exe_bytes: Vec<u8> = entry
+            .szExeFile
+            .iter()
             .take_while(|&&c| c != 0)
             .map(|&c| c as u8)
             .collect();
-            
+
         if let Ok(exe_name) = String::from_utf8(exe_bytes) {
             let exe_lower = exe_name.to_lowercase();
             for banned in BANNED_PROCESSES {
@@ -204,7 +209,8 @@ pub fn scan_for_cheats() -> Result<(), String> {
                         for banned in BANNED_PROCESSES {
                             let banned_lower = banned.to_lowercase();
                             // В Linux имена процессов часто обрезаются, либо идут без .exe
-                            let banned_no_ext = banned_lower.strip_suffix(".exe").unwrap_or(&banned_lower);
+                            let banned_no_ext =
+                                banned_lower.strip_suffix(".exe").unwrap_or(&banned_lower);
                             if comm_lower == banned_no_ext {
                                 return Err(comm.trim().to_string());
                             }

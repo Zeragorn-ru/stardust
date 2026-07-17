@@ -86,4 +86,3 @@ pub fn skin_cache_dir(app: &AppHandle) -> PathBuf {
     let _ = std::fs::create_dir_all(&dir);
     dir
 }
-

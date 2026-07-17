@@ -145,10 +145,7 @@ pub async fn sync(
             format!("{rel_key}{DISABLED_SUFFIX}")
         };
 
-        let matches = |path: &Path| {
-            file_matches(path, &entry.sha1, entry.size)
-                .unwrap_or(false)
-        };
+        let matches = |path: &Path| file_matches(path, &entry.sha1, entry.size).unwrap_or(false);
 
         // 1. Уже актуален под нужным именем — ничего не делаем, чистим дубль.
         if matches(&active) {
@@ -418,7 +415,12 @@ fn file_matches(path: &Path, expected_sha1: &str, expected_size: u64) -> Result<
     }
 }
 
-fn verify_file(path: &Path, rel_key: &str, expected_sha1: &str, expected_size: u64) -> Result<(), String> {
+fn verify_file(
+    path: &Path,
+    rel_key: &str,
+    expected_sha1: &str,
+    expected_size: u64,
+) -> Result<(), String> {
     let actual_size = std::fs::metadata(path)
         .map_err(|e| format!("Не удалось проверить размер {rel_key}: {e}"))?
         .len();
