@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
+import type { AppInfo, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
   downloadJava,
   getAppInfo,
   getLogPaths,
+  getMemoryLimits,
   getSettings,
   installUpdate,
   listJavaDownloadVendors,
@@ -32,9 +33,6 @@ interface Props {
   onClose: () => void;
 }
 
-// Разумные границы выделяемой памяти (МБ).
-const MEM_MIN = 1024;
-const MEM_MAX = 16384;
 const MEM_STEP = 512;
 
 // Границы параллельности загрузок (одновременных файлов).
@@ -58,7 +56,10 @@ function formatEta(seconds: number): string {
 
 const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
   auto: "Автоматически",
-  temurin: "Java лаунчера",
+  temurin: "Java лаунчера: Temurin",
+  corretto: "Java лаунчера: Corretto",
+  microsoft: "Java лаунчера: Microsoft",
+  zulu: "Java лаунчера: Zulu",
   system: "Системная Java",
   custom: "Свой путь",
 };
@@ -67,7 +68,10 @@ const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
 
 const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
   auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
-  temurin: "Использовать управляемую Java 21 Temurin из Adoptium. На Windows скачивается zip-архив.",
+  temurin: "Использовать Eclipse Temurin 21 из managed runtime лаунчера.",
+  corretto: "Использовать Amazon Corretto 21 из managed runtime лаунчера.",
+  microsoft: "Использовать Microsoft Build of OpenJDK 21 из managed runtime лаунчера.",
+  zulu: "Использовать Azul Zulu 21 из managed runtime лаунчера.",
   system: "Использовать Java из PATH/JAVA_HOME. Подходит, если вы сами управляете Java.",
   custom: "Указать конкретный java/java.exe или выбрать его из найденных установок.",
 };
@@ -83,6 +87,7 @@ export default function SettingsScreen({
   const [section, setSection] = useState<Section>(initialSection);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [initialSettings, setInitialSettings] = useState<Settings | null>(null);
+  const [memoryLimits, setMemoryLimits] = useState<MemoryLimits | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -117,6 +122,7 @@ export default function SettingsScreen({
       setInitialSettings(s);
     });
     getAppInfo().then(setInfo);
+    getMemoryLimits().then(setMemoryLimits);
     listJavaDownloadVendors().then(setJavaVendors);
     getLogPaths().then(setLogPaths).catch(() => undefined);
   }, []);
@@ -225,7 +231,7 @@ export default function SettingsScreen({
         prev
           ? {
               ...prev,
-              javaProvider: "temurin",
+              javaProvider: vendorId as JavaProvider,
               javaCustomPath: null,
             }
           : prev,
@@ -627,19 +633,29 @@ export default function SettingsScreen({
 
             <div className="field stagger-item">
               <span>
-                Память: <strong>{settings.memoryMb} МБ</strong>
+                Память для Minecraft: <strong>{settings.memoryMb} МБ</strong>
+              </span>
+              <span className="muted toggle-row__desc">
+                От 6 ГиБ до 75% физической памяти этого компьютера
+                {memoryLimits?.totalMb ? ` (${memoryLimits.totalMb} МБ всего)` : ""}.
               </span>
               <div className="range-row">
                 <button
                   type="button"
                   className="btn btn--stepper"
-                  onClick={() => setSettings({ ...settings, memoryMb: Math.max(MEM_MIN, settings.memoryMb - MEM_STEP) })}
+                  aria-label="Уменьшить память"
+                  disabled={!memoryLimits || settings.memoryMb <= memoryLimits.minMb}
+                  onClick={() => memoryLimits && setSettings({
+                    ...settings,
+                    memoryMb: Math.max(memoryLimits.minMb, settings.memoryMb - MEM_STEP),
+                  })}
                 >−</button>
                 <input
                   type="range"
-                  min={MEM_MIN}
-                  max={MEM_MAX}
+                  min={memoryLimits?.minMb ?? settings.memoryMb}
+                  max={memoryLimits?.maxMb ?? settings.memoryMb}
                   step={MEM_STEP}
+                  disabled={!memoryLimits}
                   value={settings.memoryMb}
                   onChange={(e) =>
                     setSettings({ ...settings, memoryMb: Number(e.target.value) })
@@ -648,12 +664,17 @@ export default function SettingsScreen({
                 <button
                   type="button"
                   className="btn btn--stepper"
-                  onClick={() => setSettings({ ...settings, memoryMb: Math.min(MEM_MAX, settings.memoryMb + MEM_STEP) })}
+                  aria-label="Увеличить память"
+                  disabled={!memoryLimits || settings.memoryMb >= memoryLimits.maxMb}
+                  onClick={() => memoryLimits && setSettings({
+                    ...settings,
+                    memoryMb: Math.min(memoryLimits.maxMb, settings.memoryMb + MEM_STEP),
+                  })}
                 >+</button>
               </div>
               <div className="range-bounds muted">
-                <span>{MEM_MIN} МБ</span>
-                <span>{MEM_MAX} МБ</span>
+                <span>{memoryLimits?.minMb ?? "…"} МБ</span>
+                <span>{memoryLimits?.maxMb ?? "…"} МБ</span>
               </div>
             </div>
 
@@ -783,8 +804,8 @@ export default function SettingsScreen({
                   <div className="toggle-row__text">
                     <span className="toggle-row__title">Java</span>
                     <span className="muted toggle-row__desc">
-                      Minecraft 1.21 требует Java 21+. По умолчанию лаунчер скачивает
-                      управляемую Java Temurin из Adoptium.
+                      Minecraft 1.21 требует Java 21+. По умолчанию лаунчер использует
+                      скачанную Java Temurin; доступны также Corretto, Microsoft и Zulu.
                     </span>
                   </div>
                   <div className="java-card__head-actions">
@@ -808,7 +829,7 @@ export default function SettingsScreen({
                 </div>
 
                 <div className="java-provider-grid" role="radiogroup" aria-label="Источник Java">
-                  {(["auto", "temurin", "system", "custom"] as JavaProvider[]).map((provider) => {
+                  {(["auto", "temurin", "corretto", "microsoft", "zulu", "system", "custom"] as JavaProvider[]).map((provider) => {
                     const selected = (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === provider;
                     return (
                       <button
@@ -854,7 +875,8 @@ export default function SettingsScreen({
                 <div className="java-card__download">
                   <span className="toggle-row__title">Скачать Java 21 для лаунчера</span>
                   <span className="muted toggle-row__desc">
-                    После скачивания будет выбран режим «Java лаунчера».
+                    Выберите поставщика. После скачивания он станет активным runtime лаунчера.
+                    Ранее скачанные поставщики сохраняются отдельно.
                   </span>
                   <div className="java-vendors">
                     {javaVendors.map((vendor) => (

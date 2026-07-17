@@ -89,7 +89,7 @@ export interface TelegramLinkResponse {
   deepLink?: string;
 }
 
-export type JavaProvider = "auto" | "temurin" | "system" | "custom";
+export type JavaProvider = "auto" | "temurin" | "corretto" | "microsoft" | "zulu" | "system" | "custom";
 
 /** Найденная установка Java 21+. */
 export interface JavaInstallation {
@@ -105,6 +105,12 @@ export interface JavaVendorInfo {
   id: string;
   name: string;
   label: string;
+}
+
+export interface MemoryLimits {
+  minMb: number;
+  maxMb: number;
+  totalMb: number;
 }
 
 export interface Settings {

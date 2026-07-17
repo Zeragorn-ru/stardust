@@ -10,6 +10,7 @@ use tauri::Manager;
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use sysinfo::System;
 use tauri::{AppHandle, Emitter, State};
 
 use protocol::PlayerProfile;
@@ -67,10 +68,60 @@ fn default_true() -> bool {
     true
 }
 
+/// Минимальный heap Minecraft: шесть гигабайт.
+const MEMORY_MIN_MB: u32 = 6 * 1024;
+const MEMORY_STEP_MB: u32 = 512;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryLimits {
+    pub min_mb: u32,
+    pub max_mb: u32,
+    pub total_mb: u32,
+}
+
+/// Возвращает безопасный диапазон heap: от 6 ГиБ до 75% физической RAM.
+/// На ПК с менее чем 8 ГиБ возвращает фиксированные 6 ГиБ: это соответствует
+/// минимальным требованиям сборки, хотя ОС может испытывать нехватку памяти.
+pub fn memory_limits() -> MemoryLimits {
+    let total_mb = (System::new_all().total_memory() / (1024 * 1024)).min(u32::MAX as u64) as u32;
+    let three_quarters_mb = total_mb.saturating_mul(3) / 4;
+    MemoryLimits {
+        min_mb: MEMORY_MIN_MB,
+        max_mb: three_quarters_mb.max(MEMORY_MIN_MB),
+        total_mb,
+    }
+}
+
+fn normalize_memory_mb(memory_mb: u32) -> u32 {
+    let limits = memory_limits();
+    memory_mb
+        .max(limits.min_mb)
+        .min(limits.max_mb)
+        .div_ceil(MEMORY_STEP_MB)
+        .saturating_mul(MEMORY_STEP_MB)
+        .min(limits.max_mb)
+}
+
+fn normalize_settings(settings: &mut Settings) -> bool {
+    let memory_mb = normalize_memory_mb(settings.memory_mb);
+    if settings.memory_mb == memory_mb {
+        false
+    } else {
+        settings.memory_mb = memory_mb;
+        true
+    }
+}
+
+fn normalized_settings(mut settings: Settings) -> Settings {
+    normalize_settings(&mut settings);
+    settings
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            memory_mb: 4096,
+            memory_mb: normalize_memory_mb(MEMORY_MIN_MB),
             download_concurrency: default_concurrency(),
             show_3d_model: true,
             proxy_type: ProxyType::default(),
@@ -242,7 +293,7 @@ impl AppState {
 
 pub(crate) fn read_settings(app: &AppHandle) -> Settings {
     let path = paths::settings_file(app);
-    match std::fs::read_to_string(&path) {
+    let mut settings = match std::fs::read_to_string(&path) {
         Ok(s) => match serde_json::from_str(&s) {
             Ok(settings) => settings,
             Err(e) => {
@@ -262,13 +313,126 @@ pub(crate) fn read_settings(app: &AppHandle) -> Settings {
             }
             Settings::default()
         }
+    };
+
+    // Миграция старых конфигураций: все значения ниже 6 ГиБ поднимаем до
+    // минимума, а слишком большие ограничиваем 75% RAM текущего компьютера.
+    let normalized = normalized_settings(settings.clone());
+    if normalized.memory_mb != settings.memory_mb {
+        settings = normalized;
+        if let Err(e) = write_settings(app, &settings) {
+            tracing::warn!("[settings] не удалось сохранить миграцию памяти: {e}");
+        }
     }
+    settings
 }
 
 fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = paths::settings_file(app);
     let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn parse(json: serde_json::Value) -> Settings {
+        normalized_settings(serde_json::from_value(json).expect("settings json must deserialize"))
+    }
+
+    #[test]
+    fn migrates_v080_settings_without_java_fields() {
+        for proxy in ["system", "builtin", "none"] {
+            let settings = parse(json!({
+                "memoryMb": 4096,
+                "downloadConcurrency": 6,
+                "show3dModel": false,
+                "proxyType": proxy,
+            }));
+
+            assert_eq!(settings.memory_mb, MEMORY_MIN_MB);
+            assert_eq!(settings.download_concurrency, 6);
+            assert!(!settings.show_3d_model);
+            assert_eq!(settings.java_provider, JavaProvider::Temurin);
+            assert_eq!(settings.java_custom_path, None);
+            match proxy {
+                "system" => assert_eq!(settings.proxy_type, ProxyType::System),
+                "builtin" => assert_eq!(settings.proxy_type, ProxyType::Builtin),
+                "none" => assert_eq!(settings.proxy_type, ProxyType::None),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn keeps_current_java_provider_variants() {
+        for (raw, expected, custom_path) in [
+            ("auto", JavaProvider::Auto, None),
+            ("temurin", JavaProvider::Temurin, None),
+            ("system", JavaProvider::System, None),
+            ("custom", JavaProvider::Custom, Some("/opt/jdk/bin/java")),
+        ] {
+            let settings = parse(json!({
+                "memoryMb": 8192,
+                "downloadConcurrency": 8,
+                "show3dModel": true,
+                "proxyType": "builtin",
+                "javaProvider": raw,
+                "javaCustomPath": custom_path,
+            }));
+
+            assert_eq!(settings.memory_mb, 8192);
+            assert_eq!(settings.java_provider, expected);
+            assert_eq!(settings.java_custom_path.as_deref(), custom_path);
+        }
+    }
+
+    #[test]
+    fn accepts_new_managed_java_provider_variants() {
+        for (raw, expected) in [
+            ("corretto", JavaProvider::Corretto),
+            ("microsoft", JavaProvider::Microsoft),
+            ("zulu", JavaProvider::Zulu),
+        ] {
+            let settings = parse(json!({
+                "memoryMb": 8192,
+                "downloadConcurrency": 8,
+                "show3dModel": true,
+                "proxyType": "builtin",
+                "javaProvider": raw,
+                "javaCustomPath": null,
+            }));
+
+            assert_eq!(settings.java_provider, expected);
+            assert_eq!(settings.java_custom_path, None);
+        }
+    }
+
+    #[test]
+    fn clamps_memory_to_minimum_and_three_quarters_of_ram() {
+        let limits = memory_limits();
+        let below_min = parse(json!({
+            "memoryMb": 1024,
+            "downloadConcurrency": 4,
+            "show3dModel": true,
+            "proxyType": "builtin",
+        }));
+        assert_eq!(below_min.memory_mb, limits.min_mb);
+
+        let too_high = parse(json!({
+            "memoryMb": u32::MAX,
+            "downloadConcurrency": 4,
+            "show3dModel": true,
+            "proxyType": "builtin",
+        }));
+        assert_eq!(too_high.memory_mb, limits.max_mb);
+        assert!(
+            too_high.memory_mb <= limits.total_mb.saturating_mul(3) / 4
+                || limits.max_mb == limits.min_mb
+        );
+    }
 }
 
 fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
@@ -844,14 +1008,20 @@ fn get_settings(state: State<'_, AppState>, app: AppHandle) -> Settings {
 
 #[tauri::command]
 fn save_settings(
-    settings: Settings,
+    mut settings: Settings,
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<(), String> {
+    normalize_settings(&mut settings);
     write_settings(&app, &settings)?;
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
     *state.settings.lock().unwrap() = Some(settings);
     Ok(())
+}
+
+#[tauri::command]
+fn get_memory_limits() -> MemoryLimits {
+    memory_limits()
 }
 
 #[tauri::command]
@@ -886,9 +1056,23 @@ async fn download_java(
 ) -> Result<String, String> {
     let vendor = java::JavaVendor::parse(&vendor)
         .ok_or_else(|| format!("Неизвестный поставщик Java: {vendor}"))?;
+    if matches!(vendor, java::JavaVendor::Oracle) {
+        return Err("Oracle JDK можно выбрать только вручную через путь к java".to_string());
+    }
     let data_dir = paths::data_dir(&app);
     let progress = crate::progress::Progress::new(app.clone());
     let path = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
+    let mut settings = get_settings_cached(&state, &app);
+    settings.java_provider = match vendor {
+        java::JavaVendor::Temurin => JavaProvider::Temurin,
+        java::JavaVendor::Corretto => JavaProvider::Corretto,
+        java::JavaVendor::Microsoft => JavaProvider::Microsoft,
+        java::JavaVendor::Zulu => JavaProvider::Zulu,
+        java::JavaVendor::Oracle => JavaProvider::Temurin,
+    };
+    settings.java_custom_path = None;
+    write_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = Some(settings);
     Ok(path.to_string_lossy().into_owned())
 }
 
@@ -1473,7 +1657,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         &state.http(),
         minecraft::LaunchOptions {
             data_dir: paths::data_dir(&app),
-            settings_memory_mb: settings.memory_mb.clamp(512, 32768),
+            settings_memory_mb: normalize_memory_mb(settings.memory_mb),
             download_concurrency: settings.download_concurrency as usize,
             java_provider: settings.java_provider,
             java_custom_path: settings.java_custom_path.clone(),
@@ -1741,7 +1925,7 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
     use hickory_resolver::TokioResolver;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpStream;
-    use tokio::time::{Duration, timeout};
+    use tokio::time::{timeout, Duration};
 
     // 1. SRV-запись _minecraft._tcp.<host>
     let (target_host, target_port): (String, u16) = {
@@ -1947,6 +2131,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             current_profile,
             get_settings,
             save_settings,
+            get_memory_limits,
             reset_settings,
             list_java_installations,
             list_java_installations_deep,

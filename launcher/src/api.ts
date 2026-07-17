@@ -15,6 +15,7 @@ import type {
   LogFolderKind,
   LogPaths,
   LogTail,
+  MemoryLimits,
   OptionalMod,
   PlayerProfile,
   PlayerStats,
@@ -397,6 +398,13 @@ export async function saveSettings(settings: Settings): Promise<void> {
   const invoke = await getInvoke();
   if (!invoke) return;
   await invoke<void>("save_settings", { settings });
+}
+
+/** Допустимый диапазон памяти JVM для текущего компьютера. */
+export async function getMemoryLimits(): Promise<MemoryLimits> {
+  const invoke = await getInvoke();
+  if (!invoke) return { minMb: 6144, maxMb: 12288, totalMb: 16384 };
+  return invoke<MemoryLimits>("get_memory_limits");
 }
 
 /** Сбросить настройки лаунчера до значений по умолчанию. */
