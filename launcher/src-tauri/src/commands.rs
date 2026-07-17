@@ -181,7 +181,7 @@ pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(20));
+        .read_timeout(std::time::Duration::from_secs(30));
 
     match proxy_type {
         ProxyType::System => {}

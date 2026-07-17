@@ -107,7 +107,7 @@ fn http_client(app: &AppHandle) -> Result<reqwest::Client, String> {
     let mut builder = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(15));
+        .read_timeout(std::time::Duration::from_secs(30));
 
     match settings.proxy_type {
         crate::commands::ProxyType::System => {}
@@ -909,7 +909,9 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
             }
         }
         None => {
-            tracing::warn!("[update] предупреждение: .sha256 файл не найден в релизе, продолжаем без верификации хеша");
+            tracing::warn!(
+                "[update] предупреждение: .sha256 файл не найден в релизе, продолжаем без верификации хеша"
+            );
         }
     }
 

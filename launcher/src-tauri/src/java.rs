@@ -321,9 +321,9 @@ pub async fn download_java(
         .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
 
     let url = resolve_download_url(vendor, http).await?;
-    let is_zip = url.to_lowercase().ends_with(".zip");
+    let archive_format = archive_format_for_url(&url);
 
-    if is_zip {
+    if archive_format == JavaArchiveFormat::Zip {
         let archive = data_dir.join("runtime").join("java-21.zip");
         crate::minecraft::download_to(
             progress,
@@ -335,6 +335,7 @@ pub async fn download_java(
             None,
         )
         .await?;
+        validate_archive_header(&archive, JavaArchiveFormat::Zip)?;
         progress.set_label("extracting", "Распаковываем Java 21…");
         extract_java_zip(&archive, &runtime_dir)?;
         let _ = fs::remove_file(&archive);
@@ -350,6 +351,7 @@ pub async fn download_java(
             None,
         )
         .await?;
+        validate_archive_header(&archive, JavaArchiveFormat::TarGz)?;
         progress.set_label("extracting", "Распаковываем Java 21…");
         extract_java_tar_gz(&archive, &runtime_dir)?;
         let _ = fs::remove_file(&archive);
@@ -362,6 +364,51 @@ pub async fn download_java(
             "Java {JAVA_VERSION} скачана, но java не найдена в {}",
             runtime_dir.to_string_lossy()
         )
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JavaArchiveFormat {
+    Zip,
+    TarGz,
+}
+
+fn archive_format_for_url(url: &str) -> JavaArchiveFormat {
+    if cfg!(windows) {
+        return JavaArchiveFormat::Zip;
+    }
+    if url.to_lowercase().ends_with(".zip") {
+        JavaArchiveFormat::Zip
+    } else {
+        JavaArchiveFormat::TarGz
+    }
+}
+
+fn validate_archive_header(path: &Path, format: JavaArchiveFormat) -> Result<(), String> {
+    use std::io::Read as _;
+
+    let mut file = fs::File::open(path)
+        .map_err(|e| format!("Не удалось открыть скачанную Java для проверки: {e}"))?;
+    let mut header = [0u8; 4];
+    let read = file
+        .read(&mut header)
+        .map_err(|e| format!("Не удалось проверить заголовок Java-архива: {e}"))?;
+    let valid = match format {
+        JavaArchiveFormat::Zip => read >= 4 && header.starts_with(b"PK\x03\x04"),
+        JavaArchiveFormat::TarGz => read >= 2 && header[0] == 0x1f && header[1] == 0x8b,
+    };
+    if valid {
+        return Ok(());
+    }
+
+    let _ = fs::remove_file(path);
+    Err(match format {
+        JavaArchiveFormat::Zip => {
+            "Скачанная Java не является zip-архивом. Проверьте прокси или сеть.".to_string()
+        }
+        JavaArchiveFormat::TarGz => {
+            "Скачанная Java не является gzip-архивом. Проверьте прокси или сеть.".to_string()
+        }
     })
 }
 
