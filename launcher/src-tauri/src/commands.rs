@@ -26,6 +26,7 @@ pub enum ProxyType {
     System,
     #[default]
     Builtin,
+    BuiltinSocks,
     None,
 }
 
@@ -232,12 +233,19 @@ pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(5))
-        .read_timeout(std::time::Duration::from_secs(30));
+        .read_timeout(std::time::Duration::from_secs(30))
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(8);
 
     match proxy_type {
         ProxyType::System => {}
         ProxyType::Builtin => {
             if let Ok(p) = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128") {
+                builder = builder.proxy(p);
+            }
+        }
+        ProxyType::BuiltinSocks => {
+            if let Ok(p) = reqwest::Proxy::all("socks5h://assets.zeragorn.xyz:1080") {
                 builder = builder.proxy(p);
             }
         }
@@ -344,7 +352,7 @@ mod settings_tests {
 
     #[test]
     fn migrates_v080_settings_without_java_fields() {
-        for proxy in ["system", "builtin", "none"] {
+        for proxy in ["system", "builtin", "builtinSocks", "none"] {
             let settings = parse(json!({
                 "memoryMb": 4096,
                 "downloadConcurrency": 6,
@@ -360,6 +368,7 @@ mod settings_tests {
             match proxy {
                 "system" => assert_eq!(settings.proxy_type, ProxyType::System),
                 "builtin" => assert_eq!(settings.proxy_type, ProxyType::Builtin),
+                "builtinSocks" => assert_eq!(settings.proxy_type, ProxyType::BuiltinSocks),
                 "none" => assert_eq!(settings.proxy_type, ProxyType::None),
                 _ => unreachable!(),
             }
@@ -1672,10 +1681,11 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default();
 
-    crate::game_guard::record(&data_dir, child.id());
+    let child_id = child.id();
+    crate::game_guard::record(&data_dir, child_id);
     // Сохраняем на диск: если лаунчер закроется пока игра работает,
     // при следующем старте bootstrap восстановит и запишет сессию.
-    crate::game_guard::write_session(&data_dir, child.id(), &launched_at_str);
+    crate::game_guard::write_session(&data_dir, child_id, &launched_at_str);
     *state.game.lock().unwrap() = Some(child);
 
     // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
@@ -1730,19 +1740,23 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         );
 
         let quick_exit = duration < EARLY_WINDOW_SECS;
-        let is_crash = if let Some(status) = exit_status {
-            !status.success()
-        } else {
-            true
-        };
+        let failed_exit = exit_status.map(|s| !s.success()).unwrap_or(true);
+        let game_dir = data_dir2.join("minecraft").join("game");
+        let latest_log_path = game_dir.join("logs").join("latest.log");
+        let log_content = std::fs::read_to_string(&latest_log_path).unwrap_or_default();
+        let mod_report_content = read_recent_mod_crash_marker(&game_dir, child_id);
+        let mod_reports_crash = mod_report_content
+            .as_deref()
+            .map(mod_crash_marker_reports_crash)
+            .unwrap_or(false);
+        let recent_crash_content = latest_recent_crash_report(&game_dir)
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .map(|content| trim_report_text(content, 900_000));
+        let looks_like_start_failure = failed_exit || minecraft_log_has_fatal_error(&log_content);
+        let is_crash = failed_exit || recent_crash_content.is_some() || mod_reports_crash;
 
-        if quick_exit || is_crash {
-            let game_dir = data_dir2.join("minecraft").join("game");
-            let latest_log_path = game_dir.join("logs").join("latest.log");
-            let log_content =
-                std::fs::read_to_string(&latest_log_path).unwrap_or_else(|_| String::new());
-
-            if quick_exit {
+        if (quick_exit && looks_like_start_failure) || is_crash {
+            if quick_exit && looks_like_start_failure {
                 let label = launch_failure_label(&log_content, exit_code);
                 crate::progress::Progress::error(&app_handle, label);
             }
@@ -1754,35 +1768,10 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     trim_report_text(log_content, 900_000)
                 };
 
-                let mut crash_content = None;
-                let crash_reports_dir = game_dir.join("crash-reports");
-                if let Ok(entries) = std::fs::read_dir(crash_reports_dir) {
-                    let mut latest_file = None;
-                    let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
-                    for entry in entries.flatten() {
-                        if let Ok(metadata) = entry.metadata() {
-                            if metadata.is_file() {
-                                if let Ok(modified) = metadata.modified() {
-                                    if modified > latest_time {
-                                        latest_time = modified;
-                                        latest_file = Some(entry.path());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if let Some(path) = latest_file {
-                        if let Ok(duration) =
-                            std::time::SystemTime::now().duration_since(latest_time)
-                        {
-                            if duration.as_secs() < 15 {
-                                if let Ok(content) = std::fs::read_to_string(path) {
-                                    crash_content = Some(trim_report_text(content, 900_000));
-                                }
-                            }
-                        }
-                    }
-                }
+                let debug_content =
+                    read_optional_report_text(&game_dir.join("logs").join("debug.log"));
+                let launcher_content =
+                    read_optional_report_text(&resolve_launcher_log_latest(&launcher_log_dir()));
 
                 let exit_code = exit_status.and_then(|s| s.code());
                 if let Err(e) = backend::report_crash(
@@ -1790,7 +1779,10 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     &token,
                     exit_code,
                     &log_content,
-                    crash_content.as_deref(),
+                    recent_crash_content.as_deref(),
+                    debug_content.as_deref(),
+                    launcher_content.as_deref(),
+                    mod_report_content.as_deref(),
                 )
                 .await
                 {
@@ -1834,6 +1826,89 @@ fn minecraft_log_snippet(log_content: &str, max_lines: usize) -> Option<String> 
         lines = lines[lines.len() - max_lines..].to_vec();
     }
     Some(lines.join("\n"))
+}
+
+fn minecraft_log_has_fatal_error(log_content: &str) -> bool {
+    log_content.lines().rev().take(120).any(|line| {
+        let line = line.to_ascii_lowercase();
+        line.contains("fatal")
+            || line.contains("exception")
+            || line.contains("crash")
+            || line.contains("failed to start")
+            || line.contains("mod loading error")
+    })
+}
+
+fn latest_recent_crash_report(game_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let crash_reports_dir = game_dir.join("crash-reports");
+    let mut latest_file = None;
+    let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
+    for entry in std::fs::read_dir(crash_reports_dir).ok()?.flatten() {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        if modified > latest_time {
+            latest_time = modified;
+            latest_file = Some(entry.path());
+        }
+    }
+    latest_file.as_ref()?;
+    let age = std::time::SystemTime::now()
+        .duration_since(latest_time)
+        .ok()?;
+    if age.as_secs() <= 60 {
+        latest_file
+    } else {
+        None
+    }
+}
+
+fn read_optional_report_text(path: &std::path::Path) -> Option<String> {
+    std::fs::read_to_string(path)
+        .ok()
+        .filter(|content| !content.trim().is_empty())
+        .map(|content| trim_report_text(content, 900_000))
+}
+
+fn read_recent_mod_crash_marker(game_dir: &std::path::Path, child_id: u32) -> Option<String> {
+    let path = game_dir.join("stardust-crash-marker.json");
+    let metadata = std::fs::metadata(&path).ok()?;
+    let modified = metadata.modified().ok()?;
+    let age = std::time::SystemTime::now().duration_since(modified).ok()?;
+    if age.as_secs() > 60 {
+        return None;
+    }
+    let content = std::fs::read_to_string(path).ok()?;
+    if !mod_crash_marker_matches_pid(&content, child_id) {
+        return None;
+    }
+    Some(trim_report_text(content, 900_000))
+}
+
+fn mod_crash_marker_matches_pid(content: &str, child_id: u32) -> bool {
+    serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .and_then(|value| value.get("pid").and_then(|pid| pid.as_u64()))
+        .map(|pid| pid == child_id as u64)
+        .unwrap_or(false)
+}
+
+fn mod_crash_marker_reports_crash(content: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("status")
+                .and_then(|status| status.as_str())
+                .map(|status| status.eq_ignore_ascii_case("crash"))
+        })
+        .unwrap_or(false)
 }
 
 fn trim_report_text(mut text: String, max_bytes: usize) -> String {

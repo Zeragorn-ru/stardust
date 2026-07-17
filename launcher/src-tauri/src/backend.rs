@@ -84,22 +84,30 @@ pub async fn fetch_manifest(
                 Err(e) => Err(format!("Некорректный манифест сборки: {e}")),
             }
         }
-        Ok(resp) => Err(format!(
-            "Ошибка сервера сборок ({})",
-            resp.status().as_u16()
-        )),
+        Ok(resp) => {
+            let status = resp.status();
+            tracing::warn!("[manifest] сервер сборок вернул {status}, пробуем кеш");
+            if let Some(manifest) = read_cached_manifest(&cache_path) {
+                return Ok(Some(manifest));
+            }
+            Err(format!("Ошибка сервера сборок ({})", status.as_u16()))
+        }
         Err(e) => {
             // Сетевая ошибка — пробуем кеш.
             tracing::warn!("[manifest] сетевая ошибка ({e}), пробуем кеш");
-            if let Ok(bytes) = std::fs::read(&cache_path) {
-                if let Ok(manifest) = serde_json::from_slice(&bytes) {
-                    tracing::info!("[manifest] использован кешированный манифест");
-                    return Ok(Some(manifest));
-                }
+            if let Some(manifest) = read_cached_manifest(&cache_path) {
+                return Ok(Some(manifest));
             }
             Err(network_error(e))
         }
     }
+}
+
+fn read_cached_manifest(cache_path: &std::path::Path) -> Option<protocol::Manifest> {
+    let bytes = std::fs::read(cache_path).ok()?;
+    let manifest = serde_json::from_slice(&bytes).ok()?;
+    tracing::info!("[manifest] использован кешированный манифест");
+    Some(manifest)
 }
 
 /// Тело ошибки, которое отдаёт auth-сервер: `{ "error": "..." }`.
@@ -708,6 +716,9 @@ struct ReportCrashRequest {
     exit_code: Option<i32>,
     log: String,
     crash_report: Option<String>,
+    debug_log: Option<String>,
+    launcher_log: Option<String>,
+    mod_report: Option<String>,
 }
 
 pub async fn report_crash(
@@ -716,11 +727,17 @@ pub async fn report_crash(
     exit_code: Option<i32>,
     log: &str,
     crash_report: Option<&str>,
+    debug_log: Option<&str>,
+    launcher_log: Option<&str>,
+    mod_report: Option<&str>,
 ) -> Result<(), String> {
     let req = ReportCrashRequest {
         exit_code,
         log: log.to_string(),
         crash_report: crash_report.map(|s| s.to_string()),
+        debug_log: debug_log.map(|s| s.to_string()),
+        launcher_log: launcher_log.map(|s| s.to_string()),
+        mod_report: mod_report.map(|s| s.to_string()),
     };
     let resp = client
         .post(format!("{}/api/report-crash", base_url()))

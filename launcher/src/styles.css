@@ -1433,6 +1433,7 @@ body {
 }
 
 .hero__stats {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -1443,6 +1444,30 @@ body {
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     min-width: 0;
+}
+
+.server-map-button {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    padding: 5px 9px;
+    border: 1px solid rgba(92, 184, 168, 0.24);
+    border-radius: 10px;
+    background: rgba(92, 184, 168, 0.08);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition:
+        background var(--t-fast),
+        border-color var(--t-fast),
+        transform var(--t-fast);
+}
+
+.server-map-button:hover {
+    border-color: rgba(92, 184, 168, 0.5);
+    background: rgba(92, 184, 168, 0.16);
+    transform: translateY(-1px);
 }
 
 .hero__stats-title {
@@ -1788,8 +1813,15 @@ body {
     font-size: 18px;
 }
 
-.settings__header-save {
+.settings__save-state {
     margin-left: auto;
+    max-width: min(460px, 45vw);
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .settings__loading {
@@ -1877,7 +1909,7 @@ body {
     flex-direction: column;
     gap: 26px;
     overflow-y: auto;
-    max-width: 560px;
+    max-width: min(1120px, calc(100vw - 260px));
     width: 100%;
     margin: 0 auto;
     contain: layout style paint;
@@ -2724,7 +2756,7 @@ body {
 
 .java-provider-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 10px;
 }
 

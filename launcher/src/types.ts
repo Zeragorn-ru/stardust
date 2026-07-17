@@ -120,7 +120,7 @@ export interface Settings {
   downloadConcurrency: number;
   /** Показывать 3D-модель скина на главном экране. */
   show3dModel: boolean;
-  proxyType: "system" | "builtin" | "none";
+  proxyType: "system" | "builtin" | "builtinSocks" | "none";
   /** Источник Java для запуска игры. */
   javaProvider?: JavaProvider;
   /** Путь к java, если javaProvider = custom. */

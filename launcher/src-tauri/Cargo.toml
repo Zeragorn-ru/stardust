@@ -17,7 +17,7 @@ sha1 = "0.10"
 keyring = "2"
 open = "5"
 protocol = { path = "../../crates/protocol" }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "socks"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 flate2 = "1"

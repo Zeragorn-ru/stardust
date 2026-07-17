@@ -107,13 +107,20 @@ fn http_client(app: &AppHandle) -> Result<reqwest::Client, String> {
     let mut builder = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .connect_timeout(std::time::Duration::from_secs(5))
-        .read_timeout(std::time::Duration::from_secs(30));
+        .read_timeout(std::time::Duration::from_secs(30))
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(8);
 
     match settings.proxy_type {
         crate::commands::ProxyType::System => {}
         crate::commands::ProxyType::Builtin => {
             let proxy = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
                 .map_err(|e| format!("не удалось настроить встроенный прокси: {e}"))?;
+            builder = builder.proxy(proxy);
+        }
+        crate::commands::ProxyType::BuiltinSocks => {
+            let proxy = reqwest::Proxy::all("socks5h://assets.zeragorn.xyz:1080")
+                .map_err(|e| format!("не удалось настроить встроенный SOCKS5-прокси: {e}"))?;
             builder = builder.proxy(proxy);
         }
         crate::commands::ProxyType::None => {

@@ -90,6 +90,7 @@ export default function SettingsScreen({
   const [memoryLimits, setMemoryLimits] = useState<MemoryLimits | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Состояние самообновления.
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
@@ -153,7 +154,7 @@ export default function SettingsScreen({
     }
   }, [section]);
 
-  // Проверка несохранённых изменений.
+  // Проверка изменений для автосохранения.
   const isDirty =
     settings != null &&
     initialSettings != null &&
@@ -165,10 +166,24 @@ export default function SettingsScreen({
         (initialSettings.javaProvider ?? DEFAULT_JAVA_PROVIDER) ||
       (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? ""));
 
+  useEffect(() => {
+    if (!settings || !initialSettings || !isDirty) return;
+    const id = window.setTimeout(() => {
+      setSaving(true);
+      setSaveError(null);
+      void saveSettings(settings)
+        .then(() => {
+          setInitialSettings(settings);
+        })
+        .catch((e) => {
+          setSaveError(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => setSaving(false));
+    }, 450);
+    return () => window.clearTimeout(id);
+  }, [settings, initialSettings, isDirty]);
+
   function handleClose() {
-    if (isDirty && !window.confirm("Есть несохранённые изменения. Покинуть настройки?")) {
-      return;
-    }
     onClose();
   }
 
@@ -271,18 +286,6 @@ export default function SettingsScreen({
     );
   }
 
-  async function handleSave() {
-    if (!settings) return;
-    setSaving(true);
-    try {
-      await saveSettings(settings);
-      setInitialSettings(settings);
-      onClose();
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function handleResetSettings() {
     if (!window.confirm("Сбросить настройки лаунчера до значений по умолчанию?")) {
       return;
@@ -321,13 +324,9 @@ export default function SettingsScreen({
         </button>
         <h2>Настройки</h2>
         {section === "general" && (
-          <button
-            className="btn btn--primary settings__header-save"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "Сохранение…" : "Сохранить"}
-          </button>
+          <span className="settings__save-state">
+            {saveError ? `Не сохранено: ${saveError}` : saving ? "Сохраняем…" : isDirty ? "Ожидает сохранения" : "Сохранено"}
+          </span>
         )}
       </header>
 
@@ -963,11 +962,12 @@ export default function SettingsScreen({
                   onChange={(e) =>
                     setSettings({
                       ...settings,
-                      proxyType: e.target.value as "system" | "builtin" | "none",
+                      proxyType: e.target.value as "system" | "builtin" | "builtinSocks" | "none",
                     })
                   }
                 >
                   <option value="builtin">Встроенный прокси Stardust</option>
+                  <option value="builtinSocks">Встроенный SOCKS5-прокси Stardust</option>
                   <option value="system">Системный прокси</option>
                   <option value="none">Без прокси</option>
                 </select>

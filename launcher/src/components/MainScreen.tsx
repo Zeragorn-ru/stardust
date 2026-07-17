@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, playGame } from "../api";
+import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -272,6 +272,13 @@ export default function MainScreen({
               </div>
               <div className="hero__stats">
                 <div className="hero__stats-title">Сервер</div>
+                <button
+                  type="button"
+                  className="server-map-button"
+                  onClick={() => void openExternal("https://map.stardust-mc.xyz")}
+                >
+                  Открыть карту
+                </button>
                 {serverOnline === null ? (
                   <div className="hero__stat">
                     <span className="hero__stat-value hero__stat-value--muted">—</span>

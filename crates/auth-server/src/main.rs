@@ -1231,6 +1231,9 @@ struct ReportCrashRequest {
     exit_code: Option<i32>,
     log: String,
     crash_report: Option<String>,
+    debug_log: Option<String>,
+    launcher_log: Option<String>,
+    mod_report: Option<String>,
 }
 
 const CRASH_DOCUMENT_MAX_BYTES: usize = 950_000;
@@ -1242,7 +1245,7 @@ async fn report_crash(
 ) -> Result<StatusCode, ApiError> {
     let account = current_account(&state, &headers).await?;
     let username = &account.username;
-    
+
     let exit_code_str = match req.exit_code {
         Some(code) => format!("Код выхода: {code}"),
         None => "Код выхода: неизвестен".to_string(),
@@ -1278,6 +1281,48 @@ async fn report_crash(
                     &format!("📄 Краш-репорт игрока «{username}»"),
                     "crash-report.txt",
                     &crash,
+                )
+                .await?;
+        }
+    }
+
+    if let Some(debug_log) = req.debug_log {
+        if !debug_log.trim().is_empty() {
+            let debug_log = trim_document(debug_log.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
+            state
+                .store
+                .notify_admins_with_document(
+                    &format!("📄 debug.log игрока «{username}»"),
+                    "debug.log",
+                    &debug_log,
+                )
+                .await?;
+        }
+    }
+
+    if let Some(launcher_log) = req.launcher_log {
+        if !launcher_log.trim().is_empty() {
+            let launcher_log = trim_document(launcher_log.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
+            state
+                .store
+                .notify_admins_with_document(
+                    &format!("📄 launcher.log игрока «{username}»"),
+                    "launcher.log",
+                    &launcher_log,
+                )
+                .await?;
+        }
+    }
+
+    if let Some(mod_report) = req.mod_report {
+        if !mod_report.trim().is_empty() {
+            let mod_report = trim_document(mod_report.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
+            state
+                .store
+                .notify_admins_with_document(
+                    &format!("📄 Stardust mod marker игрока «{username}»"),
+                    "stardust-crash-marker.json",
+                    &mod_report,
                 )
                 .await?;
         }
