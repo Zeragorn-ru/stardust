@@ -712,33 +712,20 @@ pub async fn record_session(
 }
 
 #[derive(serde::Serialize)]
-struct ReportCrashRequest {
-    exit_code: Option<i32>,
-    log: String,
-    crash_report: Option<String>,
-    debug_log: Option<String>,
-    launcher_log: Option<String>,
-    mod_report: Option<String>,
+pub struct ReportCrashRequest {
+    pub exit_code: Option<i32>,
+    pub log: String,
+    pub crash_report: Option<String>,
+    pub debug_log: Option<String>,
+    pub launcher_log: Option<String>,
+    pub mod_report: Option<String>,
 }
 
 pub async fn report_crash(
     client: &reqwest::Client,
     token: &str,
-    exit_code: Option<i32>,
-    log: &str,
-    crash_report: Option<&str>,
-    debug_log: Option<&str>,
-    launcher_log: Option<&str>,
-    mod_report: Option<&str>,
+    req: &ReportCrashRequest,
 ) -> Result<(), String> {
-    let req = ReportCrashRequest {
-        exit_code,
-        log: log.to_string(),
-        crash_report: crash_report.map(|s| s.to_string()),
-        debug_log: debug_log.map(|s| s.to_string()),
-        launcher_log: launcher_log.map(|s| s.to_string()),
-        mod_report: mod_report.map(|s| s.to_string()),
-    };
     let resp = client
         .post(format!("{}/api/report-crash", base_url()))
         .bearer_auth(token)

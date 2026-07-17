@@ -1774,17 +1774,15 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     read_optional_report_text(&resolve_launcher_log_latest(&launcher_log_dir()));
 
                 let exit_code = exit_status.and_then(|s| s.code());
-                if let Err(e) = backend::report_crash(
-                    &http,
-                    &token,
+                let crash_req = backend::ReportCrashRequest {
                     exit_code,
-                    &log_content,
-                    recent_crash_content.as_deref(),
-                    debug_content.as_deref(),
-                    launcher_content.as_deref(),
-                    mod_report_content.as_deref(),
-                )
-                .await
+                    log: log_content,
+                    crash_report: recent_crash_content,
+                    debug_log: debug_content,
+                    launcher_log: launcher_content,
+                    mod_report: mod_report_content,
+                };
+                if let Err(e) = backend::report_crash(&http, &token, &crash_req).await
                 {
                     tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
                 }
