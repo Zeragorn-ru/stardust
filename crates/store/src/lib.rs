@@ -120,6 +120,19 @@ pub struct Ban {
     pub reason: Option<String>,
 }
 
+/// Новость, сохранённая в базе. Временные поля сериализованы на границе Store,
+/// поэтому все API получают одинаковый ISO-8601 формат.
+#[derive(Debug, Clone)]
+pub struct NewsPost {
+    pub id: i64,
+    pub title: String,
+    pub markdown: String,
+    pub author_name: String,
+    pub pinned: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 impl Ban {
     /// Истёк ли временный бан к моменту `now`.
     pub fn is_expired(&self, now: OffsetDateTime) -> bool {
@@ -272,6 +285,110 @@ impl Store {
             list.push(now);
             false
         }
+    }
+
+    // ───────────────────────── Новости ─────────────────────────
+
+    pub async fn list_news(&self) -> Result<Vec<NewsPost>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, title, markdown, author_name, pinned, created_at, updated_at
+             FROM news_posts
+             ORDER BY pinned DESC, updated_at DESC
+             LIMIT 50",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.iter().map(row_to_news).collect())
+    }
+
+    pub async fn news_highlight(&self) -> Result<protocol::NewsHighlight, StoreError> {
+        let featured = sqlx::query(
+            "SELECT id, title, markdown, author_name, pinned, created_at, updated_at
+             FROM news_posts
+             ORDER BY pinned DESC, updated_at DESC
+             LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .map(|row| news_summary(&row_to_news(&row)));
+        let latest_updated_at: Option<OffsetDateTime> =
+            sqlx::query_scalar("SELECT MAX(updated_at) FROM news_posts")
+                .fetch_one(&self.pool)
+                .await?;
+        Ok(protocol::NewsHighlight {
+            featured,
+            latest_updated_at: latest_updated_at.map(format_timestamp),
+        })
+    }
+
+    pub async fn create_news(
+        &self,
+        title: &str,
+        markdown: &str,
+        author_name: &str,
+        pinned: bool,
+    ) -> Result<NewsPost, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        if pinned {
+            sqlx::query("UPDATE news_posts SET pinned = FALSE WHERE pinned")
+                .execute(&mut *tx)
+                .await?;
+        }
+        let row = sqlx::query(
+            "INSERT INTO news_posts (title, markdown, author_name, pinned)
+             VALUES ($1, $2, $3, $4)
+             RETURNING id, title, markdown, author_name, pinned, created_at, updated_at",
+        )
+        .bind(title)
+        .bind(markdown)
+        .bind(author_name)
+        .bind(pinned)
+        .fetch_one(&mut *tx)
+        .await?;
+        tx.commit().await?;
+        Ok(row_to_news(&row))
+    }
+
+    pub async fn update_news(
+        &self,
+        id: i64,
+        title: &str,
+        markdown: &str,
+        pinned: bool,
+    ) -> Result<NewsPost, StoreError> {
+        let mut tx = self.pool.begin().await?;
+        if pinned {
+            sqlx::query("UPDATE news_posts SET pinned = FALSE WHERE pinned AND id <> $1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        let row = sqlx::query(
+            "UPDATE news_posts
+             SET title = $2, markdown = $3, pinned = $4, updated_at = now()
+             WHERE id = $1
+             RETURNING id, title, markdown, author_name, pinned, created_at, updated_at",
+        )
+        .bind(id)
+        .bind(title)
+        .bind(markdown)
+        .bind(pinned)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(StoreError::NotFound)?;
+        tx.commit().await?;
+        Ok(row_to_news(&row))
+    }
+
+    pub async fn delete_news(&self, id: i64) -> Result<(), StoreError> {
+        let result = sqlx::query("DELETE FROM news_posts WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        if result.rows_affected() == 0 {
+            return Err(StoreError::NotFound);
+        }
+        Ok(())
     }
 
     // ───────────────────────── Аккаунты ─────────────────────────
@@ -1005,6 +1122,54 @@ impl Store {
         }
         Ok(result)
     }
+}
+
+fn row_to_news(row: &PgRow) -> NewsPost {
+    NewsPost {
+        id: row.get("id"),
+        title: row.get("title"),
+        markdown: row.get("markdown"),
+        author_name: row.get("author_name"),
+        pinned: row.get("pinned"),
+        created_at: format_timestamp(row.get("created_at")),
+        updated_at: format_timestamp(row.get("updated_at")),
+    }
+}
+
+fn news_summary(news: &NewsPost) -> protocol::NewsSummary {
+    protocol::NewsSummary {
+        id: news.id,
+        title: news.title.clone(),
+        excerpt: news_excerpt(&news.markdown),
+        author_name: news.author_name.clone(),
+        pinned: news.pinned,
+        created_at: news.created_at.clone(),
+        updated_at: news.updated_at.clone(),
+    }
+}
+
+/// Компактный plain-text фрагмент для главного экрана. Полный Markdown
+/// остаётся в ленте и не передаётся вместе с её кратким состоянием.
+fn news_excerpt(markdown: &str) -> String {
+    const MAX_CHARS: usize = 220;
+    let text = markdown
+        .lines()
+        .map(|line| line.trim().trim_start_matches('#').trim_start_matches(['-', '*', ' ']))
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut out = String::new();
+    for ch in text.chars().take(MAX_CHARS) {
+        out.push(ch);
+    }
+    if text.chars().count() > MAX_CHARS {
+        out.push('…');
+    }
+    out
+}
+
+fn format_timestamp(value: OffsetDateTime) -> String {
+    value.format(&Rfc3339).unwrap_or_else(|_| value.to_string())
 }
 
 fn row_to_account(row: &PgRow) -> Account {

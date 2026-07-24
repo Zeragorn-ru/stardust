@@ -3,6 +3,40 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Краткая карточка новости для кнопки лаунчера.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewsSummary {
+    pub id: i64,
+    pub title: String,
+    pub excerpt: String,
+    pub author_name: String,
+    pub pinned: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Полная новость. Markdown не содержит HTML и рендерится клиентом безопасно.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewsPost {
+    pub id: i64,
+    pub title: String,
+    pub markdown: String,
+    pub author_name: String,
+    pub pinned: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Лёгкий ответ для главного экрана: закреплённая новость либо последняя.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewsHighlight {
+    pub featured: Option<NewsSummary>,
+    pub latest_updated_at: Option<String>,
+}
+
 /// На какой стороне нужен файл сборки.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

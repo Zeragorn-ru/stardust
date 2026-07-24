@@ -4,8 +4,10 @@
 // данных (портативную или системную — см. модуль `paths`). Скины хранятся
 // на auth-сервере и привязаны к аккаунту, а не к устройству.
 
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::Manager;
 
 use base64::Engine;
@@ -148,6 +150,26 @@ pub struct AppInfo {
     pub data_dir: String,
     /// Версия лаунчера.
     pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataDirectoryInfo {
+    pub path: String,
+    pub default_path: String,
+    pub selection_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DataDirectoryProgress {
+    phase: String,
+    label: String,
+    fraction: Option<f64>,
+    copied_bytes: u64,
+    total_bytes: u64,
+    copied_files: u64,
+    total_files: u64,
 }
 
 /// Скин игрока: data-URL PNG + тип модели.
@@ -563,11 +585,15 @@ fn migrate_appdata(app: &AppHandle) {
 
 pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
     migrate_appdata(app);
-    let settings_path = paths::settings_file(app);
-    if !settings_path.exists() {
-        write_settings(app, &Settings::default())?;
-    }
-    let settings = read_settings(app);
+    let settings = if paths::selection_required(app) {
+        Settings::default()
+    } else {
+        let settings_path = paths::settings_file(app);
+        if !settings_path.exists() {
+            write_settings(app, &Settings::default())?;
+        }
+        read_settings(app)
+    };
     let state = app.state::<AppState>();
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
     Ok(())
@@ -1115,6 +1141,228 @@ fn app_info(app: AppHandle) -> AppInfo {
     }
 }
 
+#[tauri::command]
+fn get_data_directory_info(app: AppHandle) -> DataDirectoryInfo {
+    let default_path = paths::default_data_dir(&app);
+    let path = paths::configured_data_dir(&app).unwrap_or_else(|| default_path.clone());
+    DataDirectoryInfo {
+        path: path.to_string_lossy().into_owned(),
+        default_path: default_path.to_string_lossy().into_owned(),
+        selection_required: paths::selection_required(&app),
+    }
+}
+
+#[tauri::command]
+async fn choose_data_directory() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("Выберите папку данных Stardust")
+            .pick_folder()
+            .map(|path| path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("выбор папки был прерван: {e}"))
+}
+
+#[tauri::command]
+async fn relocate_data_directory(
+    path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DataDirectoryInfo, String> {
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app)) {
+        return Err("Закройте Minecraft перед переносом папки данных".into());
+    }
+
+    let destination = PathBuf::from(path);
+    let app_for_transfer = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        relocate_data_directory_on_disk(&app_for_transfer, &destination)
+    })
+    .await
+    .map_err(|e| format!("перенос папки был прерван: {e}"))??;
+
+    Ok(get_data_directory_info(app))
+}
+
+fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Result<(), String> {
+    if !destination.is_absolute() {
+        return Err("Выберите абсолютный путь к папке".into());
+    }
+
+    let source = paths::data_dir(app);
+    let source = source
+        .canonicalize()
+        .map_err(|e| format!("не удалось открыть текущую папку данных: {e}"))?;
+    std::fs::create_dir_all(destination)
+        .map_err(|e| format!("не удалось создать выбранную папку: {e}"))?;
+    let destination = destination
+        .canonicalize()
+        .map_err(|e| format!("не удалось открыть выбранную папку: {e}"))?;
+
+    if source == destination {
+        paths::set_data_dir(app, &destination)?;
+        return Ok(());
+    }
+    if destination.starts_with(&source) || source.starts_with(&destination) {
+        return Err("Новая папка не может находиться внутри текущей папки данных".into());
+    }
+    if has_entries(&destination)? {
+        return Err("Выберите пустую папку, чтобы не перезаписать существующие файлы".into());
+    }
+
+    emit_data_directory_progress(app, DataDirectoryProgress {
+        phase: "scanning".into(),
+        label: "Подсчитываем файлы…".into(),
+        fraction: None,
+        copied_bytes: 0,
+        total_bytes: 0,
+        copied_files: 0,
+        total_files: 0,
+    });
+    let mut totals = TransferTotals::default();
+    scan_directory(&source, &mut totals)?;
+
+    if totals.files == 0 {
+        paths::set_data_dir(app, &destination)?;
+        return Ok(());
+    }
+
+    let parent = destination
+        .parent()
+        .ok_or("не удалось определить родительскую папку назначения")?;
+    let staging = parent.join(format!(".stardust-transfer-{}", std::process::id()));
+    if staging.exists() {
+        return Err("обнаружена незавершённая предыдущая попытка переноса; удалите папку .stardust-transfer-* рядом с выбранной папкой".into());
+    }
+    std::fs::create_dir(&staging)
+        .map_err(|e| format!("не удалось подготовить перенос: {e}"))?;
+
+    let result = (|| {
+        let mut reporter = TransferReporter::new(app, totals);
+        copy_directory(&source, &staging, &mut reporter)?;
+        reporter.emit(true);
+        emit_data_directory_progress(app, DataDirectoryProgress {
+            phase: "finalizing".into(),
+            label: "Завершаем перенос…".into(),
+            fraction: Some(1.0),
+            copied_bytes: totals.bytes,
+            total_bytes: totals.bytes,
+            copied_files: totals.files,
+            total_files: totals.files,
+        });
+        std::fs::remove_dir(&destination)
+            .map_err(|e| format!("не удалось подготовить выбранную папку: {e}"))?;
+        std::fs::rename(&staging, &destination)
+            .map_err(|e| format!("не удалось завершить перенос: {e}"))?;
+        paths::set_data_dir(app, &destination)?;
+        if let Err(e) = std::fs::remove_dir_all(&source) {
+            tracing::warn!("[data-dir] данные перенесены, но старая папка осталась {}: {e}", source.display());
+        }
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = std::fs::remove_dir_all(&staging);
+    }
+    result
+}
+
+#[derive(Default, Clone, Copy)]
+struct TransferTotals {
+    bytes: u64,
+    files: u64,
+}
+
+fn scan_directory(directory: &Path, totals: &mut TransferTotals) -> Result<(), String> {
+    for entry in std::fs::read_dir(directory).map_err(|e| format!("не удалось прочитать {}: {e}", directory.display()))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        if file_type.is_dir() {
+            scan_directory(&entry.path(), totals)?;
+        } else if file_type.is_file() {
+            totals.files += 1;
+            totals.bytes = totals.bytes.saturating_add(entry.metadata().map_err(|e| e.to_string())?.len());
+        }
+    }
+    Ok(())
+}
+
+fn has_entries(directory: &Path) -> Result<bool, String> {
+    Ok(std::fs::read_dir(directory)
+        .map_err(|e| format!("не удалось прочитать выбранную папку: {e}"))?
+        .next()
+        .transpose()
+        .map_err(|e| e.to_string())?
+        .is_some())
+}
+
+struct TransferReporter<'a> {
+    app: &'a AppHandle,
+    totals: TransferTotals,
+    copied: TransferTotals,
+    last_emit: Instant,
+}
+
+impl<'a> TransferReporter<'a> {
+    fn new(app: &'a AppHandle, totals: TransferTotals) -> Self {
+        Self {
+            app,
+            totals,
+            copied: TransferTotals::default(),
+            last_emit: Instant::now() - Duration::from_secs(1),
+        }
+    }
+
+    fn copied_file(&mut self, bytes: u64) {
+        self.copied.files += 1;
+        self.copied.bytes = self.copied.bytes.saturating_add(bytes);
+        self.emit(false);
+    }
+
+    fn emit(&mut self, force: bool) {
+        if !force && self.last_emit.elapsed() < Duration::from_millis(100) {
+            return;
+        }
+        self.last_emit = Instant::now();
+        let fraction = if self.totals.bytes > 0 {
+            self.copied.bytes as f64 / self.totals.bytes as f64
+        } else {
+            self.copied.files as f64 / self.totals.files.max(1) as f64
+        };
+        emit_data_directory_progress(self.app, DataDirectoryProgress {
+            phase: "copying".into(),
+            label: "Переносим файлы…".into(),
+            fraction: Some(fraction),
+            copied_bytes: self.copied.bytes,
+            total_bytes: self.totals.bytes,
+            copied_files: self.copied.files,
+            total_files: self.totals.files,
+        });
+    }
+}
+
+fn copy_directory(source: &Path, destination: &Path, reporter: &mut TransferReporter<'_>) -> Result<(), String> {
+    for entry in std::fs::read_dir(source).map_err(|e| format!("не удалось прочитать {}: {e}", source.display()))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let target = destination.join(entry.file_name());
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        if file_type.is_dir() {
+            std::fs::create_dir(&target).map_err(|e| format!("не удалось создать {}: {e}", target.display()))?;
+            copy_directory(&entry.path(), &target, reporter)?;
+        } else if file_type.is_file() {
+            let bytes = std::fs::copy(entry.path(), &target)
+                .map_err(|e| format!("не удалось скопировать {}: {e}", entry.path().display()))?;
+            reporter.copied_file(bytes);
+        }
+    }
+    Ok(())
+}
+
+fn emit_data_directory_progress(app: &AppHandle, progress: DataDirectoryProgress) {
+    let _ = app.emit("launcher://data-directory-progress", progress);
+}
+
 // ---------- Скин (хранится на сервере, привязан к аккаунту) ----------
 
 /// UUID текущего залогиненного аккаунта, либо ошибка «нужен вход».
@@ -1344,12 +1592,20 @@ async fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
 struct LogPaths {
     launcher_log_dir: String,
     launcher_log_latest: String,
+    launcher_log_files: Vec<LogFile>,
     minecraft_logs_dir: String,
     minecraft_latest_log: String,
     minecraft_debug_log: String,
     crash_reports_dir: String,
     data_dir: String,
     crash_reports_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogFile {
+    label: String,
+    path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1400,6 +1656,55 @@ fn resolve_launcher_log_latest(log_dir: &std::path::Path) -> std::path::PathBuf 
         }
     }
     latest.map(|(_, path)| path).unwrap_or(current)
+}
+
+fn list_launcher_log_files(log_dir: &std::path::Path) -> Vec<LogFile> {
+    let mut files: Vec<(std::time::SystemTime, std::path::PathBuf)> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(log_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if (name == "launcher.log" || name.starts_with("launcher.log."))
+                && entry.metadata().map(|meta| meta.is_file()).unwrap_or(false)
+            {
+                let modified = entry
+                    .metadata()
+                    .and_then(|meta| meta.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                files.push((modified, path));
+            }
+        }
+    }
+    files.sort_by(|(left_time, left_path), (right_time, right_path)| {
+        let left_current = left_path
+            .file_name()
+            .is_some_and(|name| name == "launcher.log");
+        let right_current = right_path
+            .file_name()
+            .is_some_and(|name| name == "launcher.log");
+        right_current
+            .cmp(&left_current)
+            .then_with(|| right_time.cmp(left_time))
+    });
+
+    files
+        .into_iter()
+        .map(|(_, path)| {
+            let name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("launcher.log");
+            LogFile {
+                label: if name == "launcher.log" {
+                    "Текущий запуск".into()
+                } else {
+                    name.into()
+                },
+                path: path.to_string_lossy().into_owned(),
+            }
+        })
+        .collect()
 }
 
 fn allowed_log_roots(app: &AppHandle) -> Result<Vec<std::path::PathBuf>, String> {
@@ -1478,12 +1783,14 @@ fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
     let game_dir = game_dir(&app);
     let minecraft_logs_dir = game_dir.join("logs");
     let crash_reports_dir = game_dir.join("crash-reports");
+    let launcher_log_files = list_launcher_log_files(&log_dir);
 
     Ok(LogPaths {
         launcher_log_dir: log_dir.to_string_lossy().into_owned(),
         launcher_log_latest: resolve_launcher_log_latest(&log_dir)
             .to_string_lossy()
             .into_owned(),
+        launcher_log_files,
         minecraft_logs_dir: minecraft_logs_dir.to_string_lossy().into_owned(),
         minecraft_latest_log: minecraft_logs_dir
             .join("latest.log")
@@ -1940,6 +2247,18 @@ async fn get_stats(state: State<'_, AppState>) -> Result<protocol::PlayerStats, 
     backend::get_stats(&state.http(), &token).await
 }
 
+/// Краткая новость для кнопки на главном экране.
+#[tauri::command]
+async fn get_news_highlight(state: State<'_, AppState>) -> Result<protocol::NewsHighlight, String> {
+    backend::get_news_highlight(&state.http()).await
+}
+
+/// Лента новостей. Вызывается лениво, только после открытия панели.
+#[tauri::command]
+async fn get_news(state: State<'_, AppState>) -> Result<Vec<protocol::NewsPost>, String> {
+    backend::get_news(&state.http()).await
+}
+
 // ---------- Сборка (модпак) ----------
 
 /// Игровой каталог сборки внутри папки данных лаунчера.
@@ -2218,6 +2537,9 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             download_java,
             download_temurin_java,
             app_info,
+            get_data_directory_info,
+            choose_data_directory,
+            relocate_data_directory,
             get_skin,
             load_skin_cache,
             set_skin,
@@ -2236,6 +2558,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             play_game,
             game_running,
             get_stats,
+            get_news_highlight,
+            get_news,
             list_optional_mods,
             set_mod_enabled,
             crate::update::check_update,

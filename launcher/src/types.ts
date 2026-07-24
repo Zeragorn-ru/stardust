@@ -143,6 +143,24 @@ export interface AppInfo {
   version: string;
 }
 
+/** Расположение данных лаунчера и необходимость выбрать его при первом запуске. */
+export interface DataDirectoryInfo {
+  path: string;
+  defaultPath: string;
+  selectionRequired: boolean;
+}
+
+/** Прогресс переноса папки данных. */
+export interface DataDirectoryProgress {
+  phase: "scanning" | "copying" | "finalizing";
+  label: string;
+  fraction: number | null;
+  copiedBytes: number;
+  totalBytes: number;
+  copiedFiles: number;
+  totalFiles: number;
+}
+
 /** Модель скина: classic (4px руки) или slim (3px руки). */
 export type SkinModel = "classic" | "slim";
 
@@ -236,16 +254,42 @@ export interface PlayerStats {
   lastJoinedAt: string | null;
 }
 
+export interface NewsSummary {
+  id: number;
+  title: string;
+  excerpt: string;
+  authorName: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsHighlight {
+  featured: NewsSummary | null;
+  latestUpdatedAt: string | null;
+}
+
+export interface NewsPost extends NewsSummary {
+  markdown: string;
+}
+
 /** Пути к логам лаунчера и Minecraft. */
 export interface LogPaths {
   launcherLogDir: string;
   launcherLogLatest: string;
+  launcherLogFiles: LogFile[];
   minecraftLogsDir: string;
   minecraftLatestLog: string;
   minecraftDebugLog: string;
   crashReportsDir: string;
   dataDir: string;
   crashReportsExists: boolean;
+}
+
+/** Лог-файл, доступный для просмотра в лаунчере. */
+export interface LogFile {
+  label: string;
+  path: string;
 }
 
 /** Хвост лог-файла. */

@@ -9,6 +9,8 @@ import type {
   AccountInfo,
   AppInfo,
   ChallengeOutcome,
+  DataDirectoryInfo,
+  DataDirectoryProgress,
   JavaInstallation,
   JavaVendorInfo,
   LoginOutcome,
@@ -16,6 +18,8 @@ import type {
   LogPaths,
   LogTail,
   MemoryLimits,
+  NewsHighlight,
+  NewsPost,
   OptionalMod,
   PlayerProfile,
   PlayerStats,
@@ -87,6 +91,20 @@ export async function onLauncherProgress(
   try {
     const mod = await import("@tauri-apps/api/event");
     return mod.listen<Progress>("launcher://progress", (event) => {
+      handler(event.payload);
+    });
+  } catch {
+    return () => undefined;
+  }
+}
+
+/** Подписаться на ход переноса папки данных. */
+export async function onDataDirectoryProgress(
+  handler: (progress: DataDirectoryProgress) => void,
+): Promise<() => void> {
+  try {
+    const mod = await import("@tauri-apps/api/event");
+    return mod.listen<DataDirectoryProgress>("launcher://data-directory-progress", (event) => {
       handler(event.payload);
     });
   } catch {
@@ -313,6 +331,7 @@ export async function getLogPaths(): Promise<LogPaths> {
     return {
       launcherLogDir: "./logs",
       launcherLogLatest: "./logs/launcher.log",
+      launcherLogFiles: [{ label: "Текущий запуск", path: "./logs/launcher.log" }],
       minecraftLogsDir: "./data/minecraft/game/logs",
       minecraftLatestLog: "./data/minecraft/game/logs/latest.log",
       minecraftDebugLog: "./data/minecraft/game/logs/debug.log",
@@ -462,6 +481,29 @@ export async function getAppInfo(): Promise<AppInfo> {
   return invoke<AppInfo>("app_info");
 }
 
+/** Текущее и рекомендуемое расположение данных. */
+export async function getDataDirectoryInfo(): Promise<DataDirectoryInfo> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return { path: "(dev) ./data", defaultPath: "(dev) ./data", selectionRequired: true };
+  }
+  return invoke<DataDirectoryInfo>("get_data_directory_info");
+}
+
+/** Открыть нативный выбор папки. */
+export async function chooseDataDirectory(): Promise<string | null> {
+  const invoke = await getInvoke();
+  if (!invoke) return null;
+  return invoke<string | null>("choose_data_directory");
+}
+
+/** Перенести все данные в новую пустую папку. */
+export async function relocateDataDirectory(path: string): Promise<DataDirectoryInfo> {
+  const invoke = await getInvoke();
+  if (!invoke) return { path, defaultPath: "(dev) ./data", selectionRequired: false };
+  return invoke<DataDirectoryInfo>("relocate_data_directory", { path });
+}
+
 /** Прочитать текущий скин. */
 export async function getSkin(): Promise<Skin> {
   const invoke = await getInvoke();
@@ -606,6 +648,20 @@ export async function getStats(): Promise<PlayerStats> {
     return { playtimeSeconds: 0, lastJoinedAt: null };
   }
   return invoke<PlayerStats>("get_stats");
+}
+
+/** Короткая новость для главного экрана. */
+export async function getNewsHighlight(): Promise<NewsHighlight> {
+  const invoke = await getInvoke();
+  if (!invoke) return { featured: null, latestUpdatedAt: null };
+  return invoke<NewsHighlight>("get_news_highlight");
+}
+
+/** Полная лента новостей, загружается только при открытии панели. */
+export async function getNews(): Promise<NewsPost[]> {
+  const invoke = await getInvoke();
+  if (!invoke) return [];
+  return invoke<NewsPost[]>("get_news");
 }
 
 // ───── Кастомизация ника ─────

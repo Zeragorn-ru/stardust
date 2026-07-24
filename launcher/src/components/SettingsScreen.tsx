@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
+import type { AppInfo, DataDirectoryInfo, DataDirectoryProgress, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
+  chooseDataDirectory,
+  getDataDirectoryInfo,
   downloadJava,
   getAppInfo,
   getLogPaths,
@@ -12,9 +14,11 @@ import {
   listJavaInstallations,
   listJavaInstallationsDeep,
   onLauncherProgress,
+  onDataDirectoryProgress,
   onUpdateProgress,
   openLogFolder,
   openPath,
+  relocateDataDirectory,
   resetSettings,
   saveSettings,
 } from "../api";
@@ -23,7 +27,7 @@ import AccountSection from "./AccountSection";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
 import ModsSection from "./ModsSection";
 
-type Section = "general" | "account" | "mods" | "logs";
+type Section = "game" | "java" | "interface" | "data" | "account" | "mods" | "logs" | "about";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -66,6 +70,17 @@ const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
 
 const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
 
+const SECTION_TITLES: Record<Section, string> = {
+  game: "Игра",
+  java: "Java и сеть",
+  interface: "Интерфейс",
+  data: "Данные",
+  account: "Аккаунт",
+  mods: "Сборка",
+  logs: "Логи",
+  about: "О лаунчере",
+};
+
 const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
   auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
   temurin: "Использовать Eclipse Temurin 21 из managed runtime лаунчера.",
@@ -80,7 +95,7 @@ export default function SettingsScreen({
   profile,
   onProfileChange,
   onAccountDeleted,
-  initialSection = "general",
+  initialSection = "game",
   onClose,
 }: Props) {
   const { animations, setAnimations } = useMotion();
@@ -89,6 +104,10 @@ export default function SettingsScreen({
   const [initialSettings, setInitialSettings] = useState<Settings | null>(null);
   const [memoryLimits, setMemoryLimits] = useState<MemoryLimits | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null);
+  const [relocationProgress, setRelocationProgress] = useState<DataDirectoryProgress | null>(null);
+  const [relocationError, setRelocationError] = useState<string | null>(null);
+  const [relocating, setRelocating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -123,10 +142,33 @@ export default function SettingsScreen({
       setInitialSettings(s);
     });
     getAppInfo().then(setInfo);
+    getDataDirectoryInfo().then(setDataDirectory);
     getMemoryLimits().then(setMemoryLimits);
     listJavaDownloadVendors().then(setJavaVendors);
     getLogPaths().then(setLogPaths).catch(() => undefined);
   }, []);
+
+  async function handleRelocateDataDirectory() {
+    const path = await chooseDataDirectory();
+    if (!path) return;
+    if (!window.confirm(`Перенести все данные лаунчера в\n${path}\n\nВыбранная папка должна быть пустой. Во время переноса не закрывайте лаунчер.`)) {
+      return;
+    }
+    setRelocating(true);
+    setRelocationError(null);
+    setRelocationProgress(null);
+    const unlisten = await onDataDirectoryProgress(setRelocationProgress);
+    try {
+      const next = await relocateDataDirectory(path);
+      setDataDirectory(next);
+      setInfo(await getAppInfo());
+    } catch (e) {
+      setRelocationError(e instanceof Error ? e.message : String(e));
+    } finally {
+      unlisten();
+      setRelocating(false);
+    }
+  }
 
   async function refreshJavaList(deep = false) {
     if (deep) {
@@ -149,7 +191,7 @@ export default function SettingsScreen({
   }
 
   useEffect(() => {
-    if (section === "general") {
+    if (section === "java") {
       void refreshJavaList();
     }
   }, [section]);
@@ -322,8 +364,8 @@ export default function SettingsScreen({
         <button className="btn btn--ghost" onClick={handleClose}>
           ← Назад
         </button>
-        <h2>Настройки</h2>
-        {section === "general" && (
+        <h2>{SECTION_TITLES[section]}</h2>
+        {["game", "java", "interface"].includes(section) && (
           <span className="settings__save-state">
             {saveError ? `Не сохранено: ${saveError}` : saving ? "Сохраняем…" : isDirty ? "Ожидает сохранения" : "Сохранено"}
           </span>
@@ -336,11 +378,21 @@ export default function SettingsScreen({
             type="button"
             className={
               "settings__nav-item" +
-              (section === "general" ? " settings__nav-item--active" : "")
+              (section === "game" ? " settings__nav-item--active" : "")
             }
-            onClick={() => setSection("general")}
+            onClick={() => setSection("game")}
           >
-            Общие
+            Игра
+          </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
+              (section === "interface" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("interface")}
+          >
+            Интерфейс
           </button>
           <button
             type="button"
@@ -366,11 +418,41 @@ export default function SettingsScreen({
             type="button"
             className={
               "settings__nav-item" +
+              (section === "data" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("data")}
+          >
+            Данные
+          </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
+              (section === "java" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("java")}
+          >
+            Java и сеть
+          </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
               (section === "logs" ? " settings__nav-item--active" : "")
             }
             onClick={() => setSection("logs")}
           >
             Логи
+          </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
+              (section === "about" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("about")}
+          >
+            О лаунчере
           </button>
         </nav>
 
@@ -404,13 +486,17 @@ export default function SettingsScreen({
                     logPaths &&
                     setLogViewer({
                       title: "Лог лаунчера",
-                      tabs: [
-                        {
-                          id: "launcher",
-                          label: "launcher.log",
-                          path: logPaths.launcherLogLatest,
-                        },
-                      ],
+                      tabs: logPaths.launcherLogFiles.length > 0
+                        ? logPaths.launcherLogFiles.map((log, index) => ({
+                            id: `launcher-${index}`,
+                            label: log.label,
+                            path: log.path,
+                          }))
+                        : [{
+                            id: "launcher",
+                            label: "launcher.log",
+                            path: logPaths.launcherLogLatest,
+                          }],
                     })
                   }
                 >
@@ -549,8 +635,8 @@ export default function SettingsScreen({
             )}
           </div>
         ) : (
-          <div className="settings__body stagger" key="general">
-            <div className="update-card stagger-item">
+          <div className="settings__body stagger" key={section}>
+            {section === "about" && <div className="update-card stagger-item">
               <div className="update-card__head">
                 <span className="toggle-row__title">Обновления</span>
                 <button
@@ -628,9 +714,9 @@ export default function SettingsScreen({
                     )}
                 </div>
               )}
-            </div>
+            </div>}
 
-            <div className="field stagger-item">
+            {section === "game" && <div className="field stagger-item">
               <span>
                 Память для Minecraft: <strong>{settings.memoryMb} МБ</strong>
               </span>
@@ -675,9 +761,9 @@ export default function SettingsScreen({
                 <span>{memoryLimits?.minMb ?? "…"} МБ</span>
                 <span>{memoryLimits?.maxMb ?? "…"} МБ</span>
               </div>
-            </div>
+            </div>}
 
-            <div className="field stagger-item">
+            {section === "game" && <div className="field stagger-item">
               <span>
                 Одновременных загрузок:{" "}
                 <strong>{settings.downloadConcurrency}</strong>
@@ -699,9 +785,9 @@ export default function SettingsScreen({
                 <span>{DL_MIN}</span>
                 <span>{DL_MAX}</span>
               </div>
-            </div>
+            </div>}
 
-            <div className="toggle-row stagger-item">
+            {section === "interface" && <div className="toggle-row stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Анимации</span>
                 <span className="muted toggle-row__desc">
@@ -717,9 +803,9 @@ export default function SettingsScreen({
               >
                 <span className="switch__knob" />
               </button>
-            </div>
+            </div>}
 
-            {settings && (
+            {section === "interface" && settings && (
               <div className="toggle-row stagger-item">
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">3D-модель скина</span>
@@ -739,16 +825,16 @@ export default function SettingsScreen({
               </div>
             )}
 
-            <button
+            {section === "about" && <button
               type="button"
               className="btn btn--ghost stagger-item"
               onClick={() => void handleResetSettings()}
               disabled={saving}
             >
               Сбросить настройки лаунчера
-            </button>
+            </button>}
 
-            {info && (
+            {section === "about" && info && (
               <div className="info-card stagger-item">
                 <div className="info-card__row">
                   <span className="muted">Режим</span>
@@ -773,23 +859,43 @@ export default function SettingsScreen({
                   </span>
                 </div>
                 <div className="info-card__row">
-                  <span className="muted">Папка данных</span>
-                  <span
-                    className="info-card__path info-card__path--link"
-                    title={info.dataDir}
-                    onClick={() => openPath(info.dataDir)}
-                  >
-                    {info.dataDir}
-                  </span>
-                </div>
-                <div className="info-card__row">
                   <span className="muted">Версия</span>
                   <span>{info.version}</span>
                 </div>
               </div>
             )}
 
-            <div className="advanced-card stagger-item">
+            {section === "data" && <div className="data-directory-card stagger-item">
+              <div className="toggle-row__text">
+                <span className="toggle-row__title">Расположение данных</span>
+                <span className="muted toggle-row__desc">
+                  Игра, скачанная Java, кеш и настройки. Перенос копирует все файлы и работает между дисками.
+                </span>
+              </div>
+              <code className="data-directory-card__path" title={dataDirectory?.path}>
+                {dataDirectory?.path ?? "Загрузка…"}
+              </code>
+              <button type="button" className="btn btn--ghost" onClick={() => void handleRelocateDataDirectory()} disabled={relocating}>
+                {relocating ? "Переносим…" : "Изменить папку"}
+              </button>
+              {relocationProgress && (
+                <div className="data-directory-card__progress">
+                  <div className="progress__label">
+                    <span>{relocationProgress.label}</span>
+                    <span>{Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : ""}</span>
+                  </div>
+                  <div className="progress__track">
+                    <div className="progress__bar" style={{ width: Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : undefined }} />
+                  </div>
+                  <span className="muted toggle-row__desc">
+                    {relocationProgress.copiedFiles} из {relocationProgress.totalFiles} файлов
+                  </span>
+                </div>
+              )}
+              {relocationError && <div className="alert alert--error">{relocationError}</div>}
+            </div>}
+
+            {section === "java" && <div className="advanced-card stagger-item">
               <div className="advanced-card__head">
                 <span className="toggle-row__title">Для опытных пользователей</span>
                 <span className="muted toggle-row__desc">
@@ -972,7 +1078,7 @@ export default function SettingsScreen({
                   <option value="none">Без прокси</option>
                 </select>
               </div>
-            </div>
+            </div>}
           </div>
         )}
       </div>

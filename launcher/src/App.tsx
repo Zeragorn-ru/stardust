@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { PlayerProfile, Progress, UpdateInfo } from "./types";
-import { checkUpdate, closeWindow, currentProfile, gameRunning, logout, onLauncherProgress } from "./api";
+import type { DataDirectoryInfo, PlayerProfile, Progress, UpdateInfo } from "./types";
+import { checkUpdate, closeWindow, currentProfile, gameRunning, getDataDirectoryInfo, logout, onLauncherProgress } from "./api";
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { useSkin } from "./skin";
-import Aurora from "./components/Aurora";
 import ErrorBoundary from "./components/ErrorBoundary";
 import OnboardingScreen from "./components/OnboardingScreen";
 import LoginScreen from "./components/LoginScreen";
 import MainScreen from "./components/MainScreen";
 import SettingsScreen from "./components/SettingsScreen";
+import NewsScreen from "./components/NewsScreen";
 import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 
-type View = "onboarding" | "login" | "main" | "settings";
-type SettingsSection = "general" | "account" | "logs";
+type View = "onboarding" | "login" | "main" | "news" | "settings";
+type SettingsSection = "game" | "account" | "logs";
 
-const VIEW_ORDER: View[] = ["onboarding", "login", "main", "settings"];
+const VIEW_ORDER: View[] = ["onboarding", "login", "main", "news", "settings"];
 const TRANSITION_MS = 380;
 
 export default function App() {
@@ -24,8 +24,9 @@ export default function App() {
   const [exitView, setExitView] = useState<View | null>(null);
   const [exitClass, setExitClass] = useState("");
   const [enterClass, setEnterClass] = useState("screen-enter");
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>("general");
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("game");
   const [ready, setReady] = useState(false);
+  const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null);
   const { reload: reloadSkin } = useSkin();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -61,7 +62,7 @@ export default function App() {
     const toIdx = VIEW_ORDER.indexOf(next);
     const forward = toIdx > fromIdx;
     // Горизонтальный слайд для main↔settings, вертикальный для остальных
-    const horizontal = (view === "main" || view === "settings") && (next === "main" || next === "settings");
+    const horizontal = ["main", "news", "settings"].includes(view) && ["main", "news", "settings"].includes(next);
     const exitCls = horizontal
       ? (forward ? "screen-exit-left" : "screen-exit-right")
       : (forward ? "screen-exit-up" : "screen-exit-down");
@@ -123,18 +124,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isOnboarded()) {
-      setView("onboarding");
-      setReady(true);
-      return;
-    }
-    currentProfile()
-      .then((p) => {
-        if (p) {
-          setProfile(p);
-          setView("main");
-          reloadSkin();
+    getDataDirectoryInfo()
+      .then((directory) => {
+        setDataDirectory(directory);
+        if (!isOnboarded() || directory.selectionRequired) {
+          setView("onboarding");
+          return;
         }
+        return currentProfile().then((p) => {
+          if (p) {
+            setProfile(p);
+            setView("main");
+            reloadSkin();
+          }
+        });
       })
       .finally(() => setReady(true));
   }, []);
@@ -177,7 +180,7 @@ export default function App() {
   }
 
   const handleOpenSettings = useCallback((section?: SettingsSection) => {
-    setSettingsSection(section ?? "general");
+    setSettingsSection(section ?? "game");
     navigateRef.current?.("settings");
   }, []);
 
@@ -188,7 +191,9 @@ export default function App() {
   function renderScreen(v: View, cls: string, key: string) {
     return (
       <div key={key} className={cls}>
-        {v === "onboarding" && <OnboardingScreen onDone={finishOnboarding} />}
+        {v === "onboarding" && dataDirectory && (
+          <OnboardingScreen dataDirectory={dataDirectory} onDone={finishOnboarding} />
+        )}
         {v === "login" && <LoginScreen onAuthenticated={handleAuthenticated} />}
         {v === "main" && profile && (
           <MainScreen
@@ -199,6 +204,7 @@ export default function App() {
             onProgressChange={setProgress}
             onRunningChange={setRunning}
             onOpenSettings={handleOpenSettings}
+            onOpenNews={() => navigate("news")}
             onLogout={handleLogout}
           />
         )}
@@ -211,13 +217,13 @@ export default function App() {
             onClose={handleCloseSettings}
           />
         )}
+        {v === "news" && <NewsScreen onClose={() => navigate("main")} />}
       </div>
     );
   }
 
   return (
     <div className="app">
-      <Aurora />
       <TitleBar />
       <ErrorBoundary>
         <div className="app__content">

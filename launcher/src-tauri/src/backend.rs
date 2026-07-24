@@ -10,7 +10,7 @@ use protocol::{
     ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult, PasswordResetConfirm,
     PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile, PlayerStats,
     RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
-    TelegramLinkResponse, TwoFactorRequest,
+    NewsHighlight, NewsPost, TelegramLinkResponse, TwoFactorRequest,
 };
 use serde::Deserialize;
 use std::sync::OnceLock;
@@ -45,6 +45,34 @@ pub fn admin_base_url() -> &'static str {
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| DEFAULT_ADMIN_URL.to_string())
     })
+}
+
+/// Получить компактную новость для главного экрана. Новости не требуют сессии.
+pub async fn get_news_highlight(client: &reqwest::Client) -> Result<NewsHighlight, String> {
+    client
+        .get(format!("{}/news", admin_base_url()))
+        .send()
+        .await
+        .map_err(network_error)?
+        .error_for_status()
+        .map_err(|e| format!("Не удалось получить новости ({e})"))?
+        .json()
+        .await
+        .map_err(|e| format!("Некорректный ответ новостей: {e}"))
+}
+
+/// Полная лента загружается только после открытия панели новостей.
+pub async fn get_news(client: &reqwest::Client) -> Result<Vec<NewsPost>, String> {
+    client
+        .get(format!("{}/news/all", admin_base_url()))
+        .send()
+        .await
+        .map_err(network_error)?
+        .error_for_status()
+        .map_err(|e| format!("Не удалось получить новости ({e})"))?
+        .json()
+        .await
+        .map_err(|e| format!("Некорректный ответ новостей: {e}"))
 }
 
 /// GET `/manifest`. Манифест активной сборки.

@@ -13,6 +13,7 @@ import type {
   CreateBuildInput,
   DepsCheckResult,
   Gradient,
+  NewsPost,
   PlayerCustomization,
   PlayerStats,
   Settings,
@@ -140,6 +141,11 @@ export const api = {
   listBuilds(): Promise<BuildHeader[]> {
     return request("GET", "/api/builds");
   },
+
+  listNews(): Promise<NewsPost[]> { return request("GET", "/api/news"); },
+  createNews(input: Pick<NewsPost, "title" | "markdown" | "pinned">): Promise<NewsPost> { return request("POST", "/api/news", input); },
+  updateNews(id: number, input: Pick<NewsPost, "title" | "markdown" | "pinned">): Promise<NewsPost> { return request("PATCH", `/api/news/${id}`, input); },
+  deleteNews(id: number): Promise<void> { return request("DELETE", `/api/news/${id}`); },
 
   getBuild(id: number): Promise<BuildDetail> {
     return request("GET", `/api/builds/${id}`);

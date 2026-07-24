@@ -132,3 +132,13 @@ export interface PlayerCustomization {
   ownedBadgeIds?: number[];
   ownedGradientIds?: number[];
 }
+
+export interface NewsPost {
+  id: number;
+  title: string;
+  markdown: string;
+  authorName: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

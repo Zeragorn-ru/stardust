@@ -11,6 +11,7 @@ import { MobileBuildDetail } from "./MobileBuildDetail";
 import { MobileAccounts } from "./MobileAccounts";
 import { MobileSettings } from "./MobileSettings";
 import { MobileCustomization } from "./MobileCustomization";
+import { NewsView } from "../views/NewsView";
 import { IconBox, IconChart, IconClose, IconLogout, IconSettings, IconStar, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
@@ -41,13 +42,14 @@ function Gate() {
   return <Shell />;
 }
 
-type MobileTab = "overview" | "builds" | "accounts" | "customization" | "settings";
+type MobileTab = "overview" | "builds" | "accounts" | "customization" | "news" | "settings";
 
 const NAV: Array<{ tab: MobileTab; label: string; eyebrow: string; icon: ReactNode }> = [
   { tab: "overview", label: "Обзор", eyebrow: "Dashboard", icon: <IconChart size={19} /> },
   { tab: "builds", label: "Сборки", eyebrow: "Deployment", icon: <IconBox size={20} /> },
   { tab: "accounts", label: "Аккаунты", eyebrow: "Operations", icon: <IconUsers size={20} /> },
   { tab: "customization", label: "Косметика", eyebrow: "Identity", icon: <IconStar size={19} /> },
+  { tab: "news", label: "Новости", eyebrow: "Launcher feed", icon: <IconStar size={19} /> },
   { tab: "settings", label: "Система", eyebrow: "Integrations", icon: <IconSettings size={20} /> },
 ];
 
@@ -158,6 +160,7 @@ function Shell() {
         )}
         {activeTab === "accounts" && <MobileAccounts />}
         {activeTab === "customization" && <MobileCustomization />}
+        {activeTab === "news" && <NewsView />}
         {activeTab === "settings" && <MobileSettings />}
       </main>
     </div>
