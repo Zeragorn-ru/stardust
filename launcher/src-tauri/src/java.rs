@@ -958,7 +958,10 @@ fn discover_windows(push_home: &mut impl FnMut(PathBuf, &str)) {
 
 fn which_java() -> Option<PathBuf> {
     let cmd = if cfg!(windows) { "where" } else { "which" };
-    let output = Command::new(cmd).arg("java").output().ok()?;
+    let mut command = Command::new(cmd);
+    command.arg("java");
+    hide_console(&mut command);
+    let output = command.output().ok()?;
     if !output.status.success() {
         return None;
     }

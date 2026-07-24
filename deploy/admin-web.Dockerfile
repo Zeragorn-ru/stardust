@@ -7,7 +7,9 @@ WORKDIR /build
 
 # Сначала манифесты — кэш слоя npm ci не инвалидируется при правке исходников.
 COPY admin-web/package.json admin-web/package-lock.json ./
-RUN npm ci
+# minecraft-skin-renderer ships a broken development postinstall hook; the
+# renderer itself is bundled by Vite and does not require install scripts.
+RUN npm ci --ignore-scripts
 
 COPY admin-web/ ./
 RUN npm run build

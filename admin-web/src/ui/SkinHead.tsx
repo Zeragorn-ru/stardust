@@ -3,8 +3,7 @@
 // с admin-server по uuid (bearer-токен). Если скина нет — показываем
 // буквенный плейсхолдер с цветом, выведенным из uuid (стабильный per-player).
 //
-// PNG кэшируется по uuid на уровне модуля: таблица аккаунтов перерисовывается
-// часто (поиск, действия), а скин у игрока меняется редко.
+// PNG кэшируется API-клиентом и вызывается только в карточке игрока.
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
@@ -13,31 +12,9 @@ import { api } from "../api";
 const HEAD_BASE: [number, number, number, number] = [8, 8, 8, 8];
 const HEAD_HAT: [number, number, number, number] = [40, 8, 8, 8];
 
-// Кэш загруженных скинов: uuid -> object URL | null (нет скина) | Promise (в полёте).
-const skinCache = new Map<string, string | null | Promise<string | null>>();
-
-async function loadSkinUrl(uuid: string): Promise<string | null> {
-  const cached = skinCache.get(uuid);
-  if (cached !== undefined) return cached;
-  const promise = api
-    .getAccountSkinUrl(uuid)
-    .then((url) => {
-      skinCache.set(uuid, url);
-      return url;
-    })
-    .catch(() => {
-      skinCache.set(uuid, null);
-      return null;
-    });
-  skinCache.set(uuid, promise);
-  return promise;
-}
-
 /// Сбрасывает кэш скина игрока (после загрузки/импорта нового скина).
 export function invalidateSkinCache(uuid: string): void {
-  const cached = skinCache.get(uuid);
-  if (typeof cached === "string") URL.revokeObjectURL(cached);
-  skinCache.delete(uuid);
+  api.invalidateAccountSkin(uuid);
 }
 
 // Стабильный цвет фона плейсхолдера из uuid (HSL, приятная насыщенность).
@@ -66,7 +43,7 @@ export function SkinHead({ uuid, username, size = 32 }: Props) {
     let active = true;
     setLoaded(false);
     setDataUrl(null);
-    loadSkinUrl(uuid).then((url) => {
+    api.getAccountSkinUrl(uuid).then((url) => {
       if (!active) return;
       setDataUrl(url);
       setLoaded(true);

@@ -220,7 +220,7 @@ async fn main() {
             "/api/accounts/:uuid/telegram",
             axum::routing::delete(unlink_account_telegram).put(set_account_telegram),
         )
-        .route("/api/accounts/:uuid/skin", get(account_skin))
+        .route("/api/accounts/:uuid/skin", get(account_skin).put(update_account_skin))
         .route("/api/accounts/:uuid/stats", get(account_stats))
         .route("/api/accounts/:uuid/customization", get(get_account_customization))
         .route("/api/accounts/:uuid/badges", put(set_account_badges))
@@ -2289,6 +2289,55 @@ async fn account_skin(
         skin.png,
     )
         .into_response())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateAccountSkinRequest {
+    png_base64: String,
+    model: protocol::SkinModel,
+}
+
+/// `PUT /api/accounts/:uuid/skin` — администратор задаёт PNG-скин игроку.
+/// Ручная загрузка сбрасывает импорт Mojang и связанный плащ, как и в API лаунчера.
+async fn update_account_skin(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(req): Json<UpdateAccountSkinRequest>,
+) -> Result<Json<AccountDto>, ApiError> {
+    use base64::Engine;
+
+    require_admin(&state, &headers).await?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+
+    let png = base64::engine::general_purpose::STANDARD
+        .decode(req.png_base64.trim().as_bytes())
+        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "Не удалось декодировать PNG"))?;
+    const MAX_SKIN_BYTES: usize = 256 * 1024;
+    if png.len() > MAX_SKIN_BYTES {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Скин слишком большой (максимум 256 КБ)",
+        ));
+    }
+    if png.len() < 8 || png[..8] != [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n'] {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Файл не является PNG",
+        ));
+    }
+
+    state
+        .store
+        .set_skin(&account.uuid, store::StoredSkin::new(png, req.model, None, None))
+        .await
+        .map_err(map_store)?;
+    Ok(Json(AccountDto::from(account)))
 }
 
 /// Внутренняя логика синхронизации статистики с SFTP.

@@ -1043,13 +1043,19 @@ fn reset_settings(state: State<'_, AppState>, app: AppHandle) -> Result<Settings
 }
 
 #[tauri::command]
-fn list_java_installations(app: AppHandle) -> Vec<JavaInstallation> {
-    java::list_installations(&paths::data_dir(&app))
+async fn list_java_installations(app: AppHandle) -> Result<Vec<JavaInstallation>, String> {
+    let data_dir = paths::data_dir(&app);
+    tauri::async_runtime::spawn_blocking(move || java::list_installations(&data_dir))
+        .await
+        .map_err(|e| format!("Поиск Java был прерван: {e}"))
 }
 
 #[tauri::command]
-fn list_java_installations_deep(app: AppHandle) -> Vec<JavaInstallation> {
-    java::list_installations_deep(&paths::data_dir(&app))
+async fn list_java_installations_deep(app: AppHandle) -> Result<Vec<JavaInstallation>, String> {
+    let data_dir = paths::data_dir(&app);
+    tauri::async_runtime::spawn_blocking(move || java::list_installations_deep(&data_dir))
+        .await
+        .map_err(|e| format!("Глубокий поиск Java был прерван: {e}"))
 }
 
 #[tauri::command]

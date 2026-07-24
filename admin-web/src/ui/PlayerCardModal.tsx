@@ -5,8 +5,9 @@ import type { Account, Badge, Gradient, PlayerStats } from "../types";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { SkinHead } from "../ui/SkinHead";
 import { useConfirm, useToast } from "./feedback";
+import { PlayerSkinTab } from "./PlayerSkinTab";
 
-type Tab = "info" | "badges" | "actions";
+type Tab = "info" | "skin" | "badges" | "actions";
 
 interface Props {
   account: Account;
@@ -55,6 +56,7 @@ export function PlayerCardModal({ account, onClose, onUpdated, onDeleted }: Prop
         <div className="pc-tabs">
           {([
             ["info", "Общее"],
+            ["skin", "Скин"],
             ["badges", "Бейджи"],
             ["actions", "Действия"],
           ] as const).map(([key, label]) => (
@@ -72,6 +74,9 @@ export function PlayerCardModal({ account, onClose, onUpdated, onDeleted }: Prop
         <div className="pc-body">
           {tab === "info" && (
             <InfoTab account={account} />
+          )}
+          {tab === "skin" && (
+            <PlayerSkinTab account={account} onUpdated={onUpdated} />
           )}
           {tab === "badges" && (
             <BadgesTab account={account} />

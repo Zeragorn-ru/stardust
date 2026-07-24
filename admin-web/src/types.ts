@@ -41,6 +41,8 @@ export interface Account {
   telegramChatId?: string;
 }
 
+export type SkinModel = "classic" | "slim";
+
 // Настройки сервера (вкладка «Настройки»). Токен бота наружу не отдаётся —
 // только флаг, привязан он или нет.
 export interface Settings {

@@ -1633,10 +1633,21 @@ async fn http_get_with_retry(
 
 fn compute_sha1(path: &Path) -> Result<String, String> {
     use sha1::{Digest, Sha1};
-    let bytes = fs::read(path)
+    use std::io::Read;
+
+    let mut file = fs::File::open(path)
         .map_err(|e| format!("Не удалось прочитать файл для хеша {}: {e}", path.display()))?;
     let mut hasher = Sha1::new();
-    hasher.update(&bytes);
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|e| format!("Не удалось прочитать файл для хеша {}: {e}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
     Ok(format!("{:x}", hasher.finalize()))
 }
 

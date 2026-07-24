@@ -924,6 +924,34 @@ button.secondary:hover:not(:disabled) {
     border-radius: 24px;
 }
 
+.m-screen .player-card-modal {
+    padding: 16px;
+}
+
+.m-screen .pc-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.m-screen .pc-tab {
+    min-width: max-content;
+    flex: 0 0 auto;
+}
+
+.m-screen .pc-skin-stage {
+    min-height: 270px;
+}
+
+.m-screen .pc-skin-viewer {
+    width: 200px;
+    height: 270px;
+}
+
+.m-screen .pc-skin-controls > button {
+    width: 100%;
+    justify-content: center;
+}
+
 .m-screen .fm-toolbar,
 .m-screen .files-toolbar {
     align-items: stretch;
