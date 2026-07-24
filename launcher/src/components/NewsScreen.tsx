@@ -16,7 +16,6 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
       <h2>Новости</h2>
     </header>
     <div className="news-screen__body">
-      <div className="news-screen__intro stagger-item"><span className="news-screen__eyebrow">StarDust / Журнал</span><h1>Новости сервера</h1><p>Обновления, события и всё важное для игроков.</p></div>
       <div className="news-screen__feed">
       {posts === null && !error && <div className="settings__loading"><div className="spinner" /><span className="muted">Загружаем новости…</span></div>}
       {error && <div className="news-screen__empty"><strong>Новости временно недоступны</strong><span>{error}</span></div>}

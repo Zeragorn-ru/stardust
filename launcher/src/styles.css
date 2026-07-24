@@ -303,10 +303,6 @@ body {
 
 .news-screen { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .news-screen__body { width: min(1040px, 100%); margin: 0 auto; padding: 36px 48px 48px; overflow-y: auto; }
-.news-screen__intro { margin-bottom: 24px; }
-.news-screen__intro h1 { margin: 6px 0 8px; font-size: clamp(28px, 4vw, 38px); letter-spacing: -.035em; }
-.news-screen__intro p { color: var(--muted); font-size: 15px; }
-.news-screen__eyebrow { display: block; color: #b6a9ff; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .news-screen__feed { display: grid; gap: 14px; }
 .news-post { padding: 24px 28px; border: 1px solid var(--glass-border); border-radius: 18px; background: rgba(22, 25, 40, .48); box-shadow: 0 14px 36px -26px rgba(0, 0, 0, .75); }
 .news-post h2 { margin: 12px 0; font-size: 22px; line-height: 1.2; letter-spacing: -.02em; }
