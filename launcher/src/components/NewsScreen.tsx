@@ -11,11 +11,13 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
   }, []);
 
   return <main className="news-screen stagger">
-    <header className="news-screen__header">
-      <div><span className="news-screen__eyebrow">StarDust / Журнал</span><h1>Новости сервера</h1><p>Обновления, события и всё важное для игроков.</p></div>
-      <button type="button" className="btn btn--ghost" onClick={onClose}>Назад</button>
+    <header className="news-screen__header settings__header">
+      <button type="button" className="btn btn--ghost" onClick={onClose}>← Назад</button>
+      <h2>Новости</h2>
     </header>
-    <div className="news-screen__feed">
+    <div className="news-screen__body">
+      <div className="news-screen__intro stagger-item"><span className="news-screen__eyebrow">StarDust / Журнал</span><h1>Новости сервера</h1><p>Обновления, события и всё важное для игроков.</p></div>
+      <div className="news-screen__feed">
       {posts === null && !error && <div className="settings__loading"><div className="spinner" /><span className="muted">Загружаем новости…</span></div>}
       {error && <div className="news-screen__empty"><strong>Новости временно недоступны</strong><span>{error}</span></div>}
       {posts?.length === 0 && <div className="news-screen__empty"><strong>Новостей пока нет</strong><span>Когда появится что-то важное, оно будет здесь.</span></div>}
@@ -23,6 +25,7 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
         <div className="news-post__topline"><div className="news-post__meta">{post.pinned && <span className="news-post__pin">Закреплено</span>}<span>{post.authorName}</span></div><time dateTime={post.updatedAt}>{formatDate(post.updatedAt)}</time></div>
         <h2>{post.title}</h2><Markdown text={post.markdown} />
       </article>)}
+      </div>
     </div>
   </main>;
 }

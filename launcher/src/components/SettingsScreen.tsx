@@ -70,15 +70,6 @@ const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
 
 const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
 
-const SECTION_TITLES: Record<Section, string> = {
-  game: "Игра",
-  interface: "Интерфейс",
-  account: "Аккаунт",
-  mods: "Сборка",
-  logs: "Логи",
-  about: "О лаунчере",
-};
-
 const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
   auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
   temurin: "Использовать Eclipse Temurin 21 из managed runtime лаунчера.",
@@ -362,7 +353,7 @@ export default function SettingsScreen({
         <button className="btn btn--ghost" onClick={handleClose}>
           ← Назад
         </button>
-        <h2>{SECTION_TITLES[section]}</h2>
+        <h2>Настройки</h2>
         {["game", "interface"].includes(section) && (
           <span className="settings__save-state">
             {saveError ? `Не сохранено: ${saveError}` : saving ? "Сохраняем…" : isDirty ? "Ожидает сохранения" : "Сохранено"}
