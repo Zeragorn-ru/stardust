@@ -160,7 +160,7 @@ function Shell() {
         )}
         {activeTab === "accounts" && <MobileAccounts />}
         {activeTab === "customization" && <MobileCustomization />}
-        {activeTab === "news" && <NewsView />}
+        {activeTab === "news" && <div className="m-screen"><NewsView mobile /></div>}
         {activeTab === "settings" && <MobileSettings />}
       </main>
     </div>
