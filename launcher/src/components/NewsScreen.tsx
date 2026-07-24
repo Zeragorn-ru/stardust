@@ -11,16 +11,16 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
   }, []);
 
   return <main className="news-screen stagger">
-    <header className="settings__header">
-      <div><span className="news-screen__eyebrow">StarDust</span><h1>Новости</h1><p className="muted">Обновления сервера, события и важные новости.</p></div>
+    <header className="news-screen__header">
+      <div><span className="news-screen__eyebrow">StarDust / Журнал</span><h1>Новости сервера</h1><p>Обновления, события и всё важное для игроков.</p></div>
       <button type="button" className="btn btn--ghost" onClick={onClose}>Назад</button>
     </header>
     <div className="news-screen__feed">
       {posts === null && !error && <div className="settings__loading"><div className="spinner" /><span className="muted">Загружаем новости…</span></div>}
-      {error && <p className="muted">{error}</p>}
-      {posts?.length === 0 && <p className="muted">Новостей пока нет.</p>}
+      {error && <div className="news-screen__empty"><strong>Новости временно недоступны</strong><span>{error}</span></div>}
+      {posts?.length === 0 && <div className="news-screen__empty"><strong>Новостей пока нет</strong><span>Когда появится что-то важное, оно будет здесь.</span></div>}
       {posts?.map((post) => <article className="news-post stagger-item" key={post.id}>
-        <div className="news-post__meta">{post.pinned && <span className="news-post__pin">Закреплено</span>}<span>{post.authorName}</span><span>{formatDate(post.updatedAt)}</span></div>
+        <div className="news-post__topline"><div className="news-post__meta">{post.pinned && <span className="news-post__pin">Закреплено</span>}<span>{post.authorName}</span></div><time dateTime={post.updatedAt}>{formatDate(post.updatedAt)}</time></div>
         <h2>{post.title}</h2><Markdown text={post.markdown} />
       </article>)}
     </div>

@@ -262,16 +262,17 @@ export default function MainScreen({
               onOpenNews();
             }}
           >
-            <span className="hero__news-banner-label">Новости</span>
+            <span className="hero__news-banner-icon" aria-hidden="true">N</span>
             {news?.featured ? (
               <span className="hero__news-banner-copy">
-                <strong>{news.featured.pinned && <span className="hero__news-pin">Закреплено</span>}{news.featured.title}</strong>
+                <span className="hero__news-banner-label">{news.featured.pinned ? "Закреплённая новость" : "Новости сервера"}</span>
+                <strong>{news.featured.title}</strong>
                 <span>{news.featured.excerpt || "Открыть ленту новостей"}</span>
               </span>
             ) : (
-              <span className="hero__news-banner-copy"><strong>Все новости сервера</strong><span>Открыть ленту новостей</span></span>
+              <span className="hero__news-banner-copy"><span className="hero__news-banner-label">Новости сервера</span><strong>Все новости сервера</strong><span>События, обновления и объявления</span></span>
             )}
-            {news?.featured && <span className="hero__news-banner-meta">{news.featured.authorName}</span>}
+            <span className="hero__news-banner-action">Открыть<span aria-hidden="true">→</span></span>
             {newsUnread && <span className="hero__news-dot" aria-label="Есть новые новости" />}
           </button>
           <div className="hero__info-row stagger-item">
