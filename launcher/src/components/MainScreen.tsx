@@ -269,7 +269,7 @@ export default function MainScreen({
                 <span>{news.featured.excerpt || "Открыть ленту новостей"}</span>
               </span>
             ) : (
-              <span className="hero__news-banner-copy"><strong>Все объявления сервера</strong><span>Открыть ленту новостей</span></span>
+              <span className="hero__news-banner-copy"><strong>Все новости сервера</strong><span>Открыть ленту новостей</span></span>
             )}
             {news?.featured && <span className="hero__news-banner-meta">{news.featured.authorName}</span>}
             {newsUnread && <span className="hero__news-dot" aria-label="Есть новые новости" />}

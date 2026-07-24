@@ -12,7 +12,7 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
 
   return <main className="news-screen stagger">
     <header className="settings__header">
-      <div><span className="news-screen__eyebrow">StarDust</span><h1>Новости</h1><p className="muted">Обновления сервера, события и важные объявления.</p></div>
+      <div><span className="news-screen__eyebrow">StarDust</span><h1>Новости</h1><p className="muted">Обновления сервера, события и важные новости.</p></div>
       <button type="button" className="btn btn--ghost" onClick={onClose}>Назад</button>
     </header>
     <div className="news-screen__feed">

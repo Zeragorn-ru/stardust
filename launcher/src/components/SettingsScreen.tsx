@@ -27,7 +27,7 @@ import AccountSection from "./AccountSection";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
 import ModsSection from "./ModsSection";
 
-type Section = "game" | "java" | "interface" | "data" | "account" | "mods" | "logs" | "about";
+type Section = "game" | "interface" | "account" | "mods" | "logs" | "about";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -72,9 +72,7 @@ const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
 
 const SECTION_TITLES: Record<Section, string> = {
   game: "Игра",
-  java: "Java и сеть",
   interface: "Интерфейс",
-  data: "Данные",
   account: "Аккаунт",
   mods: "Сборка",
   logs: "Логи",
@@ -191,7 +189,7 @@ export default function SettingsScreen({
   }
 
   useEffect(() => {
-    if (section === "java") {
+    if (section === "game") {
       void refreshJavaList();
     }
   }, [section]);
@@ -365,7 +363,7 @@ export default function SettingsScreen({
           ← Назад
         </button>
         <h2>{SECTION_TITLES[section]}</h2>
-        {["game", "java", "interface"].includes(section) && (
+        {["game", "interface"].includes(section) && (
           <span className="settings__save-state">
             {saveError ? `Не сохранено: ${saveError}` : saving ? "Сохраняем…" : isDirty ? "Ожидает сохранения" : "Сохранено"}
           </span>
@@ -413,26 +411,6 @@ export default function SettingsScreen({
             onClick={() => setSection("mods")}
           >
             Сборка
-          </button>
-          <button
-            type="button"
-            className={
-              "settings__nav-item" +
-              (section === "data" ? " settings__nav-item--active" : "")
-            }
-            onClick={() => setSection("data")}
-          >
-            Данные
-          </button>
-          <button
-            type="button"
-            className={
-              "settings__nav-item" +
-              (section === "java" ? " settings__nav-item--active" : "")
-            }
-            onClick={() => setSection("java")}
-          >
-            Java и сеть
           </button>
           <button
             type="button"
@@ -825,6 +803,44 @@ export default function SettingsScreen({
               </div>
             )}
 
+            {section === "about" && <div className="data-directory-card stagger-item">
+              <div className="toggle-row__text">
+                <span className="toggle-row__title">Расположение данных</span>
+                <span className="muted toggle-row__desc">
+                  Игра, скачанная Java, кеш и настройки. Перенос копирует все файлы и работает между дисками.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="data-directory-card__path"
+                title={dataDirectory?.path}
+                disabled={!dataDirectory}
+                onClick={() => {
+                  if (dataDirectory) void openPath(dataDirectory.path);
+                }}
+              >
+                {dataDirectory?.path ?? "Загрузка…"}
+              </button>
+              <button type="button" className="btn btn--ghost" onClick={() => void handleRelocateDataDirectory()} disabled={relocating}>
+                {relocating ? "Переносим…" : "Изменить папку"}
+              </button>
+              {relocationProgress && (
+                <div className="data-directory-card__progress">
+                  <div className="progress__label">
+                    <span>{relocationProgress.label}</span>
+                    <span>{Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : ""}</span>
+                  </div>
+                  <div className="progress__track">
+                    <div className="progress__bar" style={{ width: Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : undefined }} />
+                  </div>
+                  <span className="muted toggle-row__desc">
+                    {relocationProgress.copiedFiles} из {relocationProgress.totalFiles} файлов
+                  </span>
+                </div>
+              )}
+              {relocationError && <div className="alert alert--error">{relocationError}</div>}
+            </div>}
+
             {section === "about" && <button
               type="button"
               className="btn btn--ghost stagger-item"
@@ -865,39 +881,9 @@ export default function SettingsScreen({
               </div>
             )}
 
-            {section === "data" && <div className="data-directory-card stagger-item">
-              <div className="toggle-row__text">
-                <span className="toggle-row__title">Расположение данных</span>
-                <span className="muted toggle-row__desc">
-                  Игра, скачанная Java, кеш и настройки. Перенос копирует все файлы и работает между дисками.
-                </span>
-              </div>
-              <code className="data-directory-card__path" title={dataDirectory?.path}>
-                {dataDirectory?.path ?? "Загрузка…"}
-              </code>
-              <button type="button" className="btn btn--ghost" onClick={() => void handleRelocateDataDirectory()} disabled={relocating}>
-                {relocating ? "Переносим…" : "Изменить папку"}
-              </button>
-              {relocationProgress && (
-                <div className="data-directory-card__progress">
-                  <div className="progress__label">
-                    <span>{relocationProgress.label}</span>
-                    <span>{Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : ""}</span>
-                  </div>
-                  <div className="progress__track">
-                    <div className="progress__bar" style={{ width: Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : undefined }} />
-                  </div>
-                  <span className="muted toggle-row__desc">
-                    {relocationProgress.copiedFiles} из {relocationProgress.totalFiles} файлов
-                  </span>
-                </div>
-              )}
-              {relocationError && <div className="alert alert--error">{relocationError}</div>}
-            </div>}
-
-            {section === "java" && <div className="advanced-card stagger-item">
+            {section === "game" && <div className="advanced-card stagger-item">
               <div className="advanced-card__head">
-                <span className="toggle-row__title">Для опытных пользователей</span>
+                <span className="toggle-row__title">Java и сеть</span>
                 <span className="muted toggle-row__desc">
                   Java и прокси обычно не нужно менять. Эти параметры полезны для
                   диагностики запуска, корпоративных сетей и ручной настройки JVM.

@@ -301,7 +301,7 @@ body {
     background: radial-gradient(120% 120% at 50% -10%, #141833 0%, var(--bg) 45%, var(--bg-deep) 100%);
 }
 
-.news-screen { width: min(980px, 100%); margin: 0 auto; padding: 40px 48px; }
+.news-screen { width: min(980px, 100%); min-height: 100%; margin: 0 auto; padding: 40px 48px; }
 .news-screen__eyebrow { display: block; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
 .news-screen__feed { display: grid; gap: 12px; }
 .news-post { padding: 18px 0; border-top: 1px solid var(--glass-border); }
@@ -411,6 +411,12 @@ body {
 
 /* ── Transition system ─────────────────────────────────────── */
 .screen-transition {
+    position: absolute;
+    inset: 0;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     animation-duration: 380ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
     animation-fill-mode: both;
@@ -1948,7 +1954,7 @@ body {
 .settings {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 38px);
+    height: 100%;
     min-height: 0;
     overflow: hidden;
     contain: layout style;
@@ -3134,6 +3140,24 @@ body {
     display: flex;
     flex-direction: column;
     gap: 7px;
+}
+
+button.data-directory-card__path {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    text-align: left;
+    font-family: ui-monospace, monospace;
+    cursor: pointer;
+}
+
+button.data-directory-card__path:hover:not(:disabled) {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+button.data-directory-card__path:disabled {
+    cursor: default;
 }
 
 /* ============ Логи (настройки + просмотр) ============ */
