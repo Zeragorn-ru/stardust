@@ -264,7 +264,6 @@ export default function MainScreen({
           >
             {news?.featured ? (
               <span className="hero__news-banner-copy">
-                <span className="hero__news-banner-label">{news.featured.pinned ? "Закреплённая новость" : "Новости сервера"}</span>
                 <strong>{news.featured.title}</strong>
                 <span>{news.featured.excerpt || "Открыть ленту новостей"}</span>
               </span>
