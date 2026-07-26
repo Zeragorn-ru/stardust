@@ -2264,7 +2264,7 @@ body {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: rgba(5, 6, 12, 0.62);
+    background: rgba(5, 6, 12, 0.76);
     animation: overlay-in var(--t-mid) ease;
 }
 
@@ -2277,7 +2277,7 @@ body {
 .modal {
     width: 100%;
     max-width: 560px;
-    background: var(--glass-strong);
+    background: rgba(28, 32, 52, 0.9);
     border: 1px solid var(--glass-border-strong);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
@@ -2326,7 +2326,7 @@ body {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: rgba(5, 6, 12, 0.78);
+    background: rgba(5, 6, 12, 0.86);
     animation: overlay-in var(--t-mid) ease;
 }
 
@@ -3312,8 +3312,8 @@ button.data-directory-card__path:disabled {
     -webkit-backdrop-filter: none;
     background: linear-gradient(
         160deg,
-        rgba(80, 50, 140, 0.35) 0%,
-        rgba(5, 6, 12, 0.82) 100%
+        rgba(80, 50, 140, 0.5) 0%,
+        rgba(5, 6, 12, 0.9) 100%
     );
 }
 
