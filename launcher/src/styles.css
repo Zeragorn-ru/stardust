@@ -54,8 +54,9 @@
     --t-slow: 0.5s;
 
     font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
+    /* Let the OS WebView use its native font rasterizer (ClearType/subpixel AA). */
+    text-rendering: auto;
+    -webkit-font-smoothing: auto;
 }
 
 /* Режим экономии: быстрые переходы вместо полного отключения анимаций.
