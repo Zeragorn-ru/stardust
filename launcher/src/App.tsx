@@ -76,6 +76,8 @@ export default function App() {
     setTimeout(() => {
       setExitView(null);
       setExitClass("");
+      // Do not retain will-change on the active screen after its entrance animation.
+      setEnterClass("");
       navigatingRef.current = false;
     }, TRANSITION_MS);
   }

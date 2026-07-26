@@ -148,17 +148,15 @@ body {
     box-shadow:
         0 24px 70px -20px rgba(0, 0, 0, 0.75),
         0 0 0 1px rgba(0, 0, 0, 0.4);
-    animation: app-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: app-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes app-in {
     from {
         opacity: 0;
-        transform: scale(0.985);
     }
     to {
         opacity: 1;
-        transform: scale(1);
     }
 }
 
@@ -187,8 +185,6 @@ body {
     padding: 0 8px 0 14px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(8, 9, 16, 0.58);
-    backdrop-filter: blur(18px) saturate(140%);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
     -webkit-app-region: drag;
 }
 
@@ -244,18 +240,13 @@ body {
     transition:
         background var(--t-fast),
         border-color var(--t-fast),
-        color var(--t-fast),
-        transform var(--t-fast);
+        color var(--t-fast);
 }
 
 .window-btn:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: var(--glass-border);
     color: #fff;
-}
-
-.window-btn:active {
-    transform: scale(0.96);
 }
 
 .window-btn span {
@@ -409,11 +400,9 @@ body {
 @keyframes screenIn {
     from {
         opacity: 0;
-        transform: translateY(10px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
     }
 }
 
@@ -427,15 +416,15 @@ body {
     overflow-y: auto;
     animation-duration: 380ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    animation-fill-mode: both;
+    animation-fill-mode: backwards;
 }
 
 /* Enter classes — will-change только здесь; на exit не нужен и создаёт
    новый stacking context, сбрасывающий GPU-слои дочерних элементов. */
-.screen-enter-bottom  { will-change: transform, opacity; animation-name: t-enter-bottom; }
-.screen-enter-top     { will-change: transform, opacity; animation-name: t-enter-top; }
-.screen-enter-right   { will-change: transform, opacity; animation-name: t-enter-right; }
-.screen-enter-left    { will-change: transform, opacity; animation-name: t-enter-left; }
+.screen-enter-bottom  { will-change: opacity; animation-name: t-enter-bottom; }
+.screen-enter-top     { will-change: opacity; animation-name: t-enter-top; }
+.screen-enter-right   { will-change: opacity; animation-name: t-enter-right; }
+.screen-enter-left    { will-change: opacity; animation-name: t-enter-left; }
 
 /* Exit classes */
 .screen-exit-up    { animation-name: t-exit-up; }
@@ -444,36 +433,36 @@ body {
 .screen-exit-right { animation-name: t-exit-right; }
 
 @keyframes t-enter-bottom {
-    from { opacity: 0; transform: translateY(100%); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-enter-top {
-    from { opacity: 0; transform: translateY(-100%); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-enter-right {
-    from { opacity: 0; transform: translateX(100%); }
-    to   { opacity: 1; transform: translateX(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-enter-left {
-    from { opacity: 0; transform: translateX(-100%); }
-    to   { opacity: 1; transform: translateX(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-exit-up {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(-100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 @keyframes t-exit-down {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 @keyframes t-exit-left {
-    from { opacity: 1; transform: translateX(0); }
-    to   { opacity: 0; transform: translateX(-100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 @keyframes t-exit-right {
-    from { opacity: 1; transform: translateX(0); }
-    to   { opacity: 0; transform: translateX(100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 
 /* Во время exit-перехода замораживаем ВСЕ дочерние анимации,
@@ -540,11 +529,9 @@ body {
 @keyframes glassIn {
     from {
         opacity: 0;
-        transform: translateY(16px) scale(0.98);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
     }
 }
 
@@ -552,7 +539,7 @@ body {
    вешаем .stagger, на детей — .stagger-item. Задержки фиксированы по индексу,
    чтобы не плодить инлайновые стили. */
 .stagger-item {
-    animation: fadeUp var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: fadeUp var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .stagger .stagger-item:nth-child(1) {
@@ -598,27 +585,23 @@ body {
 @keyframes fadeUp {
     from {
         opacity: 0;
-        transform: translateY(12px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
     }
 }
 
 /* Лёгкое всплывание сбоку — для боковых панелей/навигации. */
 .slide-in-left {
-    animation: slideInLeft var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: slideInLeft var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes slideInLeft {
     from {
         opacity: 0;
-        transform: translateX(-14px);
     }
     to {
         opacity: 1;
-        transform: translateX(0);
     }
 }
 
@@ -642,21 +625,17 @@ body {
     background: var(--glass);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
 }
 
 /* Интерактивная карточка: мягко приподнимается и подсвечивается по наведению. */
 .lift {
     transition:
-        transform var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1),
         box-shadow var(--t-mid),
         border-color var(--t-mid);
 }
 
 .lift:hover {
-    transform: translateY(-3px);
     border-color: var(--glass-border-strong);
     box-shadow:
         var(--shadow),
@@ -676,18 +655,12 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        transform var(--t-fast),
         box-shadow var(--t-mid),
         opacity var(--t-fast);
 }
 
 .btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-1px);
-}
-
-.btn:active:not(:disabled) {
-    transform: translateY(0);
 }
 
 .btn:disabled {
@@ -741,7 +714,6 @@ body {
 .btn--ghost:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.12);
     color: var(--text);
-    transform: translateY(-1px);
 }
 
 .btn--link {
@@ -795,7 +767,6 @@ body {
     box-shadow:
         0 16px 46px -18px rgba(16, 185, 129, 0.9),
         0 0 0 1px rgba(255, 255, 255, 0.12) inset;
-    transform: translateY(-1px) scale(1.01);
 }
 /* Мягкое «дыхание» свечения, пока кнопка готова к запуску. */
 .btn--play:not(:disabled) {
@@ -846,7 +817,6 @@ body {
 .btn--play-retry:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.14);
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    transform: translateY(-1px);
 }
 .btn--play-retry::after {
     display: none;
@@ -1004,13 +974,8 @@ body {
     gap: 8px;
     transition:
         border-color var(--t-mid),
-        transform var(--t-fast),
         box-shadow var(--t-mid),
         background var(--t-mid);
-}
-
-.choice:hover {
-    transform: translateY(-2px);
 }
 
 .choice--active {
@@ -1181,8 +1146,6 @@ body {
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
     padding: 20px;
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
     contain: layout style;
 }
@@ -1266,8 +1229,6 @@ body {
     padding: 12px 18px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(10, 11, 20, 0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
 }
 
 .account {
@@ -1288,17 +1249,11 @@ body {
     color: inherit;
     min-width: 0;
     max-width: min(420px, 58vw);
-    transition:
-        background var(--t-fast),
-        transform var(--t-fast);
+    transition: background var(--t-fast);
 }
 
 .account--link:hover {
     background: rgba(255, 255, 255, 0.05);
-}
-
-.account--link:active {
-    transform: scale(0.98);
 }
 
 .account__avatar {
@@ -1312,13 +1267,10 @@ body {
     font-weight: 800;
     font-size: 18px;
     box-shadow: 0 6px 20px -6px rgba(124, 92, 255, 0.6);
-    transition:
-        transform var(--t-fast) cubic-bezier(0.22, 1, 0.36, 1),
-        box-shadow var(--t-mid);
+    transition: box-shadow var(--t-mid);
 }
 
 .account--link:hover .account__avatar {
-    transform: scale(1.06) rotate(-2deg);
     box-shadow: 0 8px 26px -6px rgba(124, 92, 255, 0.8);
 }
 
@@ -1444,7 +1396,6 @@ body {
 .hero__skin-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.13);
     color: var(--text);
-    transform: translateY(-1px);
     box-shadow:
         0 10px 26px -12px rgba(124, 92, 255, 0.6),
         0 0 0 1px rgba(124, 92, 255, 0.35) inset;
@@ -1544,13 +1495,12 @@ body {
     font: inherit;
     text-align: left;
     box-shadow: var(--shadow);
-    transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+    transition: border-color var(--t-fast), background var(--t-fast);
 }
 
 .hero__news-banner:hover {
     border-color: rgba(124, 92, 255, .48);
     background: rgba(124, 92, 255, .1);
-    transform: translateY(-1px);
 }
 
 .hero__news-banner-label {
@@ -1577,8 +1527,8 @@ body {
 .hero__news-banner-copy strong { font-size: 16px; line-height: 1.25; }
 .hero__news-banner-copy span:last-child { color: var(--muted); font-size: 13px; }
 
-.hero__news-banner-action { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--glass-border); border-radius: 9px; color: var(--text); font-size: 18px; line-height: 1; transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
-.hero__news-banner:hover .hero__news-banner-action { border-color: rgba(124, 92, 255, .48); background: rgba(124, 92, 255, .16); transform: translateX(2px); }
+.hero__news-banner-action { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--glass-border); border-radius: 9px; color: var(--text); font-size: 18px; line-height: 1; transition: background var(--t-fast), border-color var(--t-fast); }
+.hero__news-banner:hover .hero__news-banner-action { border-color: rgba(124, 92, 255, .48); background: rgba(124, 92, 255, .16); }
 
 .hero__news-dot {
     position: absolute;
@@ -1609,14 +1559,12 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        border-color var(--t-fast),
-        transform var(--t-fast);
+        border-color var(--t-fast);
 }
 
 .server-map-button:hover {
     border-color: rgba(92, 184, 168, 0.5);
     background: rgba(92, 184, 168, 0.16);
-    transform: translateY(-1px);
 }
 
 .hero__stats-title {
@@ -1657,14 +1605,12 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        border-color var(--t-fast),
-        transform var(--t-fast);
+        border-color var(--t-fast);
 }
 
 .server-players-button:hover {
     border-color: rgba(74, 222, 128, 0.35);
     background: rgba(74, 222, 128, 0.1);
-    transform: translateY(-1px);
 }
 
 .hero__stat-value {
@@ -1966,8 +1912,6 @@ body {
     padding: 16px 22px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(10, 11, 20, 0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     flex-shrink: 0;
 }
 
@@ -2027,8 +1971,7 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        color var(--t-fast),
-        transform var(--t-fast);
+        color var(--t-fast);
 }
 
 /* Вертикальный акцентный «язычок» слева: вырастает у активного пункта. */
@@ -2048,10 +1991,6 @@ body {
 .settings__nav-item:hover {
     background: rgba(255, 255, 255, 0.04);
     color: var(--text);
-}
-
-.settings__nav-item:active {
-    transform: scale(0.98);
 }
 
 .settings__nav-item--active {
@@ -2081,11 +2020,9 @@ body {
 @keyframes panelIn {
     from {
         opacity: 0;
-        transform: translateX(8px);
     }
     to {
         opacity: 1;
-        transform: translateX(0);
     }
 }
 
@@ -2318,10 +2255,6 @@ body {
     box-shadow: 0 6px 18px -8px rgba(124, 92, 255, 0.7);
 }
 
-.tabs__tab:active {
-    transform: scale(0.97);
-}
-
 /* ============ Модальные окна ============ */
 
 .modal-overlay {
@@ -2332,8 +2265,6 @@ body {
     place-items: center;
     padding: 24px;
     background: rgba(5, 6, 12, 0.62);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
     animation: overlay-in var(--t-mid) ease;
 }
 
@@ -2350,8 +2281,6 @@ body {
     border: 1px solid var(--glass-border-strong);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    backdrop-filter: blur(24px) saturate(140%);
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2362,11 +2291,9 @@ body {
 @keyframes modal-in {
     from {
         opacity: 0;
-        transform: translateY(18px) scale(0.94);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
     }
 }
 
@@ -2400,8 +2327,6 @@ body {
     place-items: center;
     padding: 24px;
     background: rgba(5, 6, 12, 0.78);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
     animation: overlay-in var(--t-mid) ease;
 }
 
@@ -2797,17 +2722,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    animation: tab-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: tab-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes tab-in {
     from {
         opacity: 0;
-        transform: translateY(6px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
     }
 }
 
@@ -2820,7 +2743,6 @@ body {
 .btn--soft:hover:not(:disabled) {
     background: rgba(124, 92, 255, 0.22);
     box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.16);
-    transform: translateY(-1px);
 }
 
 /* Чекбокс «держать в синхроне» */
@@ -2937,14 +2859,12 @@ body {
     cursor: pointer;
     transition:
         border-color var(--t-fast),
-        background var(--t-fast),
-        transform var(--t-fast);
+        background var(--t-fast);
 }
 
 .java-provider:hover {
     border-color: rgba(124, 92, 255, 0.45);
     background: rgba(124, 92, 255, 0.08);
-    transform: translateY(-1px);
 }
 
 .java-provider--selected {
