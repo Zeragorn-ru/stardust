@@ -563,6 +563,24 @@ body {
 .stagger .stagger-item:nth-child(7) {
     animation-delay: 0.4s;
 }
+.stagger .stagger-item:nth-child(8) {
+    animation-delay: 0.46s;
+}
+.stagger .stagger-item:nth-child(9) {
+    animation-delay: 0.52s;
+}
+.stagger .stagger-item:nth-child(10) {
+    animation-delay: 0.58s;
+}
+.stagger .stagger-item:nth-child(11) {
+    animation-delay: 0.64s;
+}
+.stagger .stagger-item:nth-child(12) {
+    animation-delay: 0.7s;
+}
+.stagger .stagger-item:nth-child(n+13) {
+    animation-delay: 0.7s;
+}
 
 /* Для главного экрана stagger стартует после завершения enter-перехода (380ms),
    но с меньшими задержками для отзывчивости. */
@@ -580,6 +598,30 @@ body {
 }
 .main .stagger .stagger-item:nth-child(5) {
     animation-delay: 0.32s;
+}
+.main .stagger .stagger-item:nth-child(6) {
+    animation-delay: 0.38s;
+}
+.main .stagger .stagger-item:nth-child(7) {
+    animation-delay: 0.44s;
+}
+.main .stagger .stagger-item:nth-child(8) {
+    animation-delay: 0.5s;
+}
+.main .stagger .stagger-item:nth-child(9) {
+    animation-delay: 0.56s;
+}
+.main .stagger .stagger-item:nth-child(10) {
+    animation-delay: 0.62s;
+}
+.main .stagger .stagger-item:nth-child(11) {
+    animation-delay: 0.68s;
+}
+.main .stagger .stagger-item:nth-child(12) {
+    animation-delay: 0.74s;
+}
+.main .stagger .stagger-item:nth-child(n+13) {
+    animation-delay: 0.74s;
 }
 
 @keyframes fadeUp {
