@@ -2381,18 +2381,19 @@ fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
 }
 
 /// Пинг Minecraft-сервера: резолвит SRV-запись `_minecraft._tcp.<host>`,
-/// затем открывает TCP-соединение и шлёт Server List Ping (MC protocol).
-/// Возвращает `{ online: bool, players: Option<u32> }`.
+/// затем 3 раза открывает TCP и меряет ванильный Server List Ping RTT (ping→pong).
+/// Возвращает `{ online, players, max, ping, sample }`; `ping` — медиана успешных замеров.
 static RESOLVER: std::sync::OnceLock<hickory_resolver::TokioResolver> = std::sync::OnceLock::new();
+
+const MC_PING_SAMPLES: usize = 3;
+const MC_PING_ATTEMPT_TIMEOUT_SECS: u64 = 5;
 
 #[tauri::command]
 async fn ping_minecraft_server(host: String) -> serde_json::Value {
     use hickory_resolver::TokioResolver;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    use tokio::net::TcpStream;
     use tokio::time::{timeout, Duration};
 
-    // 1. SRV-запись _minecraft._tcp.<host>
+    // 1. SRV-запись _minecraft._tcp.<host> (один раз на все попытки)
     let (target_host, target_port): (String, u16) = {
         let resolver = RESOLVER.get_or_init(|| {
             TokioResolver::builder_tokio()
@@ -2413,66 +2414,136 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
         }
     };
 
-    // 2. TCP + Server List Ping (MC 1.7+ handshake, protocol -1 = status)
-    let addr = format!("{target_host}:{target_port}");
-    let ping = timeout(Duration::from_secs(5), async {
-        let t0 = std::time::Instant::now();
-        let mut stream = TcpStream::connect(&addr).await?;
-        let ping_ms = t0.elapsed().as_millis() as u64;
+    // 2. Три независимых TCP-сокета: status → ping/pong RTT
+    let mut samples: Vec<u64> = Vec::with_capacity(MC_PING_SAMPLES);
+    let mut first_json: Option<serde_json::Value> = None;
 
-        // Build handshake payload
-        let host_bytes = target_host.as_bytes();
-        let mut hs: Vec<u8> = Vec::new();
-        hs.push(0x00); // packet id
-        mc_write_varint(&mut hs, 0xFF_FF_FF_FF); // protocol version = -1
-        mc_write_varint(&mut hs, host_bytes.len() as u32);
-        hs.extend_from_slice(host_bytes);
-        hs.extend_from_slice(&target_port.to_be_bytes());
-        hs.push(0x01); // next state: status
-
-        let mut pkt: Vec<u8> = Vec::new();
-        mc_write_varint(&mut pkt, hs.len() as u32);
-        pkt.extend_from_slice(&hs);
-        stream.write_all(&pkt).await?;
-
-        // Status request
-        stream.write_all(&[0x01, 0x00]).await?;
-
-        // Read response
-        let _pkt_len = mc_read_varint(&mut stream).await?;
-        let _pkt_id = mc_read_varint(&mut stream).await?;
-        let str_len = mc_read_varint(&mut stream).await? as usize;
-        let mut buf = vec![0u8; str_len.min(8192)];
-        stream.read_exact(&mut buf).await?;
-        let json: serde_json::Value =
-            serde_json::from_slice(&buf).unwrap_or(serde_json::Value::Null);
-        Ok::<_, std::io::Error>((json, ping_ms))
-    })
-    .await;
-
-    match ping {
-        Ok(Ok((json, ping_ms))) => {
-            let players_obj = json.get("players");
-            let players = players_obj
-                .and_then(|p| p.get("online"))
-                .and_then(|v| v.as_u64());
-            let max = players_obj
-                .and_then(|p| p.get("max"))
-                .and_then(|v| v.as_u64());
-            let sample = players_obj
-                .and_then(|p| p.get("sample"))
-                .cloned()
-                .unwrap_or_else(|| serde_json::json!([]));
-
-            serde_json::json!({
-                "online": true,
-                "players": players,
-                "max": max,
-                "ping": ping_ms,
-                "sample": sample
-            })
+    for _ in 0..MC_PING_SAMPLES {
+        let attempt = timeout(
+            Duration::from_secs(MC_PING_ATTEMPT_TIMEOUT_SECS),
+            mc_status_ping_once(&target_host, target_port),
+        )
+        .await;
+        match attempt {
+            Ok(Ok((json, ping_ms))) => {
+                if first_json.is_none() {
+                    first_json = Some(json);
+                }
+                samples.push(ping_ms);
+            }
+            _ => {}
         }
-        _ => serde_json::json!({ "online": false, "players": null, "sample": [] }),
+    }
+
+    let Some(json) = first_json else {
+        return serde_json::json!({ "online": false, "players": null, "sample": [] });
+    };
+
+    let players_obj = json.get("players");
+    let players = players_obj
+        .and_then(|p| p.get("online"))
+        .and_then(|v| v.as_u64());
+    let max = players_obj
+        .and_then(|p| p.get("max"))
+        .and_then(|v| v.as_u64());
+    let sample = players_obj
+        .and_then(|p| p.get("sample"))
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+
+    serde_json::json!({
+        "online": true,
+        "players": players,
+        "max": max,
+        "ping": median_u64(&mut samples),
+        "sample": sample
+    })
+}
+
+/// Одна попытка: TCP connect → handshake → status → ping/pong RTT.
+async fn mc_status_ping_once(
+    target_host: &str,
+    target_port: u16,
+) -> std::io::Result<(serde_json::Value, u64)> {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpStream;
+
+    let addr = format!("{target_host}:{target_port}");
+    let mut stream = TcpStream::connect(&addr).await?;
+
+    // Handshake (protocol -1 = status)
+    let host_bytes = target_host.as_bytes();
+    let mut hs: Vec<u8> = Vec::new();
+    hs.push(0x00); // packet id
+    mc_write_varint(&mut hs, 0xFF_FF_FF_FF); // protocol version = -1
+    mc_write_varint(&mut hs, host_bytes.len() as u32);
+    hs.extend_from_slice(host_bytes);
+    hs.extend_from_slice(&target_port.to_be_bytes());
+    hs.push(0x01); // next state: status
+
+    let mut pkt: Vec<u8> = Vec::new();
+    mc_write_varint(&mut pkt, hs.len() as u32);
+    pkt.extend_from_slice(&hs);
+    stream.write_all(&pkt).await?;
+
+    // Status request
+    stream.write_all(&[0x01, 0x00]).await?;
+
+    // Status response
+    let _pkt_len = mc_read_varint(&mut stream).await?;
+    let _pkt_id = mc_read_varint(&mut stream).await?;
+    let str_len = mc_read_varint(&mut stream).await? as usize;
+    if str_len > 1_048_576 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "status JSON too large",
+        ));
+    }
+    let mut buf = vec![0u8; str_len];
+    stream.read_exact(&mut buf).await?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&buf).unwrap_or(serde_json::Value::Null);
+
+    // Vanilla ping → pong RTT (то, что показывает клиент в списке серверов)
+    let payload = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0);
+    let mut ping_body: Vec<u8> = Vec::with_capacity(9);
+    ping_body.push(0x01); // packet id
+    ping_body.extend_from_slice(&payload.to_be_bytes());
+    let mut ping_pkt: Vec<u8> = Vec::new();
+    mc_write_varint(&mut ping_pkt, ping_body.len() as u32);
+    ping_pkt.extend_from_slice(&ping_body);
+
+    let t0 = std::time::Instant::now();
+    stream.write_all(&ping_pkt).await?;
+
+    let _pong_len = mc_read_varint(&mut stream).await?;
+    let pong_id = mc_read_varint(&mut stream).await?;
+    if pong_id != 1 {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "unexpected pong packet id",
+        ));
+    }
+    let mut pong_payload = [0u8; 8];
+    stream.read_exact(&mut pong_payload).await?;
+    let ping_ms = t0.elapsed().as_millis() as u64;
+
+    Ok((json, ping_ms))
+}
+
+fn median_u64(values: &mut [u64]) -> u64 {
+    values.sort_unstable();
+    let n = values.len();
+    if n == 0 {
+        return 0;
+    }
+    if n % 2 == 1 {
+        values[n / 2]
+    } else {
+        (values[n / 2 - 1] + values[n / 2]) / 2
     }
 }
 
