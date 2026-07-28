@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Simple Voice Chat (и похожие моды) на macOS запрашивают микрофон через
+    AVCaptureDevice.requestAccessForMediaType. Без NSMicrophoneUsageDescription
+    в бандле лаунчера статус остаётся NOT_DETERMINED, и мод показывает
+    «Ваш лаунчер не поддерживает разрешения на использование микрофона».
+    См. Prism Launcher / modrepo.de/minecraft/voicechat/wiki/macos
+  -->
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Мод Minecraft хочет доступ к микрофону (голосовой чат).</string>
+  <key>NSCameraUsageDescription</key>
+  <string>Мод Minecraft хочет доступ к камере.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Minecraft использует локальную сеть для поиска и подключения к LAN-серверам.</string>
+</dict>
+</plist>
