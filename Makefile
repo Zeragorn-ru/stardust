@@ -48,9 +48,14 @@ clippy-launcher: ## clippy лаунчера (профиль launcher-release)
 build-launcher-frontend: launcher-deps ## Собрать только React-часть
 	cd launcher && $(NPM) run build
 
+.PHONY: codesign-launcher-macos
+codesign-launcher-macos: ## Ad-hoc подпись StarDust.app с entitlements (локально)
+	bash scripts/codesign-macos-app.sh
+
 .PHONY: build-launcher
 build-launcher: launcher-deps ## Собрать Tauri-лаунчер (установщики в target/)
-	cd launcher && $(NPM) run tauri build -- --profile $(LAUNCHER_PROFILE)
+	cd launcher && $(NPM) run tauri build -- -- --profile $(LAUNCHER_PROFILE)
+	@if [ "$$(uname -s)" = "Darwin" ]; then bash scripts/codesign-macos-app.sh; fi
 
 .PHONY: dev-launcher
 dev-launcher: launcher-deps ## Tauri dev (Vite + окно)

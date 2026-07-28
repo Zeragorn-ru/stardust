@@ -44,6 +44,7 @@
     },
     "macOS": {
       "entitlements": "./Entitlements.plist",
+      "infoPlist": "./Info.plist",
       "dmg": {}
     },
     "windows": {

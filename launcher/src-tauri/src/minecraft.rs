@@ -197,6 +197,9 @@ pub async fn launch(
     progress.begin(Stage::Launch, "launching", "Запускаем Minecraft…");
     progress.set_stage_fraction(1.0);
 
+    #[cfg(target_os = "macos")]
+    crate::macos_permissions::ensure_microphone_permission();
+
     let mut command = Command::new(java);
     command.args(&args).current_dir(&game_dir);
     hide_console(&mut command);

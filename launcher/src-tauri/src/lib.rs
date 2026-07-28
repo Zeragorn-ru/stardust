@@ -5,6 +5,8 @@ mod backend;
 mod commands;
 mod game_guard;
 mod java;
+#[cfg(target_os = "macos")]
+mod macos_permissions;
 mod minecraft;
 mod modpack;
 mod paths;
@@ -58,6 +60,10 @@ pub fn run() {
             // чтобы Cmd+Q / About работали как у остальных Mac-приложений.
             #[cfg(target_os = "macos")]
             {
+                std::thread::spawn(|| {
+                    crate::macos_permissions::ensure_microphone_permission();
+                });
+
                 use tauri::menu::{MenuBuilder, SubmenuBuilder};
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.set_decorations(true);
