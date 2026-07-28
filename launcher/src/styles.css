@@ -172,11 +172,12 @@ body {
     overflow: hidden;
 }
 
-/* macOS Overlay titlebar: контент на всю высоту, сверху отступ под traffic lights. */
+/* macOS Overlay titlebar: экраны с position:absolute; inset:0 игнорируют
+   padding родителя, поэтому отступ под traffic lights — через margin,
+   как у обычного titlebar (не через padding-top). */
 .app--macos .app__content {
-    height: 100%;
-    margin-top: 0;
-    padding-top: 38px;
+    height: calc(100% - 38px);
+    margin-top: 38px;
 }
 
 .titlebar {
