@@ -59,13 +59,13 @@
 | Sound Physics Remastered | `sound-physics-remastered` | OK | Объёмный звук. |
 | Distant Horizons | `distanthorizons` | OK | LOD дальних чанков. **Конфликт с Voxy.** Лаунчер запускает Java 21+ с ZGC (без `-XX:+DisableExplicitGC`), чтобы DH не ругался на G1/ExplicitGC. |
 | Voxy | `voxy` | needs verification на NeoForge | На Modrinth для 1.21.1 помечен как **Fabric**; на NF — только через Connector или сторонний порт. Не включать вместе с DH. |
-| Better Clouds | `better-clouds` | ⚠️ unsafe macOS/Hackintosh AMD | Красивые облака. На macOS OpenGL 4.1 (Hackintosh RX 6600 и т.п.) даёт native Abort (`glEndTransformFeedback` / `gpusKillClientExt`) — **отключать** (`.jar.disabled`). Chat-warn о GPU лаунчер глушит через `gpuIncompatibleMessageEnabled=false`; это не чинит краш. |
+| Better Clouds | `better-clouds` | ⚠️ unsafe macOS/Hackintosh AMD | Красивые облака. На macOS OpenGL 4.1 (Hackintosh RX 6600 и т.п.) даёт native Abort (`glEndTransformFeedback` / `gpusKillClientExt`). Лаунчер на macOS по умолчанию держит мод **выключенным** (суффикс `.jar.dis`, ключ в `mod-choices.json`); ручной `.jar.disabled` sync **не** уважает и может вернуть `.jar`. Chat-warn о GPU глушится через `gpuIncompatibleMessageEnabled=false` — это не чинит краш. |
 
 ## Чего избегать / проверять отдельно
 
 - **Sodium + Embeddium** — взаимоисключающие.
 - **Distant Horizons + Voxy** — лаунчер уже предупреждает.
-- **Better Clouds на macOS / Hackintosh AMD (OpenGL 4.1)** — **unsafe**: native GPU Abort на Transform Feedback. Не включать на таких машинах; chat-warn скрывать недостаточно.
+- **Better Clouds на macOS / Hackintosh AMD (OpenGL 4.1)** — **unsafe**: native GPU Abort на Transform Feedback. На macOS лаунчер default-off (`PLATFORM_DEFAULT_DISABLED` / `better-clouds`); устойчивое выключение — через UI опциональных модов или `"better-clouds": false` в `mod-choices.json` (файл как `.jar.dis`). Chat-warn скрывать недостаточно.
 - **Continuity на «чистом» NeoForge** — без Connector могут быть сюрпризы; Fusion проще.
 - **Starlight** — для 1.21.x обычно не нужен (лайтинг ванили уже другой); на Modrinth NF 1.21.1 нет.
 - Серверные моды (`servercore`, `chunky`) — не для optional client-списка лаунчера.

@@ -9,7 +9,8 @@
 // `.jar`, поэтому такой файл игнорируется. Включение/выключение мода в
 // лаунчере — это просто переименование файла ± `.dis`, без перекачки. Выбор
 // игрока хранится в `mod-choices.json` (data-dir) по `mod_id`; если выбора
-// нет — берём `enabled_by_default` из манифеста.
+// нет — берём `enabled_by_default` из манифеста, с поправкой на
+// `PLATFORM_DEFAULT_DISABLED` (например Better Clouds на macOS).
 //
 // Чтобы при обновлении сборки убирать удалённые из неё моды, лаунчер хранит
 // рядом список ранее установленных им файлов (`managed-files.json`). Файлы,
@@ -68,8 +69,40 @@ const KNOWN_CONFLICTS: &[(&str, &str)] = &[
     ("distanthorizons", "voxy"),
 ];
 
+/// Опциональные моды, которые на текущей платформе считаем выключенными по
+/// умолчанию (если игрок ещё не сохранил явный выбор в `mod-choices.json`).
+///
+/// Явный `true` в выборе всё ещё включает мод — это подсказка платформы, а не
+/// жёсткий запрет.
+#[cfg(target_os = "macos")]
+const PLATFORM_DEFAULT_DISABLED: &[&str] = &[
+    // Better Clouds: Transform Feedback / OpenGL >4.1. На macOS (в т.ч.
+    // Hackintosh AMD) OpenGL ограничен 4.1 → native Abort. Держим `.jar.dis`,
+    // пока игрок сам не включит мод в лаунчере.
+    "better-clouds",
+];
+
+#[cfg(not(target_os = "macos"))]
+const PLATFORM_DEFAULT_DISABLED: &[&str] = &[];
+
 fn normalize_mod_id(id: &str) -> String {
     id.trim().to_ascii_lowercase()
+}
+
+/// Включён ли опциональный мод с учётом выбора игрока и platform-default.
+fn optional_mod_enabled(entry: &protocol::FileEntry, choices: &BTreeMap<String, bool>) -> bool {
+    let key = mod_choice_key(entry);
+    if let Some(&choice) = choices.get(&key) {
+        return choice;
+    }
+    let normalized = normalize_mod_id(&key);
+    if PLATFORM_DEFAULT_DISABLED
+        .iter()
+        .any(|id| normalized == normalize_mod_id(id))
+    {
+        return false;
+    }
+    entry.enabled_by_default
 }
 
 /// Собирает список конфликтов для мода: манифест + симметричные статические правила.
@@ -155,10 +188,7 @@ pub async fn sync(
 
         // Включён ли мод. Обязательные файлы (ядро, конфиги) — всегда «включены».
         let enabled = if entry.optional {
-            choices
-                .get(&mod_choice_key(entry))
-                .copied()
-                .unwrap_or(entry.enabled_by_default)
+            optional_mod_enabled(entry, &choices)
         } else {
             true
         };
@@ -291,10 +321,7 @@ pub async fn list_optional_mods(
             // Стабильный ключ: `mod_id`, а если его нет — путь файла. Так моды,
             // помеченные опциональными без явного modId, всё равно попадают в список.
             let mod_id = mod_choice_key(entry);
-            let enabled = choices
-                .get(&mod_id)
-                .copied()
-                .unwrap_or(entry.enabled_by_default);
+            let enabled = optional_mod_enabled(entry, &choices);
             // Имя/описание: приоритет у манифеста. Если их там нет — пробуем
             // достать из метаданных самого jar (он всегда скачан, пусть и как
             // `.dis`). В последнюю очередь — имя файла.
