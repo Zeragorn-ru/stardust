@@ -3,7 +3,6 @@ import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "..
 import { accountInfo, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
-import { useDelayedUnmount } from "../useDelayedUnmount";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
@@ -61,8 +60,6 @@ export default function MainScreen({
   const [news, setNews] = useState<import("../types").NewsHighlight | null>(null);
   const [newsUnread, setNewsUnread] = useState(false);
 
-  const playersModal = useDelayedUnmount(playersOpen);
-  const skinModal = useDelayedUnmount(skinOpen);
   const playLockRef = useRef(false);
 
   // Загружаем статистику и настройки при монтировании.

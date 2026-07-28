@@ -4,7 +4,9 @@ import { checkUpdate, closeWindow, currentProfile, gameRunning, getDataDirectory
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { isMac, isModKey } from "./platform";
 import { useSkin } from "./skin";
+import { useDelayedUnmount } from "./useDelayedUnmount";
 import ErrorBoundary from "./components/ErrorBoundary";
+import Aurora from "./components/Aurora";
 import OnboardingScreen from "./components/OnboardingScreen";
 import LoginScreen from "./components/LoginScreen";
 import MainScreen from "./components/MainScreen";
@@ -39,6 +41,7 @@ export default function App() {
   const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null);
   const { reload: reloadSkin } = useSkin();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const updateModal = useDelayedUnmount(update != null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   const progressRef = useRef(progress);
@@ -288,8 +291,12 @@ export default function App() {
           )}
         </div>
       </ErrorBoundary>
-      {update && (
-        <UpdateModal update={update} onDismiss={() => setUpdate(null)} />
+      {updateModal.shouldRender && update && (
+        <UpdateModal
+          update={update}
+          onDismiss={() => setUpdate(null)}
+          closing={!updateModal.visible}
+        />
       )}
     </div>
   );
