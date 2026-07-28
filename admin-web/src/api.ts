@@ -13,6 +13,7 @@ import type {
   CreateBuildInput,
   DepsCheckResult,
   Gradient,
+  NewsPost,
   PlayerCustomization,
   PlayerStats,
   Settings,
@@ -42,6 +43,18 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+
+export type SkinModel = "classic" | "slim";
+
+export interface AccountSkin {
+  url: string;
+  model: SkinModel;
+}
+
+const accountSkinCache = new Map<
+  string,
+  AccountSkin | null | Promise<AccountSkin | null>
+>();
 
 async function request<T>(
   method: string,
@@ -128,6 +141,11 @@ export const api = {
   listBuilds(): Promise<BuildHeader[]> {
     return request("GET", "/api/builds");
   },
+
+  listNews(): Promise<NewsPost[]> { return request("GET", "/api/news"); },
+  createNews(input: Pick<NewsPost, "title" | "markdown" | "pinned">): Promise<NewsPost> { return request("POST", "/api/news", input); },
+  updateNews(id: number, input: Pick<NewsPost, "title" | "markdown" | "pinned">): Promise<NewsPost> { return request("PATCH", `/api/news/${id}`, input); },
+  deleteNews(id: number): Promise<void> { return request("DELETE", `/api/news/${id}`); },
 
   getBuild(id: number): Promise<BuildDetail> {
     return request("GET", `/api/builds/${id}`);
@@ -319,9 +337,13 @@ export const api = {
     return request("GET", `/api/accounts/${uuid}/stats`);
   },
 
-  // Скин аккаунта тянем PNG-ом с bearer-токеном и отдаём как object URL
-  // (для рисования головы на canvas). 404 — скина нет, вернём null.
-  async getAccountSkinUrl(uuid: string): Promise<string | null> {
+  // PNG запрашивается только из карточки игрока. Object URL кэшируется, чтобы
+  // голова в заголовке и 3D-превью не скачивали один и тот же скин дважды.
+  async getAccountSkin(uuid: string): Promise<AccountSkin | null> {
+    const cached = accountSkinCache.get(uuid);
+    if (cached !== undefined) return cached;
+
+    const pending = (async () => {
     const headers: Record<string, string> = {};
     const token = getToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -329,7 +351,38 @@ export const api = {
     if (resp.status === 404) return null;
     if (!resp.ok) throw new ApiError(resp.status, `Ошибка ${resp.status}`);
     const blob = await resp.blob();
-    return URL.createObjectURL(blob);
+      const model = resp.headers.get("X-Skin-Model") === "slim" ? "slim" : "classic";
+      return { url: URL.createObjectURL(blob), model } satisfies AccountSkin;
+    })();
+    accountSkinCache.set(uuid, pending);
+    try {
+      const skin = await pending;
+      accountSkinCache.set(uuid, skin);
+      return skin;
+    } catch (error) {
+      accountSkinCache.delete(uuid);
+      throw error;
+    }
+  },
+
+  async getAccountSkinUrl(uuid: string): Promise<string | null> {
+    return (await this.getAccountSkin(uuid))?.url ?? null;
+  },
+
+  invalidateAccountSkin(uuid: string): void {
+    const cached = accountSkinCache.get(uuid);
+    if (cached && !(cached instanceof Promise)) URL.revokeObjectURL(cached.url);
+    accountSkinCache.delete(uuid);
+  },
+
+  async setAccountSkin(uuid: string, file: File, model: SkinModel): Promise<Account> {
+    const pngBase64 = await fileToBase64(file);
+    const account = await request<Account>("PUT", `/api/accounts/${uuid}/skin`, {
+      pngBase64,
+      model,
+    });
+    this.invalidateAccountSkin(uuid);
+    return account;
   },
 
   // ───── Кастомизация ника ─────
@@ -399,3 +452,20 @@ export const api = {
     return request("GET", "/api/deploy-mod/status");
   },
 };
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = typeof reader.result === "string" ? reader.result : "";
+      const comma = value.indexOf(",");
+      if (comma < 0) {
+        reject(new Error("Не удалось прочитать PNG"));
+        return;
+      }
+      resolve(value.slice(comma + 1));
+    };
+    reader.onerror = () => reject(new Error("Не удалось прочитать PNG"));
+    reader.readAsDataURL(file);
+  });
+}

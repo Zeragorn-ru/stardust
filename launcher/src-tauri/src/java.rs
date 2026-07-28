@@ -14,15 +14,33 @@ pub const JAVA_VERSION: u32 = 21;
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum JavaProvider {
-    /// Кэш Temurin → системные установки → скачивание.
-    #[default]
+    /// Кэш управляемых runtime → системные установки → скачивание Temurin.
     Auto,
-    /// Только встроенная/скачанная Temurin (Adoptium).
+    /// Eclipse Temurin (Adoptium).
+    #[default]
     Temurin,
+    /// Amazon Corretto.
+    Corretto,
+    /// Microsoft Build of OpenJDK.
+    Microsoft,
+    /// Azul Zulu.
+    Zulu,
     /// Только Java, найденная в системе.
     System,
     /// Путь из настроек `java_custom_path`.
     Custom,
+}
+
+impl JavaProvider {
+    fn managed_vendor(self) -> Option<JavaVendor> {
+        match self {
+            Self::Temurin => Some(JavaVendor::Temurin),
+            Self::Corretto => Some(JavaVendor::Corretto),
+            Self::Microsoft => Some(JavaVendor::Microsoft),
+            Self::Zulu => Some(JavaVendor::Zulu),
+            Self::Auto | Self::System | Self::Custom => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,6 +73,20 @@ impl JavaVendor {
             Self::Oracle => "oracle",
         }
     }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Temurin => "Eclipse Temurin",
+            Self::Corretto => "Amazon Corretto",
+            Self::Microsoft => "Microsoft Build of OpenJDK",
+            Self::Zulu => "Azul Zulu",
+            Self::Oracle => "Oracle JDK",
+        }
+    }
+
+    fn managed() -> [Self; 4] {
+        [Self::Temurin, Self::Corretto, Self::Microsoft, Self::Zulu]
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -66,24 +98,38 @@ pub struct JavaVendorInfo {
 }
 
 pub fn list_download_vendors() -> Vec<JavaVendorInfo> {
-    [
-        (JavaVendor::Temurin, "Eclipse Temurin", "Adoptium"),
-        (JavaVendor::Corretto, "Amazon Corretto", "AWS"),
-        (
-            JavaVendor::Microsoft,
-            "Microsoft Build of OpenJDK",
-            "Microsoft",
-        ),
-        (JavaVendor::Zulu, "Azul Zulu", "Azul"),
-        (JavaVendor::Oracle, "Oracle OpenJDK", "Oracle"),
+    let platform = current_platform();
+    let target = format!("{} {}", platform_name(platform.os), platform.arch);
+    vec![
+        JavaVendorInfo {
+            id: JavaVendor::Temurin.id().to_string(),
+            name: "Eclipse Temurin".to_string(),
+            label: format!("Adoptium, Java 21 JRE, {target}"),
+        },
+        JavaVendorInfo {
+            id: JavaVendor::Corretto.id().to_string(),
+            name: "Amazon Corretto".to_string(),
+            label: format!("Amazon, Java 21 JDK, {target}"),
+        },
+        JavaVendorInfo {
+            id: JavaVendor::Microsoft.id().to_string(),
+            name: "Microsoft Build of OpenJDK".to_string(),
+            label: format!("Microsoft, Java 21 JDK, {target}"),
+        },
+        JavaVendorInfo {
+            id: JavaVendor::Zulu.id().to_string(),
+            name: "Azul Zulu".to_string(),
+            label: format!("Azul, Java 21 JRE, {target}"),
+        },
     ]
-    .into_iter()
-    .map(|(vendor, name, label)| JavaVendorInfo {
-        id: vendor.id().to_string(),
-        name: name.to_string(),
-        label: label.to_string(),
-    })
-    .collect()
+}
+
+fn platform_name(os: &str) -> &'static str {
+    match os {
+        "macos" => "macOS",
+        "windows" => "Windows",
+        _ => "Linux",
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -138,9 +184,11 @@ fn collect_installations(data_dir: &Path, deep: bool) -> Vec<JavaInstallation> {
         }
     };
 
-    if let Some(runtime_dir) = bundled_runtime_dir(data_dir) {
-        if runtime_dir.exists() {
-            push_home(runtime_dir, "Temurin (лаунчер)");
+    for vendor in JavaVendor::managed() {
+        if let Some(runtime_dir) = bundled_runtime_dir(data_dir, vendor) {
+            if runtime_dir.exists() {
+                push_home(runtime_dir, &format!("{} (лаунчер)", vendor.name()));
+            }
         }
     }
 
@@ -178,8 +226,12 @@ pub async fn resolve_java(
         }
         JavaProvider::System => discover_best_java(data_dir)
             .ok_or_else(|| format!("Java {JAVA_VERSION}+ не найдена в системе")),
-        JavaProvider::Temurin => {
-            ensure_downloaded_java(JavaVendor::Temurin, progress, http, data_dir).await
+        JavaProvider::Temurin
+        | JavaProvider::Corretto
+        | JavaProvider::Microsoft
+        | JavaProvider::Zulu => {
+            ensure_downloaded_java(provider.managed_vendor().unwrap(), progress, http, data_dir)
+                .await
         }
         JavaProvider::Auto => {
             if let Some(path) = bundled_java(data_dir) {
@@ -272,16 +324,16 @@ fn search_java_home_dirs(dir: &Path, max_depth: usize) -> Option<PathBuf> {
     None
 }
 
-fn bundled_runtime_dir(data_dir: &Path) -> Option<PathBuf> {
-    let dir = data_dir.join("runtime").join("java-21");
+fn bundled_runtime_dir(data_dir: &Path, vendor: JavaVendor) -> Option<PathBuf> {
+    let dir = data_dir.join("runtime").join(vendor.id()).join("java-21");
     if !dir.exists() {
         return None;
     }
     find_java_home_under(&dir)
 }
 
-fn bundled_java(data_dir: &Path) -> Option<PathBuf> {
-    let home = bundled_runtime_dir(data_dir)?;
+fn bundled_java_for(data_dir: &Path, vendor: JavaVendor) -> Option<PathBuf> {
+    let home = bundled_runtime_dir(data_dir, vendor)?;
     let exe = home.join("bin").join(java_bin_name());
     if exe.exists() && probe_java_exe(&exe).is_some_and(|p| p.major >= JAVA_VERSION) {
         Some(exe)
@@ -290,13 +342,19 @@ fn bundled_java(data_dir: &Path) -> Option<PathBuf> {
     }
 }
 
+fn bundled_java(data_dir: &Path) -> Option<PathBuf> {
+    JavaVendor::managed()
+        .into_iter()
+        .find_map(|vendor| bundled_java_for(data_dir, vendor))
+}
+
 async fn ensure_downloaded_java(
     vendor: JavaVendor,
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
 ) -> Result<PathBuf, String> {
-    if let Some(java) = bundled_java(data_dir) {
+    if let Some(java) = bundled_java_for(data_dir, vendor) {
         return Ok(java);
     }
 
@@ -321,7 +379,7 @@ pub async fn download_java(
         format!("Скачиваем {vendor_name} Java {JAVA_VERSION}…"),
     );
 
-    let runtime_dir = data_dir.join("runtime").join("java-21");
+    let runtime_dir = data_dir.join("runtime").join(vendor.id()).join("java-21");
     if runtime_dir.exists() {
         fs::remove_dir_all(&runtime_dir)
             .map_err(|e| format!("Не удалось очистить runtime Java: {e}"))?;
@@ -330,10 +388,12 @@ pub async fn download_java(
         .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
 
     let url = resolve_download_url(vendor, http).await?;
-    let is_zip = url.to_lowercase().ends_with(".zip");
+    let archive_format = archive_format_for_url(&url);
 
-    if is_zip {
-        let archive = data_dir.join("runtime").join("java-21.zip");
+    if archive_format == JavaArchiveFormat::Zip {
+        let archive = data_dir
+            .join("runtime")
+            .join(format!("java-21-{}.zip", vendor.id()));
         crate::minecraft::download_to(
             progress,
             http,
@@ -344,11 +404,14 @@ pub async fn download_java(
             None,
         )
         .await?;
+        validate_archive_header(&archive, JavaArchiveFormat::Zip)?;
         progress.set_label("extracting", "Распаковываем Java 21…");
         extract_java_zip(&archive, &runtime_dir)?;
         let _ = fs::remove_file(&archive);
     } else {
-        let archive = data_dir.join("runtime").join("java-21.tar.gz");
+        let archive = data_dir
+            .join("runtime")
+            .join(format!("java-21-{}.tar.gz", vendor.id()));
         crate::minecraft::download_to(
             progress,
             http,
@@ -359,6 +422,7 @@ pub async fn download_java(
             None,
         )
         .await?;
+        validate_archive_header(&archive, JavaArchiveFormat::TarGz)?;
         progress.set_label("extracting", "Распаковываем Java 21…");
         extract_java_tar_gz(&archive, &runtime_dir)?;
         let _ = fs::remove_file(&archive);
@@ -366,11 +430,56 @@ pub async fn download_java(
 
     finalize_extracted_java(&runtime_dir)?;
 
-    bundled_java(data_dir).ok_or_else(|| {
+    bundled_java_for(data_dir, vendor).ok_or_else(|| {
         format!(
             "Java {JAVA_VERSION} скачана, но java не найдена в {}",
             runtime_dir.to_string_lossy()
         )
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JavaArchiveFormat {
+    Zip,
+    TarGz,
+}
+
+fn archive_format_for_url(url: &str) -> JavaArchiveFormat {
+    if cfg!(windows) {
+        return JavaArchiveFormat::Zip;
+    }
+    if url.to_lowercase().ends_with(".zip") {
+        JavaArchiveFormat::Zip
+    } else {
+        JavaArchiveFormat::TarGz
+    }
+}
+
+fn validate_archive_header(path: &Path, format: JavaArchiveFormat) -> Result<(), String> {
+    use std::io::Read as _;
+
+    let mut file = fs::File::open(path)
+        .map_err(|e| format!("Не удалось открыть скачанную Java для проверки: {e}"))?;
+    let mut header = [0u8; 4];
+    let read = file
+        .read(&mut header)
+        .map_err(|e| format!("Не удалось проверить заголовок Java-архива: {e}"))?;
+    let valid = match format {
+        JavaArchiveFormat::Zip => read >= 4 && header.starts_with(b"PK\x03\x04"),
+        JavaArchiveFormat::TarGz => read >= 2 && header[0] == 0x1f && header[1] == 0x8b,
+    };
+    if valid {
+        return Ok(());
+    }
+
+    let _ = fs::remove_file(path);
+    Err(match format {
+        JavaArchiveFormat::Zip => {
+            "Скачанная Java не является zip-архивом. Проверьте прокси или сеть.".to_string()
+        }
+        JavaArchiveFormat::TarGz => {
+            "Скачанная Java не является gzip-архивом. Проверьте прокси или сеть.".to_string()
+        }
     })
 }
 
@@ -776,11 +885,7 @@ fn discover_macos(push_home: &mut impl FnMut(PathBuf, &str)) {
     if let Ok(output) = Command::new("/usr/libexec/java_home").arg("-V").output() {
         let text = String::from_utf8_lossy(&output.stderr);
         for line in text.lines().skip(1) {
-            if let Some(home) = line
-                .split_whitespace()
-                .filter(|t| t.starts_with('/'))
-                .last()
-            {
+            if let Some(home) = line.split_whitespace().rfind(|t| t.starts_with('/')) {
                 push_home(PathBuf::from(home.trim_matches('"')), "macOS java_home");
             }
         }
@@ -866,7 +971,10 @@ fn discover_windows(push_home: &mut impl FnMut(PathBuf, &str)) {
 
 fn which_java() -> Option<PathBuf> {
     let cmd = if cfg!(windows) { "where" } else { "which" };
-    let output = Command::new(cmd).arg("java").output().ok()?;
+    let mut command = Command::new(cmd);
+    command.arg("java");
+    hide_console(&mut command);
+    let output = command.output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -896,6 +1004,8 @@ fn finalize_extracted_java(runtime_dir: &Path) -> Result<(), String> {
             runtime_dir.to_string_lossy()
         )
     })?;
+    #[cfg(windows)]
+    let _ = &home;
 
     #[cfg(unix)]
     {

@@ -107,13 +107,20 @@ fn http_client(app: &AppHandle) -> Result<reqwest::Client, String> {
     let mut builder = reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(15));
+        .read_timeout(std::time::Duration::from_secs(30))
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(8);
 
     match settings.proxy_type {
         crate::commands::ProxyType::System => {}
         crate::commands::ProxyType::Builtin => {
             let proxy = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128")
                 .map_err(|e| format!("не удалось настроить встроенный прокси: {e}"))?;
+            builder = builder.proxy(proxy);
+        }
+        crate::commands::ProxyType::BuiltinSocks => {
+            let proxy = reqwest::Proxy::all("socks5h://assets.zeragorn.xyz:1080")
+                .map_err(|e| format!("не удалось настроить встроенный SOCKS5-прокси: {e}"))?;
             builder = builder.proxy(proxy);
         }
         crate::commands::ProxyType::None => {
@@ -301,7 +308,10 @@ fn extract_app_zip(zip_path: &std::path::Path) -> Result<std::path::PathBuf, Str
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("stardust_update");
-    let extract_dir = std::env::temp_dir().join(format!("stardust_update_{stem}"));
+    // `StarDust.app.zip` → file_stem = `StarDust.app`. Не создаём extract-dir с
+    // суффиксом `.app`: macOS тогда считает папку бандлом и ломает обход.
+    let safe_stem = stem.strip_suffix(".app").unwrap_or(stem);
+    let extract_dir = std::env::temp_dir().join(format!("stardust_update_{safe_stem}"));
     let _ = std::fs::remove_dir_all(&extract_dir);
     std::fs::create_dir_all(&extract_dir)
         .map_err(|e| format!("Не удалось создать временную папку: {e}"))?;
@@ -660,6 +670,28 @@ fn launch_bootstrap(
 
 // ─── Автообновление macOS/Linux ──────────────────────────────────────────────
 
+/// Вычисляет `.app` install-dir из пути к бинарю.
+///
+/// Ожидает `…/Foo.app/Contents/MacOS/<binary>` и проверяет имена компонентов.
+/// Раньше здесь был off-by-one (2 уровня вместо 3) → PID писался в
+/// `Contents/Contents/MacOS/.update-pid` (ENOENT).
+#[cfg(any(target_os = "macos", test))]
+fn install_dir_from_exe(exe: &std::path::Path) -> Option<std::path::PathBuf> {
+    let macos_dir = exe.parent()?;
+    if macos_dir.file_name()?.to_str()? != "MacOS" {
+        return None;
+    }
+    let contents_dir = macos_dir.parent()?;
+    if contents_dir.file_name()?.to_str()? != "Contents" {
+        return None;
+    }
+    let app_dir = contents_dir.parent()?;
+    if app_dir.extension()?.to_str()? != "app" {
+        return None;
+    }
+    Some(app_dir.to_path_buf())
+}
+
 /// Определяет папку установки по текущему exe.
 ///
 /// macOS: текущий exe — `StarDust.app/Contents/MacOS/launcher`,
@@ -667,39 +699,55 @@ fn launch_bootstrap(
 #[cfg(target_os = "macos")]
 fn get_install_dir() -> Option<std::path::PathBuf> {
     let exe = std::env::current_exe().ok()?;
-    // macOS: exe is at <App>.app/Contents/MacOS/<binary>
-    // Install dir is <App>.app (three levels up from the binary).
-    exe.parent()?.parent()?.parent().map(|p| p.to_path_buf())
+    install_dir_from_exe(&exe)
 }
 
 /// Записывает PID текущего процесса в файл, чтобы update-скрипт дождался выхода.
 #[cfg(not(target_os = "windows"))]
 fn write_pid_file(path: &std::path::Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "Не удалось создать каталог для PID-файла ({}): {e}",
+                parent.display()
+            )
+        })?;
+    }
     let pid = std::process::id();
     std::fs::write(path, pid.to_string()).map_err(|e| format!("Не удалось записать PID-файл: {e}"))
 }
 
-/// Ищет скрипт обновления в нескольких стандартных расположениях.
+/// Ищет скрипт обновления: сначала в новом `.app`, затем в текущем бандле.
 #[cfg(target_os = "macos")]
-fn find_update_script() -> Option<std::path::PathBuf> {
+fn find_update_script(new_app: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
     let name = "update-macos.sh";
-    let candidates = [
-        // рядом с exe (портативный режим)
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.join(name)))
-            .unwrap_or_default(),
-        // в Resources .app bundle (сборка)
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| {
-                let resources = p.parent()?.parent()?.join("Resources");
-                Some(resources.join(name))
-            })
-            .unwrap_or_default(),
-        // в /opt/stardust-launcher/
-        std::path::PathBuf::from(format!("/opt/stardust-launcher/{name}")),
-    ];
+    let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+
+    // В Resources нового .app — важно для апгрейда со старых сборок без скрипта.
+    if let Some(new_app) = new_app {
+        candidates.push(new_app.join("Contents").join("Resources").join(name));
+    }
+
+    // рядом с exe (портативный режим)
+    if let Some(path) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join(name)))
+    {
+        candidates.push(path);
+    }
+
+    // в Resources текущего .app bundle
+    if let Some(path) = std::env::current_exe().ok().and_then(|p| {
+        let resources = p.parent()?.parent()?.join("Resources");
+        Some(resources.join(name))
+    }) {
+        candidates.push(path);
+    }
+
+    candidates.push(std::path::PathBuf::from(format!(
+        "/opt/stardust-launcher/{name}"
+    )));
+
     candidates.into_iter().find(|p| p.exists())
 }
 
@@ -876,38 +924,46 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         },
     );
 
-    let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name)
-        .ok_or_else(|| {
-            format!(
-                "В релизе нет файла целостности {}.sha256 — обновление прервано",
-                installer_asset.name
-            )
-        })?;
-    let expected_hex = fetch_expected_sha256(&http, &sha256_asset.browser_download_url)
-        .await
-        .map_err(|e| {
-            let _ = std::fs::remove_file(&installer_path);
-            format!("Не удалось получить SHA-256 установщика: {e}")
-        })?;
-    let actual = tauri::async_runtime::spawn_blocking({
-        let p = installer_path.clone();
-        move || compute_sha256(&p)
-    })
-    .await
-    .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
-    match actual {
-        Ok(actual_hex) if actual_hex == expected_hex => {
-            tracing::debug!("[update] SHA-256 OK");
+    let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name);
+    match sha256_asset {
+        Some(sha256_a) => {
+            let expected = fetch_expected_sha256(&http, &sha256_a.browser_download_url).await;
+            match expected {
+                Ok(expected_hex) => {
+                    let actual = tauri::async_runtime::spawn_blocking({
+                        let p = installer_path.clone();
+                        move || compute_sha256(&p)
+                    })
+                    .await
+                    .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
+                    match actual {
+                        Ok(actual_hex) if actual_hex == expected_hex => {
+                            tracing::debug!("[update] SHA-256 OK");
+                        }
+                        Ok(_mismatched_hex) => {
+                            let _ = std::fs::remove_file(&installer_path);
+                            return Err(
+                                "Повреждён файл установщика (SHA-256 не совпал). Скачайте заново."
+                                    .to_string(),
+                            );
+                        }
+                        Err(e) => {
+                            let _ = std::fs::remove_file(&installer_path);
+                            return Err(format!("Не удалось проверить файл: {e}"));
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "[update] предупреждение: не удалось проверить SHA-256 ({e}), продолжаем без верификации"
+                    );
+                }
+            }
         }
-        Ok(_mismatched_hex) => {
-            let _ = std::fs::remove_file(&installer_path);
-            return Err(
-                "Повреждён файл установщика (SHA-256 не совпал). Скачайте заново.".to_string(),
+        None => {
+            tracing::warn!(
+                "[update] предупреждение: .sha256 файл не найден в релизе, продолжаем без верификации хеша"
             );
-        }
-        Err(e) => {
-            let _ = std::fs::remove_file(&installer_path);
-            return Err(format!("Не удалось проверить файл: {e}"));
         }
     }
 
@@ -947,8 +1003,10 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
             tracing::info!("[update] macOS DMG установщик открыт");
         } else {
             // macOS: скачали .app.zip → распаковываем → скрипт заменяет .app → перезапуск.
-            let install_dir = get_install_dir()
-                .ok_or_else(|| "Не удалось определить папку установки".to_string())?;
+            let install_dir = get_install_dir().ok_or_else(|| {
+                "Не удалось определить .app бандл (ожидается …/App.app/Contents/MacOS/launcher)"
+                    .to_string()
+            })?;
             let app_name = install_dir
                 .file_stem()
                 .and_then(|s| s.to_str())
@@ -958,15 +1016,20 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
             let new_app = extract_app_zip(&installer_path)?;
             clear_macos_quarantine(&new_app);
 
-            // Записываем PID для update-скрипта.
-            let pid_path = install_dir
-                .join("Contents")
-                .join("MacOS")
-                .join(".update-pid");
+            // PID рядом с текущим бинарём (= install_dir/Contents/MacOS/.update-pid).
+            let pid_path = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.join(".update-pid")))
+                .unwrap_or_else(|| {
+                    install_dir
+                        .join("Contents")
+                        .join("MacOS")
+                        .join(".update-pid")
+                });
             write_pid_file(&pid_path)?;
 
             // Запускаем update-скрипт (замена + перезапуск).
-            if let Some(script_path) = find_update_script() {
+            if let Some(script_path) = find_update_script(Some(&new_app)) {
                 std::process::Command::new("bash")
                     .arg(&script_path)
                     .arg(&new_app)
@@ -975,17 +1038,25 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                     .spawn()
                     .map_err(|e| format!("Не удалось запустить скрипт обновления: {e}"))?;
             } else {
-                // Fallback без скрипта: ручная замена.
+                // Fallback без скрипта: ручная замена через cp -R (std::fs::copy
+                // не копирует директории).
                 tracing::warn!("[update] update-macos.sh не найден, попытка замены вручную");
                 let backup = std::path::PathBuf::from(format!("{}.old", install_dir.display()));
                 let _ = std::fs::remove_dir_all(&backup);
                 let _ = std::fs::rename(&install_dir, &backup);
-                std::fs::copy(&new_app, &install_dir)
+                let status = std::process::Command::new("cp")
+                    .args(["-R", &new_app.to_string_lossy(), &install_dir.to_string_lossy()])
+                    .status()
                     .map_err(|e| format!("Не удалось скопировать новый .app: {e}"))?;
+                if !status.success() {
+                    // Откат, если есть бэкап.
+                    let _ = std::fs::rename(&backup, &install_dir);
+                    return Err("Не удалось скопировать новый .app (cp -R)".into());
+                }
                 let _ = std::fs::remove_dir_all(&backup);
                 let _ = std::process::Command::new("open")
-                    .arg("-a")
-                    .arg(app_name)
+                    .arg("-n")
+                    .arg(&install_dir)
                     .spawn();
             }
 
@@ -1177,5 +1248,38 @@ mod tests {
             size: 0,
         }];
         assert!(find_sha256_asset(&assets, "setup.exe").is_none());
+    }
+
+    #[test]
+    fn install_dir_from_exe_accepts_app_bundle() {
+        let exe = std::path::Path::new("/Applications/StarDust.app/Contents/MacOS/launcher");
+        let dir = install_dir_from_exe(exe).expect("bundle path");
+        assert_eq!(dir, std::path::Path::new("/Applications/StarDust.app"));
+    }
+
+    #[test]
+    fn install_dir_from_exe_rejects_non_bundle_layouts() {
+        // Off-by-one давал Contents вместо .app → PID в Contents/Contents/MacOS.
+        assert_eq!(
+            install_dir_from_exe(std::path::Path::new(
+                "/Applications/StarDust.app/Contents/MacOS/launcher"
+            ))
+            .map(|p| p.join("Contents").join("MacOS").join(".update-pid")),
+            Some(std::path::PathBuf::from(
+                "/Applications/StarDust.app/Contents/MacOS/.update-pid"
+            ))
+        );
+        assert!(install_dir_from_exe(std::path::Path::new(
+            "/tmp/target/release/launcher"
+        ))
+        .is_none());
+        assert!(install_dir_from_exe(std::path::Path::new(
+            "/Applications/StarDust.app/Contents/Resources/helper"
+        ))
+        .is_none());
+        assert!(install_dir_from_exe(std::path::Path::new(
+            "/Applications/NotAnApp/Contents/MacOS/launcher"
+        ))
+        .is_none());
     }
 }

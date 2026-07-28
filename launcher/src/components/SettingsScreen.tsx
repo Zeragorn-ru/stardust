@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
+import type { AppInfo, DataDirectoryInfo, DataDirectoryProgress, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
+  chooseDataDirectory,
+  getDataDirectoryInfo,
   downloadJava,
   getAppInfo,
   getLogPaths,
+  getMemoryLimits,
   getSettings,
   installUpdate,
   listJavaDownloadVendors,
   listJavaInstallations,
   listJavaInstallationsDeep,
   onJavaProgress,
+  onDataDirectoryProgress,
   onUpdateProgress,
   openLogFolder,
   openPath,
+  relocateDataDirectory,
+  resetSettings,
   saveSettings,
 } from "../api";
 import { useMotion } from "../motion";
@@ -21,7 +27,7 @@ import AccountSection from "./AccountSection";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
 import ModsSection from "./ModsSection";
 
-type Section = "general" | "account" | "mods" | "logs";
+type Section = "game" | "interface" | "account" | "mods" | "logs" | "about";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -31,9 +37,6 @@ interface Props {
   onClose: () => void;
 }
 
-// Разумные границы выделяемой памяти (МБ).
-const MEM_MIN = 1024;
-const MEM_MAX = 16384;
 const MEM_STEP = 512;
 
 // Границы параллельности загрузок (одновременных файлов).
@@ -56,25 +59,46 @@ function formatEta(seconds: number): string {
 }
 
 const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
-  auto: "Авто",
-  temurin: "Temurin (лаунчер)",
-  system: "Системная",
+  auto: "Автоматически",
+  temurin: "Java лаунчера: Temurin",
+  corretto: "Java лаунчера: Corretto",
+  microsoft: "Java лаунчера: Microsoft",
+  zulu: "Java лаунчера: Zulu",
+  system: "Системная Java",
   custom: "Свой путь",
+};
+
+const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
+
+const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
+  auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
+  temurin: "Использовать Eclipse Temurin 21 из managed runtime лаунчера.",
+  corretto: "Использовать Amazon Corretto 21 из managed runtime лаунчера.",
+  microsoft: "Использовать Microsoft Build of OpenJDK 21 из managed runtime лаунчера.",
+  zulu: "Использовать Azul Zulu 21 из managed runtime лаунчера.",
+  system: "Использовать Java из PATH/JAVA_HOME. Подходит, если вы сами управляете Java.",
+  custom: "Указать конкретный java/java.exe или выбрать его из найденных установок.",
 };
 
 export default function SettingsScreen({
   profile,
   onProfileChange,
   onAccountDeleted,
-  initialSection = "general",
+  initialSection = "game",
   onClose,
 }: Props) {
   const { animations, setAnimations } = useMotion();
   const [section, setSection] = useState<Section>(initialSection);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [initialSettings, setInitialSettings] = useState<Settings | null>(null);
+  const [memoryLimits, setMemoryLimits] = useState<MemoryLimits | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
+  const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null);
+  const [relocationProgress, setRelocationProgress] = useState<DataDirectoryProgress | null>(null);
+  const [relocationError, setRelocationError] = useState<string | null>(null);
+  const [relocating, setRelocating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Состояние самообновления.
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
@@ -107,9 +131,33 @@ export default function SettingsScreen({
       setInitialSettings(s);
     });
     getAppInfo().then(setInfo);
+    getDataDirectoryInfo().then(setDataDirectory);
+    getMemoryLimits().then(setMemoryLimits);
     listJavaDownloadVendors().then(setJavaVendors);
     getLogPaths().then(setLogPaths).catch(() => undefined);
   }, []);
+
+  async function handleRelocateDataDirectory() {
+    const path = await chooseDataDirectory();
+    if (!path) return;
+    if (!window.confirm(`Перенести все данные лаунчера в\n${path}\n\nВыбранная папка должна быть пустой. Во время переноса не закрывайте лаунчер.`)) {
+      return;
+    }
+    setRelocating(true);
+    setRelocationError(null);
+    setRelocationProgress(null);
+    const unlisten = await onDataDirectoryProgress(setRelocationProgress);
+    try {
+      const next = await relocateDataDirectory(path);
+      setDataDirectory(next);
+      setInfo(await getAppInfo());
+    } catch (e) {
+      setRelocationError(e instanceof Error ? e.message : String(e));
+    } finally {
+      unlisten();
+      setRelocating(false);
+    }
+  }
 
   async function refreshJavaList(deep = false) {
     if (deep) {
@@ -132,12 +180,12 @@ export default function SettingsScreen({
   }
 
   useEffect(() => {
-    if (section === "general") {
+    if (section === "game") {
       void refreshJavaList();
     }
   }, [section]);
 
-  // Проверка несохранённых изменений.
+  // Проверка изменений для автосохранения.
   const isDirty =
     settings != null &&
     initialSettings != null &&
@@ -145,13 +193,28 @@ export default function SettingsScreen({
       settings.downloadConcurrency !== initialSettings.downloadConcurrency ||
       settings.show3dModel !== initialSettings.show3dModel ||
       settings.proxyType !== initialSettings.proxyType ||
-      (settings.javaProvider ?? "auto") !== (initialSettings.javaProvider ?? "auto") ||
+      (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) !==
+        (initialSettings.javaProvider ?? DEFAULT_JAVA_PROVIDER) ||
       (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? ""));
 
+  useEffect(() => {
+    if (!settings || !initialSettings || !isDirty) return;
+    const id = window.setTimeout(() => {
+      setSaving(true);
+      setSaveError(null);
+      void saveSettings(settings)
+        .then(() => {
+          setInitialSettings(settings);
+        })
+        .catch((e) => {
+          setSaveError(e instanceof Error ? e.message : String(e));
+        })
+        .finally(() => setSaving(false));
+    }, 450);
+    return () => window.clearTimeout(id);
+  }, [settings, initialSettings, isDirty]);
+
   function handleClose() {
-    if (isDirty && !window.confirm("Есть несохранённые изменения. Покинуть настройки?")) {
-      return;
-    }
     onClose();
   }
 
@@ -225,13 +288,13 @@ export default function SettingsScreen({
       setJavaProgress(p);
     });
     try {
-      const path = await downloadJava(vendorId);
+      await downloadJava(vendorId);
       setSettings((prev) =>
         prev
           ? {
               ...prev,
-              javaProvider: "custom",
-              javaCustomPath: path,
+              javaProvider: vendorId as JavaProvider,
+              javaCustomPath: null,
             }
           : prev,
       );
@@ -258,13 +321,32 @@ export default function SettingsScreen({
     );
   }
 
-  async function handleSave() {
-    if (!settings) return;
+  function selectJavaProvider(provider: JavaProvider) {
+    setSettings((prev) =>
+      prev
+        ? {
+            ...prev,
+            javaProvider: provider,
+            javaCustomPath: provider === "custom" ? prev.javaCustomPath ?? null : null,
+          }
+        : prev,
+    );
+  }
+
+  async function handleResetSettings() {
+    if (!window.confirm("Сбросить настройки лаунчера до значений по умолчанию?")) {
+      return;
+    }
     setSaving(true);
     try {
-      await saveSettings(settings);
-      setInitialSettings(settings);
-      onClose();
+      const defaults = await resetSettings();
+      const next = {
+        ...defaults,
+        javaProvider: defaults.javaProvider ?? DEFAULT_JAVA_PROVIDER,
+        javaCustomPath: null,
+      } satisfies Settings;
+      setSettings(next);
+      setInitialSettings(next);
     } finally {
       setSaving(false);
     }
@@ -288,14 +370,10 @@ export default function SettingsScreen({
           ← Назад
         </button>
         <h2>Настройки</h2>
-        {section === "general" && (
-          <button
-            className="btn btn--primary settings__header-save"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? "Сохранение…" : "Сохранить"}
-          </button>
+        {["game", "interface"].includes(section) && (
+          <span className="settings__save-state">
+            {saveError ? `Не сохранено: ${saveError}` : saving ? "Сохраняем…" : isDirty ? "Ожидает сохранения" : "Сохранено"}
+          </span>
         )}
       </header>
 
@@ -305,11 +383,21 @@ export default function SettingsScreen({
             type="button"
             className={
               "settings__nav-item" +
-              (section === "general" ? " settings__nav-item--active" : "")
+              (section === "game" ? " settings__nav-item--active" : "")
             }
-            onClick={() => setSection("general")}
+            onClick={() => setSection("game")}
           >
-            Общие
+            Игра
+          </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
+              (section === "interface" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("interface")}
+          >
+            Интерфейс
           </button>
           <button
             type="button"
@@ -340,6 +428,16 @@ export default function SettingsScreen({
             onClick={() => setSection("logs")}
           >
             Логи
+          </button>
+          <button
+            type="button"
+            className={
+              "settings__nav-item" +
+              (section === "about" ? " settings__nav-item--active" : "")
+            }
+            onClick={() => setSection("about")}
+          >
+            О лаунчере
           </button>
         </nav>
 
@@ -373,13 +471,17 @@ export default function SettingsScreen({
                     logPaths &&
                     setLogViewer({
                       title: "Лог лаунчера",
-                      tabs: [
-                        {
-                          id: "launcher",
-                          label: "launcher.log",
-                          path: logPaths.launcherLogLatest,
-                        },
-                      ],
+                      tabs: logPaths.launcherLogFiles.length > 0
+                        ? logPaths.launcherLogFiles.map((log, index) => ({
+                            id: `launcher-${index}`,
+                            label: log.label,
+                            path: log.path,
+                          }))
+                        : [{
+                            id: "launcher",
+                            label: "launcher.log",
+                            path: logPaths.launcherLogLatest,
+                          }],
                     })
                   }
                 >
@@ -518,8 +620,8 @@ export default function SettingsScreen({
             )}
           </div>
         ) : (
-          <div className="settings__body stagger" key="general">
-            <div className="update-card stagger-item">
+          <div className="settings__body stagger" key={section}>
+            {section === "about" && <div className="update-card stagger-item">
               <div className="update-card__head">
                 <span className="toggle-row__title">Обновления</span>
                 <button
@@ -597,23 +699,33 @@ export default function SettingsScreen({
                     )}
                 </div>
               )}
-            </div>
+            </div>}
 
-            <div className="field stagger-item">
+            {section === "game" && <div className="field stagger-item">
               <span>
-                Память: <strong>{settings.memoryMb} МБ</strong>
+                Память для Minecraft: <strong>{settings.memoryMb} МБ</strong>
+              </span>
+              <span className="muted toggle-row__desc">
+                От 6 ГиБ до 75% физической памяти этого компьютера
+                {memoryLimits?.totalMb ? ` (${memoryLimits.totalMb} МБ всего)` : ""}.
               </span>
               <div className="range-row">
                 <button
                   type="button"
                   className="btn btn--stepper"
-                  onClick={() => setSettings({ ...settings, memoryMb: Math.max(MEM_MIN, settings.memoryMb - MEM_STEP) })}
+                  aria-label="Уменьшить память"
+                  disabled={!memoryLimits || settings.memoryMb <= memoryLimits.minMb}
+                  onClick={() => memoryLimits && setSettings({
+                    ...settings,
+                    memoryMb: Math.max(memoryLimits.minMb, settings.memoryMb - MEM_STEP),
+                  })}
                 >−</button>
                 <input
                   type="range"
-                  min={MEM_MIN}
-                  max={MEM_MAX}
+                  min={memoryLimits?.minMb ?? settings.memoryMb}
+                  max={memoryLimits?.maxMb ?? settings.memoryMb}
                   step={MEM_STEP}
+                  disabled={!memoryLimits}
                   value={settings.memoryMb}
                   onChange={(e) =>
                     setSettings({ ...settings, memoryMb: Number(e.target.value) })
@@ -622,16 +734,21 @@ export default function SettingsScreen({
                 <button
                   type="button"
                   className="btn btn--stepper"
-                  onClick={() => setSettings({ ...settings, memoryMb: Math.min(MEM_MAX, settings.memoryMb + MEM_STEP) })}
+                  aria-label="Увеличить память"
+                  disabled={!memoryLimits || settings.memoryMb >= memoryLimits.maxMb}
+                  onClick={() => memoryLimits && setSettings({
+                    ...settings,
+                    memoryMb: Math.min(memoryLimits.maxMb, settings.memoryMb + MEM_STEP),
+                  })}
                 >+</button>
               </div>
               <div className="range-bounds muted">
-                <span>{MEM_MIN} МБ</span>
-                <span>{MEM_MAX} МБ</span>
+                <span>{memoryLimits?.minMb ?? "…"} МБ</span>
+                <span>{memoryLimits?.maxMb ?? "…"} МБ</span>
               </div>
-            </div>
+            </div>}
 
-            <div className="field stagger-item">
+            {section === "game" && <div className="field stagger-item">
               <span>
                 Одновременных загрузок:{" "}
                 <strong>{settings.downloadConcurrency}</strong>
@@ -653,16 +770,140 @@ export default function SettingsScreen({
                 <span>{DL_MIN}</span>
                 <span>{DL_MAX}</span>
               </div>
-            </div>
+            </div>}
 
-            {settings && (
-              <div className="java-card stagger-item">
+            {section === "interface" && <div className="toggle-row stagger-item">
+              <div className="toggle-row__text">
+                <span className="toggle-row__title">Анимации</span>
+                <span className="muted toggle-row__desc">
+                  Живой фон и плавные переходы. Отключите для экономии ресурсов.
+                </span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={animations}
+                className={"switch" + (animations ? " switch--on" : "")}
+                onClick={() => setAnimations(!animations)}
+              >
+                <span className="switch__knob" />
+              </button>
+            </div>}
+
+            {section === "interface" && settings && (
+              <div className="toggle-row stagger-item">
+                <div className="toggle-row__text">
+                  <span className="toggle-row__title">3D-модель скина</span>
+                  <span className="muted toggle-row__desc">
+                    Отключите для экономии ресурсов (плоская аватарка вместо 3D).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.show3dModel}
+                  className={"switch" + (settings.show3dModel ? " switch--on" : "")}
+                  onClick={() => setSettings({ ...settings, show3dModel: !settings.show3dModel })}
+                >
+                  <span className="switch__knob" />
+                </button>
+              </div>
+            )}
+
+            {section === "about" && <div className="data-directory-card stagger-item">
+              <div className="toggle-row__text">
+                <span className="toggle-row__title">Расположение данных</span>
+                <span className="muted toggle-row__desc">
+                  Игра, скачанная Java, кеш и настройки. Перенос копирует все файлы и работает между дисками.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="data-directory-card__path"
+                title={dataDirectory?.path}
+                disabled={!dataDirectory}
+                onClick={() => {
+                  if (dataDirectory) void openPath(dataDirectory.path);
+                }}
+              >
+                {dataDirectory?.path ?? "Загрузка…"}
+              </button>
+              <button type="button" className="btn btn--ghost" onClick={() => void handleRelocateDataDirectory()} disabled={relocating}>
+                {relocating ? "Переносим…" : "Изменить папку"}
+              </button>
+              {relocationProgress && (
+                <div className="data-directory-card__progress">
+                  <div className="progress__label">
+                    <span>{relocationProgress.label}</span>
+                    <span>{Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : ""}</span>
+                  </div>
+                  <div className="progress__track">
+                    <div className="progress__bar" style={{ width: Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : undefined }} />
+                  </div>
+                  <span className="muted toggle-row__desc">
+                    {relocationProgress.copiedFiles} из {relocationProgress.totalFiles} файлов
+                  </span>
+                </div>
+              )}
+              {relocationError && <div className="alert alert--error">{relocationError}</div>}
+            </div>}
+
+            {section === "about" && <button
+              type="button"
+              className="btn btn--ghost stagger-item"
+              onClick={() => void handleResetSettings()}
+              disabled={saving}
+            >
+              Сбросить настройки лаунчера
+            </button>}
+
+            {section === "about" && info && (
+              <div className="info-card stagger-item">
+                <div className="info-card__row">
+                  <span className="muted">Режим</span>
+                  <span className="badge">
+                    {info.mode === "portable" ? "Портативный" : "Установленный"}
+                  </span>
+                </div>
+                <div className="info-card__row">
+                  <span className="muted">Папка exe</span>
+                  <span
+                    className="info-card__path info-card__path--link"
+                    title={info.exeDir}
+                    onClick={() => openPath(info.exeDir)}
+                  >
+                    {info.exeDir}
+                  </span>
+                </div>
+                <div className="info-card__row">
+                  <span className="muted">portable.txt</span>
+                  <span className="badge">
+                    {info.portableMarker ? "найден" : "не найден"}
+                  </span>
+                </div>
+                <div className="info-card__row">
+                  <span className="muted">Версия</span>
+                  <span>{info.version}</span>
+                </div>
+              </div>
+            )}
+
+            {section === "game" && <div className="advanced-card stagger-item">
+              <div className="advanced-card__head">
+                <span className="toggle-row__title">Java и сеть</span>
+                <span className="muted toggle-row__desc">
+                  Java и прокси обычно не нужно менять. Эти параметры полезны для
+                  диагностики запуска, корпоративных сетей и ручной настройки JVM.
+                </span>
+              </div>
+
+              <div className="advanced-card__section">
                 <div className="java-card__head">
                   <div className="toggle-row__text">
                     <span className="toggle-row__title">Java</span>
                     <span className="muted toggle-row__desc">
-                      Minecraft 1.21 требует Java 21+. Выберите источник или укажите путь к
-                      исполняемому файлу.
+                      Minecraft 1.21 требует Java 21+. По умолчанию лаунчер использует
+                      скачанную Java Temurin; доступны также Corretto, Microsoft и Zulu.
                     </span>
                   </div>
                   <div className="java-card__head-actions">
@@ -685,25 +926,33 @@ export default function SettingsScreen({
                   </div>
                 </div>
 
-                <div className="field">
-                  <span>Источник Java</span>
-                  <select
-                    value={settings.javaProvider ?? "auto"}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        javaProvider: e.target.value as JavaProvider,
-                      })
-                    }
-                  >
-                    <option value="auto">{JAVA_PROVIDER_LABELS.auto} (Temurin → система → скачать)</option>
-                    <option value="temurin">{JAVA_PROVIDER_LABELS.temurin}</option>
-                    <option value="system">{JAVA_PROVIDER_LABELS.system}</option>
-                    <option value="custom">{JAVA_PROVIDER_LABELS.custom}</option>
-                  </select>
+                <div className="java-provider-grid" role="radiogroup" aria-label="Источник Java">
+                  {(["auto", "temurin", "corretto", "microsoft", "zulu", "system", "custom"] as JavaProvider[]).map((provider) => {
+                    const selected = (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === provider;
+                    return (
+                      <button
+                        key={provider}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        className={
+                          "java-provider" + (selected ? " java-provider--selected" : "")
+                        }
+                        onClick={() => selectJavaProvider(provider)}
+                      >
+                        <span className="java-provider__title">
+                          {JAVA_PROVIDER_LABELS[provider]}
+                          {provider === DEFAULT_JAVA_PROVIDER && <span className="badge">по умолчанию</span>}
+                        </span>
+                        <span className="muted java-provider__desc">
+                          {JAVA_PROVIDER_DESCRIPTIONS[provider]}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {(settings.javaProvider ?? "auto") === "custom" && (
+                {(settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === "custom" && (
                   <div className="field">
                     <span>Путь к java</span>
                     <input
@@ -722,7 +971,11 @@ export default function SettingsScreen({
                 )}
 
                 <div className="java-card__download">
-                  <span className="toggle-row__title">Скачать Java 21</span>
+                  <span className="toggle-row__title">Скачать Java 21 для лаунчера</span>
+                  <span className="muted toggle-row__desc">
+                    Выберите поставщика. После скачивания он станет активным runtime лаунчера.
+                    Ранее скачанные поставщики сохраняются отдельно.
+                  </span>
                   <div className="java-vendors">
                     {javaVendors.map((vendor) => (
                       <button
@@ -762,7 +1015,7 @@ export default function SettingsScreen({
 
                 {javaInstalls && javaInstalls.length === 0 && (
                   <p className="muted java-card__msg">
-                    Java 21+ не найдена. Скачайте Temurin или укажите путь вручную.
+                    Java 21+ не найдена. Скачайте Java лаунчера или укажите путь вручную.
                   </p>
                 )}
 
@@ -770,7 +1023,7 @@ export default function SettingsScreen({
                   <div className="java-list">
                     {javaInstalls.map((install) => {
                       const selected =
-                        (settings.javaProvider ?? "auto") === "custom" &&
+                        (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === "custom" &&
                         settings.javaCustomPath === install.path;
                       return (
                         <button
@@ -794,52 +1047,13 @@ export default function SettingsScreen({
                   </div>
                 )}
               </div>
-            )}
 
-            <div className="toggle-row stagger-item">
-              <div className="toggle-row__text">
-                <span className="toggle-row__title">Анимации</span>
-                <span className="muted toggle-row__desc">
-                  Живой фон и плавные переходы. Отключите для экономии ресурсов.
-                </span>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={animations}
-                className={"switch" + (animations ? " switch--on" : "")}
-                onClick={() => setAnimations(!animations)}
-              >
-                <span className="switch__knob" />
-              </button>
-            </div>
-
-            {settings && (
-              <div className="toggle-row stagger-item">
-                <div className="toggle-row__text">
-                  <span className="toggle-row__title">3D-модель скина</span>
-                  <span className="muted toggle-row__desc">
-                    Отключите для экономии ресурсов (плоская аватарка вместо 3D).
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={settings.show3dModel}
-                  className={"switch" + (settings.show3dModel ? " switch--on" : "")}
-                  onClick={() => setSettings({ ...settings, show3dModel: !settings.show3dModel })}
-                >
-                  <span className="switch__knob" />
-                </button>
-              </div>
-            )}
-
-            {settings && (
-              <div className="toggle-row stagger-item">
+              <div className="advanced-card__section advanced-card__section--network">
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">Прокси-сервер</span>
                   <span className="muted toggle-row__desc">
-                    Использовать системные настройки, встроенный прокси или отключить его.
+                    Меняйте только если загрузки не проходят напрямую или сеть требует
+                    специальный маршрут.
                   </span>
                 </div>
                 <select
@@ -847,74 +1061,17 @@ export default function SettingsScreen({
                   onChange={(e) =>
                     setSettings({
                       ...settings,
-                      proxyType: e.target.value as "system" | "builtin" | "none",
+                      proxyType: e.target.value as "system" | "builtin" | "builtinSocks" | "none",
                     })
                   }
                 >
+                  <option value="builtin">Встроенный прокси Stardust</option>
+                  <option value="builtinSocks">Встроенный SOCKS5-прокси Stardust</option>
                   <option value="system">Системный прокси</option>
-                  <option value="builtin">Встроенный прокси</option>
                   <option value="none">Без прокси</option>
                 </select>
               </div>
-            )}
-
-            <button
-              type="button"
-              className="btn btn--ghost stagger-item"
-              onClick={() =>
-                setSettings({
-                  memoryMb: 4096,
-                  downloadConcurrency: 6,
-                  show3dModel: true,
-                  proxyType: "builtin",
-                  javaProvider: "auto",
-                  javaCustomPath: null,
-                })
-              }
-            >
-              Сбросить настройки по умолчанию
-            </button>
-
-            {info && (
-              <div className="info-card stagger-item">
-                <div className="info-card__row">
-                  <span className="muted">Режим</span>
-                  <span className="badge">
-                    {info.mode === "portable" ? "Портативный" : "Установленный"}
-                  </span>
-                </div>
-                <div className="info-card__row">
-                  <span className="muted">Папка exe</span>
-                  <span
-                    className="info-card__path info-card__path--link"
-                    title={info.exeDir}
-                    onClick={() => openPath(info.exeDir)}
-                  >
-                    {info.exeDir}
-                  </span>
-                </div>
-                <div className="info-card__row">
-                  <span className="muted">portable.txt</span>
-                  <span className="badge">
-                    {info.portableMarker ? "найден" : "не найден"}
-                  </span>
-                </div>
-                <div className="info-card__row">
-                  <span className="muted">Папка данных</span>
-                  <span
-                    className="info-card__path info-card__path--link"
-                    title={info.dataDir}
-                    onClick={() => openPath(info.dataDir)}
-                  >
-                    {info.dataDir}
-                  </span>
-                </div>
-                <div className="info-card__row">
-                  <span className="muted">Версия</span>
-                  <span>{info.version}</span>
-                </div>
-              </div>
-            )}
+            </div>}
           </div>
         )}
       </div>

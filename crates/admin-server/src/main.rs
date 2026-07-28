@@ -38,6 +38,8 @@ use futures_util::TryStreamExt;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
 const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
+const MAX_NEWS_TITLE_CHARS: usize = 120;
+const MAX_NEWS_MARKDOWN_CHARS: usize = 12_000;
 
 /// Метаданные последней сборки authlib-injector у апстрима.
 const AUTHLIB_INJECTOR_LATEST: &str = "https://authlib-injector.yushi.moe/artifact/latest.json";
@@ -182,6 +184,11 @@ async fn main() {
         .route("/api/logout", post(logout))
         .route("/api/me", get(me))
         .route("/api/settings", get(get_settings).put(update_settings))
+        .route("/api/news", get(list_news).post(create_news))
+        .route(
+            "/api/news/:id",
+            axum::routing::patch(update_news).delete(delete_news),
+        )
         .route("/api/builds", get(list_builds).post(create_build))
         .route(
             "/api/builds/:id",
@@ -220,7 +227,7 @@ async fn main() {
             "/api/accounts/:uuid/telegram",
             axum::routing::delete(unlink_account_telegram).put(set_account_telegram),
         )
-        .route("/api/accounts/:uuid/skin", get(account_skin))
+        .route("/api/accounts/:uuid/skin", get(account_skin).put(update_account_skin))
         .route("/api/accounts/:uuid/stats", get(account_stats))
         .route("/api/accounts/:uuid/customization", get(get_account_customization))
         .route("/api/accounts/:uuid/badges", put(set_account_badges))
@@ -239,6 +246,8 @@ async fn main() {
         .route("/api/deploy-mod", post(deploy_mod))
         .route("/api/deploy-mod/status", get(deploy_mod_status))
         // --- Публичное для лаунчера ---
+        .route("/news", get(news_highlight))
+        .route("/news/all", get(public_news))
         .route("/manifest", get(manifest))
         .route("/authlib-injector.jar", get(authlib_injector))
         .nest_service("/files", ServeDir::new(modpack_dir))
@@ -2299,6 +2308,55 @@ async fn account_skin(
         .into_response())
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateAccountSkinRequest {
+    png_base64: String,
+    model: protocol::SkinModel,
+}
+
+/// `PUT /api/accounts/:uuid/skin` — администратор задаёт PNG-скин игроку.
+/// Ручная загрузка сбрасывает импорт Mojang и связанный плащ, как и в API лаунчера.
+async fn update_account_skin(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(req): Json<UpdateAccountSkinRequest>,
+) -> Result<Json<AccountDto>, ApiError> {
+    use base64::Engine;
+
+    require_admin(&state, &headers).await?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+
+    let png = base64::engine::general_purpose::STANDARD
+        .decode(req.png_base64.trim().as_bytes())
+        .map_err(|_| ApiError::new(StatusCode::BAD_REQUEST, "Не удалось декодировать PNG"))?;
+    const MAX_SKIN_BYTES: usize = 256 * 1024;
+    if png.len() > MAX_SKIN_BYTES {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Скин слишком большой (максимум 256 КБ)",
+        ));
+    }
+    if png.len() < 8 || png[..8] != [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n'] {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Файл не является PNG",
+        ));
+    }
+
+    state
+        .store
+        .set_skin(&account.uuid, store::StoredSkin::new(png, req.model, None, None))
+        .await
+        .map_err(map_store)?;
+    Ok(Json(AccountDto::from(account)))
+}
+
 /// Внутренняя логика синхронизации статистики с SFTP.
 /// Возвращает количество обновлённых аккаунтов.
 async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
@@ -2431,6 +2489,113 @@ async fn account_stats(
         last_joined_at: last_joined_at
             .map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
+}
+
+// ───────────────────────── Новости ─────────────────────────
+
+#[derive(Deserialize)]
+struct NewsInput {
+    title: String,
+    markdown: String,
+    pinned: bool,
+}
+
+async fn news_highlight(
+    State(state): State<Shared>,
+) -> Result<Json<protocol::NewsHighlight>, ApiError> {
+    Ok(Json(state.store.news_highlight().await.map_err(map_store)?))
+}
+
+async fn public_news(
+    State(state): State<Shared>,
+) -> Result<Json<Vec<protocol::NewsPost>>, ApiError> {
+    let posts = state.store.list_news().await.map_err(map_store)?;
+    Ok(Json(posts.into_iter().map(news_to_dto).collect()))
+}
+
+async fn list_news(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<protocol::NewsPost>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let posts = state.store.list_news().await.map_err(map_store)?;
+    Ok(Json(posts.into_iter().map(news_to_dto).collect()))
+}
+
+async fn create_news(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<NewsInput>,
+) -> Result<Json<protocol::NewsPost>, ApiError> {
+    let author = require_admin(&state, &headers).await?;
+    let (title, markdown) = validate_news_input(&input)?;
+    let post = state
+        .store
+        .create_news(&title, &markdown, &author.username, input.pinned)
+        .await
+        .map_err(map_store)?;
+    Ok(Json(news_to_dto(post)))
+}
+
+async fn update_news(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(input): Json<NewsInput>,
+) -> Result<Json<protocol::NewsPost>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let (title, markdown) = validate_news_input(&input)?;
+    let post = state
+        .store
+        .update_news(id, &title, &markdown, input.pinned)
+        .await
+        .map_err(map_store)?;
+    Ok(Json(news_to_dto(post)))
+}
+
+async fn delete_news(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.delete_news(id).await.map_err(map_store)
+}
+
+fn validate_news_input(input: &NewsInput) -> Result<(String, String), ApiError> {
+    let title = input.title.trim();
+    let markdown = input.markdown.trim();
+    if title.is_empty() || markdown.is_empty() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Заполните заголовок и текст новости",
+        ));
+    }
+    if title.chars().count() > MAX_NEWS_TITLE_CHARS {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Заголовок не должен быть длиннее 120 символов",
+        ));
+    }
+    if markdown.chars().count() > MAX_NEWS_MARKDOWN_CHARS {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Текст новости не должен быть длиннее 12 000 символов",
+        ));
+    }
+    Ok((title.to_owned(), markdown.to_owned()))
+}
+
+fn news_to_dto(post: store::NewsPost) -> protocol::NewsPost {
+    protocol::NewsPost {
+        id: post.id,
+        title: post.title,
+        markdown: post.markdown,
+        author_name: post.author_name,
+        pinned: post.pinned,
+        created_at: post.created_at,
+        updated_at: post.updated_at,
+    }
 }
 
 // ─────────────────── Бейджи и градиенты (CRUD) ───────────────────

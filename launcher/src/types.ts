@@ -89,7 +89,7 @@ export interface TelegramLinkResponse {
   deepLink?: string;
 }
 
-export type JavaProvider = "auto" | "temurin" | "system" | "custom";
+export type JavaProvider = "auto" | "temurin" | "corretto" | "microsoft" | "zulu" | "system" | "custom";
 
 /** Найденная установка Java 21+. */
 export interface JavaInstallation {
@@ -107,6 +107,12 @@ export interface JavaVendorInfo {
   label: string;
 }
 
+export interface MemoryLimits {
+  minMb: number;
+  maxMb: number;
+  totalMb: number;
+}
+
 export interface Settings {
   /** Выделяемая память JVM, МБ. */
   memoryMb: number;
@@ -114,7 +120,7 @@ export interface Settings {
   downloadConcurrency: number;
   /** Показывать 3D-модель скина на главном экране. */
   show3dModel: boolean;
-  proxyType: "system" | "builtin" | "none";
+  proxyType: "system" | "builtin" | "builtinSocks" | "none";
   /** Источник Java для запуска игры. */
   javaProvider?: JavaProvider;
   /** Путь к java, если javaProvider = custom. */
@@ -135,6 +141,24 @@ export interface AppInfo {
   dataDir: string;
   /** Версия лаунчера. */
   version: string;
+}
+
+/** Расположение данных лаунчера и необходимость выбрать его при первом запуске. */
+export interface DataDirectoryInfo {
+  path: string;
+  defaultPath: string;
+  selectionRequired: boolean;
+}
+
+/** Прогресс переноса папки данных. */
+export interface DataDirectoryProgress {
+  phase: "scanning" | "copying" | "finalizing";
+  label: string;
+  fraction: number | null;
+  copiedBytes: number;
+  totalBytes: number;
+  copiedFiles: number;
+  totalFiles: number;
 }
 
 /** Модель скина: classic (4px руки) или slim (3px руки). */
@@ -232,16 +256,42 @@ export interface PlayerStats {
   lastJoinedAt: string | null;
 }
 
+export interface NewsSummary {
+  id: number;
+  title: string;
+  excerpt: string;
+  authorName: string;
+  pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewsHighlight {
+  featured: NewsSummary | null;
+  latestUpdatedAt: string | null;
+}
+
+export interface NewsPost extends NewsSummary {
+  markdown: string;
+}
+
 /** Пути к логам лаунчера и Minecraft. */
 export interface LogPaths {
   launcherLogDir: string;
   launcherLogLatest: string;
+  launcherLogFiles: LogFile[];
   minecraftLogsDir: string;
   minecraftLatestLog: string;
   minecraftDebugLog: string;
   crashReportsDir: string;
   dataDir: string;
   crashReportsExists: boolean;
+}
+
+/** Лог-файл, доступный для просмотра в лаунчере. */
+export interface LogFile {
+  label: string;
+  path: string;
 }
 
 /** Хвост лог-файла. */

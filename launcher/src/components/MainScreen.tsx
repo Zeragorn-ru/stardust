@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, getSettings, getStats, getPlayerSkin, onStatsUpdated, playGame } from "../api";
+import { accountInfo, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import { useDelayedUnmount } from "../useDelayedUnmount";
@@ -30,7 +30,8 @@ interface Props {
   busy: boolean;
   onProgressChange: (p: Progress | null) => void;
   onRunningChange: (r: boolean) => void;
-  onOpenSettings: (section?: "general" | "account" | "logs") => void;
+  onOpenSettings: (section?: "game" | "account" | "logs") => void;
+  onOpenNews: () => void;
   onLogout: () => void;
 }
 
@@ -42,6 +43,7 @@ export default function MainScreen({
   onProgressChange,
   onRunningChange,
   onOpenSettings,
+  onOpenNews,
   onLogout,
 }: Props) {
   const { skin } = useSkin();
@@ -56,6 +58,8 @@ export default function MainScreen({
   const [playersOpen, setPlayersOpen] = useState(false);
   const [windowFocused, setWindowFocused] = useState(true);
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
+  const [news, setNews] = useState<import("../types").NewsHighlight | null>(null);
+  const [newsUnread, setNewsUnread] = useState(false);
 
   const playersModal = useDelayedUnmount(playersOpen);
   const skinModal = useDelayedUnmount(skinOpen);
@@ -66,6 +70,10 @@ export default function MainScreen({
     getStats().then(setStats).catch(() => undefined);
     getSettings().then(setSettings).catch(() => undefined);
     accountInfo().then((info) => setBan(info.ban ?? info.profile.ban ?? null)).catch(() => undefined);
+    getNewsHighlight().then((highlight) => {
+      setNews(highlight);
+      setNewsUnread(Boolean(highlight.latestUpdatedAt && localStorage.getItem("launcher.news.seen") !== highlight.latestUpdatedAt));
+    }).catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -182,11 +190,6 @@ export default function MainScreen({
     }
   }
 
-  function handleDismissError() {
-    playLockRef.current = false;
-    onProgressChange(null);
-  }
-
   return (
     <div className="main">
       <header className="main__header">
@@ -258,6 +261,28 @@ export default function MainScreen({
               <p>{ban.reason?.trim() ? ban.reason : "Причина не указана."}</p>
             </div>
           )}
+          <button
+            type="button"
+            className="hero__news-banner stagger-item"
+            onClick={() => {
+              if (news?.latestUpdatedAt) {
+                localStorage.setItem("launcher.news.seen", news.latestUpdatedAt);
+                setNewsUnread(false);
+              }
+              onOpenNews();
+            }}
+          >
+            {news?.featured ? (
+              <span className="hero__news-banner-copy">
+                <strong>{news.featured.title}</strong>
+                <span>{news.featured.excerpt || "Открыть ленту новостей"}</span>
+              </span>
+            ) : (
+              <span className="hero__news-banner-copy"><span className="hero__news-banner-label">Новости сервера</span><strong>Все новости сервера</strong><span>События, обновления и объявления</span></span>
+            )}
+            <span className="hero__news-banner-action" aria-hidden="true">→</span>
+            {newsUnread && <span className="hero__news-dot" aria-label="Есть новые новости" />}
+          </button>
           <div className="hero__info-row stagger-item">
               <div className="hero__stats">
                 <div className="hero__stats-title">Статистика</div>
@@ -283,6 +308,13 @@ export default function MainScreen({
               </div>
               <div className="hero__stats">
                 <div className="hero__stats-title">Сервер</div>
+                <button
+                  type="button"
+                  className="server-map-button"
+                  onClick={() => void openExternal("https://map.stardust-mc.xyz")}
+                >
+                  Открыть карту
+                </button>
                 {serverOnline === null ? (
                   <div className="hero__stat">
                     <span className="hero__stat-value hero__stat-value--muted">—</span>
@@ -327,70 +359,77 @@ export default function MainScreen({
                 )}
               </div>
             </div>
-          {progress?.phase === "error" ? (
-            <div className="play-error stagger-item">
-              <span className="play-error__msg">{progress.label}</span>
-              <button
-                type="button"
-                className="btn btn--play btn--play-retry"
-                onClick={handleDismissError}
-              >
-                Попробовать снова
-              </button>
-            </div>
-          ) : (
-            <button
-              className="btn btn--play stagger-item"
-              onClick={handlePlay}
-              disabled={busy || !!ban}
-            >
-              <span className="play-button__top">
-                <span>
-                  {ban ? "Сервер недоступен" : running ? "Игра запущена" : busy ? "Подготовка…" : "Играть"}
+          <button
+            className="btn btn--play stagger-item"
+            onClick={handlePlay}
+            disabled={busy || !!ban}
+          >
+            <span className="play-button__top">
+              <span>
+                {ban
+                  ? "Сервер недоступен"
+                  : running
+                    ? "Игра запущена"
+                    : busy
+                      ? "Подготовка…"
+                      : progress?.phase === "error"
+                        ? "Повторить запуск"
+                        : "Играть"}
+              </span>
+              {progress && progress.phase !== "error" && (
+                <span className="play-button__percent">
+                  {progress.fraction != null
+                    ? `${Math.round(progress.fraction * 100)}%`
+                    : progress.phase === "running"
+                      ? "готово"
+                      : "…"}
                 </span>
-                {progress && (
-                  <span className="play-button__percent">
-                    {progress.fraction != null
-                      ? `${Math.round(progress.fraction * 100)}%`
-                      : progress.phase === "running"
-                        ? "готово"
-                        : "…"}
+              )}
+            </span>
+            {progress && progress.phase !== "error" && (
+              <span className="play-button__details">
+                <span>{progress.label}</span>
+                {hasDownloadMeta(progress) && (
+                  <span>
+                    {formatBytes(progress.downloadedBytes ?? 0)} /{" "}
+                    {formatBytes(progress.totalBytes ?? 0)} ·{" "}
+                    {formatBytes(progress.speedBytesPerSec ?? 0)}/с
+                    {progress.etaSeconds != null
+                      ? ` · осталось ${formatEta(progress.etaSeconds)}`
+                      : ""}
                   </span>
                 )}
               </span>
-              {progress && (
-                <span className="play-button__details">
-                  <span>{progress.label}</span>
-                  {hasDownloadMeta(progress) && (
-                    <span>
-                      {formatBytes(progress.downloadedBytes ?? 0)} /{" "}
-                      {formatBytes(progress.totalBytes ?? 0)} ·{" "}
-                      {formatBytes(progress.speedBytesPerSec ?? 0)}/с
-                      {progress.etaSeconds != null
-                        ? ` · осталось ${formatEta(progress.etaSeconds)}`
-                        : ""}
-                    </span>
-                  )}
-                </span>
-              )}
-              {progress && (
-                <span className="play-button__track" aria-hidden="true">
-                  <span
-                    className={
-                      "play-button__bar" +
-                      (progress.fraction == null
-                        ? " play-button__bar--indeterminate"
-                        : "")
-                    }
-                    style={
-                      progress.fraction != null
-                        ? { width: `${progress.fraction * 100}%` }
-                        : undefined
-                    }
-                  />
-                </span>
-              )}
-            </button>
+            )}
+            {progress && progress.phase !== "error" && (
+              <span className="play-button__track" aria-hidden="true">
+                <span
+                  className={
+                    "play-button__bar" +
+                    (progress.fraction == null
+                      ? " play-button__bar--indeterminate"
+                      : "")
+                  }
+                  style={
+                    progress.fraction != null
+                      ? { width: `${progress.fraction * 100}%` }
+                      : undefined
+                  }
+                />
+              </span>
+            )}
+          </button>
+          {progress?.phase === "error" && (
+            <div className="play-recovery stagger-item" role="status">
+              <span>Запуск не завершился. Попробуйте ещё раз или проверьте логи.</span>
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={() => onOpenSettings("logs")}
+              >
+                Открыть логи
+              </button>
+            </div>
           )}
         </div>
       </section>

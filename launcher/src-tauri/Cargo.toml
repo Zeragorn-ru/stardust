@@ -17,7 +17,7 @@ sha1 = "0.10"
 keyring = "2"
 open = "5"
 protocol = { path = "../../crates/protocol" }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "socks"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 flate2 = "1"
@@ -28,7 +28,9 @@ time = { version = "0.3", features = ["formatting"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
+sysinfo = "0.33"
 hickory-resolver = { version = "0.25", default-features = false, features = ["tokio", "system-config"] }
+rfd = "0.15"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = "2"

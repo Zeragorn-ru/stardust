@@ -15,6 +15,7 @@ import { OverviewView } from "../views/OverviewView";
 import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
 import { CustomizationView } from "../views/CustomizationView";
+import { NewsView } from "../views/NewsView";
 import { IconBox, IconChart, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
@@ -119,6 +120,12 @@ function Shell() {
           >
             <IconStar /> <span className="nav-label">Кастомизация</span>
           </NavLink>
+          <NavLink
+            to="/news"
+            className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
+          >
+            <IconStar /> <span className="nav-label">Новости</span>
+          </NavLink>
         </nav>
         <div className="sidebar-foot">
           {username && (
@@ -159,6 +166,7 @@ function Shell() {
             <Route path="/builds/:id" element={<BuildsPage />} />
             <Route path="/accounts" element={<AccountsView />} />
             <Route path="/customization" element={<CustomizationView />} />
+            <Route path="/news" element={<NewsView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
@@ -189,6 +197,11 @@ function sectionDetails(section: string): { title: string; description: string }
       return {
         title: "Инфраструктура",
         description: "Telegram, SFTP и backend-конфигурация без потери контекста.",
+      };
+    case "news":
+      return {
+        title: "Новости",
+        description: "Публикации и закреплённые объявления для лаунчера.",
       };
     default:
       return {

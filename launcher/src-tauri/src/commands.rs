@@ -4,12 +4,15 @@
 // данных (портативную или системную — см. модуль `paths`). Скины хранятся
 // на auth-сервере и привязаны к аккаунту, а не к устройству.
 
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::Manager;
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use sysinfo::System;
 use tauri::{AppHandle, Emitter, State};
 
 use protocol::PlayerProfile;
@@ -25,6 +28,7 @@ pub enum ProxyType {
     System,
     #[default]
     Builtin,
+    BuiltinSocks,
     None,
 }
 
@@ -67,10 +71,60 @@ fn default_true() -> bool {
     true
 }
 
+/// Минимальный heap Minecraft: шесть гигабайт.
+const MEMORY_MIN_MB: u32 = 6 * 1024;
+const MEMORY_STEP_MB: u32 = 512;
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryLimits {
+    pub min_mb: u32,
+    pub max_mb: u32,
+    pub total_mb: u32,
+}
+
+/// Возвращает безопасный диапазон heap: от 6 ГиБ до 75% физической RAM.
+/// На ПК с менее чем 8 ГиБ возвращает фиксированные 6 ГиБ: это соответствует
+/// минимальным требованиям сборки, хотя ОС может испытывать нехватку памяти.
+pub fn memory_limits() -> MemoryLimits {
+    let total_mb = (System::new_all().total_memory() / (1024 * 1024)).min(u32::MAX as u64) as u32;
+    let three_quarters_mb = total_mb.saturating_mul(3) / 4;
+    MemoryLimits {
+        min_mb: MEMORY_MIN_MB,
+        max_mb: three_quarters_mb.max(MEMORY_MIN_MB),
+        total_mb,
+    }
+}
+
+fn normalize_memory_mb(memory_mb: u32) -> u32 {
+    let limits = memory_limits();
+    memory_mb
+        .max(limits.min_mb)
+        .min(limits.max_mb)
+        .div_ceil(MEMORY_STEP_MB)
+        .saturating_mul(MEMORY_STEP_MB)
+        .min(limits.max_mb)
+}
+
+fn normalize_settings(settings: &mut Settings) -> bool {
+    let memory_mb = normalize_memory_mb(settings.memory_mb);
+    if settings.memory_mb == memory_mb {
+        false
+    } else {
+        settings.memory_mb = memory_mb;
+        true
+    }
+}
+
+fn normalized_settings(mut settings: Settings) -> Settings {
+    normalize_settings(&mut settings);
+    settings
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            memory_mb: 4096,
+            memory_mb: normalize_memory_mb(MEMORY_MIN_MB),
             download_concurrency: default_concurrency(),
             show_3d_model: true,
             proxy_type: ProxyType::default(),
@@ -96,6 +150,26 @@ pub struct AppInfo {
     pub data_dir: String,
     /// Версия лаунчера.
     pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataDirectoryInfo {
+    pub path: String,
+    pub default_path: String,
+    pub selection_required: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DataDirectoryProgress {
+    phase: String,
+    label: String,
+    fraction: Option<f64>,
+    copied_bytes: u64,
+    total_bytes: u64,
+    copied_files: u64,
+    total_files: u64,
 }
 
 /// Скин игрока: data-URL PNG + тип модели.
@@ -181,12 +255,19 @@ pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(20));
+        .read_timeout(std::time::Duration::from_secs(30))
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(8);
 
     match proxy_type {
         ProxyType::System => {}
         ProxyType::Builtin => {
             if let Ok(p) = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128") {
+                builder = builder.proxy(p);
+            }
+        }
+        ProxyType::BuiltinSocks => {
+            if let Ok(p) = reqwest::Proxy::all("socks5h://assets.zeragorn.xyz:1080") {
                 builder = builder.proxy(p);
             }
         }
@@ -242,7 +323,7 @@ impl AppState {
 
 pub(crate) fn read_settings(app: &AppHandle) -> Settings {
     let path = paths::settings_file(app);
-    match std::fs::read_to_string(&path) {
+    let mut settings = match std::fs::read_to_string(&path) {
         Ok(s) => match serde_json::from_str(&s) {
             Ok(settings) => settings,
             Err(e) => {
@@ -262,13 +343,127 @@ pub(crate) fn read_settings(app: &AppHandle) -> Settings {
             }
             Settings::default()
         }
+    };
+
+    // Миграция старых конфигураций: все значения ниже 6 ГиБ поднимаем до
+    // минимума, а слишком большие ограничиваем 75% RAM текущего компьютера.
+    let normalized = normalized_settings(settings.clone());
+    if normalized.memory_mb != settings.memory_mb {
+        settings = normalized;
+        if let Err(e) = write_settings(app, &settings) {
+            tracing::warn!("[settings] не удалось сохранить миграцию памяти: {e}");
+        }
     }
+    settings
 }
 
 fn write_settings(app: &AppHandle, settings: &Settings) -> Result<(), String> {
     let path = paths::settings_file(app);
     let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn parse(json: serde_json::Value) -> Settings {
+        normalized_settings(serde_json::from_value(json).expect("settings json must deserialize"))
+    }
+
+    #[test]
+    fn migrates_v080_settings_without_java_fields() {
+        for proxy in ["system", "builtin", "builtinSocks", "none"] {
+            let settings = parse(json!({
+                "memoryMb": 4096,
+                "downloadConcurrency": 6,
+                "show3dModel": false,
+                "proxyType": proxy,
+            }));
+
+            assert_eq!(settings.memory_mb, MEMORY_MIN_MB);
+            assert_eq!(settings.download_concurrency, 6);
+            assert!(!settings.show_3d_model);
+            assert_eq!(settings.java_provider, JavaProvider::Temurin);
+            assert_eq!(settings.java_custom_path, None);
+            match proxy {
+                "system" => assert_eq!(settings.proxy_type, ProxyType::System),
+                "builtin" => assert_eq!(settings.proxy_type, ProxyType::Builtin),
+                "builtinSocks" => assert_eq!(settings.proxy_type, ProxyType::BuiltinSocks),
+                "none" => assert_eq!(settings.proxy_type, ProxyType::None),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn keeps_current_java_provider_variants() {
+        for (raw, expected, custom_path) in [
+            ("auto", JavaProvider::Auto, None),
+            ("temurin", JavaProvider::Temurin, None),
+            ("system", JavaProvider::System, None),
+            ("custom", JavaProvider::Custom, Some("/opt/jdk/bin/java")),
+        ] {
+            let settings = parse(json!({
+                "memoryMb": 8192,
+                "downloadConcurrency": 8,
+                "show3dModel": true,
+                "proxyType": "builtin",
+                "javaProvider": raw,
+                "javaCustomPath": custom_path,
+            }));
+
+            assert_eq!(settings.memory_mb, 8192);
+            assert_eq!(settings.java_provider, expected);
+            assert_eq!(settings.java_custom_path.as_deref(), custom_path);
+        }
+    }
+
+    #[test]
+    fn accepts_new_managed_java_provider_variants() {
+        for (raw, expected) in [
+            ("corretto", JavaProvider::Corretto),
+            ("microsoft", JavaProvider::Microsoft),
+            ("zulu", JavaProvider::Zulu),
+        ] {
+            let settings = parse(json!({
+                "memoryMb": 8192,
+                "downloadConcurrency": 8,
+                "show3dModel": true,
+                "proxyType": "builtin",
+                "javaProvider": raw,
+                "javaCustomPath": null,
+            }));
+
+            assert_eq!(settings.java_provider, expected);
+            assert_eq!(settings.java_custom_path, None);
+        }
+    }
+
+    #[test]
+    fn clamps_memory_to_minimum_and_three_quarters_of_ram() {
+        let limits = memory_limits();
+        let below_min = parse(json!({
+            "memoryMb": 1024,
+            "downloadConcurrency": 4,
+            "show3dModel": true,
+            "proxyType": "builtin",
+        }));
+        assert_eq!(below_min.memory_mb, limits.min_mb);
+
+        let too_high = parse(json!({
+            "memoryMb": u32::MAX,
+            "downloadConcurrency": 4,
+            "show3dModel": true,
+            "proxyType": "builtin",
+        }));
+        assert_eq!(too_high.memory_mb, limits.max_mb);
+        assert!(
+            too_high.memory_mb <= limits.total_mb.saturating_mul(3) / 4
+                || limits.max_mb == limits.min_mb
+        );
+    }
 }
 
 fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
@@ -390,11 +585,15 @@ fn migrate_appdata(app: &AppHandle) {
 
 pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
     migrate_appdata(app);
-    let settings_path = paths::settings_file(app);
-    if !settings_path.exists() {
-        write_settings(app, &Settings::default())?;
-    }
-    let settings = read_settings(app);
+    let settings = if paths::selection_required(app) {
+        Settings::default()
+    } else {
+        let settings_path = paths::settings_file(app);
+        if !settings_path.exists() {
+            write_settings(app, &Settings::default())?;
+        }
+        read_settings(app)
+    };
     let state = app.state::<AppState>();
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
     Ok(())
@@ -908,10 +1107,11 @@ fn get_settings(state: State<'_, AppState>, app: AppHandle) -> Settings {
 
 #[tauri::command]
 fn save_settings(
-    settings: Settings,
+    mut settings: Settings,
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<(), String> {
+    normalize_settings(&mut settings);
     write_settings(&app, &settings)?;
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
     *state.settings.lock().unwrap() = Some(settings);
@@ -919,13 +1119,33 @@ fn save_settings(
 }
 
 #[tauri::command]
-fn list_java_installations(app: AppHandle) -> Vec<JavaInstallation> {
-    java::list_installations(&paths::data_dir(&app))
+fn get_memory_limits() -> MemoryLimits {
+    memory_limits()
 }
 
 #[tauri::command]
-fn list_java_installations_deep(app: AppHandle) -> Vec<JavaInstallation> {
-    java::list_installations_deep(&paths::data_dir(&app))
+fn reset_settings(state: State<'_, AppState>, app: AppHandle) -> Result<Settings, String> {
+    let settings = Settings::default();
+    write_settings(&app, &settings)?;
+    *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
+    *state.settings.lock().unwrap() = Some(settings.clone());
+    Ok(settings)
+}
+
+#[tauri::command]
+async fn list_java_installations(app: AppHandle) -> Result<Vec<JavaInstallation>, String> {
+    let data_dir = paths::data_dir(&app);
+    tauri::async_runtime::spawn_blocking(move || java::list_installations(&data_dir))
+        .await
+        .map_err(|e| format!("Поиск Java был прерван: {e}"))
+}
+
+#[tauri::command]
+async fn list_java_installations_deep(app: AppHandle) -> Result<Vec<JavaInstallation>, String> {
+    let data_dir = paths::data_dir(&app);
+    tauri::async_runtime::spawn_blocking(move || java::list_installations_deep(&data_dir))
+        .await
+        .map_err(|e| format!("Глубокий поиск Java был прерван: {e}"))
 }
 
 #[tauri::command]
@@ -941,11 +1161,25 @@ async fn download_java(
 ) -> Result<String, String> {
     let vendor = java::JavaVendor::parse(&vendor)
         .ok_or_else(|| format!("Неизвестный поставщик Java: {vendor}"))?;
+    if matches!(vendor, java::JavaVendor::Oracle) {
+        return Err("Oracle JDK можно выбрать только вручную через путь к java".to_string());
+    }
     let data_dir = paths::data_dir(&app);
     // Отдельный канал: иначе Settings → «Скачать Java» залипает в глобальном
     // progress и блокирует кнопку «Играть» на главном экране.
     let progress = crate::progress::Progress::for_java_download(app.clone());
     let path = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
+    let mut settings = get_settings_cached(&state, &app);
+    settings.java_provider = match vendor {
+        java::JavaVendor::Temurin => JavaProvider::Temurin,
+        java::JavaVendor::Corretto => JavaProvider::Corretto,
+        java::JavaVendor::Microsoft => JavaProvider::Microsoft,
+        java::JavaVendor::Zulu => JavaProvider::Zulu,
+        java::JavaVendor::Oracle => JavaProvider::Temurin,
+    };
+    settings.java_custom_path = None;
+    write_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = Some(settings);
     Ok(path.to_string_lossy().into_owned())
 }
 
@@ -971,6 +1205,228 @@ fn app_info(app: AppHandle) -> AppInfo {
         data_dir: paths::data_dir(&app).to_string_lossy().to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
     }
+}
+
+#[tauri::command]
+fn get_data_directory_info(app: AppHandle) -> DataDirectoryInfo {
+    let default_path = paths::default_data_dir(&app);
+    let path = paths::configured_data_dir(&app).unwrap_or_else(|| default_path.clone());
+    DataDirectoryInfo {
+        path: path.to_string_lossy().into_owned(),
+        default_path: default_path.to_string_lossy().into_owned(),
+        selection_required: paths::selection_required(&app),
+    }
+}
+
+#[tauri::command]
+async fn choose_data_directory() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("Выберите папку данных Stardust")
+            .pick_folder()
+            .map(|path| path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| format!("выбор папки был прерван: {e}"))
+}
+
+#[tauri::command]
+async fn relocate_data_directory(
+    path: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DataDirectoryInfo, String> {
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app)) {
+        return Err("Закройте Minecraft перед переносом папки данных".into());
+    }
+
+    let destination = PathBuf::from(path);
+    let app_for_transfer = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        relocate_data_directory_on_disk(&app_for_transfer, &destination)
+    })
+    .await
+    .map_err(|e| format!("перенос папки был прерван: {e}"))??;
+
+    Ok(get_data_directory_info(app))
+}
+
+fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Result<(), String> {
+    if !destination.is_absolute() {
+        return Err("Выберите абсолютный путь к папке".into());
+    }
+
+    let source = paths::data_dir(app);
+    let source = source
+        .canonicalize()
+        .map_err(|e| format!("не удалось открыть текущую папку данных: {e}"))?;
+    std::fs::create_dir_all(destination)
+        .map_err(|e| format!("не удалось создать выбранную папку: {e}"))?;
+    let destination = destination
+        .canonicalize()
+        .map_err(|e| format!("не удалось открыть выбранную папку: {e}"))?;
+
+    if source == destination {
+        paths::set_data_dir(app, &destination)?;
+        return Ok(());
+    }
+    if destination.starts_with(&source) || source.starts_with(&destination) {
+        return Err("Новая папка не может находиться внутри текущей папки данных".into());
+    }
+    if has_entries(&destination)? {
+        return Err("Выберите пустую папку, чтобы не перезаписать существующие файлы".into());
+    }
+
+    emit_data_directory_progress(app, DataDirectoryProgress {
+        phase: "scanning".into(),
+        label: "Подсчитываем файлы…".into(),
+        fraction: None,
+        copied_bytes: 0,
+        total_bytes: 0,
+        copied_files: 0,
+        total_files: 0,
+    });
+    let mut totals = TransferTotals::default();
+    scan_directory(&source, &mut totals)?;
+
+    if totals.files == 0 {
+        paths::set_data_dir(app, &destination)?;
+        return Ok(());
+    }
+
+    let parent = destination
+        .parent()
+        .ok_or("не удалось определить родительскую папку назначения")?;
+    let staging = parent.join(format!(".stardust-transfer-{}", std::process::id()));
+    if staging.exists() {
+        return Err("обнаружена незавершённая предыдущая попытка переноса; удалите папку .stardust-transfer-* рядом с выбранной папкой".into());
+    }
+    std::fs::create_dir(&staging)
+        .map_err(|e| format!("не удалось подготовить перенос: {e}"))?;
+
+    let result = (|| {
+        let mut reporter = TransferReporter::new(app, totals);
+        copy_directory(&source, &staging, &mut reporter)?;
+        reporter.emit(true);
+        emit_data_directory_progress(app, DataDirectoryProgress {
+            phase: "finalizing".into(),
+            label: "Завершаем перенос…".into(),
+            fraction: Some(1.0),
+            copied_bytes: totals.bytes,
+            total_bytes: totals.bytes,
+            copied_files: totals.files,
+            total_files: totals.files,
+        });
+        std::fs::remove_dir(&destination)
+            .map_err(|e| format!("не удалось подготовить выбранную папку: {e}"))?;
+        std::fs::rename(&staging, &destination)
+            .map_err(|e| format!("не удалось завершить перенос: {e}"))?;
+        paths::set_data_dir(app, &destination)?;
+        if let Err(e) = std::fs::remove_dir_all(&source) {
+            tracing::warn!("[data-dir] данные перенесены, но старая папка осталась {}: {e}", source.display());
+        }
+        Ok(())
+    })();
+
+    if result.is_err() {
+        let _ = std::fs::remove_dir_all(&staging);
+    }
+    result
+}
+
+#[derive(Default, Clone, Copy)]
+struct TransferTotals {
+    bytes: u64,
+    files: u64,
+}
+
+fn scan_directory(directory: &Path, totals: &mut TransferTotals) -> Result<(), String> {
+    for entry in std::fs::read_dir(directory).map_err(|e| format!("не удалось прочитать {}: {e}", directory.display()))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        if file_type.is_dir() {
+            scan_directory(&entry.path(), totals)?;
+        } else if file_type.is_file() {
+            totals.files += 1;
+            totals.bytes = totals.bytes.saturating_add(entry.metadata().map_err(|e| e.to_string())?.len());
+        }
+    }
+    Ok(())
+}
+
+fn has_entries(directory: &Path) -> Result<bool, String> {
+    Ok(std::fs::read_dir(directory)
+        .map_err(|e| format!("не удалось прочитать выбранную папку: {e}"))?
+        .next()
+        .transpose()
+        .map_err(|e| e.to_string())?
+        .is_some())
+}
+
+struct TransferReporter<'a> {
+    app: &'a AppHandle,
+    totals: TransferTotals,
+    copied: TransferTotals,
+    last_emit: Instant,
+}
+
+impl<'a> TransferReporter<'a> {
+    fn new(app: &'a AppHandle, totals: TransferTotals) -> Self {
+        Self {
+            app,
+            totals,
+            copied: TransferTotals::default(),
+            last_emit: Instant::now() - Duration::from_secs(1),
+        }
+    }
+
+    fn copied_file(&mut self, bytes: u64) {
+        self.copied.files += 1;
+        self.copied.bytes = self.copied.bytes.saturating_add(bytes);
+        self.emit(false);
+    }
+
+    fn emit(&mut self, force: bool) {
+        if !force && self.last_emit.elapsed() < Duration::from_millis(100) {
+            return;
+        }
+        self.last_emit = Instant::now();
+        let fraction = if self.totals.bytes > 0 {
+            self.copied.bytes as f64 / self.totals.bytes as f64
+        } else {
+            self.copied.files as f64 / self.totals.files.max(1) as f64
+        };
+        emit_data_directory_progress(self.app, DataDirectoryProgress {
+            phase: "copying".into(),
+            label: "Переносим файлы…".into(),
+            fraction: Some(fraction),
+            copied_bytes: self.copied.bytes,
+            total_bytes: self.totals.bytes,
+            copied_files: self.copied.files,
+            total_files: self.totals.files,
+        });
+    }
+}
+
+fn copy_directory(source: &Path, destination: &Path, reporter: &mut TransferReporter<'_>) -> Result<(), String> {
+    for entry in std::fs::read_dir(source).map_err(|e| format!("не удалось прочитать {}: {e}", source.display()))? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let target = destination.join(entry.file_name());
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        if file_type.is_dir() {
+            std::fs::create_dir(&target).map_err(|e| format!("не удалось создать {}: {e}", target.display()))?;
+            copy_directory(&entry.path(), &target, reporter)?;
+        } else if file_type.is_file() {
+            let bytes = std::fs::copy(entry.path(), &target)
+                .map_err(|e| format!("не удалось скопировать {}: {e}", entry.path().display()))?;
+            reporter.copied_file(bytes);
+        }
+    }
+    Ok(())
+}
+
+fn emit_data_directory_progress(app: &AppHandle, progress: DataDirectoryProgress) {
+    let _ = app.emit("launcher://data-directory-progress", progress);
 }
 
 // ---------- Скин (хранится на сервере, привязан к аккаунту) ----------
@@ -1202,12 +1658,20 @@ async fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
 struct LogPaths {
     launcher_log_dir: String,
     launcher_log_latest: String,
+    launcher_log_files: Vec<LogFile>,
     minecraft_logs_dir: String,
     minecraft_latest_log: String,
     minecraft_debug_log: String,
     crash_reports_dir: String,
     data_dir: String,
     crash_reports_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LogFile {
+    label: String,
+    path: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1258,6 +1722,55 @@ fn resolve_launcher_log_latest(log_dir: &std::path::Path) -> std::path::PathBuf 
         }
     }
     latest.map(|(_, path)| path).unwrap_or(current)
+}
+
+fn list_launcher_log_files(log_dir: &std::path::Path) -> Vec<LogFile> {
+    let mut files: Vec<(std::time::SystemTime, std::path::PathBuf)> = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(log_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if (name == "launcher.log" || name.starts_with("launcher.log."))
+                && entry.metadata().map(|meta| meta.is_file()).unwrap_or(false)
+            {
+                let modified = entry
+                    .metadata()
+                    .and_then(|meta| meta.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                files.push((modified, path));
+            }
+        }
+    }
+    files.sort_by(|(left_time, left_path), (right_time, right_path)| {
+        let left_current = left_path
+            .file_name()
+            .is_some_and(|name| name == "launcher.log");
+        let right_current = right_path
+            .file_name()
+            .is_some_and(|name| name == "launcher.log");
+        right_current
+            .cmp(&left_current)
+            .then_with(|| right_time.cmp(left_time))
+    });
+
+    files
+        .into_iter()
+        .map(|(_, path)| {
+            let name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("launcher.log");
+            LogFile {
+                label: if name == "launcher.log" {
+                    "Текущий запуск".into()
+                } else {
+                    name.into()
+                },
+                path: path.to_string_lossy().into_owned(),
+            }
+        })
+        .collect()
 }
 
 fn allowed_log_roots(app: &AppHandle) -> Result<Vec<std::path::PathBuf>, String> {
@@ -1336,12 +1849,14 @@ fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
     let game_dir = game_dir(&app);
     let minecraft_logs_dir = game_dir.join("logs");
     let crash_reports_dir = game_dir.join("crash-reports");
+    let launcher_log_files = list_launcher_log_files(&log_dir);
 
     Ok(LogPaths {
         launcher_log_dir: log_dir.to_string_lossy().into_owned(),
         launcher_log_latest: resolve_launcher_log_latest(&log_dir)
             .to_string_lossy()
             .into_owned(),
+        launcher_log_files,
         minecraft_logs_dir: minecraft_logs_dir.to_string_lossy().into_owned(),
         minecraft_latest_log: minecraft_logs_dir
             .join("latest.log")
@@ -1531,7 +2046,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         &state.http(),
         minecraft::LaunchOptions {
             data_dir: paths::data_dir(&app),
-            settings_memory_mb: settings.memory_mb.clamp(512, 32768),
+            settings_memory_mb: normalize_memory_mb(settings.memory_mb),
             download_concurrency: settings.download_concurrency as usize,
             java_provider: settings.java_provider,
             java_custom_path: settings.java_custom_path.clone(),
@@ -1546,10 +2061,11 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_default();
 
-    crate::game_guard::record(&data_dir, child.id());
+    let child_id = child.id();
+    crate::game_guard::record(&data_dir, child_id);
     // Сохраняем на диск: если лаунчер закроется пока игра работает,
     // при следующем старте bootstrap восстановит и запишет сессию.
-    crate::game_guard::write_session(&data_dir, child.id(), &launched_at_str);
+    crate::game_guard::write_session(&data_dir, child_id, &launched_at_str);
     *state.game.lock().unwrap() = Some(child);
 
     // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
@@ -1604,19 +2120,23 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         );
 
         let quick_exit = duration < EARLY_WINDOW_SECS;
-        let is_crash = if let Some(status) = exit_status {
-            !status.success()
-        } else {
-            true
-        };
+        let failed_exit = exit_status.map(|s| !s.success()).unwrap_or(true);
+        let game_dir = data_dir2.join("minecraft").join("game");
+        let latest_log_path = game_dir.join("logs").join("latest.log");
+        let log_content = std::fs::read_to_string(&latest_log_path).unwrap_or_default();
+        let mod_report_content = read_recent_mod_crash_marker(&game_dir, child_id);
+        let mod_reports_crash = mod_report_content
+            .as_deref()
+            .map(mod_crash_marker_reports_crash)
+            .unwrap_or(false);
+        let recent_crash_content = latest_recent_crash_report(&game_dir)
+            .and_then(|path| std::fs::read_to_string(path).ok())
+            .map(|content| trim_report_text(content, 900_000));
+        let looks_like_start_failure = failed_exit || minecraft_log_has_fatal_error(&log_content);
+        let is_crash = failed_exit || recent_crash_content.is_some() || mod_reports_crash;
 
-        if quick_exit || is_crash {
-            let game_dir = data_dir2.join("minecraft").join("game");
-            let latest_log_path = game_dir.join("logs").join("latest.log");
-            let log_content =
-                std::fs::read_to_string(&latest_log_path).unwrap_or_else(|_| String::new());
-
-            if quick_exit {
+        if (quick_exit && looks_like_start_failure) || is_crash {
+            if quick_exit && looks_like_start_failure {
                 let label = launch_failure_label(&log_content, exit_code);
                 crate::progress::Progress::error(&app_handle, label);
             }
@@ -1628,45 +2148,21 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     trim_report_text(log_content, 900_000)
                 };
 
-                let mut crash_content = None;
-                let crash_reports_dir = game_dir.join("crash-reports");
-                if let Ok(entries) = std::fs::read_dir(crash_reports_dir) {
-                    let mut latest_file = None;
-                    let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
-                    for entry in entries.flatten() {
-                        if let Ok(metadata) = entry.metadata() {
-                            if metadata.is_file() {
-                                if let Ok(modified) = metadata.modified() {
-                                    if modified > latest_time {
-                                        latest_time = modified;
-                                        latest_file = Some(entry.path());
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if let Some(path) = latest_file {
-                        if let Ok(duration) =
-                            std::time::SystemTime::now().duration_since(latest_time)
-                        {
-                            if duration.as_secs() < 15 {
-                                if let Ok(content) = std::fs::read_to_string(path) {
-                                    crash_content = Some(trim_report_text(content, 900_000));
-                                }
-                            }
-                        }
-                    }
-                }
+                let debug_content =
+                    read_optional_report_text(&game_dir.join("logs").join("debug.log"));
+                let launcher_content =
+                    read_optional_report_text(&resolve_launcher_log_latest(&launcher_log_dir()));
 
                 let exit_code = exit_status.and_then(|s| s.code());
-                if let Err(e) = backend::report_crash(
-                    &http,
-                    &token,
+                let crash_req = backend::ReportCrashRequest {
                     exit_code,
-                    &log_content,
-                    crash_content.as_deref(),
-                )
-                .await
+                    log: log_content,
+                    crash_report: recent_crash_content,
+                    debug_log: debug_content,
+                    launcher_log: launcher_content,
+                    mod_report: mod_report_content,
+                };
+                if let Err(e) = backend::report_crash(&http, &token, &crash_req).await
                 {
                     tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
                 }
@@ -1710,6 +2206,89 @@ fn minecraft_log_snippet(log_content: &str, max_lines: usize) -> Option<String> 
     Some(lines.join("\n"))
 }
 
+fn minecraft_log_has_fatal_error(log_content: &str) -> bool {
+    log_content.lines().rev().take(120).any(|line| {
+        let line = line.to_ascii_lowercase();
+        line.contains("fatal")
+            || line.contains("exception")
+            || line.contains("crash")
+            || line.contains("failed to start")
+            || line.contains("mod loading error")
+    })
+}
+
+fn latest_recent_crash_report(game_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let crash_reports_dir = game_dir.join("crash-reports");
+    let mut latest_file = None;
+    let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
+    for entry in std::fs::read_dir(crash_reports_dir).ok()?.flatten() {
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        let Ok(modified) = metadata.modified() else {
+            continue;
+        };
+        if modified > latest_time {
+            latest_time = modified;
+            latest_file = Some(entry.path());
+        }
+    }
+    latest_file.as_ref()?;
+    let age = std::time::SystemTime::now()
+        .duration_since(latest_time)
+        .ok()?;
+    if age.as_secs() <= 60 {
+        latest_file
+    } else {
+        None
+    }
+}
+
+fn read_optional_report_text(path: &std::path::Path) -> Option<String> {
+    std::fs::read_to_string(path)
+        .ok()
+        .filter(|content| !content.trim().is_empty())
+        .map(|content| trim_report_text(content, 900_000))
+}
+
+fn read_recent_mod_crash_marker(game_dir: &std::path::Path, child_id: u32) -> Option<String> {
+    let path = game_dir.join("stardust-crash-marker.json");
+    let metadata = std::fs::metadata(&path).ok()?;
+    let modified = metadata.modified().ok()?;
+    let age = std::time::SystemTime::now().duration_since(modified).ok()?;
+    if age.as_secs() > 60 {
+        return None;
+    }
+    let content = std::fs::read_to_string(path).ok()?;
+    if !mod_crash_marker_matches_pid(&content, child_id) {
+        return None;
+    }
+    Some(trim_report_text(content, 900_000))
+}
+
+fn mod_crash_marker_matches_pid(content: &str, child_id: u32) -> bool {
+    serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .and_then(|value| value.get("pid").and_then(|pid| pid.as_u64()))
+        .map(|pid| pid == child_id as u64)
+        .unwrap_or(false)
+}
+
+fn mod_crash_marker_reports_crash(content: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("status")
+                .and_then(|status| status.as_str())
+                .map(|status| status.eq_ignore_ascii_case("crash"))
+        })
+        .unwrap_or(false)
+}
+
 fn trim_report_text(mut text: String, max_bytes: usize) -> String {
     if text.len() <= max_bytes {
         return text;
@@ -1733,6 +2312,18 @@ fn trim_report_text(mut text: String, max_bytes: usize) -> String {
 async fn get_stats(state: State<'_, AppState>) -> Result<protocol::PlayerStats, String> {
     let (_uuid, token) = current_session(&state)?;
     backend::get_stats(&state.http(), &token).await
+}
+
+/// Краткая новость для кнопки на главном экране.
+#[tauri::command]
+async fn get_news_highlight(state: State<'_, AppState>) -> Result<protocol::NewsHighlight, String> {
+    backend::get_news_highlight(&state.http()).await
+}
+
+/// Лента новостей. Вызывается лениво, только после открытия панели.
+#[tauri::command]
+async fn get_news(state: State<'_, AppState>) -> Result<Vec<protocol::NewsPost>, String> {
+    backend::get_news(&state.http()).await
 }
 
 // ---------- Сборка (модпак) ----------
@@ -2005,12 +2596,17 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             current_profile,
             get_settings,
             save_settings,
+            get_memory_limits,
+            reset_settings,
             list_java_installations,
             list_java_installations_deep,
             list_java_download_vendors,
             download_java,
             download_temurin_java,
             app_info,
+            get_data_directory_info,
+            choose_data_directory,
+            relocate_data_directory,
             get_skin,
             load_skin_cache,
             set_skin,
@@ -2029,6 +2625,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             play_game,
             game_running,
             get_stats,
+            get_news_highlight,
+            get_news,
             list_optional_mods,
             set_mod_enabled,
             crate::update::check_update,

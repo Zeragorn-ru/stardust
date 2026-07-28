@@ -9,12 +9,17 @@ import type {
   AccountInfo,
   AppInfo,
   ChallengeOutcome,
+  DataDirectoryInfo,
+  DataDirectoryProgress,
   JavaInstallation,
   JavaVendorInfo,
   LoginOutcome,
   LogFolderKind,
   LogPaths,
   LogTail,
+  MemoryLimits,
+  NewsHighlight,
+  NewsPost,
   OptionalMod,
   PlayerProfile,
   PlayerStats,
@@ -44,11 +49,11 @@ async function getInvoke(): Promise<InvokeFn | null> {
 }
 
 const FALLBACK_SETTINGS: Settings = {
-  memoryMb: 4096,
+  memoryMb: 6144,
   downloadConcurrency: 6,
   show3dModel: true,
   proxyType: "builtin",
-  javaProvider: "auto",
+  javaProvider: "temurin",
   javaCustomPath: null,
 };
 
@@ -100,6 +105,20 @@ export async function onJavaProgress(
   try {
     const mod = await import("@tauri-apps/api/event");
     return mod.listen<Progress>("launcher://java-progress", (event) => {
+      handler(event.payload);
+    });
+  } catch {
+    return () => undefined;
+  }
+}
+
+/** Подписаться на ход переноса папки данных. */
+export async function onDataDirectoryProgress(
+  handler: (progress: DataDirectoryProgress) => void,
+): Promise<() => void> {
+  try {
+    const mod = await import("@tauri-apps/api/event");
+    return mod.listen<DataDirectoryProgress>("launcher://data-directory-progress", (event) => {
       handler(event.payload);
     });
   } catch {
@@ -326,6 +345,7 @@ export async function getLogPaths(): Promise<LogPaths> {
     return {
       launcherLogDir: "./logs",
       launcherLogLatest: "./logs/launcher.log",
+      launcherLogFiles: [{ label: "Текущий запуск", path: "./logs/launcher.log" }],
       minecraftLogsDir: "./data/minecraft/game/logs",
       minecraftLatestLog: "./data/minecraft/game/logs/latest.log",
       minecraftDebugLog: "./data/minecraft/game/logs/debug.log",
@@ -413,6 +433,20 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await invoke<void>("save_settings", { settings });
 }
 
+/** Допустимый диапазон памяти JVM для текущего компьютера. */
+export async function getMemoryLimits(): Promise<MemoryLimits> {
+  const invoke = await getInvoke();
+  if (!invoke) return { minMb: 6144, maxMb: 12288, totalMb: 16384 };
+  return invoke<MemoryLimits>("get_memory_limits");
+}
+
+/** Сбросить настройки лаунчера до значений по умолчанию. */
+export async function resetSettings(): Promise<Settings> {
+  const invoke = await getInvoke();
+  if (!invoke) return { ...FALLBACK_SETTINGS };
+  return invoke<Settings>("reset_settings");
+}
+
 /** Список установок Java 21+ (быстрый поиск). */
 export async function listJavaInstallations(): Promise<JavaInstallation[]> {
   const invoke = await getInvoke();
@@ -459,6 +493,29 @@ export async function getAppInfo(): Promise<AppInfo> {
     };
   }
   return invoke<AppInfo>("app_info");
+}
+
+/** Текущее и рекомендуемое расположение данных. */
+export async function getDataDirectoryInfo(): Promise<DataDirectoryInfo> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return { path: "(dev) ./data", defaultPath: "(dev) ./data", selectionRequired: true };
+  }
+  return invoke<DataDirectoryInfo>("get_data_directory_info");
+}
+
+/** Открыть нативный выбор папки. */
+export async function chooseDataDirectory(): Promise<string | null> {
+  const invoke = await getInvoke();
+  if (!invoke) return null;
+  return invoke<string | null>("choose_data_directory");
+}
+
+/** Перенести все данные в новую пустую папку. */
+export async function relocateDataDirectory(path: string): Promise<DataDirectoryInfo> {
+  const invoke = await getInvoke();
+  if (!invoke) return { path, defaultPath: "(dev) ./data", selectionRequired: false };
+  return invoke<DataDirectoryInfo>("relocate_data_directory", { path });
 }
 
 /** Прочитать текущий скин. */
@@ -605,6 +662,20 @@ export async function getStats(): Promise<PlayerStats> {
     return { playtimeSeconds: 0, lastJoinedAt: null };
   }
   return invoke<PlayerStats>("get_stats");
+}
+
+/** Короткая новость для главного экрана. */
+export async function getNewsHighlight(): Promise<NewsHighlight> {
+  const invoke = await getInvoke();
+  if (!invoke) return { featured: null, latestUpdatedAt: null };
+  return invoke<NewsHighlight>("get_news_highlight");
+}
+
+/** Полная лента новостей, загружается только при открытии панели. */
+export async function getNews(): Promise<NewsPost[]> {
+  const invoke = await getInvoke();
+  if (!invoke) return [];
+  return invoke<NewsPost[]>("get_news");
 }
 
 // ───── Кастомизация ника ─────

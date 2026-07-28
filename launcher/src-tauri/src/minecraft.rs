@@ -20,6 +20,7 @@ use tauri::AppHandle;
 
 use protocol::PlayerProfile;
 
+use crate::java::JavaProvider;
 use crate::progress::{DownloadScope, Progress, Stage};
 
 const DEFAULT_VERSION: &str = "1.21.1";
@@ -159,13 +160,7 @@ pub async fn launch(
     let xms = memory.min(512);
     args.push(format!("-Xms{xms}M"));
     args.push(format!("-Xmx{memory}M"));
-    // G1GC — наилучший выбор для Minecraft: короткие паузы ценой
-    // небольшого оверхеда. На Temurin JRE default GC зависит от
-    // платформы и может быть Serial/Parallel с паузами >1 с.
-    args.push("-XX:+UseG1GC".into());
-    args.push("-XX:+ParallelRefProcEnabled".into());
-    args.push("-XX:+DisableExplicitGC".into());
-    args.push("-XX:MaxGCPauseMillis=200".into());
+    args.extend(jvm_tuning_args(java_provider));
 
     // JVM-аргументы NeoForge (module-path, --add-opens и т.д.) с подстановкой
     // плейсхолдеров. Без них BootstrapLauncher не стартует.
@@ -219,6 +214,30 @@ fn hide_console(command: &mut Command) {
     {
         command.creation_flags(CREATE_NO_WINDOW);
     }
+}
+
+fn jvm_tuning_args(provider: JavaProvider) -> Vec<String> {
+    // Все managed runtime в UI основаны на HotSpot/OpenJDK. Поэтому базовый
+    // набор общий, а ветка по provider остаётся явной точкой для безопасных
+    // vendor-specific флагов без риска сломать system/custom Java.
+    let mut args = vec![
+        "-XX:+UseG1GC".to_string(),
+        "-XX:+ParallelRefProcEnabled".to_string(),
+        "-XX:+DisableExplicitGC".to_string(),
+        "-XX:MaxGCPauseMillis=200".to_string(),
+    ];
+
+    match provider {
+        JavaProvider::Temurin
+        | JavaProvider::Corretto
+        | JavaProvider::Microsoft
+        | JavaProvider::Zulu => {
+            args.push("-XX:+UseStringDeduplication".to_string());
+        }
+        JavaProvider::Auto | JavaProvider::System | JavaProvider::Custom => {}
+    }
+
+    args
 }
 
 async fn ensure_version(
@@ -1624,10 +1643,21 @@ async fn http_get_with_retry(
 
 fn compute_sha1(path: &Path) -> Result<String, String> {
     use sha1::{Digest, Sha1};
-    let bytes = fs::read(path)
+    use std::io::Read;
+
+    let mut file = fs::File::open(path)
         .map_err(|e| format!("Не удалось прочитать файл для хеша {}: {e}", path.display()))?;
     let mut hasher = Sha1::new();
-    hasher.update(&bytes);
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|e| format!("Не удалось прочитать файл для хеша {}: {e}", path.display()))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
     Ok(format!("{:x}", hasher.finalize()))
 }
 

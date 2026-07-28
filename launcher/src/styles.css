@@ -54,8 +54,9 @@
     --t-slow: 0.5s;
 
     font-synthesis: none;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
+    /* Let the OS WebView use its native font rasterizer (ClearType/subpixel AA). */
+    text-rendering: auto;
+    -webkit-font-smoothing: auto;
 }
 
 /* Режим экономии: быстрые переходы вместо полного отключения анимаций.
@@ -147,17 +148,15 @@ body {
     box-shadow:
         0 24px 70px -20px rgba(0, 0, 0, 0.75),
         0 0 0 1px rgba(0, 0, 0, 0.4);
-    animation: app-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: app-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes app-in {
     from {
         opacity: 0;
-        transform: scale(0.985);
     }
     to {
         opacity: 1;
-        transform: scale(1);
     }
 }
 
@@ -193,8 +192,6 @@ body {
     padding: 0 8px 0 14px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(8, 9, 16, 0.58);
-    backdrop-filter: blur(18px) saturate(140%);
-    -webkit-backdrop-filter: blur(18px) saturate(140%);
     -webkit-app-region: drag;
 }
 
@@ -262,18 +259,13 @@ body {
     transition:
         background var(--t-fast),
         border-color var(--t-fast),
-        color var(--t-fast),
-        transform var(--t-fast);
+        color var(--t-fast);
 }
 
 .window-btn:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: var(--glass-border);
     color: #fff;
-}
-
-.window-btn:active {
-    transform: scale(0.96);
 }
 
 .window-btn span {
@@ -314,6 +306,33 @@ body {
         var(--bg) 45%,
         var(--bg-deep) 100%
     );
+}
+
+.app {
+    background: radial-gradient(120% 120% at 50% -10%, #141833 0%, var(--bg) 45%, var(--bg-deep) 100%);
+}
+
+.news-screen { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.news-screen__body { width: min(1040px, 100%); margin: 0 auto; padding: 36px 48px 48px; overflow-y: auto; }
+.news-screen__feed { display: grid; gap: 14px; }
+.news-post { padding: 24px 28px; border: 1px solid var(--glass-border); border-radius: 18px; background: rgba(22, 25, 40, .48); box-shadow: 0 14px 36px -26px rgba(0, 0, 0, .75); }
+.news-post h2 { margin: 12px 0; font-size: 22px; line-height: 1.2; letter-spacing: -.02em; }
+.news-post__topline { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.news-post__topline time, .news-post__meta { display: flex; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+.news-post__pin { padding: 3px 7px; border-radius: 999px; background: rgba(245, 158, 11, .12); color: #f6c35c; font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.news-post__content { color: rgba(238, 240, 246, .9); font-size: 14px; line-height: 1.65; }
+.news-post__content p + p { margin-top: 10px; }
+.news-post__content h3, .news-post__content h4, .news-post__content h5 { margin: 18px 0 8px; font-size: 15px; }
+.news-post__content ul, .news-post__content ol { margin: 10px 0 0 20px; }
+.news-post__content a { color: #b6a9ff; }
+.news-post__content code { padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.09); font-family: ui-monospace, monospace; font-size: .9em; }
+.news-screen__empty { display: grid; gap: 6px; padding: 30px; border: 1px dashed var(--glass-border-strong); border-radius: 18px; color: var(--muted); text-align: center; }
+.news-screen__empty strong { color: var(--text); }
+
+@media (max-width: 680px) {
+    .news-screen__body { padding: 26px 20px; }
+    .news-post { padding: 20px; }
+    .news-post__topline { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
 
 .aurora__blob {
@@ -400,27 +419,31 @@ body {
 @keyframes screenIn {
     from {
         opacity: 0;
-        transform: translateY(10px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
     }
 }
 
 /* ── Transition system ─────────────────────────────────────── */
 .screen-transition {
+    position: absolute;
+    inset: 0;
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
     animation-duration: 380ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    animation-fill-mode: both;
+    animation-fill-mode: backwards;
 }
 
 /* Enter classes — will-change только здесь; на exit не нужен и создаёт
    новый stacking context, сбрасывающий GPU-слои дочерних элементов. */
-.screen-enter-bottom  { will-change: transform, opacity; animation-name: t-enter-bottom; }
-.screen-enter-top     { will-change: transform, opacity; animation-name: t-enter-top; }
-.screen-enter-right   { will-change: transform, opacity; animation-name: t-enter-right; }
-.screen-enter-left    { will-change: transform, opacity; animation-name: t-enter-left; }
+.screen-enter-bottom  { will-change: opacity; animation-name: t-enter-bottom; }
+.screen-enter-top     { will-change: opacity; animation-name: t-enter-top; }
+.screen-enter-right   { will-change: opacity; animation-name: t-enter-right; }
+.screen-enter-left    { will-change: opacity; animation-name: t-enter-left; }
 
 /* Exit classes */
 .screen-exit-up    { animation-name: t-exit-up; }
@@ -429,36 +452,36 @@ body {
 .screen-exit-right { animation-name: t-exit-right; }
 
 @keyframes t-enter-bottom {
-    from { opacity: 0; transform: translateY(100%); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-enter-top {
-    from { opacity: 0; transform: translateY(-100%); }
-    to   { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-enter-right {
-    from { opacity: 0; transform: translateX(100%); }
-    to   { opacity: 1; transform: translateX(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-enter-left {
-    from { opacity: 0; transform: translateX(-100%); }
-    to   { opacity: 1; transform: translateX(0); }
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 @keyframes t-exit-up {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(-100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 @keyframes t-exit-down {
-    from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 @keyframes t-exit-left {
-    from { opacity: 1; transform: translateX(0); }
-    to   { opacity: 0; transform: translateX(-100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 @keyframes t-exit-right {
-    from { opacity: 1; transform: translateX(0); }
-    to   { opacity: 0; transform: translateX(100%); }
+    from { opacity: 1; }
+    to   { opacity: 0; }
 }
 
 /* Во время exit-перехода замораживаем ВСЕ дочерние анимации,
@@ -525,11 +548,9 @@ body {
 @keyframes glassIn {
     from {
         opacity: 0;
-        transform: translateY(16px) scale(0.98);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
     }
 }
 
@@ -537,7 +558,7 @@ body {
    вешаем .stagger, на детей — .stagger-item. Задержки фиксированы по индексу,
    чтобы не плодить инлайновые стили. */
 .stagger-item {
-    animation: fadeUp var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: fadeUp var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 .stagger .stagger-item:nth-child(1) {
@@ -561,6 +582,24 @@ body {
 .stagger .stagger-item:nth-child(7) {
     animation-delay: 0.4s;
 }
+.stagger .stagger-item:nth-child(8) {
+    animation-delay: 0.46s;
+}
+.stagger .stagger-item:nth-child(9) {
+    animation-delay: 0.52s;
+}
+.stagger .stagger-item:nth-child(10) {
+    animation-delay: 0.58s;
+}
+.stagger .stagger-item:nth-child(11) {
+    animation-delay: 0.64s;
+}
+.stagger .stagger-item:nth-child(12) {
+    animation-delay: 0.7s;
+}
+.stagger .stagger-item:nth-child(n+13) {
+    animation-delay: 0.7s;
+}
 
 /* Для главного экрана stagger стартует после завершения enter-перехода (380ms),
    но с меньшими задержками для отзывчивости. */
@@ -579,31 +618,51 @@ body {
 .main .stagger .stagger-item:nth-child(5) {
     animation-delay: 0.32s;
 }
+.main .stagger .stagger-item:nth-child(6) {
+    animation-delay: 0.38s;
+}
+.main .stagger .stagger-item:nth-child(7) {
+    animation-delay: 0.44s;
+}
+.main .stagger .stagger-item:nth-child(8) {
+    animation-delay: 0.5s;
+}
+.main .stagger .stagger-item:nth-child(9) {
+    animation-delay: 0.56s;
+}
+.main .stagger .stagger-item:nth-child(10) {
+    animation-delay: 0.62s;
+}
+.main .stagger .stagger-item:nth-child(11) {
+    animation-delay: 0.68s;
+}
+.main .stagger .stagger-item:nth-child(12) {
+    animation-delay: 0.74s;
+}
+.main .stagger .stagger-item:nth-child(n+13) {
+    animation-delay: 0.74s;
+}
 
 @keyframes fadeUp {
     from {
         opacity: 0;
-        transform: translateY(12px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
     }
 }
 
 /* Лёгкое всплывание сбоку — для боковых панелей/навигации. */
 .slide-in-left {
-    animation: slideInLeft var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: slideInLeft var(--t-slow) cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes slideInLeft {
     from {
         opacity: 0;
-        transform: translateX(-14px);
     }
     to {
         opacity: 1;
-        transform: translateX(0);
     }
 }
 
@@ -627,21 +686,17 @@ body {
     background: var(--glass);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
 }
 
 /* Интерактивная карточка: мягко приподнимается и подсвечивается по наведению. */
 .lift {
     transition:
-        transform var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1),
         box-shadow var(--t-mid),
         border-color var(--t-mid);
 }
 
 .lift:hover {
-    transform: translateY(-3px);
     border-color: var(--glass-border-strong);
     box-shadow:
         var(--shadow),
@@ -661,18 +716,12 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        transform var(--t-fast),
         box-shadow var(--t-mid),
         opacity var(--t-fast);
 }
 
 .btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-1px);
-}
-
-.btn:active:not(:disabled) {
-    transform: translateY(0);
 }
 
 .btn:disabled {
@@ -726,7 +775,6 @@ body {
 .btn--ghost:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.12);
     color: var(--text);
-    transform: translateY(-1px);
 }
 
 .btn--link {
@@ -780,7 +828,6 @@ body {
     box-shadow:
         0 16px 46px -18px rgba(16, 185, 129, 0.9),
         0 0 0 1px rgba(255, 255, 255, 0.12) inset;
-    transform: translateY(-1px) scale(1.01);
 }
 /* Мягкое «дыхание» свечения, пока кнопка готова к запуску. */
 .btn--play:not(:disabled) {
@@ -831,7 +878,6 @@ body {
 .btn--play-retry:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.14);
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    transform: translateY(-1px);
 }
 .btn--play-retry::after {
     display: none;
@@ -989,13 +1035,8 @@ body {
     gap: 8px;
     transition:
         border-color var(--t-mid),
-        transform var(--t-fast),
         box-shadow var(--t-mid),
         background var(--t-mid);
-}
-
-.choice:hover {
-    transform: translateY(-2px);
 }
 
 .choice--active {
@@ -1075,6 +1116,54 @@ body {
     margin-top: 8px;
 }
 
+.onboarding__data-dir {
+    width: 100%;
+    text-align: left;
+    padding: 14px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    background: var(--glass);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.onboarding__path-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.onboarding__path-row code,
+.data-directory-card__path {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text);
+    font-size: 12px;
+}
+
+.onboarding__default-path {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.onboarding__default-path:disabled {
+    color: var(--muted);
+    cursor: default;
+}
+
 /* ============ Логин ============ */
 
 .login {
@@ -1118,8 +1207,6 @@ body {
     border: 1px solid var(--glass-border);
     border-radius: var(--radius);
     padding: 20px;
-    backdrop-filter: blur(20px) saturate(140%);
-    -webkit-backdrop-filter: blur(20px) saturate(140%);
     box-shadow: var(--shadow);
     contain: layout style;
 }
@@ -1203,8 +1290,6 @@ body {
     padding: 12px 18px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(10, 11, 20, 0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
 }
 
 .account {
@@ -1225,17 +1310,11 @@ body {
     color: inherit;
     min-width: 0;
     max-width: min(420px, 58vw);
-    transition:
-        background var(--t-fast),
-        transform var(--t-fast);
+    transition: background var(--t-fast);
 }
 
 .account--link:hover {
     background: rgba(255, 255, 255, 0.05);
-}
-
-.account--link:active {
-    transform: scale(0.98);
 }
 
 .account__avatar {
@@ -1249,13 +1328,10 @@ body {
     font-weight: 800;
     font-size: 18px;
     box-shadow: 0 6px 20px -6px rgba(124, 92, 255, 0.6);
-    transition:
-        transform var(--t-fast) cubic-bezier(0.22, 1, 0.36, 1),
-        box-shadow var(--t-mid);
+    transition: box-shadow var(--t-mid);
 }
 
 .account--link:hover .account__avatar {
-    transform: scale(1.06) rotate(-2deg);
     box-shadow: 0 8px 26px -6px rgba(124, 92, 255, 0.8);
 }
 
@@ -1381,7 +1457,6 @@ body {
 .hero__skin-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.13);
     color: var(--text);
-    transform: translateY(-1px);
     box-shadow:
         0 10px 26px -12px rgba(124, 92, 255, 0.6),
         0 0 0 1px rgba(124, 92, 255, 0.35) inset;
@@ -1452,6 +1527,7 @@ body {
 }
 
 .hero__stats {
+    position: relative;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -1462,6 +1538,94 @@ body {
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     min-width: 0;
+}
+
+.hero__news-banner {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
+    padding: 15px 18px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    background: var(--glass);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    box-shadow: var(--shadow);
+    transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.hero__news-banner:hover {
+    border-color: rgba(124, 92, 255, .48);
+    background: rgba(124, 92, 255, .1);
+}
+
+.hero__news-banner-label {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.hero__news-banner-copy {
+    display: grid;
+    gap: 3px;
+    overflow: hidden;
+}
+
+.hero__news-banner-copy strong,
+.hero__news-banner-copy span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hero__news-banner-copy strong { font-size: 16px; line-height: 1.25; }
+.hero__news-banner-copy span:last-child { color: var(--muted); font-size: 13px; }
+
+.hero__news-banner-action { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--glass-border); border-radius: 9px; color: var(--text); font-size: 18px; line-height: 1; transition: background var(--t-fast), border-color var(--t-fast); }
+.hero__news-banner:hover .hero__news-banner-action { border-color: rgba(124, 92, 255, .48); background: rgba(124, 92, 255, .16); }
+
+.hero__news-dot {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+}
+
+@media (max-width: 760px) {
+    .hero__news-banner { gap: 12px; }
+}
+
+.server-map-button {
+    position: absolute;
+    top: 12px;
+    right: 14px;
+    padding: 5px 9px;
+    border: 1px solid rgba(92, 184, 168, 0.24);
+    border-radius: 10px;
+    background: rgba(92, 184, 168, 0.08);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    transition:
+        background var(--t-fast),
+        border-color var(--t-fast);
+}
+
+.server-map-button:hover {
+    border-color: rgba(92, 184, 168, 0.5);
+    background: rgba(92, 184, 168, 0.16);
 }
 
 .hero__stats-title {
@@ -1502,14 +1666,12 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        border-color var(--t-fast),
-        transform var(--t-fast);
+        border-color var(--t-fast);
 }
 
 .server-players-button:hover {
     border-color: rgba(74, 222, 128, 0.35);
     background: rgba(74, 222, 128, 0.1);
-    transform: translateY(-1px);
 }
 
 .hero__stat-value {
@@ -1658,20 +1820,33 @@ body {
     font-weight: 700;
 }
 
-.play-error {
+.play-recovery {
     display: flex;
-    flex-direction: column;
     align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 2px 0;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.play-recovery .btn {
+    min-height: 32px;
+    padding: 6px 12px;
+}
+
+.play-recovery {
     gap: 10px;
 }
 
+/* Ошибка запуска не вытесняет основное действие и не показывает технический текст. */
+.play-error {
+    display: none;
+}
+
 .play-error__msg {
-    font-size: 13px;
-    color: #f87171;
-    text-align: center;
-    white-space: pre-wrap;
-    max-width: 100%;
-    word-break: break-word;
+    display: none;
 }
 
 .play-button__top {
@@ -1785,7 +1960,7 @@ body {
 .settings {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 38px);
+    height: 100%;
     min-height: 0;
     overflow: hidden;
     contain: layout style;
@@ -1798,8 +1973,6 @@ body {
     padding: 16px 22px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(10, 11, 20, 0.4);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
     flex-shrink: 0;
 }
 
@@ -1807,8 +1980,15 @@ body {
     font-size: 18px;
 }
 
-.settings__header-save {
+.settings__save-state {
     margin-left: auto;
+    max-width: min(460px, 45vw);
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .settings__loading {
@@ -1852,8 +2032,7 @@ body {
     cursor: pointer;
     transition:
         background var(--t-fast),
-        color var(--t-fast),
-        transform var(--t-fast);
+        color var(--t-fast);
 }
 
 /* Вертикальный акцентный «язычок» слева: вырастает у активного пункта. */
@@ -1875,10 +2054,6 @@ body {
     color: var(--text);
 }
 
-.settings__nav-item:active {
-    transform: scale(0.98);
-}
-
 .settings__nav-item--active {
     background: rgba(124, 92, 255, 0.16);
     color: var(--text);
@@ -1896,7 +2071,7 @@ body {
     flex-direction: column;
     gap: 26px;
     overflow-y: auto;
-    max-width: 560px;
+    max-width: min(1120px, calc(100vw - 260px));
     width: 100%;
     margin: 0 auto;
     /* Не использовать contain: paint — в WKWebView (macOS) ломает scroll
@@ -1907,11 +2082,9 @@ body {
 @keyframes panelIn {
     from {
         opacity: 0;
-        transform: translateX(8px);
     }
     to {
         opacity: 1;
-        transform: translateX(0);
     }
 }
 
@@ -2152,10 +2325,6 @@ body {
     box-shadow: 0 6px 18px -8px rgba(124, 92, 255, 0.7);
 }
 
-.tabs__tab:active {
-    transform: scale(0.97);
-}
-
 /* ============ Модальные окна ============ */
 
 .modal-overlay {
@@ -2165,9 +2334,7 @@ body {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: rgba(5, 6, 12, 0.62);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: rgba(5, 6, 12, 0.76);
     animation: overlay-in var(--t-mid) ease;
 }
 
@@ -2180,12 +2347,10 @@ body {
 .modal {
     width: 100%;
     max-width: 560px;
-    background: var(--glass-strong);
+    background: rgba(28, 32, 52, 0.9);
     border: 1px solid var(--glass-border-strong);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    backdrop-filter: blur(24px) saturate(140%);
-    -webkit-backdrop-filter: blur(24px) saturate(140%);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2196,11 +2361,9 @@ body {
 @keyframes modal-in {
     from {
         opacity: 0;
-        transform: translateY(18px) scale(0.94);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
     }
 }
 
@@ -2233,9 +2396,7 @@ body {
     display: grid;
     place-items: center;
     padding: 24px;
-    background: rgba(5, 6, 12, 0.78);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    background: rgba(5, 6, 12, 0.86);
     animation: overlay-in var(--t-mid) ease;
 }
 
@@ -2631,17 +2792,15 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    animation: tab-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: tab-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 
 @keyframes tab-in {
     from {
         opacity: 0;
-        transform: translateY(6px);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
     }
 }
 
@@ -2654,7 +2813,6 @@ body {
 .btn--soft:hover:not(:disabled) {
     background: rgba(124, 92, 255, 0.22);
     box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.16);
-    transform: translateY(-1px);
 }
 
 /* Чекбокс «держать в синхроне» */
@@ -2684,6 +2842,42 @@ body {
 
 /* ============ Java (настройки) ============ */
 
+.advanced-card {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 18px;
+    background:
+        linear-gradient(135deg, rgba(124, 92, 255, 0.1), rgba(79, 140, 255, 0.04)),
+        rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(124, 92, 255, 0.2);
+    border-radius: var(--radius-sm);
+}
+
+.advanced-card__head,
+.advanced-card__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.advanced-card__section {
+    padding-top: 16px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.advanced-card__section:first-of-type {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.advanced-card__section--network {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+    align-items: center;
+    gap: 16px;
+}
+
 .java-card {
     display: flex;
     flex-direction: column;
@@ -2712,6 +2906,54 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.java-provider-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+}
+
+.java-provider {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-height: 104px;
+    padding: 12px 14px;
+    color: var(--text);
+    text-align: left;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    transition:
+        border-color var(--t-fast),
+        background var(--t-fast);
+}
+
+.java-provider:hover {
+    border-color: rgba(124, 92, 255, 0.45);
+    background: rgba(124, 92, 255, 0.08);
+}
+
+.java-provider--selected {
+    border-color: var(--accent);
+    background: rgba(124, 92, 255, 0.16);
+    box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.16) inset;
+}
+
+.java-provider__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.java-provider__desc {
+    font-size: 12px;
+    line-height: 1.45;
 }
 
 .java-vendors {
@@ -2866,6 +3108,47 @@ body {
     text-decoration: underline;
 }
 
+.data-directory-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 16px;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    background: var(--glass);
+}
+
+.data-directory-card .toggle-row__text,
+.data-directory-card__progress,
+.data-directory-card .alert {
+    grid-column: 1 / -1;
+}
+
+.data-directory-card__progress {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+button.data-directory-card__path {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    text-align: left;
+    font-family: ui-monospace, monospace;
+    cursor: pointer;
+}
+
+button.data-directory-card__path:hover:not(:disabled) {
+    color: var(--accent);
+    text-decoration: underline;
+}
+
+button.data-directory-card__path:disabled {
+    cursor: default;
+}
+
 /* ============ Логи (настройки + просмотр) ============ */
 
 .logs-card {
@@ -2931,8 +3214,37 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: 12px;
     padding: 0 18px 10px;
+}
+
+.log-viewer-modal__toolbar-actions,
+.log-viewer-modal__options,
+.log-viewer-modal__filter {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.log-viewer-modal__filter {
+    padding: 0 18px 10px;
+}
+
+.log-viewer-modal__filter .input {
+    flex: 1 1 240px;
+    min-width: 0;
+}
+
+.log-viewer-modal__filter .btn {
+    min-width: 34px;
+    padding: 6px 10px;
+}
+
+.log-viewer-modal__match-count {
+    font-size: 12px;
+    white-space: nowrap;
 }
 
 .log-viewer-modal__auto {
@@ -2978,6 +3290,25 @@ body {
     white-space: pre-wrap;
     word-break: break-word;
     color: rgba(255, 255, 255, 0.9);
+}
+
+.log-viewer-modal__pre--nowrap {
+    white-space: pre;
+    word-break: normal;
+}
+
+.log-viewer-modal__line {
+    display: block;
+    min-height: 1.45em;
+}
+
+.log-viewer-modal__line--match {
+    background: rgba(212, 168, 67, 0.12);
+}
+
+.log-viewer-modal__line--active {
+    background: rgba(212, 168, 67, 0.32);
+    outline: 1px solid rgba(212, 168, 67, 0.7);
 }
 
 .log-viewer-modal__empty,
@@ -3051,8 +3382,8 @@ body {
     -webkit-backdrop-filter: none;
     background: linear-gradient(
         160deg,
-        rgba(80, 50, 140, 0.35) 0%,
-        rgba(5, 6, 12, 0.82) 100%
+        rgba(80, 50, 140, 0.5) 0%,
+        rgba(5, 6, 12, 0.9) 100%
     );
 }
 
@@ -3327,6 +3658,21 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+    .java-card__head,
+    .advanced-card__section--network {
+        grid-template-columns: 1fr;
+    }
+
+    .java-card__head {
+        flex-direction: column;
+    }
+
+    .java-card__head-actions {
+        justify-content: flex-start;
+    }
 }
 
 select {

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, PlayerStats } from "../types";
 import { useToast } from "../ui/feedback";
-import { SkinHead } from "../ui/SkinHead";
 import { IconCopy, IconSearch, IconSync } from "../ui/icons";
 import { PlayerCardModal } from "../ui/PlayerCardModal";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
@@ -343,11 +342,9 @@ export function AccountsView() {
                   >
                     <TableCell>
                       <div className="cell-main">
-                        <SkinHead
-                          uuid={a.uuid}
-                          username={a.username}
-                          size={32}
-                        />
+                        <span className="account-initial" aria-hidden="true">
+                          {a.username.slice(0, 1).toUpperCase()}
+                        </span>
                         <strong>{a.username}</strong>
                         {isSelf && <Badge variant="outline">вы</Badge>}
                         {a.isAdmin && <Badge variant="success">admin</Badge>}

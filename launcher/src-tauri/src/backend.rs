@@ -7,10 +7,10 @@
 use base64::Engine;
 use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
-    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
-    PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
-    PlayerStats, RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
-    TelegramLinkResponse, TwoFactorRequest,
+    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult, PasswordResetConfirm,
+    PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile, PlayerStats,
+    RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
+    NewsHighlight, NewsPost, TelegramLinkResponse, TwoFactorRequest,
 };
 use serde::Deserialize;
 use std::sync::OnceLock;
@@ -47,6 +47,34 @@ pub fn admin_base_url() -> &'static str {
     })
 }
 
+/// Получить компактную новость для главного экрана. Новости не требуют сессии.
+pub async fn get_news_highlight(client: &reqwest::Client) -> Result<NewsHighlight, String> {
+    client
+        .get(format!("{}/news", admin_base_url()))
+        .send()
+        .await
+        .map_err(network_error)?
+        .error_for_status()
+        .map_err(|e| format!("Не удалось получить новости ({e})"))?
+        .json()
+        .await
+        .map_err(|e| format!("Некорректный ответ новостей: {e}"))
+}
+
+/// Полная лента загружается только после открытия панели новостей.
+pub async fn get_news(client: &reqwest::Client) -> Result<Vec<NewsPost>, String> {
+    client
+        .get(format!("{}/news/all", admin_base_url()))
+        .send()
+        .await
+        .map_err(network_error)?
+        .error_for_status()
+        .map_err(|e| format!("Не удалось получить новости ({e})"))?
+        .json()
+        .await
+        .map_err(|e| format!("Некорректный ответ новостей: {e}"))
+}
+
 /// GET `/manifest`. Манифест активной сборки.
 ///
 /// `Ok(None)` — активной сборки нет (404): это не ошибка, лаунчер просто
@@ -81,29 +109,33 @@ pub async fn fetch_manifest(
                     tracing::debug!("[manifest] скачан и закеширован");
                     Ok(Some(manifest))
                 }
-                Err(e) => {
-                    Err(format!("Некорректный манифест сборки: {e}"))
-                }
+                Err(e) => Err(format!("Некорректный манифест сборки: {e}")),
             }
         }
         Ok(resp) => {
-            Err(format!(
-                "Ошибка сервера сборок ({})",
-                resp.status().as_u16()
-            ))
+            let status = resp.status();
+            tracing::warn!("[manifest] сервер сборок вернул {status}, пробуем кеш");
+            if let Some(manifest) = read_cached_manifest(&cache_path) {
+                return Ok(Some(manifest));
+            }
+            Err(format!("Ошибка сервера сборок ({})", status.as_u16()))
         }
         Err(e) => {
             // Сетевая ошибка — пробуем кеш.
             tracing::warn!("[manifest] сетевая ошибка ({e}), пробуем кеш");
-            if let Ok(bytes) = std::fs::read(&cache_path) {
-                if let Ok(manifest) = serde_json::from_slice(&bytes) {
-                    tracing::info!("[manifest] использован кешированный манифест");
-                    return Ok(Some(manifest));
-                }
+            if let Some(manifest) = read_cached_manifest(&cache_path) {
+                return Ok(Some(manifest));
             }
             Err(network_error(e))
         }
     }
+}
+
+fn read_cached_manifest(cache_path: &std::path::Path) -> Option<protocol::Manifest> {
+    let bytes = std::fs::read(cache_path).ok()?;
+    let manifest = serde_json::from_slice(&bytes).ok()?;
+    tracing::info!("[manifest] использован кешированный манифест");
+    Some(manifest)
 }
 
 /// Тело ошибки, которое отдаёт auth-сервер: `{ "error": "..." }`.
@@ -730,24 +762,20 @@ pub async fn record_session(
 }
 
 #[derive(serde::Serialize)]
-struct ReportCrashRequest {
-    exit_code: Option<i32>,
-    log: String,
-    crash_report: Option<String>,
+pub struct ReportCrashRequest {
+    pub exit_code: Option<i32>,
+    pub log: String,
+    pub crash_report: Option<String>,
+    pub debug_log: Option<String>,
+    pub launcher_log: Option<String>,
+    pub mod_report: Option<String>,
 }
 
 pub async fn report_crash(
     client: &reqwest::Client,
     token: &str,
-    exit_code: Option<i32>,
-    log: &str,
-    crash_report: Option<&str>,
+    req: &ReportCrashRequest,
 ) -> Result<(), String> {
-    let req = ReportCrashRequest {
-        exit_code,
-        log: log.to_string(),
-        crash_report: crash_report.map(|s| s.to_string()),
-    };
     let resp = client
         .post(format!("{}/api/report-crash", base_url()))
         .bearer_auth(token)

@@ -953,6 +953,20 @@ label {
     color: var(--accent);
 }
 
+.account-initial {
+    width: 32px;
+    height: 32px;
+    flex: none;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 800;
+}
+
 /* Голова из скина: пиксель-арт, поэтому отключаем сглаживание. */
 .skin-head {
     flex: none;
@@ -2908,6 +2922,69 @@ td.num {
     min-height: 120px;
 }
 
+.pc-skin-tab {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(190px, 0.8fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.pc-skin-stage {
+    display: grid;
+    place-items: center;
+    min-height: 320px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: radial-gradient(circle at 50% 25%, rgba(115, 215, 255, 0.11), transparent 58%), var(--panel-2);
+    overflow: hidden;
+}
+
+.pc-skin-viewer {
+    width: 240px;
+    height: 320px;
+    max-width: 100%;
+    touch-action: none;
+}
+
+.pc-skin-viewer--fallback {
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+.pc-skin-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pc-skin-models {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.pc-skin-model {
+    justify-content: center;
+    padding: 8px;
+}
+
+.pc-skin-model.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.pc-skin-note {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
 .pc-info-table {
     width: 100%;
     border-collapse: collapse;
@@ -3089,6 +3166,19 @@ td.num {
 
     .pc-info-table td:first-child {
         width: 96px;
+    }
+
+    .pc-skin-tab {
+        grid-template-columns: 1fr;
+    }
+
+    .pc-skin-stage {
+        min-height: 280px;
+    }
+
+    .pc-skin-viewer {
+        width: 210px;
+        height: 280px;
     }
 }
 
@@ -4269,4 +4359,35 @@ th {
         align-items: stretch;
         flex-direction: column;
     }
+}
+
+.news-view__head { margin-bottom: 10px; }
+.news-view__hint { margin: -4px 0 18px; }
+.news-admin-list { display: grid; gap: 12px; }
+.news-admin-card { display: flex; gap: 18px; align-items: flex-start; justify-content: space-between; }
+.news-admin-card__body { min-width: 0; }
+.news-admin-card h2 { margin: 6px 0; font-size: 18px; }
+.news-admin-card__meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 12px; }
+.news-admin-card__pinned { color: #d99628; }
+.news-admin-card__excerpt { display: -webkit-box; margin: 0; overflow: hidden; white-space: pre-wrap; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.news-admin-card__actions { display: flex; gap: 8px; flex: none; }
+.news-empty { display: grid; gap: 10px; padding: 24px; }
+.news-empty p { margin: 0; }
+.news-empty button { width: fit-content; }
+.news-editor { width: min(680px, calc(100vw - 32px)); }
+.news-editor__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.news-editor__head .eyebrow { margin-bottom: 4px; }
+.news-editor textarea { width: 100%; min-height: 220px; resize: vertical; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.news-editor .field label { display: flex; justify-content: space-between; gap: 12px; }
+.news-editor .field label span { color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.news-editor__body-field small { display: block; margin-top: 7px; font-size: 12px; line-height: 1.45; }
+.news-editor__pin { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); font-size: 13px; }
+.news-editor__pin input { margin-top: 3px; }
+.news-editor__pin strong, .news-editor__pin small { display: block; }
+.news-editor__pin strong { color: var(--text); font-size: 13px; }
+.news-editor__pin small { margin-top: 3px; font-size: 12px; }
+.news-editor__close { display: none; }
+
+@media (max-width: 640px) {
+    .news-admin-card { flex-direction: column; }
 }

@@ -40,6 +40,13 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
+
+        if (FMLEnvironment.dist.isClient()) {
+            StardustCrashReporter.installClientHooks();
+            NeoForge.EVENT_BUS.addListener(StardustCrashReporter::onGameShuttingDown);
+            NeoForge.EVENT_BUS.addListener(StardustCrashReporter::onClientLoggingIn);
+            NeoForge.EVENT_BUS.addListener(StardustCrashReporter::onClientLoggingOut);
+        }
     }
 
     private void onServerStarted(ServerStartedEvent event) {
