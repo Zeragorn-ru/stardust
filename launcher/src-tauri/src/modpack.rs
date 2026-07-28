@@ -76,9 +76,11 @@ const KNOWN_CONFLICTS: &[(&str, &str)] = &[
 /// жёсткий запрет.
 #[cfg(target_os = "macos")]
 const PLATFORM_DEFAULT_DISABLED: &[&str] = &[
-    // Better Clouds: Transform Feedback / OpenGL >4.1. На macOS (в т.ч.
-    // Hackintosh AMD) OpenGL ограничен 4.1 → native Abort. Держим `.jar.dis`,
-    // пока игрок сам не включит мод в лаунчере.
+    // Better Clouds: на macOS OpenGL 4.1 работает через fallbacks (base_instance,
+    // stencil_texture), но GPU «partially incompatible». Native Abort на
+    // `glEndTransformFeedback` оказался от AsyncParticles `gpuAcceleration`,
+    // не от BC — см. `disable_asyncparticles_gpu_acceleration`. Default-off
+    // остаётся осторожным: игрок может включить BC вручную после фикса AP.
     "better-clouds",
 ];
 

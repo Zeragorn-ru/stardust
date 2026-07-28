@@ -194,10 +194,15 @@ pub async fn launch(
     ));
     args.extend(modloader_game_args(&loader));
 
-    // macOS OpenGL 4.1 (в т.ч. Hackintosh AMD) — Better Clouds показывает
-    // «GPU is not fully compatible»; глушим только chat-предупреждение.
+    // macOS OpenGL 4.1 (в т.ч. Hackintosh AMD):
+    // - Better Clouds: chat-warn «GPU not fully compatible» (fallbacks уже есть).
+    // - AsyncParticles: `gpuAcceleration` → Transform Feedback → native Abort
+    //   (`glEndTransformFeedback` / `gpusKillClientExt` на AMD OpenGL).
     #[cfg(target_os = "macos")]
-    suppress_betterclouds_gpu_warning(&game_dir);
+    {
+        suppress_betterclouds_gpu_warning(&game_dir);
+        disable_asyncparticles_gpu_acceleration(&game_dir);
+    }
 
     progress.begin(Stage::Launch, "launching", "Запускаем Minecraft…");
     progress.set_stage_fraction(1.0);
@@ -320,6 +325,85 @@ fn suppress_betterclouds_gpu_warning(game_dir: &Path) {
             }
         }
         Err(e) => tracing::warn!("Не удалось сериализовать Better Clouds config: {e}"),
+    }
+}
+
+/// На macOS OpenGL 4.1 AMD-драйвер абортит на Transform Feedback.
+/// Единственный мод в сборке с TF — AsyncParticles (`gpuAcceleration`).
+/// Better Clouds TF не использует; раньше Abort ошибочно вешали на него.
+#[cfg(target_os = "macos")]
+fn disable_asyncparticles_gpu_acceleration(game_dir: &Path) {
+    let path = game_dir
+        .join("config")
+        .join("asyncparticles")
+        .join("asyncparticles.json");
+    let mods_dir = game_dir.join("mods");
+    let asyncparticles_installed = mods_dir.is_dir()
+        && fs::read_dir(&mods_dir).ok().is_some_and(|entries| {
+            entries.flatten().any(|entry| {
+                let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                name.contains("asyncparticles") || name.contains("async-particles")
+            })
+        });
+
+    if !path.exists() && !asyncparticles_installed {
+        return;
+    }
+
+    let mut value = if path.exists() {
+        match fs::read_to_string(&path) {
+            Ok(text) => match serde_json::from_str::<Value>(&text) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("AsyncParticles config повреждён, пропускаем GPU patch: {e}");
+                    return;
+                }
+            },
+            Err(e) => {
+                tracing::warn!("Не удалось прочитать AsyncParticles config: {e}");
+                return;
+            }
+        }
+    } else {
+        Value::Object(serde_json::Map::new())
+    };
+
+    let Some(root) = value.as_object_mut() else {
+        tracing::warn!("AsyncParticles config не объект JSON, пропускаем GPU patch");
+        return;
+    };
+
+    let rendering = root
+        .entry("rendering")
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    let Some(rendering_obj) = rendering.as_object_mut() else {
+        tracing::warn!("AsyncParticles rendering не объект, пропускаем GPU patch");
+        return;
+    };
+
+    if rendering_obj.get("gpuAcceleration") == Some(&Value::Bool(false)) {
+        return;
+    }
+    rendering_obj.insert("gpuAcceleration".into(), Value::Bool(false));
+
+    if let Some(parent) = path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            tracing::warn!("Не удалось создать config/asyncparticles/: {e}");
+            return;
+        }
+    }
+
+    match serde_json::to_string_pretty(&value) {
+        Ok(text) => {
+            if let Err(e) = fs::write(&path, text) {
+                tracing::warn!("Не удалось записать AsyncParticles config: {e}");
+            } else {
+                tracing::info!(
+                    "AsyncParticles: gpuAcceleration=false (macOS OpenGL TF Abort)"
+                );
+            }
+        }
+        Err(e) => tracing::warn!("Не удалось сериализовать AsyncParticles config: {e}"),
     }
 }
 
@@ -2206,6 +2290,37 @@ mod tests {
             Some(&Value::Bool(false))
         );
         assert_eq!(value.get("enabled"), Some(&Value::Bool(true)));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn disable_asyncparticles_gpu_acceleration_sets_flag() {
+        let root = std::env::temp_dir().join(format!(
+            "stardust_ap_gpu_{}",
+            std::process::id()
+        ));
+        let config_dir = root.join("config").join("asyncparticles");
+        let _ = std::fs::create_dir_all(&config_dir);
+        let path = config_dir.join("asyncparticles.json");
+        std::fs::write(
+            &path,
+            r#"{"version":1,"rendering":{"gpuAcceleration":true,"particleRenderingMode":"SYNCHRONOUSLY"}}"#,
+        )
+        .unwrap();
+
+        disable_asyncparticles_gpu_acceleration(&root);
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        let value: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            value.pointer("/rendering/gpuAcceleration"),
+            Some(&Value::Bool(false))
+        );
+        assert_eq!(
+            value.pointer("/rendering/particleRenderingMode"),
+            Some(&Value::String("SYNCHRONOUSLY".into()))
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }
