@@ -194,6 +194,11 @@ pub async fn launch(
     ));
     args.extend(modloader_game_args(&loader));
 
+    // macOS OpenGL 4.1 (в т.ч. Hackintosh AMD) — Better Clouds показывает
+    // «GPU is not fully compatible»; глушим только chat-предупреждение.
+    #[cfg(target_os = "macos")]
+    suppress_betterclouds_gpu_warning(&game_dir);
+
     progress.begin(Stage::Launch, "launching", "Запускаем Minecraft…");
     progress.set_stage_fraction(1.0);
 
@@ -220,27 +225,102 @@ fn hide_console(command: &mut Command) {
 }
 
 fn jvm_tuning_args(provider: JavaProvider) -> Vec<String> {
-    // Все managed runtime в UI основаны на HotSpot/OpenJDK. Поэтому базовый
-    // набор общий, а ветка по provider остаётся явной точкой для безопасных
-    // vendor-specific флагов без риска сломать system/custom Java.
-    let mut args = vec![
-        "-XX:+UseG1GC".to_string(),
-        "-XX:+ParallelRefProcEnabled".to_string(),
-        "-XX:+DisableExplicitGC".to_string(),
-        "-XX:MaxGCPauseMillis=200".to_string(),
-    ];
+    // Лаунчер требует Java 21+ (см. java::JAVA_VERSION). Distant Horizons
+    // ругается на G1 и на -XX:+DisableExplicitGC; concurrent GC (ZGC) снимает
+    // оба предупреждения, поэтому ExplicitGC не отключаем.
+    //
+    // Базовый набор общий для HotSpot/OpenJDK. Ветка по provider — точка для
+    // безопасных vendor-specific флагов без риска сломать system/custom Java.
+    let mut args = vec!["-XX:+UseZGC".to_string()];
 
     match provider {
         JavaProvider::Temurin
         | JavaProvider::Corretto
         | JavaProvider::Microsoft
-        | JavaProvider::Zulu => {
-            args.push("-XX:+UseStringDeduplication".to_string());
+        | JavaProvider::Zulu
+        | JavaProvider::Auto => {
+            // Generational ZGC — product feature с JDK 21 (JEP 439).
+            args.push("-XX:+ZGenerational".to_string());
         }
-        JavaProvider::Auto | JavaProvider::System | JavaProvider::Custom => {}
+        JavaProvider::System | JavaProvider::Custom => {
+            // System/custom могут быть нестандартными HotSpot-сборками;
+            // оставляем только UseZGC.
+        }
     }
 
     args
+}
+
+/// Отключает chat-предупреждение Better Clouds о несовместимом GPU.
+///
+/// На macOS OpenGL ограничен 4.1, и мод честно предупреждает — железо этим
+/// не чинится. Меняем только `gpuIncompatibleMessageEnabled` в существующем
+/// конфиге (или создаём минимальный, если мод уже лежит в `mods/`), остальные
+/// настройки игрока не трогаем.
+#[cfg(target_os = "macos")]
+fn suppress_betterclouds_gpu_warning(game_dir: &Path) {
+    let path = game_dir.join("config").join("betterclouds-v1.json");
+    let mods_dir = game_dir.join("mods");
+    let betterclouds_installed = mods_dir.is_dir()
+        && fs::read_dir(&mods_dir).ok().is_some_and(|entries| {
+            entries.flatten().any(|entry| {
+                let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                name.contains("better-clouds") || name.contains("betterclouds")
+            })
+        });
+
+    if !path.exists() && !betterclouds_installed {
+        return;
+    }
+
+    let mut value = if path.exists() {
+        match fs::read_to_string(&path) {
+            Ok(text) => match serde_json::from_str::<Value>(&text) {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!("Better Clouds config повреждён, пропускаем suppress: {e}");
+                    return;
+                }
+            },
+            Err(e) => {
+                tracing::warn!("Не удалось прочитать Better Clouds config: {e}");
+                return;
+            }
+        }
+    } else {
+        // Конфиг появится после первого запуска мода; заранее кладём только
+        // нужный ключ — мод смержит/допишет остальное.
+        Value::Object(serde_json::Map::new())
+    };
+
+    let Some(obj) = value.as_object_mut() else {
+        tracing::warn!("Better Clouds config не объект JSON, пропускаем suppress");
+        return;
+    };
+
+    if obj.get("gpuIncompatibleMessageEnabled") == Some(&Value::Bool(false)) {
+        return;
+    }
+    obj.insert(
+        "gpuIncompatibleMessageEnabled".into(),
+        Value::Bool(false),
+    );
+
+    if let Some(parent) = path.parent() {
+        if let Err(e) = fs::create_dir_all(parent) {
+            tracing::warn!("Не удалось создать config/: {e}");
+            return;
+        }
+    }
+
+    match serde_json::to_string_pretty(&value) {
+        Ok(text) => {
+            if let Err(e) = fs::write(&path, text) {
+                tracing::warn!("Не удалось записать Better Clouds config: {e}");
+            }
+        }
+        Err(e) => tracing::warn!("Не удалось сериализовать Better Clouds config: {e}"),
+    }
 }
 
 async fn ensure_version(
@@ -2065,6 +2145,67 @@ mod tests {
             .collect();
         assert!(args.contains(&"1280".to_string()));
         assert!(args.contains(&"720".to_string()));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn jvm_tuning_args_uses_zgc_without_disable_explicit_gc() {
+        for provider in [
+            JavaProvider::Temurin,
+            JavaProvider::Corretto,
+            JavaProvider::Microsoft,
+            JavaProvider::Zulu,
+            JavaProvider::Auto,
+            JavaProvider::System,
+            JavaProvider::Custom,
+        ] {
+            let args = jvm_tuning_args(provider);
+            assert!(
+                args.iter().any(|a| a == "-XX:+UseZGC"),
+                "expected UseZGC for {provider:?}, got {args:?}"
+            );
+            assert!(
+                !args.iter().any(|a| a.contains("DisableExplicitGC")),
+                "must not disable explicit GC for DH: {args:?}"
+            );
+            assert!(
+                !args.iter().any(|a| a == "-XX:+UseG1GC"),
+                "must not force G1: {args:?}"
+            );
+        }
+
+        let managed = jvm_tuning_args(JavaProvider::Temurin);
+        assert!(managed.iter().any(|a| a == "-XX:+ZGenerational"));
+
+        let system = jvm_tuning_args(JavaProvider::System);
+        assert!(!system.iter().any(|a| a == "-XX:+ZGenerational"));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn suppress_betterclouds_gpu_warning_sets_flag_on_existing_config() {
+        let root = std::env::temp_dir().join(format!(
+            "stardust_bc_suppress_{}",
+            std::process::id()
+        ));
+        let config_dir = root.join("config");
+        let _ = std::fs::create_dir_all(&config_dir);
+        let path = config_dir.join("betterclouds-v1.json");
+        std::fs::write(
+            &path,
+            r#"{"enabled":true,"gpuIncompatibleMessageEnabled":true}"#,
+        )
+        .unwrap();
+
+        suppress_betterclouds_gpu_warning(&root);
+
+        let text = std::fs::read_to_string(&path).unwrap();
+        let value: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(
+            value.get("gpuIncompatibleMessageEnabled"),
+            Some(&Value::Bool(false))
+        );
+        assert_eq!(value.get("enabled"), Some(&Value::Bool(true)));
         let _ = std::fs::remove_dir_all(&root);
     }
 }
