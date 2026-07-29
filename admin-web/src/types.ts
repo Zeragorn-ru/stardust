@@ -142,3 +142,22 @@ export interface NewsPost {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface ServerTelemetrySample {
+  recordedAt: string;
+  onlineCount: number;
+  players: string[];
+  tps: number;
+  mspt: number;
+}
+
+export interface ServerPlayerEvent {
+  recordedAt: string;
+  username: string;
+  event: "join" | "quit";
+}
+
+export interface ServerTelemetry {
+  samples: ServerTelemetrySample[];
+  events: ServerPlayerEvent[];
+}

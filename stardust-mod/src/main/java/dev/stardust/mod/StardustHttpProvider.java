@@ -20,6 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -41,6 +42,7 @@ public final class StardustHttpProvider {
     private final String authUrl;
     private final int refreshIntervalSeconds;
     private final boolean debug;
+    private final String serverToken;
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
@@ -53,6 +55,7 @@ public final class StardustHttpProvider {
         this.authUrl = authUrl.endsWith("/") ? authUrl.substring(0, authUrl.length() - 1) : authUrl;
         this.refreshIntervalSeconds = Math.max(3, refreshIntervalSeconds);
         this.debug = debug;
+        this.serverToken = StardustServerConfig.load(net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get()).serverToken();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_TIMEOUT)
                 .build();
@@ -61,6 +64,16 @@ public final class StardustHttpProvider {
             t.setDaemon(true);
             return t;
         });
+    }
+
+    public void sendTelemetry(Collection<String> players, double tps, double mspt) {
+        try {
+            String body = GSON.toJson(Map.of("players", List.copyOf(players), "tps", tps, "mspt", mspt));
+            HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(authUrl + "/api/server/telemetry"))
+                    .timeout(HTTP_TIMEOUT).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body));
+            if (!serverToken.isBlank()) builder.header("Authorization", "Bearer " + serverToken);
+            httpClient.send(builder.build(), HttpResponse.BodyHandlers.discarding());
+        } catch (Exception e) { StardustMod.LOGGER.warn("Stardust telemetry: {}", e.toString()); }
     }
 
     /** Устанавливает провайдер онлайн-игроков (вызывается из TAB интеграции). */

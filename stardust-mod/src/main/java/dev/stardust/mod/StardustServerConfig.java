@@ -18,11 +18,13 @@ public final class StardustServerConfig {
     private final String authUrl;
     private final int refreshIntervalSeconds;
     private final boolean debug;
+    private final String serverToken;
 
-    private StardustServerConfig(String authUrl, int refreshIntervalSeconds, boolean debug) {
+    private StardustServerConfig(String authUrl, int refreshIntervalSeconds, boolean debug, String serverToken) {
         this.authUrl = authUrl;
         this.refreshIntervalSeconds = refreshIntervalSeconds;
         this.debug = debug;
+        this.serverToken = serverToken;
     }
 
     public String authUrl() {
@@ -36,6 +38,8 @@ public final class StardustServerConfig {
     public boolean debug() {
         return debug;
     }
+
+    public String serverToken() { return serverToken; }
 
     public static StardustServerConfig load(Path configDir) {
         Path file = configDir.resolve(FILE_NAME);
@@ -76,7 +80,10 @@ public final class StardustServerConfig {
                 "false"
         ));
 
-        return new StardustServerConfig(authUrl, refresh, debug);
+        String serverToken = System.getProperty("stardust.server-token");
+        if (serverToken == null || serverToken.isBlank()) serverToken = System.getenv("STARDUST_SERVER_TOKEN");
+        if (serverToken == null || serverToken.isBlank()) serverToken = props.getProperty("stardust.server-token", "");
+        return new StardustServerConfig(authUrl, refresh, debug, serverToken.trim());
     }
 
     private static void writeDefault(Path file) throws IOException {

@@ -206,6 +206,7 @@ async fn main() {
         .route("/api/build-check", get(build_check))
         .route("/api/deps-check", get(deps_check))
         .route("/api/settings/sync-stats", post(sync_stats))
+        .route("/api/server/telemetry", get(server_telemetry))
         .route(
             "/api/settings/reset-fingerprint",
             post(reset_fingerprint),
@@ -2489,6 +2490,17 @@ async fn account_stats(
         last_joined_at: last_joined_at
             .map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
+}
+
+async fn server_telemetry(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let since = OffsetDateTime::now_utc() - time::Duration::hours(24);
+    let samples = state.store.telemetry_samples_since(since).await.map_err(map_store)?;
+    let events = state.store.player_events_since(since).await.map_err(map_store)?;
+    Ok(Json(serde_json::json!({ "samples": samples, "events": events })))
 }
 
 // ───────────────────────── Новости ─────────────────────────

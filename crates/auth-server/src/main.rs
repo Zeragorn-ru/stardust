@@ -170,6 +170,7 @@ async fn main() {
         )
         .route("/api/profiles/minecraft", post(ygg_profiles_by_name))
         .route("/api/server/customization", get(server_customization))
+        .route("/api/server/telemetry", post(server_telemetry))
         .route("/textures/:hash", get(texture))
         .with_state(state)
         .layer(CorsLayer::permissive());
@@ -1458,6 +1459,21 @@ async fn server_customization(
         })
         .collect();
     Ok(Json(result))
+}
+
+async fn server_telemetry(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(heartbeat): Json<store::server_telemetry::TelemetryHeartbeat>,
+) -> Result<StatusCode, ApiError> {
+    let expected = std::env::var("STARDUST_SERVER_TOKEN").ok();
+    let supplied = headers.get("authorization").and_then(|v| v.to_str().ok());
+    let authorized = expected.as_deref().map(|token| supplied == Some(&format!("Bearer {token}"))).unwrap_or(false);
+    if !authorized {
+        return Err(ApiError::new(StatusCode::UNAUTHORIZED, "Неверный токен сервера"));
+    }
+    state.store.record_telemetry(&heartbeat).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// Фоновый цикл: периодически перечитывает скины с Mojang для аккаунтов,

@@ -17,6 +17,7 @@ import type {
   PlayerCustomization,
   PlayerStats,
   Settings,
+  ServerTelemetry,
   UploadMeta,
 } from "./types";
 import { baseName } from "./format";
@@ -245,6 +246,10 @@ export const api = {
 
   listAccounts(): Promise<Account[]> {
     return request("GET", "/api/accounts");
+  },
+
+  getServerTelemetry(): Promise<ServerTelemetry> {
+    return request("GET", "/api/server/telemetry");
   },
 
   renameAccount(uuid: string, username: string): Promise<Account> {

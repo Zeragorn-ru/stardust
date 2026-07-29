@@ -9,6 +9,11 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.EntityArgument;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.commands.Commands;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -40,6 +45,7 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
+        NeoForge.EVENT_BUS.addListener(this::onServerTick);
 
         if (FMLEnvironment.dist.isClient()) {
             StardustCrashReporter.installClientHooks();
@@ -55,8 +61,8 @@ public final class StardustMod {
 
     private void onCommandsRegister(RegisterCommandsEvent event) {
         event.getDispatcher().register(
-            net.minecraft.commands.Commands.literal("stardust")
-                .then(net.minecraft.commands.Commands.literal("refresh")
+            Commands.literal("stardust")
+                .then(Commands.literal("refresh")
                     .executes(ctx -> {
                         StardustTabIntegration.refreshNow();
                         ctx.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("§aStardust: кеш кастомизации обновлён."), true);
@@ -64,6 +70,42 @@ public final class StardustMod {
                     })
                 )
         );
+        registerPrivateMessage(event, "tell");
+        registerPrivateMessage(event, "w");
+        registerPrivateMessage(event, "msg");
+        registerPrivateMessage(event, "whisper");
+    }
+
+    private void registerPrivateMessage(RegisterCommandsEvent event, String literal) {
+        event.getDispatcher().register(Commands.literal(literal)
+                .then(Commands.argument("target", EntityArgument.player())
+                        .then(Commands.argument("message", StringArgumentType.greedyString())
+                                .executes(ctx -> sendPrivateMessage(ctx.getSource(),
+                                        EntityArgument.getPlayer(ctx, "target"),
+                                        StringArgumentType.getString(ctx, "message"))))));
+    }
+
+    private int sendPrivateMessage(CommandSourceStack source, ServerPlayer target, String text) {
+        if (!(source.getEntity() instanceof ServerPlayer sender)) return 0;
+        Component senderName = StardustChatNotifications.parseFormattedString(
+                StardustTabIntegration.resolveBadgeForName(sender.getGameProfile().getName())
+                        + StardustTabIntegration.resolveNameForChat(sender.getGameProfile().getName()));
+        Component targetName = StardustChatNotifications.parseFormattedString(
+                StardustTabIntegration.resolveBadgeForName(target.getGameProfile().getName())
+                        + StardustTabIntegration.resolveNameForChat(target.getGameProfile().getName()));
+        MutableComponent toTarget = Component.empty()
+                .append(Component.literal("✦ ЛС от ").withStyle(ChatFormatting.DARK_AQUA))
+                .append(senderName)
+                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(text).withStyle(ChatFormatting.WHITE));
+        MutableComponent toSender = Component.empty()
+                .append(Component.literal("✦ ЛС для ").withStyle(ChatFormatting.DARK_AQUA))
+                .append(targetName)
+                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(text).withStyle(ChatFormatting.WHITE));
+        target.sendSystemMessage(toTarget);
+        sender.sendSystemMessage(toSender);
+        return 1;
     }
 
     private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
@@ -97,6 +139,31 @@ public final class StardustMod {
         var server = player.getServer();
         if (server != null) {
             server.getPlayerList().broadcastSystemMessage(chatMessage, false);
+        }
+    }
+
+    private long lastTelemetryTick;
+    private long telemetryTickNanos;
+    private long lastTickNanos;
+    private long telemetryTickCount;
+    private void onServerTick(ServerTickEvent.Post event) {
+        var server = event.getServer();
+        if (server == null) return;
+        long now = System.nanoTime();
+        if (lastTickNanos != 0) telemetryTickNanos += now - lastTickNanos;
+        lastTickNanos = now;
+        telemetryTickCount++;
+        if (server.getTickCount() - lastTelemetryTick < 300) return;
+        lastTelemetryTick = server.getTickCount();
+        StardustHttpProvider provider = StardustTabIntegration.getHttpProvider();
+        if (provider != null && telemetryTickCount > 1) {
+            double mspt = (telemetryTickNanos / (double) telemetryTickCount) / 1_000_000.0;
+            provider.sendTelemetry(
+                server.getPlayerList().getPlayers().stream().map(p -> p.getGameProfile().getName()).toList(),
+                Math.min(20.0, 1000.0 / Math.max(0.001, mspt)), mspt);
+            telemetryTickNanos = 0;
+            telemetryTickCount = 0;
+            lastTickNanos = now;
         }
     }
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
-import type { Account, BuildHeader, Settings } from "../types";
+import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
 import { IconBox, IconSettings, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
 import { Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
@@ -14,20 +14,23 @@ export function OverviewView() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [telemetry, setTelemetry] = useState<ServerTelemetry | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        const [nextBuilds, nextAccounts, nextSettings] = await Promise.all([
+        const [nextBuilds, nextAccounts, nextSettings, nextTelemetry] = await Promise.all([
           api.listBuilds(),
           api.listAccounts(),
           api.getSettings(),
+          api.getServerTelemetry(),
         ]);
         if (cancelled) return;
         setBuilds(nextBuilds);
         setAccounts(nextAccounts);
         setSettings(nextSettings);
+        setTelemetry(nextTelemetry);
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : "Не удалось загрузить обзор");
       } finally {
@@ -35,8 +38,10 @@ export function OverviewView() {
       }
     }
     load();
+    const timer = window.setInterval(load, 30_000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [toast]);
 
@@ -88,6 +93,8 @@ export function OverviewView() {
         <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "online" : "offline"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
         <MetricCard label="SFTP" value={settings?.sftpPasswordSet ? "ready" : "setup"} hint={settings?.sftpHost || "Подключение не настроено"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
       </section>
+
+      <TelemetryPanel telemetry={telemetry} />
 
       <section className="overview-action-grid">
         <Link className="overview-action-card" to={activeBuild ? `/builds/${activeBuild.id}` : "/builds"}>
@@ -164,6 +171,83 @@ export function OverviewView() {
       </section>
     </div>
   );
+}
+
+function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
+  const samples = telemetry?.samples ?? [];
+  const [selected, setSelected] = useState<number | null>(null);
+  const latest = samples[samples.length - 1];
+  const maxOnline = Math.max(1, ...samples.map((sample) => sample.onlineCount));
+  const width = 900;
+  const height = 220;
+  const points = samples.map((sample, index) => {
+    const x = samples.length < 2 ? width / 2 : (index / (samples.length - 1)) * width;
+    const y = height - 20 - (sample.onlineCount / maxOnline) * (height - 40);
+    return `${x},${y}`;
+  }).join(" ");
+
+  return (
+    <Card className="panel-flat telemetry-panel">
+      <CardHeader>
+        <div>
+          <span className="eyebrow">Live server telemetry</span>
+          <CardTitle>Онлайн за последние 24 часа</CardTitle>
+          <CardDescription>Нажмите на точку, чтобы увидеть игроков в этот момент.</CardDescription>
+        </div>
+        <div className="telemetry-metrics">
+          <MetricValue label="Сейчас" value={latest ? `${latest.onlineCount}` : "—"} suffix=" игроков" />
+          <MetricValue label="TPS" value={latest ? latest.tps.toFixed(1) : "—"} suffix=" / 20" />
+          <MetricValue label="MSPT" value={latest ? latest.mspt.toFixed(1) : "—"} suffix=" ms" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {samples.length === 0 ? <p className="muted">Мод ещё не прислал телеметрию.</p> : (
+          <div className="telemetry-chart-wrap">
+            <svg className="telemetry-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="График онлайна">
+              <defs>
+                <linearGradient id="online-fill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
+                  <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
+              <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              {samples.map((sample, index) => {
+                const x = samples.length < 2 ? width / 2 : (index / (samples.length - 1)) * width;
+                const y = height - 20 - (sample.onlineCount / maxOnline) * (height - 40);
+                return <circle key={`${sample.recordedAt}-${index}`} cx={x} cy={y} r="5" fill={selected === index ? "var(--accent)" : "var(--panel)"} stroke="var(--accent)" tabIndex={0} onClick={() => setSelected(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelected(index); }}><title>{formatTelemetryTime(sample.recordedAt)} · {sample.onlineCount} игроков</title></circle>;
+              })}
+            </svg>
+            <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
+          </div>
+        )}
+        {selected !== null && samples[selected] && (
+          <div className="telemetry-selected">
+            <strong>{formatTelemetryTime(samples[selected].recordedAt)} · {samples[selected].onlineCount} игроков</strong>
+            <span>{samples[selected].players.join(", ") || "В этот момент игроков не было"}</span>
+          </div>
+        )}
+        <div className="telemetry-events">
+          {(telemetry?.events ?? []).slice(-8).reverse().map((event, index) => (
+            <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
+              <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
+              <strong>{event.username}</strong>
+              <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
+              <time>{formatTelemetryTime(event.recordedAt)}</time>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MetricValue({ label, value, suffix }: { label: string; value: string; suffix: string }) {
+  return <div className="telemetry-metric"><small>{label}</small><strong>{value}<em>{suffix}</em></strong></div>;
+}
+
+function formatTelemetryTime(value: string): string {
+  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function MetricCard({ label, value, hint, tone }: { label: string; value: string | number; hint: string; tone: "blue" | "green" | "yellow" }) {

@@ -24,6 +24,7 @@ use sqlx::{PgPool, Row};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 mod build;
+pub mod server_telemetry;
 mod telegram;
 pub use build::{
     BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild, UpdateBuild,
