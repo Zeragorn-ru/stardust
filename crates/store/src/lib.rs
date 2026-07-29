@@ -260,6 +260,7 @@ impl Store {
 
     /// Создаёт хранилище поверх готового пула (миграции применяются здесь).
     pub async fn from_pool(pool: PgPool) -> Result<Self, StoreError> {
+        Self::repair_telemetry_migration_checksum(&pool).await?;
         sqlx::migrate!("./migrations")
             .run(&pool)
             .await
@@ -269,6 +270,34 @@ impl Store {
             joins: RwLock::new(HashMap::new()),
             rate_limiter: std::sync::Mutex::new(HashMap::new()),
         })
+    }
+
+    async fn repair_telemetry_migration_checksum(pool: &PgPool) -> Result<(), StoreError> {
+        // Migration 17 was initially applied by the telemetry release. Repair
+        // only its metadata when the tables already exist, so old deployments
+        // can start without rerunning DDL or losing telemetry data.
+        let migrations_table_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.tables
+                            WHERE table_schema = 'public' AND table_name = '_sqlx_migrations')",
+        )
+        .fetch_one(pool)
+        .await?;
+        if !migrations_table_exists {
+            return Ok(());
+        }
+        sqlx::query(
+            "UPDATE _sqlx_migrations
+             SET checksum = decode($1, 'hex')
+             WHERE version = 17
+               AND EXISTS (SELECT 1 FROM information_schema.tables
+                           WHERE table_schema = 'public' AND table_name = 'server_telemetry_samples')
+               AND EXISTS (SELECT 1 FROM information_schema.tables
+                           WHERE table_schema = 'public' AND table_name = 'server_player_events')",
+        )
+        .bind("85d3468d1942e3cae3eb9033d1b0154d085ff5f96d3ae2263df6a6fc2c1e7d51a5f2572b3089bf70d91eca7499a8ff91")
+        .execute(pool)
+        .await?;
+        Ok(())
     }
 
     /// Доступ к пулу — нужен admin-серверу для запросов сборки.
