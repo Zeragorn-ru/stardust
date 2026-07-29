@@ -50,7 +50,6 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
       # Публичный URL, под которым сервер виден игре (текстуры, skinDomains).
       AUTH_PUBLIC_URL: ${AUTH_PUBLIC_URL:-http://127.0.0.1:8080}
-      STARDUST_SERVER_TOKEN: ${STARDUST_SERVER_TOKEN:?set STARDUST_SERVER_TOKEN for mod telemetry}
       # Ключ подписи Yggdrasil лежит в volume — иначе при пересоздании
       # контейнера он сгенерируется заново и все выданные подписи протухнут.
       AUTH_KEY_PATH: /data/yggdrasil_key.pem

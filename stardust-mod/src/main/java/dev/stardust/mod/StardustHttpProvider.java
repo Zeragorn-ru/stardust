@@ -39,10 +39,10 @@ public final class StardustHttpProvider {
                              String gradientStart, String gradientEnd) {
     }
 
-    private final String authUrl;
-    private final int refreshIntervalSeconds;
-    private final boolean debug;
-    private final String serverToken;
+    private volatile String authUrl;
+    private volatile int refreshIntervalSeconds;
+    private volatile boolean debug;
+    private volatile String serverToken;
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
@@ -96,6 +96,14 @@ public final class StardustHttpProvider {
     public void stop() {
         running = false;
         scheduler.shutdownNow();
+    }
+
+    public void reload(StardustServerConfig config) {
+        this.authUrl = config.authUrl().endsWith("/") ? config.authUrl().substring(0, config.authUrl().length() - 1) : config.authUrl();
+        this.refreshIntervalSeconds = Math.max(3, config.refreshIntervalSeconds());
+        this.debug = config.debug();
+        this.serverToken = config.serverToken();
+        StardustMod.LOGGER.info("Stardust HTTP provider: конфиг перечитан (url={}, refresh={}s)", authUrl, refreshIntervalSeconds);
     }
 
     public Assignment lookup(String playerName) {

@@ -10,6 +10,7 @@ protocol = { path = "../protocol" }
 store = { path = "../store" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+rand = { workspace = true }
 axum = { workspace = true, features = ["multipart"] }
 tokio = { workspace = true, features = ["fs"] }
 tower-http = { workspace = true }

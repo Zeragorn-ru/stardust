@@ -19,6 +19,8 @@ export function SettingsView() {
   const [sftpPassword, setSftpPassword] = useState("");
   const [sftpStatsPath, setSftpStatsPath] = useState("");
   const [savingPanel, setSavingPanel] = useState(false);
+  const [telemetryToken, setTelemetryToken] = useState("");
+  const [generatingTelemetryToken, setGeneratingTelemetryToken] = useState(false);
   const [resettingFp, setResettingFp] = useState(false);
 
   const load = useCallback(async () => {
@@ -139,6 +141,20 @@ export function SettingsView() {
     }
   }
 
+  async function generateTelemetryToken() {
+    setGeneratingTelemetryToken(true);
+    try {
+      const result = await api.generateServerTelemetryToken();
+      setTelemetryToken(result.token);
+      setSettings(await api.getSettings());
+      toast.success("Токен телеметрии сгенерирован");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось сгенерировать токен");
+    } finally {
+      setGeneratingTelemetryToken(false);
+    }
+  }
+
   return (
     <div className="view settings-view">
       <header className="view-head page-head">
@@ -156,6 +172,21 @@ export function SettingsView() {
       </div>
 
       <div className="settings-grid">
+        <Card className="settings-card">
+          <CardHeader className="settings-card-head">
+            <IconKey />
+            <div>
+              <CardTitle>Телеметрия сервера</CardTitle>
+              <CardDescription>Токен защищает отправку онлайна, TPS и MSPT из мода.</CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="settings-status"><Badge variant={settings?.serverTelemetryTokenSet ? "secondary" : "outline"}>{settings?.serverTelemetryTokenSet ? "токен задан" : "не настроен"}</Badge></div>
+            <p className="muted">Сгенерируйте токен, вставьте его на Minecraft-сервер в <code>config/stardust-server.properties</code>, затем выполните <code>/stardust reload</code>.</p>
+            <div className="modal-actions"><Button disabled={generatingTelemetryToken} onClick={generateTelemetryToken}>{generatingTelemetryToken ? "Генерация…" : "Сгенерировать токен"}</Button></div>
+            {telemetryToken && <textarea className="telemetry-token-output" readOnly value={`stardust.server-token=${telemetryToken}`} onFocus={(event) => event.currentTarget.select()} />}
+          </CardContent>
+        </Card>
         <Card className="settings-card">
           <CardHeader className="settings-card-head">
             <IconTelegram />

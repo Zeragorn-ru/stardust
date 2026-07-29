@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use rand::{distributions::Alphanumeric, Rng};
 
 use tracing_subscriber::prelude::*;
 
@@ -206,6 +207,7 @@ async fn main() {
         .route("/api/build-check", get(build_check))
         .route("/api/deps-check", get(deps_check))
         .route("/api/settings/sync-stats", post(sync_stats))
+        .route("/api/settings/server-token/generate", post(generate_server_token))
         .route("/api/server/telemetry", get(server_telemetry))
         .route(
             "/api/settings/reset-fingerprint",
@@ -472,6 +474,8 @@ struct SettingsDto {
     /// Путь к папке со статистикой на SFTP-сервере.
     #[serde(rename = "sftpStatsPath", skip_serializing_if = "Option::is_none")]
     sftp_stats_path: Option<String>,
+    #[serde(rename = "serverTelemetryTokenSet")]
+    server_telemetry_token_set: bool,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -482,6 +486,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_SFTP_USERNAME,
         SETTING_SFTP_PASSWORD,
         SETTING_SFTP_STATS_PATH,
+        store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN,
     ];
     let map = state
         .store
@@ -506,6 +511,8 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
             .map(|p| !p.trim().is_empty())
             .unwrap_or(false),
         sftp_stats_path: get(SETTING_SFTP_STATS_PATH).filter(|s| !s.trim().is_empty()),
+        server_telemetry_token_set: get(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN)
+            .is_some_and(|s| !s.trim().is_empty()),
     })
 }
 
@@ -643,6 +650,20 @@ async fn update_settings(
     }
 
     Ok(Json(load_settings_dto(&state).await?))
+}
+
+async fn generate_server_token(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let token: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(64)
+        .map(char::from)
+        .collect();
+    state.store.set_setting(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN, &token).await.map_err(map_store)?;
+    Ok(Json(serde_json::json!({ "token": token })))
 }
 
 // ───────────────────────── Сборки ─────────────────────────

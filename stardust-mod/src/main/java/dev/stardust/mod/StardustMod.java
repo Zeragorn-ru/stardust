@@ -69,6 +69,13 @@ public final class StardustMod {
                         return 1;
                     })
                 )
+                .then(Commands.literal("reload")
+                    .executes(ctx -> {
+                        StardustTabIntegration.reloadConfig();
+                        ctx.getSource().sendSuccess(() -> Component.literal("§aStardust: конфиг и telemetry token перечитаны."), true);
+                        return 1;
+                    })
+                )
         );
         registerPrivateMessage(event, "tell");
         registerPrivateMessage(event, "w");

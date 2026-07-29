@@ -4,6 +4,8 @@ use time::OffsetDateTime;
 
 use crate::{Store, StoreError};
 
+pub const SETTING_SERVER_TELEMETRY_TOKEN: &str = "server_telemetry_token";
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct TelemetryHeartbeat {
     pub players: Vec<String>,

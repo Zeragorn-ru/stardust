@@ -82,6 +82,7 @@
 .telemetry-event-dot--join { background: var(--ok); }
 .telemetry-selected { display: flex; gap: 10px; align-items: baseline; margin-top: 12px; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
 .telemetry-selected span { color: var(--muted); }
+.telemetry-token-output { width: 100%; min-height: 72px; margin-top: 12px; padding: 10px; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); font: 12px/1.5 ui-monospace, monospace; resize: vertical; }
 
 * {
     box-sizing: border-box;

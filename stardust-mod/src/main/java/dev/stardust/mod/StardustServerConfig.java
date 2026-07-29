@@ -91,6 +91,7 @@ public final class StardustServerConfig {
         props.setProperty("stardust.auth-url", DEFAULT_AUTH_URL);
         props.setProperty("stardust.refresh-interval-seconds", String.valueOf(DEFAULT_REFRESH_SECONDS));
         props.setProperty("stardust.debug", "false");
+        props.setProperty("stardust.server-token", "");
         try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
             props.store(writer, "Stardust server config");
         }

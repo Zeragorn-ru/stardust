@@ -251,6 +251,9 @@ export const api = {
   getServerTelemetry(): Promise<ServerTelemetry> {
     return request("GET", "/api/server/telemetry");
   },
+  generateServerTelemetryToken(): Promise<{ token: string }> {
+    return request("POST", "/api/settings/server-token/generate");
+  },
 
   renameAccount(uuid: string, username: string): Promise<Account> {
     return request("PATCH", `/api/accounts/${uuid}`, { username });

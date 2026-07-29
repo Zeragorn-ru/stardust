@@ -1466,7 +1466,7 @@ async fn server_telemetry(
     headers: HeaderMap,
     Json(heartbeat): Json<store::server_telemetry::TelemetryHeartbeat>,
 ) -> Result<StatusCode, ApiError> {
-    let expected = std::env::var("STARDUST_SERVER_TOKEN").ok();
+    let expected = state.store.get_setting(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN).await?;
     let supplied = headers.get("authorization").and_then(|v| v.to_str().ok());
     let authorized = expected.as_deref().map(|token| supplied == Some(&format!("Bearer {token}"))).unwrap_or(false);
     if !authorized {

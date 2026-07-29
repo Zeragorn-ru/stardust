@@ -52,6 +52,7 @@ export interface Settings {
   sftpUsername?: string;
   sftpPasswordSet: boolean;
   sftpStatsPath?: string;
+  serverTelemetryTokenSet: boolean;
 }
 
 export interface PlayerStats {

@@ -36,6 +36,19 @@ final class StardustTabIntegration {
         StardustMod.LOGGER.info("Stardust: кеш обновлён, плейсхолдеры перерегистрированы.");
     }
 
+    static synchronized void reloadConfig() {
+        StardustServerConfig config = StardustServerConfig.load(FMLPaths.CONFIGDIR.get());
+        authUrl = config.authUrl();
+        refreshSecs = config.refreshIntervalSeconds();
+        debug = config.debug();
+        if (httpProvider == null) {
+            tryBootstrap();
+            return;
+        }
+        httpProvider.reload(config);
+        refreshNow();
+    }
+
     static synchronized void tryBootstrap() {
         var configDir = FMLPaths.CONFIGDIR.get();
         StardustServerConfig config = StardustServerConfig.load(configDir);
