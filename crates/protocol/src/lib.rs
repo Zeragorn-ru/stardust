@@ -186,6 +186,9 @@ pub struct PlayerProfile {
     /// Активная блокировка входа на Minecraft-сервер. Лаунчер всё ещё доступен.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ban: Option<BanInfo>,
+    /// Время последней прочитанной новости (ISO).
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "newsSeenAt")]
+    pub news_seen_at: Option<String>,
 }
 
 /// Информация об активном бане, которую можно показать игроку в лаунчере.

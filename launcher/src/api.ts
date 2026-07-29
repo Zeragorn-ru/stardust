@@ -664,6 +664,12 @@ export async function getNews(): Promise<NewsPost[]> {
   return invoke<NewsPost[]>("get_news");
 }
 
+export async function markNewsSeen(seenAt: string): Promise<PlayerProfile> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("not in tauri");
+  return invoke<PlayerProfile>("mark_news_seen", { seenAt });
+}
+
 // ───── Кастомизация ника ─────
 
 /** Получить доступные бейджи/градиенты и активный выбор. */

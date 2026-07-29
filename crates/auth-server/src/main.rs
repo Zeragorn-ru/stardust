@@ -152,6 +152,7 @@ async fn main() {
         .route("/api/cape/:uuid", get(cape))
         .route("/api/stats", get(stats_get))
         .route("/api/report-crash", post(report_crash))
+        .route("/api/news/seen", post(update_news_seen))
         // --- Yggdrasil / authlib-injector ---
         .route("/", get(ygg_meta))
         .route("/authserver/authenticate", post(ygg_authenticate))
@@ -1377,6 +1378,28 @@ async fn me_set_active(
     let account = current_account(&state, &headers).await?;
     state.store.set_active_customization(&account.uuid, input.badge_id, input.gradient_id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NewsSeenInput {
+    seen_at: String,
+}
+
+async fn update_news_seen(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<NewsSeenInput>,
+) -> Result<Json<PlayerProfile>, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let seen_at = input.seen_at.trim();
+    if seen_at.is_empty() {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой seen_at"));
+    }
+    state.store.set_news_seen(&account.uuid, seen_at).await?;
+    let updated_account = state.store.find_by_uuid(&account.uuid).await
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
+    Ok(Json(updated_account.profile()))
 }
 
 /// Публичный эндпоинт для серверного мода: lookup кастомизации по никам.

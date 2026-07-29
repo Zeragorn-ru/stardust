@@ -208,6 +208,7 @@ export default function App() {
             onOpenSettings={handleOpenSettings}
             onOpenNews={() => navigate("news")}
             onLogout={handleLogout}
+            onProfileChange={setProfile}
           />
         )}
         {v === "settings" && (

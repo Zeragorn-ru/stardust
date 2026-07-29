@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame } from "../api";
+import { accountInfo, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -32,6 +32,7 @@ interface Props {
   onOpenSettings: (section?: "game" | "account" | "logs") => void;
   onOpenNews: () => void;
   onLogout: () => void;
+  onProfileChange?: (profile: PlayerProfile) => void;
 }
 
 export default function MainScreen({
@@ -44,6 +45,7 @@ export default function MainScreen({
   onOpenSettings,
   onOpenNews,
   onLogout,
+  onProfileChange,
 }: Props) {
   const { skin } = useSkin();
   const [skinOpen, setSkinOpen] = useState(false);
@@ -67,9 +69,17 @@ export default function MainScreen({
     accountInfo().then((info) => setBan(info.ban ?? info.profile.ban ?? null)).catch(() => undefined);
     getNewsHighlight().then((highlight) => {
       setNews(highlight);
-      setNewsUnread(Boolean(highlight.latestUpdatedAt && localStorage.getItem("launcher.news.seen") !== highlight.latestUpdatedAt));
+      const seen = profile.newsSeenAt || localStorage.getItem("launcher.news.seen");
+      setNewsUnread(Boolean(highlight.latestUpdatedAt && seen !== highlight.latestUpdatedAt));
     }).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (news?.latestUpdatedAt) {
+      const seen = profile.newsSeenAt || localStorage.getItem("launcher.news.seen");
+      setNewsUnread(Boolean(seen !== news.latestUpdatedAt));
+    }
+  }, [profile.newsSeenAt, news]);
 
   useEffect(() => {
     setBan(profile.ban ?? null);
@@ -257,6 +267,9 @@ export default function MainScreen({
             onClick={() => {
               if (news?.latestUpdatedAt) {
                 localStorage.setItem("launcher.news.seen", news.latestUpdatedAt);
+                markNewsSeen(news.latestUpdatedAt).then((updatedProfile) => {
+                  onProfileChange?.(updatedProfile);
+                }).catch(() => {});
                 setNewsUnread(false);
               }
               onOpenNews();

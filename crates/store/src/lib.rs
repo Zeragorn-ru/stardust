@@ -109,6 +109,8 @@ pub struct Account {
     pub active_badge_id: Option<i32>,
     /// Активный градиент (id).
     pub active_gradient_id: Option<i32>,
+    /// Время последней прочитанной новости (ISO).
+    pub news_seen_at: Option<String>,
 }
 
 /// Активная блокировка аккаунта.
@@ -173,6 +175,7 @@ impl Account {
             active_badge: None,
             active_gradient: None,
             ban: self.active_ban_info(),
+            news_seen_at: self.news_seen_at.clone(),
         }
     }
 
@@ -230,7 +233,7 @@ impl From<sqlx::Error> for StoreError {
 /// Колонки аккаунта, которые мы всегда выбираем.
 const ACCOUNT_COLUMNS: &str = "uuid, username, password_hash, telegram_chat_id, role, \
      skin_png, skin_model, skin_sha256, cape_png, cape_sha256, sync_source, \
-     banned, banned_until, ban_reason, active_badge_id, active_gradient_id";
+     banned, banned_until, ban_reason, active_badge_id, active_gradient_id, news_seen_at";
 
 /// Фасад хранилища.
 pub struct Store {
@@ -425,6 +428,7 @@ impl Store {
             active_badge: None,
             active_gradient: None,
             ban: None,
+            news_seen_at: None,
         })
     }
 
@@ -512,6 +516,7 @@ impl Store {
             active_badge: None,
             active_gradient: None,
             ban: None,
+            news_seen_at: None,
         })
     }
 
@@ -520,6 +525,20 @@ impl Store {
         let uuid = normalize_uuid(uuid);
         let changed = sqlx::query("UPDATE accounts SET telegram_chat_id = $1 WHERE uuid = $2")
             .bind(chat_id)
+            .bind(&uuid)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if changed == 0 {
+            return Err(StoreError::NotFound);
+        }
+        Ok(())
+    }
+
+    pub async fn set_news_seen(&self, uuid: &str, seen_at: &str) -> Result<(), StoreError> {
+        let uuid = normalize_uuid(uuid);
+        let changed = sqlx::query("UPDATE accounts SET news_seen_at = $1 WHERE uuid = $2")
+            .bind(seen_at)
             .bind(&uuid)
             .execute(&self.pool)
             .await?
@@ -1216,6 +1235,7 @@ fn row_to_account(row: &PgRow) -> Account {
         },
         active_badge_id: row.get("active_badge_id"),
         active_gradient_id: row.get("active_gradient_id"),
+        news_seen_at: row.get("news_seen_at"),
     }
 }
 
