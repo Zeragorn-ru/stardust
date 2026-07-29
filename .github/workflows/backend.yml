@@ -219,3 +219,24 @@ jobs:
             done
             docker compose up -d --remove-orphans
             docker compose ps
+            failed=0
+            for service in auth-server admin-server telegram-bot admin-web; do
+              container="launcher-${service}"
+              status="$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null || true)"
+              restart_count="$(docker inspect -f '{{.RestartCount}}' "$container" 2>/dev/null || true)"
+              echo "${container}: status=${status:-missing} restart_count=${restart_count:-unknown}"
+              if [ "$status" != "running" ]; then
+                echo "--- ${container} logs ---"
+                docker logs --tail=120 "$container" 2>&1 || true
+                failed=1
+              fi
+            done
+            if [ "$failed" -ne 0 ]; then
+              echo "Один или несколько сервисов не запустились. Вывод контейнеров выше." >&2
+              exit 1
+            fi
+            for endpoint in \
+              http://127.0.0.1:8080/health \
+              http://127.0.0.1:8082/health; do
+              curl --fail --silent --show-error --max-time 10 "$endpoint" >/dev/null
+            done
