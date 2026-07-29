@@ -229,14 +229,30 @@ jobs:
                 echo "--- ${container} logs ---"
                 docker logs --tail=120 "$container" 2>&1 || true
                 failed=1
+              elif [ "${restart_count:-0}" -gt 0 ]; then
+                echo "--- ${container} logs (restart_count=${restart_count}) ---"
+                docker logs --tail=120 "$container" 2>&1 || true
               fi
             done
             if [ "$failed" -ne 0 ]; then
               echo "Один или несколько сервисов не запустились. Вывод контейнеров выше." >&2
               exit 1
             fi
+            # Ждём пока сервисы поднимутся (особенно после рестартов из-за race с auth-db).
+            sleep 10
             for endpoint in \
               http://127.0.0.1:8080/health \
               http://127.0.0.1:8082/health; do
-              curl --fail --silent --show-error --max-time 10 "$endpoint" >/dev/null
+              ok=0
+              for attempt in 1 2 3; do
+                if curl --fail --silent --show-error --max-time 10 "$endpoint" >/dev/null 2>&1; then
+                  ok=1; break
+                fi
+                echo "Health check $endpoint attempt $attempt failed, retrying in 5s..."
+                sleep 5
+              done
+              if [ "$ok" -eq 0 ]; then
+                echo "Health check $endpoint failed after 3 attempts" >&2
+                exit 1
+              fi
             done
