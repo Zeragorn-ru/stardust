@@ -262,8 +262,9 @@ impl Store {
     pub async fn from_pool(pool: PgPool) -> Result<Self, StoreError> {
         let migrator = sqlx::migrate!("./migrations");
         // Repair checksums: for each migration that was already applied but whose
-        // SQL content has changed since, overwrite the stored checksum so that
-        // sqlx::migrate!().run() won't reject it.
+        // SQL content has changed since, delete the old record so that
+        // sqlx::migrate!().run() can re-apply it. Only safe for idempotent
+        // migrations (CREATE TABLE IF NOT EXISTS etc.).
         Self::repair_migration_checksums(&pool, &migrator).await?;
         migrator.run(&pool).await
             .map_err(|e| StoreError::Backend(format!("миграции: {e}")))?;
@@ -275,8 +276,8 @@ impl Store {
     }
 
     /// For every migration that is already applied in the database, ensure the
-    /// stored checksum matches what the current binary expects. This allows
-    /// deployments where migration SQL was modified after initial application.
+    /// stored checksum matches what the current binary expects. If it differs,
+    /// delete the row so sqlx can re-apply the migration on the next run.
     async fn repair_migration_checksums(
         pool: &PgPool,
         migrator: &sqlx::migrate::Migrator,
@@ -290,19 +291,26 @@ impl Store {
         if !migrations_table_exists {
             return Ok(());
         }
+        // Read all applied migrations with their checksums.
+        let applied: Vec<(i64, Vec<u8>)> = sqlx::query_as(
+            "SELECT version, checksum FROM _sqlx_migrations ORDER BY version",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(|e| StoreError::Backend(format!("repair read: {e}")))?;
+
         for migration in migrator.iter() {
             let version = migration.version;
-            let expected_checksum: &[u8] = &migration.checksum;
-            sqlx::query(
-                "UPDATE _sqlx_migrations
-                 SET checksum = $1
-                 WHERE version = $2 AND checksum != $1",
-            )
-            .bind(expected_checksum)
-            .bind(version)
-            .execute(pool)
-            .await
-            .map_err(|e| StoreError::Backend(format!("repair checksum v{version}: {e}")))?;
+            let expected: &[u8] = &migration.checksum;
+            if let Some((_v, db_checksum)) = applied.iter().find(|(v, _)| *v == version) {
+                if db_checksum.as_slice() != expected {
+                    sqlx::query("DELETE FROM _sqlx_migrations WHERE version = $1")
+                        .bind(version)
+                        .execute(pool)
+                        .await
+                        .map_err(|e| StoreError::Backend(format!("repair delete v{version}: {e}")))?;
+                }
+            }
         }
         Ok(())
     }
