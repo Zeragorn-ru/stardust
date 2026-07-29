@@ -260,10 +260,12 @@ impl Store {
 
     /// Создаёт хранилище поверх готового пула (миграции применяются здесь).
     pub async fn from_pool(pool: PgPool) -> Result<Self, StoreError> {
-        Self::repair_telemetry_migration_checksum(&pool).await?;
-        sqlx::migrate!("./migrations")
-            .run(&pool)
-            .await
+        let migrator = sqlx::migrate!("./migrations");
+        // Repair checksums: for each migration that was already applied but whose
+        // SQL content has changed since, overwrite the stored checksum so that
+        // sqlx::migrate!().run() won't reject it.
+        Self::repair_migration_checksums(&pool, &migrator).await?;
+        migrator.run(&pool).await
             .map_err(|e| StoreError::Backend(format!("миграции: {e}")))?;
         Ok(Self {
             pool,
@@ -272,10 +274,13 @@ impl Store {
         })
     }
 
-    async fn repair_telemetry_migration_checksum(pool: &PgPool) -> Result<(), StoreError> {
-        // Migration 17 was initially applied by the telemetry release. Repair
-        // only its metadata when the tables already exist, so old deployments
-        // can start without rerunning DDL or losing telemetry data.
+    /// For every migration that is already applied in the database, ensure the
+    /// stored checksum matches what the current binary expects. This allows
+    /// deployments where migration SQL was modified after initial application.
+    async fn repair_migration_checksums(
+        pool: &PgPool,
+        migrator: &sqlx::migrate::Migrator,
+    ) -> Result<(), StoreError> {
         let migrations_table_exists: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM information_schema.tables
                             WHERE table_schema = 'public' AND table_name = '_sqlx_migrations')",
@@ -285,18 +290,20 @@ impl Store {
         if !migrations_table_exists {
             return Ok(());
         }
-        sqlx::query(
-            "UPDATE _sqlx_migrations
-             SET checksum = decode($1, 'hex')
-             WHERE version = 17
-               AND EXISTS (SELECT 1 FROM information_schema.tables
-                           WHERE table_schema = 'public' AND table_name = 'server_telemetry_samples')
-               AND EXISTS (SELECT 1 FROM information_schema.tables
-                           WHERE table_schema = 'public' AND table_name = 'server_player_events')",
-        )
-        .bind("85d3468d1942e3cae3eb9033d1b0154d085ff5f96d3ae2263df6a6fc2c1e7d51a5f2572b3089bf70d91eca7499a8ff91")
-        .execute(pool)
-        .await?;
+        for migration in migrator.iter() {
+            let version = migration.version;
+            let expected_checksum: &[u8] = &migration.checksum;
+            sqlx::query(
+                "UPDATE _sqlx_migrations
+                 SET checksum = $1
+                 WHERE version = $2 AND checksum != $1",
+            )
+            .bind(expected_checksum)
+            .bind(version)
+            .execute(pool)
+            .await
+            .map_err(|e| StoreError::Backend(format!("repair checksum v{version}: {e}")))?;
+        }
         Ok(())
     }
 
