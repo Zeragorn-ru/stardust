@@ -1959,6 +1959,26 @@ async fn change_username(
     Ok(profile)
 }
 
+/// Отметить новости прочитанными. Обновляет профиль и сессию.
+#[tauri::command]
+async fn mark_news_seen(
+    seen_at: String,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<PlayerProfile, String> {
+    let (_uuid, token) = current_session(&state)?;
+    let profile = backend::mark_news_seen(&state.http(), &token, &seen_at).await?;
+    write_saved_session(
+        &app,
+        &SavedSession {
+            profile: profile.clone(),
+            token: token.clone(),
+        },
+    )?;
+    set_runtime_session(&state, profile.clone(), token);
+    Ok(profile)
+}
+
 /// Смена пароля (требует текущий).
 #[tauri::command]
 async fn change_password(
@@ -2696,8 +2716,9 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             play_game,
             game_running,
             get_stats,
-            get_news_highlight,
-            get_news,
+             get_news_highlight,
+             get_news,
+             mark_news_seen,
             list_optional_mods,
             set_mod_enabled,
             crate::update::check_update,

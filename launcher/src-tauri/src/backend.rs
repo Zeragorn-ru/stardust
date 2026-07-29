@@ -791,3 +791,24 @@ pub async fn report_crash(
         Err(_) => Err("Не удалось отправить отчет о краше".to_string()),
     }
 }
+
+pub async fn mark_news_seen(
+    client: &reqwest::Client,
+    token: &str,
+    seen_at: &str,
+) -> Result<PlayerProfile, String> {
+    let resp = client
+        .post(format!("{}/api/news/seen", base_url()))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "seenAt": seen_at }))
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return resp.json::<PlayerProfile>().await.map_err(|e| format!("ошибка разбора ответа: {e}"));
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось отметить новости прочитанными".to_string()),
+    }
+}

@@ -195,6 +195,9 @@ pub struct PlayerProfile {
     /// Активная блокировка входа на Minecraft-сервер. Лаунчер всё ещё доступен.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ban: Option<BanInfo>,
+    /// Время последней прочитанной новости (ISO).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub news_seen_at: Option<String>,
 }
 
 /// Информация об активном бане, которую можно показать игроку в лаунчере.
@@ -361,6 +364,7 @@ mod tests {
                 banned_until: Some("2026-01-01T00:00:00Z".into()),
                 reason: Some("test".into()),
             }),
+            news_seen_at: Some("2026-07-30T12:00:00Z".into()),
         };
 
         let json = serde_json::to_value(dto).unwrap();
@@ -369,6 +373,7 @@ mod tests {
         assert_eq!(json["activeGradient"]["colorStart"], "#ff0000");
         assert_eq!(json["ban"]["bannedUntil"], "2026-01-01T00:00:00Z");
         assert!(json.get("active_badge").is_none());
+        assert_eq!(json["newsSeenAt"], "2026-07-30T12:00:00Z");
     }
 
     #[test]

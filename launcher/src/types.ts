@@ -12,6 +12,8 @@ export interface PlayerProfile {
   activeGradient?: { id: number; colorStart: string; colorEnd: string } | null;
   /** Активный бан на подключение к Minecraft-серверу. Лаунчер доступен. */
   ban?: BanInfo | null;
+  /** Время последней прочитанной новости (ISO). */
+  newsSeenAt?: string | null;
 }
 
 export interface BanInfo {
