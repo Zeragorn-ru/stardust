@@ -853,8 +853,6 @@ impl Store {
     }
 }
 
-/// Случайный буквенно-цифровой код (без похожих символов) заданной длины.
-
 fn ip_equal(ip1: &str, ip2: &str) -> bool {
     let parse_ip = |s: &str| -> Option<std::net::IpAddr> {
         if let Ok(ip) = s.parse::<std::net::IpAddr>() {
