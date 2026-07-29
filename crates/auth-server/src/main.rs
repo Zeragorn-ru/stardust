@@ -1321,8 +1321,6 @@ struct ReportCrashRequest {
     mod_report: Option<String>,
 }
 
-const CRASH_DOCUMENT_MAX_BYTES: usize = 950_000;
-
 async fn report_crash(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -1336,97 +1334,45 @@ async fn report_crash(
         None => "Код выхода: неизвестен".to_string(),
     };
 
-    let caption = format!(
-        "⚠️ Minecraft у игрока «{username}» вылетел/крашнулся!\n{exit_code_str}"
-    );
-
-    state.store.notify_admins(&caption).await?;
-
-    // Send latest.log as a separate document. Keep documents modest so Telegram
-    // delivery failures do not block the primary crash alert.
-    if !req.log.trim().is_empty() {
-        let log = trim_document(req.log.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
-        state
-            .store
-            .notify_admins_with_document(
-                &format!("📄 latest.log игрока «{username}»"),
-                "latest.log",
-                &log,
-            )
-            .await?;
-    }
-
-    // Send crash-report if present
-    if let Some(crash) = req.crash_report {
-        if !crash.trim().is_empty() {
-            let crash = trim_document(crash.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
-            state
-                .store
-                .notify_admins_with_document(
-                    &format!("📄 Краш-репорт игрока «{username}»"),
-                    "crash-report.txt",
-                    &crash,
-                )
-                .await?;
-        }
-    }
-
-    if let Some(debug_log) = req.debug_log {
-        if !debug_log.trim().is_empty() {
-            let debug_log = trim_document(debug_log.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
-            state
-                .store
-                .notify_admins_with_document(
-                    &format!("📄 debug.log игрока «{username}»"),
-                    "debug.log",
-                    &debug_log,
-                )
-                .await?;
-        }
-    }
-
-    if let Some(launcher_log) = req.launcher_log {
-        if !launcher_log.trim().is_empty() {
-            let launcher_log = trim_document(launcher_log.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
-            state
-                .store
-                .notify_admins_with_document(
-                    &format!("📄 launcher.log игрока «{username}»"),
-                    "launcher.log",
-                    &launcher_log,
-                )
-                .await?;
-        }
-    }
-
-    if let Some(mod_report) = req.mod_report {
-        if !mod_report.trim().is_empty() {
-            let mod_report = trim_document(mod_report.as_bytes(), CRASH_DOCUMENT_MAX_BYTES);
-            state
-                .store
-                .notify_admins_with_document(
-                    &format!("📄 Stardust mod marker игрока «{username}»"),
-                    "stardust-crash-marker.json",
-                    &mod_report,
-                )
-                .await?;
-        }
-    }
+    let mut summary = format!("⚠️ Minecraft у игрока «{username}» завершился аварийно\n{exit_code_str}");
+    append_report_summary(&mut summary, "Stardust mod", req.mod_report.as_deref());
+    append_report_summary(&mut summary, "crash-report", req.crash_report.as_deref());
+    append_report_summary(&mut summary, "latest.log", Some(&req.log));
+    append_report_summary(&mut summary, "debug.log", req.debug_log.as_deref());
+    append_report_summary(&mut summary, "launcher.log", req.launcher_log.as_deref());
+    state.store.notify_admins(&summary).await?;
 
     Ok(StatusCode::OK)
 }
 
-fn trim_document(bytes: &[u8], max_bytes: usize) -> Vec<u8> {
-    if bytes.len() <= max_bytes {
-        return bytes.to_vec();
+fn append_report_summary(summary: &mut String, name: &str, report: Option<&str>) {
+    let Some(report) = report.filter(|value| !value.trim().is_empty()) else {
+        return;
+    };
+    let lines: Vec<&str> = report
+        .lines()
+        .filter(|line| {
+            let lower = line.to_ascii_lowercase();
+            lower.contains("error") || lower.contains("exception") || lower.contains("crash") || lower.contains("caused by")
+        })
+        .take(3)
+        .collect();
+    let details = if lines.is_empty() {
+        "данные получены, сигнальных строк нет".to_string()
+    } else {
+        lines.join("\n")
+    };
+    summary.push_str(&format!("\n\n{name}: {details}"));
+    if summary.len() > 3900 {
+        let boundary = summary
+            .char_indices()
+            .take_while(|(index, _)| *index < 3900)
+            .map(|(index, _)| index)
+            .last()
+            .unwrap_or(0);
+        summary.truncate(boundary);
+        summary.push_str("\n[сводка обрезана]");
     }
-    let marker = b"[Stardust] Document truncated: tail follows.\n";
-    let keep = max_bytes.saturating_sub(marker.len());
-    let start = bytes.len().saturating_sub(keep);
-    let mut out = Vec::with_capacity(marker.len() + bytes.len() - start);
-    out.extend_from_slice(marker);
-    out.extend_from_slice(&bytes[start..]);
-    out
 }
 
 // ─────────────────── Кастомизация ника ───────────────────

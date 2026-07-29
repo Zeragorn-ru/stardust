@@ -2195,6 +2195,7 @@ mod tests {
             active_badge: None,
             active_gradient: None,
             ban: None,
+            news_seen_at: None,
         };
         let args = game_args(&root, &game_dir, &version, &profile, "token123");
         assert!(args.contains(&"Steve".to_string()));
@@ -2221,6 +2222,7 @@ mod tests {
             active_badge: None,
             active_gradient: None,
             ban: None,
+            news_seen_at: None,
         };
         let replacements = game_arg_replacements(&root, &game_dir, &version, &profile, "token");
         let args: Vec<String> = resolved

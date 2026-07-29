@@ -2145,15 +2145,20 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let latest_log_path = game_dir.join("logs").join("latest.log");
         let log_content = std::fs::read_to_string(&latest_log_path).unwrap_or_default();
         let mod_report_content = read_recent_mod_crash_marker(&game_dir, child_id);
-        let mod_reports_crash = mod_report_content
+        let mod_status = mod_report_content
             .as_deref()
-            .map(mod_crash_marker_reports_crash)
-            .unwrap_or(false);
+            .and_then(mod_crash_marker_status);
         let recent_crash_content = latest_recent_crash_report(&game_dir)
             .and_then(|path| std::fs::read_to_string(path).ok())
             .map(|content| trim_report_text(content, 900_000));
         let looks_like_start_failure = failed_exit || minecraft_log_has_fatal_error(&log_content);
-        let is_crash = failed_exit || recent_crash_content.is_some() || mod_reports_crash;
+        // Alt+F4 can produce a platform-specific non-zero exit code. The mod's
+        // shutdown event is the authoritative signal for a normal close.
+        let is_normal_shutdown = mod_status.as_deref() == Some("normal");
+        let is_crash = !is_normal_shutdown
+            && (failed_exit
+                || recent_crash_content.is_some()
+                || mod_status.as_deref() == Some("crash"));
 
         if (quick_exit && looks_like_start_failure) || is_crash {
             if quick_exit && looks_like_start_failure {
@@ -2297,16 +2302,10 @@ fn mod_crash_marker_matches_pid(content: &str, child_id: u32) -> bool {
         .unwrap_or(false)
 }
 
-fn mod_crash_marker_reports_crash(content: &str) -> bool {
+fn mod_crash_marker_status(content: &str) -> Option<String> {
     serde_json::from_str::<serde_json::Value>(content)
         .ok()
-        .and_then(|value| {
-            value
-                .get("status")
-                .and_then(|status| status.as_str())
-                .map(|status| status.eq_ignore_ascii_case("crash"))
-        })
-        .unwrap_or(false)
+        .and_then(|value| value.get("status").and_then(|status| status.as_str()).map(str::to_ascii_lowercase))
 }
 
 fn trim_report_text(mut text: String, max_bytes: usize) -> String {
@@ -2444,14 +2443,11 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
             mc_status_ping_once(&target_host, target_port),
         )
         .await;
-        match attempt {
-            Ok(Ok((json, ping_ms))) => {
-                if first_json.is_none() {
-                    first_json = Some(json);
-                }
-                samples.push(ping_ms);
+        if let Ok(Ok((json, ping_ms))) = attempt {
+            if first_json.is_none() {
+                first_json = Some(json);
             }
-            _ => {}
+            samples.push(ping_ms);
         }
     }
 
