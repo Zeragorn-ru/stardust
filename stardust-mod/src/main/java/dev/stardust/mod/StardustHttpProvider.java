@@ -56,6 +56,12 @@ public final class StardustHttpProvider {
         this.refreshIntervalSeconds = Math.max(3, refreshIntervalSeconds);
         this.debug = debug;
         this.serverToken = StardustServerConfig.load(net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get()).serverToken();
+        if (serverToken.isBlank()) {
+            StardustMod.LOGGER.warn("Stardust telemetry token: НЕ ЗАДАН — телеметрия не будет отправляться");
+        } else {
+            String masked = serverToken.substring(0, Math.min(4, serverToken.length())) + "****" + serverToken.substring(Math.max(0, serverToken.length() - 3));
+            StardustMod.LOGGER.info("Stardust telemetry token: {} (длина={})", masked, serverToken.length());
+        }
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(HTTP_TIMEOUT)
                 .build();
@@ -68,6 +74,7 @@ public final class StardustHttpProvider {
 
     public void sendTelemetry(Collection<String> players, double tps, double mspt) {
         try {
+            if (debug) StardustMod.LOGGER.info("Stardust telemetry: players={}, tps={}, mspt={}", players, String.format("%.1f", tps), String.format("%.2f", mspt));
             String body = GSON.toJson(Map.of("players", List.copyOf(players), "tps", tps, "mspt", mspt));
             HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(authUrl + "/api/server/telemetry"))
                     .timeout(HTTP_TIMEOUT).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body));
@@ -103,6 +110,12 @@ public final class StardustHttpProvider {
         this.refreshIntervalSeconds = Math.max(3, config.refreshIntervalSeconds());
         this.debug = config.debug();
         this.serverToken = config.serverToken();
+        if (serverToken.isBlank()) {
+            StardustMod.LOGGER.warn("Stardust reload: telemetry token НЕ ЗАДАН");
+        } else {
+            String masked = serverToken.substring(0, Math.min(4, serverToken.length())) + "****" + serverToken.substring(Math.max(0, serverToken.length() - 3));
+            StardustMod.LOGGER.info("Stardust reload: token={} (debug={})", masked, debug);
+        }
         StardustMod.LOGGER.info("Stardust HTTP provider: конфиг перечитан (url={}, refresh={}s)", authUrl, refreshIntervalSeconds);
     }
 

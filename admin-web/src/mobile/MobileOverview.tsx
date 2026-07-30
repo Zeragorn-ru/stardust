@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
-import type { Account, BuildHeader, Settings } from "../types";
+import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
 import { useToast } from "../ui/feedback";
 import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
 
@@ -18,6 +18,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [telemetry, setTelemetry] = useState<ServerTelemetry | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,10 +38,18 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
       } finally {
         if (!cancelled) setLoading(false);
       }
+      try {
+        const nextTelemetry = await api.getServerTelemetry();
+        if (!cancelled) setTelemetry(nextTelemetry);
+      } catch {
+        /* telemetry optional */
+      }
     }
     load();
+    const timer = window.setInterval(load, 30_000);
     return () => {
       cancelled = true;
+      window.clearInterval(timer);
     };
   }, [toast]);
 
@@ -81,6 +90,37 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         <Metric label="Telegram" value={settings?.telegramTokenSet ? "online" : "offline"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
         <Metric label="SFTP" value={settings?.sftpPasswordSet ? "ready" : "setup"} hint={settings?.sftpHost || "хост не задан"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
       </div>
+
+      {telemetry && telemetry.samples.length > 0 && (() => {
+        const latest = telemetry.samples[telemetry.samples.length - 1];
+        return (
+          <section className="m-section-card">
+            <div className="m-section-head">
+              <div>
+                <span className="m-eyebrow">Live telemetry</span>
+                <h2>Телеметрия</h2>
+              </div>
+            </div>
+            <div className="m-metric-grid">
+              <Metric label="Онлайн" value={String(latest.onlineCount)} hint="игроков" tone="blue" />
+              <Metric label="TPS" value={latest.tps.toFixed(1)} hint="/ 20" tone={latest.tps >= 18 ? "green" : "yellow"} />
+              <Metric label="MSPT" value={latest.mspt.toFixed(1)} hint="ms" tone={latest.mspt <= 40 ? "green" : "yellow"} />
+            </div>
+            {telemetry.events.length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
+                {telemetry.events.slice(-4).reverse().map((ev, i) => (
+                  <div key={`${ev.recordedAt}-${i}`} style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 0" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: ev.event === "join" ? "var(--ok)" : "var(--danger)", flexShrink: 0 }} />
+                    <strong style={{ color: "var(--text)" }}>{ev.username}</strong>
+                    <span>{ev.event === "join" ? "вошёл" : "вышел"}</span>
+                    <time style={{ marginLeft: "auto" }}>{new Date(ev.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })()}
 
       <section className="m-section-card">
         <div className="m-section-head">

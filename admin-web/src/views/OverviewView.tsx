@@ -20,21 +20,25 @@ export function OverviewView() {
     let cancelled = false;
     async function load() {
       try {
-        const [nextBuilds, nextAccounts, nextSettings, nextTelemetry] = await Promise.all([
+        const [nextBuilds, nextAccounts, nextSettings] = await Promise.all([
           api.listBuilds(),
           api.listAccounts(),
           api.getSettings(),
-          api.getServerTelemetry(),
         ]);
         if (cancelled) return;
         setBuilds(nextBuilds);
         setAccounts(nextAccounts);
         setSettings(nextSettings);
-        setTelemetry(nextTelemetry);
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : "Не удалось загрузить обзор");
       } finally {
         if (!cancelled) setLoading(false);
+      }
+      try {
+        const nextTelemetry = await api.getServerTelemetry();
+        if (!cancelled) setTelemetry(nextTelemetry);
+      } catch {
+        /* telemetry optional — mod may not be connected yet */
       }
     }
     load();
