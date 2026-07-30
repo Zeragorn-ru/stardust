@@ -145,7 +145,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </div>
               </div>
             </div>
-            <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "10px 8px 6px", marginTop: 10 }}>
+            <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px", marginTop: 10 }}>
               <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
                 <defs>
                   <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
@@ -155,7 +155,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </defs>
                 <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
                 <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <text x={w - 4} y={16} textAnchor="end" fill="#22c55e" fontSize="14" fontWeight="700">{latest.onlineCount}</text>
+                <text x={w - 4} y={14} textAnchor="end" fill="#22c55e" fontSize="22" fontWeight="700">{latest.onlineCount}</text>
               </svg>
               <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>24ч</span><span>сейчас</span></div>
             </div>
