@@ -37,6 +37,29 @@ export function formatDateTime(value: string, options: Intl.DateTimeFormatOption
   });
 }
 
+export function smoothSvgPath(points: Array<{ x: number; y: number }>): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x},${points[0].y}`;
+
+  let path = `M ${points[0].x},${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const previous = points[i - 1] ?? points[i];
+    const current = points[i];
+    const next = points[i + 1];
+    const afterNext = points[i + 2] ?? next;
+    const control1 = {
+      x: current.x + (next.x - previous.x) / 6,
+      y: current.y + (next.y - previous.y) / 6,
+    };
+    const control2 = {
+      x: next.x - (afterNext.x - current.x) / 6,
+      y: next.y - (afterNext.y - current.y) / 6,
+    };
+    path += ` C ${control1.x},${control1.y} ${control2.x},${control2.y} ${next.x},${next.y}`;
+  }
+  return path;
+}
+
 /// Короткий sha1 для отображения (первые 10 символов).
 export function shortSha(sha1: string): string {
   return sha1.slice(0, 10);

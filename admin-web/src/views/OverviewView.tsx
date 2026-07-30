@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
-import { formatTelemetryTime } from "../format";
+import { formatTelemetryTime, smoothSvgPath } from "../format";
 import { IconBox, IconSettings, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
 import { Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
@@ -201,8 +201,9 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const points = samples.map((sample, index) => {
     const x = samples.length < 2 ? width / 2 : (index / (samples.length - 1)) * width;
     const y = height - 20 - (sample.onlineCount / maxOnline) * (height - chartTop - 20);
-    return `${x},${y}`;
-  }).join(" ");
+    return { x, y };
+  });
+  const smoothPath = smoothSvgPath(points);
 
   return (
     <>
@@ -296,8 +297,8 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
                     <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
                   </linearGradient>
                 </defs>
-                <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
-                <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={`${smoothPath} L ${width},${height} L 0,${height} Z`} fill="url(#online-fill)" stroke="none" />
+                <path d={smoothPath} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
             </div>
