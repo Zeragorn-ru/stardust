@@ -141,8 +141,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </div>
               </div>
             </section>
-            <section className="m-section-card">
-              <div style={{ overflowX: "auto", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px" }}>
+            <div>
+              <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px" }}>
                 <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
                   <defs>
                     <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
@@ -168,7 +168,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                   ))}
                 </div>
               )}
-            </section>
+            </div>
           </>
         );
       })()}
