@@ -110,16 +110,10 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
           return `${x},${y}`;
         }).join(" ");
         return (
-          <section className="m-section-card">
-            <div className="m-section-head">
-              <div>
-                <span className="m-eyebrow">Live telemetry</span>
-                <h2>Телеметрия</h2>
-              </div>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0" }}>
-              <div>
-                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2, textAlign: "left" }}>TPS</div>
+          <>
+            <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+              <div style={{ flex: 1, border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "10px 12px", background: "var(--panel)" }}>
+                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>TPS</div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444" }}>{latest.tps.toFixed(1)}</span>
                   <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
@@ -131,8 +125,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                   <span style={{ flex: 1, textAlign: "center" }}>10min</span>
                 </div>
               </div>
-              <div>
-                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2, textAlign: "left" }}>MSPT</div>
+              <div style={{ flex: 1, border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "10px 12px", background: "var(--panel)" }}>
+                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>MSPT</div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{latest.mspt.toFixed(1)}</span>
                   <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
@@ -145,6 +139,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </div>
               </div>
             </div>
+            <section className="m-section-card">
             <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px", marginTop: 10 }}>
               <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
                 <defs>
@@ -172,6 +167,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
               </div>
             )}
           </section>
+          </>
         );
       })()}
 
