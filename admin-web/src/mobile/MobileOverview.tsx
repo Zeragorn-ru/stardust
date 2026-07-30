@@ -112,7 +112,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
             <div className="m-metric-grid">
               <Metric label="Онлайн" value={String(latest.onlineCount)} hint="игроков" tone="blue" />
               <Metric label="TPS" value={latest.tps.toFixed(1)} hint="/ 20" tone={latest.tps >= 18 ? "green" : "yellow"} />
-              <Metric label="Нагрузка" value={`${Math.min(100, latest.mspt / 50 * 100).toFixed(0)}`} hint="%" tone={latest.mspt <= 40 ? "green" : "yellow"} />
+              <Metric label="Нагрузка" value={latest.mspt.toFixed(1)} hint="ms/тик" tone={latest.mspt <= 40 ? "green" : "yellow"} />
             </div>
             <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "10px 8px 6px", marginTop: 10 }}>
               <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>

@@ -201,7 +201,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
         <div className="telemetry-metrics">
           <MetricValue label="Сейчас" value={latest ? `${latest.onlineCount}` : "—"} suffix=" игроков" />
           <MetricValue label="TPS" value={latest ? latest.tps.toFixed(1) : "—"} suffix=" / 20" />
-          <MetricValue label="Нагрузка" value={latest ? `${Math.min(100, latest.mspt / 50 * 100).toFixed(0)}` : "—"} suffix=" %" />
+          <MetricValue label="Нагрузка" value={latest ? latest.mspt.toFixed(1) : "—"} suffix=" ms/тик" />
         </div>
       </CardHeader>
       <CardContent>
