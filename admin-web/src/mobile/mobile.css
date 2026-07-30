@@ -33,6 +33,13 @@
     min-width: 0;
 }
 
+.m-telemetry-performance-divider {
+    width: 1px;
+    min-height: 58px;
+    background: var(--border);
+    opacity: .9;
+}
+
 .m-telemetry-performance-values,
 .m-telemetry-performance-labels {
     display: flex;

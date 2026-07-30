@@ -125,7 +125,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </div>
                 <div className="m-telemetry-performance-labels"><span>now</span><span>5min</span><span>10min</span></div>
               </div>
-              <div className="m-telemetry-divider" />
+              <div className="m-telemetry-performance-divider" />
               <div className="m-telemetry-performance-block">
                 <span className="m-telemetry-label">MSPT</span>
                 <div className="m-telemetry-performance-values m-telemetry-performance-values--blue">
