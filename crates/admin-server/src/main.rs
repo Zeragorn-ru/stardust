@@ -2536,7 +2536,12 @@ async fn server_telemetry(
     let since = OffsetDateTime::now_utc() - time::Duration::hours(24);
     let samples = state.store.telemetry_samples_since(since).await.map_err(map_store)?;
     let events = state.store.player_events_since(since).await.map_err(map_store)?;
-    Ok(Json(serde_json::json!({ "samples": samples, "events": events })))
+    let average_online = state.store.telemetry_average_online().await.map_err(map_store)?;
+    Ok(Json(serde_json::json!({
+        "samples": samples,
+        "events": events,
+        "averageOnline": average_online,
+    })))
 }
 
 // ───────────────────────── Новости ─────────────────────────

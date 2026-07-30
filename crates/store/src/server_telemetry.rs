@@ -101,6 +101,15 @@ impl Store {
             .collect()
     }
 
+    pub async fn telemetry_average_online(&self) -> Result<f64, StoreError> {
+        let average: f64 = sqlx::query_scalar(
+            "SELECT COALESCE(AVG(online_count), 0)::double precision FROM server_telemetry_samples",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(average)
+    }
+
     pub async fn player_events_since(
         &self,
         since: OffsetDateTime,

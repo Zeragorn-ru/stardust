@@ -161,4 +161,5 @@ export interface ServerPlayerEvent {
 export interface ServerTelemetry {
   samples: ServerTelemetrySample[];
   events: ServerPlayerEvent[];
+  averageOnline: number;
 }

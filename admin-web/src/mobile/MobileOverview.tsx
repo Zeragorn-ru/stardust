@@ -109,7 +109,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         const tps10 = avg("tps", 40);
         const mspt5 = avg("mspt", 20);
         const mspt10 = avg("mspt", 40);
-        const w = 600, h = 120, chartTop = 30;
+        const w = 600, h = 120, chartTop = 34;
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
           const y = h - 10 - (s.onlineCount / maxOnline) * (h - chartTop - 10);
@@ -159,7 +159,9 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                   </defs>
                   <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
                   <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <text x={w - 4} y={24} textAnchor="end" fill="#22c55e" fontSize="28" fontWeight="800">{latest.onlineCount}</text>
+                  <text x={w - 4} y={4} textAnchor="end" dominantBaseline="hanging" fill="#22c55e" fontSize="22" fontWeight="800">
+                    {latest.onlineCount} • {telemetry.averageOnline.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </text>
                 </svg>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>3ч назад</span><span>сейчас</span></div>
               </div>

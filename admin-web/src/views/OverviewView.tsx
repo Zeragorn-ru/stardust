@@ -180,6 +180,7 @@ export function OverviewView() {
 
 function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const samples = telemetry?.samples ?? [];
+  const averageOnline = telemetry?.averageOnline ?? 0;
   const [selected, setSelected] = useState<number | null>(null);
   const latest = samples[samples.length - 1];
   const maxOnline = Math.max(1, ...samples.map((sample) => sample.onlineCount));
@@ -259,7 +260,9 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
                 <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
                 <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                 {latest && (
-                  <text x={width - 8} y={28} textAnchor="end" fill="#22c55e" fontSize="26" fontWeight="800">{latest.onlineCount}</text>
+                  <text x={width - 8} y={4} textAnchor="end" dominantBaseline="hanging" fill="#22c55e" fontSize="22" fontWeight="800">
+                    {latest.onlineCount} • {averageOnline.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </text>
                 )}
               </svg>
               <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
