@@ -196,18 +196,23 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
         <div>
           <span className="eyebrow">Live server telemetry</span>
           <CardTitle>Онлайн за последние 24 часа</CardTitle>
-          <CardDescription>Нажмите на точку, чтобы увидеть игроков в этот момент.</CardDescription>
+          <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
         </div>
         <div className="telemetry-metrics">
           <MetricValue label="Сейчас" value={latest ? `${latest.onlineCount}` : "—"} suffix=" игроков" />
           <MetricValue label="TPS" value={latest ? latest.tps.toFixed(1) : "—"} suffix=" / 20" />
-          <MetricValue label="MSPT" value={latest ? latest.mspt.toFixed(1) : "—"} suffix=" ms" />
+          <MetricValue label="Нагрузка" value={latest ? `${Math.min(100, latest.mspt / 50 * 100).toFixed(0)}` : "—"} suffix=" %" />
         </div>
       </CardHeader>
       <CardContent>
         {samples.length === 0 ? <p className="muted">Мод ещё не прислал телеметрию.</p> : (
           <div className="telemetry-chart-wrap">
-            <svg className="telemetry-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="График онлайна">
+            <svg className="telemetry-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="График онлайна" onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const relX = (e.clientX - rect.left) / rect.width;
+              const idx = Math.round(relX * (samples.length - 1));
+              setSelected(idx >= 0 && idx < samples.length ? idx : null);
+            }}>
               <defs>
                 <linearGradient id="online-fill" x1="0" x2="0" y1="0" y2="1">
                   <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
@@ -216,11 +221,6 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
               </defs>
               <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
               <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-              {samples.map((sample, index) => {
-                const x = samples.length < 2 ? width / 2 : (index / (samples.length - 1)) * width;
-                const y = height - 20 - (sample.onlineCount / maxOnline) * (height - 40);
-                return <circle key={`${sample.recordedAt}-${index}`} cx={x} cy={y} r="5" fill={selected === index ? "var(--accent)" : "var(--panel)"} stroke="var(--accent)" tabIndex={0} onClick={() => setSelected(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setSelected(index); }}><title>{formatTelemetryTime(sample.recordedAt)} · {sample.onlineCount} игроков</title></circle>;
-              })}
             </svg>
             <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
           </div>

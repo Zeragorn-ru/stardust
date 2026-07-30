@@ -93,6 +93,14 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
 
       {telemetry && telemetry.samples.length > 0 && (() => {
         const latest = telemetry.samples[telemetry.samples.length - 1];
+        const samples = telemetry.samples;
+        const maxOnline = Math.max(1, ...samples.map((s) => s.onlineCount));
+        const w = 600, h = 120;
+        const pathPoints = samples.map((s, i) => {
+          const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
+          const y = h - 10 - (s.onlineCount / maxOnline) * (h - 20);
+          return `${x},${y}`;
+        }).join(" ");
         return (
           <section className="m-section-card">
             <div className="m-section-head">
@@ -104,7 +112,20 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
             <div className="m-metric-grid">
               <Metric label="Онлайн" value={String(latest.onlineCount)} hint="игроков" tone="blue" />
               <Metric label="TPS" value={latest.tps.toFixed(1)} hint="/ 20" tone={latest.tps >= 18 ? "green" : "yellow"} />
-              <Metric label="MSPT" value={latest.mspt.toFixed(1)} hint="ms" tone={latest.mspt <= 40 ? "green" : "yellow"} />
+              <Metric label="Нагрузка" value={`${Math.min(100, latest.mspt / 50 * 100).toFixed(0)}`} hint="%" tone={latest.mspt <= 40 ? "green" : "yellow"} />
+            </div>
+            <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "10px 8px 6px", marginTop: 10 }}>
+              <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
+                <defs>
+                  <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
+                    <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
+                <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>24ч</span><span>сейчас</span></div>
             </div>
             {telemetry.events.length > 0 && (
               <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
