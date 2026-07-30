@@ -119,11 +119,11 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0" }}>
               <div>
-                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>TPS</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2, textAlign: "left" }}>TPS</div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{latest.tps.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{tps5.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{tps10.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444" }}>{latest.tps.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
                   <span style={{ flex: 1, textAlign: "center" }}>now</span>
@@ -132,11 +132,11 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>MSPT</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2, textAlign: "left" }}>MSPT</div>
                 <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{latest.mspt.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{mspt5.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{mspt10.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{latest.mspt.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
                   <span style={{ flex: 1, textAlign: "center" }}>now</span>
@@ -155,7 +155,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </defs>
                 <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
                 <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <text x={w - 4} y={h - 8 - (latest.onlineCount / maxOnline) * (h - 20)} textAnchor="end" fill="var(--accent)" fontSize="14" fontWeight="600">{latest.onlineCount}</text>
+                <text x={w - 4} y={16} textAnchor="end" fill="#22c55e" fontSize="14" fontWeight="700">{latest.onlineCount}</text>
               </svg>
               <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>24ч</span><span>сейчас</span></div>
             </div>

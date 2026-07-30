@@ -213,9 +213,9 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
           <div className="telemetry-metric-block">
             <small>TPS</small>
             <div className="telemetry-metrics-row">
-              <span>{latest ? latest.tps.toFixed(1) : "—"}</span>
-              <span>{tps5.toFixed(1)}</span>
-              <span>{tps10.toFixed(1)}</span>
+              <span style={{ color: latest ? (latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444") : undefined }}>{latest ? latest.tps.toFixed(1) : "—"}</span>
+              <span style={{ color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
+              <span style={{ color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
             </div>
             <div className="telemetry-metrics-labels">
               <span>now</span><span>5min</span><span>10min</span>
@@ -224,9 +224,9 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
           <div className="telemetry-metric-block">
             <small>MSPT</small>
             <div className="telemetry-metrics-row">
-              <span>{latest ? latest.mspt.toFixed(1) : "—"}</span>
-              <span>{mspt5.toFixed(1)}</span>
-              <span>{mspt10.toFixed(1)}</span>
+              <span style={{ color: "#38bdf8" }}>{latest ? latest.mspt.toFixed(1) : "—"}</span>
+              <span style={{ color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
+              <span style={{ color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
             </div>
             <div className="telemetry-metrics-labels">
               <span>now</span><span>5min</span><span>10min</span>
@@ -252,7 +252,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
               <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
               <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
               {latest && (
-                <text x={width - 4} y={height - 22 - (latest.onlineCount / maxOnline) * (height - 40)} textAnchor="end" fill="var(--accent)" fontSize="16" fontWeight="600">{latest.onlineCount}</text>
+                <text x={width - 8} y={22} textAnchor="end" fill="#22c55e" fontSize="18" fontWeight="700">{latest.onlineCount}</text>
               )}
             </svg>
             <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
