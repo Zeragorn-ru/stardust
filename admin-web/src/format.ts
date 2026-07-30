@@ -13,6 +13,15 @@ export function formatSize(bytes: number): string {
   return `${v.toFixed(1)} ${units[i]}`;
 }
 
+export function parseDate(value: string): Date | null {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export function formatTelemetryTime(value: string): string {
+  return parseDate(value)?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) ?? "—";
+}
+
 /// Короткий sha1 для отображения (первые 10 символов).
 export function shortSha(sha1: string): string {
   return sha1.slice(0, 10);

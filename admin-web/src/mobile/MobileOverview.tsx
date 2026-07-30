@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
+import { formatTelemetryTime, parseDate } from "../format";
 import { useToast } from "../ui/feedback";
 import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
 
@@ -92,8 +93,13 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
       </div>
 
       {telemetry && telemetry.samples.length > 0 && (() => {
-        const latest = telemetry.samples[telemetry.samples.length - 1];
-        const samples = telemetry.samples;
+        const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
+        const samples = telemetry.samples.filter((sample) => {
+          const recordedAt = parseDate(sample.recordedAt)?.getTime();
+          return recordedAt !== undefined && recordedAt >= threeHoursAgo;
+        });
+        if (samples.length === 0) return null;
+        const latest = samples[samples.length - 1];
         const maxOnline = Math.max(1, ...samples.map((s) => s.onlineCount));
         const avg = (field: "tps" | "mspt", count: number) => {
           const slice = samples.slice(-count);
@@ -103,10 +109,10 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         const tps10 = avg("tps", 40);
         const mspt5 = avg("mspt", 20);
         const mspt10 = avg("mspt", 40);
-        const w = 600, h = 120;
+        const w = 600, h = 120, chartTop = 48;
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
-          const y = h - 10 - (s.onlineCount / maxOnline) * (h - 20);
+          const y = h - 10 - (s.onlineCount / maxOnline) * (h - chartTop - 10);
           return `${x},${y}`;
         }).join(" ");
         return (
@@ -153,9 +159,9 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                   </defs>
                   <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
                   <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <text x={w - 4} y={20} textAnchor="end" fill="#22c55e" fontSize="22" fontWeight="700">{latest.onlineCount}</text>
+                  <text x={w - 4} y={34} textAnchor="end" fill="#22c55e" fontSize="28" fontWeight="800">{latest.onlineCount}</text>
                 </svg>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>24ч</span><span>сейчас</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>3ч назад</span><span>сейчас</span></div>
               </div>
               {telemetry.events.length > 0 && (
                 <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
@@ -164,7 +170,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: ev.event === "join" ? "var(--ok)" : "var(--danger)", flexShrink: 0 }} />
                       <strong style={{ color: "var(--text)" }}>{ev.username}</strong>
                       <span>{ev.event === "join" ? "вошёл" : "вышел"}</span>
-                      <time style={{ marginLeft: "auto" }}>{new Date(ev.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+                      <time style={{ marginLeft: "auto" }}>{formatTelemetryTime(ev.recordedAt)}</time>
                     </div>
                   ))}
                 </div>

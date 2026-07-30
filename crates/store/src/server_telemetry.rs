@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
+use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use crate::{Store, StoreError};
@@ -16,7 +17,7 @@ pub struct TelemetryHeartbeat {
 #[derive(Debug, Clone, Serialize)]
 pub struct TelemetrySample {
     #[serde(rename = "recordedAt")]
-    pub recorded_at: OffsetDateTime,
+    pub recorded_at: String,
     #[serde(rename = "onlineCount")]
     pub online_count: i32,
     pub players: Vec<String>,
@@ -27,7 +28,7 @@ pub struct TelemetrySample {
 #[derive(Debug, Clone, Serialize)]
 pub struct PlayerEvent {
     #[serde(rename = "recordedAt")]
-    pub recorded_at: OffsetDateTime,
+    pub recorded_at: String,
     pub username: String,
     pub event: String,
 }
@@ -90,7 +91,7 @@ impl Store {
         rows.into_iter()
             .map(|row| {
                 Ok(TelemetrySample {
-                    recorded_at: row.get("recorded_at"),
+                    recorded_at: format_recorded_at(row.get("recorded_at")),
                     online_count: row.get("online_count"),
                     players: serde_json::from_value(row.get("players")).unwrap_or_default(),
                     tps: row.get("tps"),
@@ -114,10 +115,14 @@ impl Store {
         Ok(rows
             .into_iter()
             .map(|row| PlayerEvent {
-                recorded_at: row.get("recorded_at"),
+                recorded_at: format_recorded_at(row.get("recorded_at")),
                 username: row.get("username"),
                 event: row.get("event"),
             })
             .collect())
     }
+}
+
+fn format_recorded_at(value: OffsetDateTime) -> String {
+    value.format(&Rfc3339).unwrap_or_else(|_| value.to_string())
 }

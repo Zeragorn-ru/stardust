@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
+import { formatTelemetryTime } from "../format";
 import { IconBox, IconSettings, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
 import { Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
@@ -182,6 +183,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const [selected, setSelected] = useState<number | null>(null);
   const latest = samples[samples.length - 1];
   const maxOnline = Math.max(1, ...samples.map((sample) => sample.onlineCount));
+  const chartTop = 56;
 
   // Each sample = ~15s. 5min = 20 samples, 10min = 40 samples.
   const avg = (field: "tps" | "mspt", count: number) => {
@@ -197,7 +199,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const height = 220;
   const points = samples.map((sample, index) => {
     const x = samples.length < 2 ? width / 2 : (index / (samples.length - 1)) * width;
-    const y = height - 20 - (sample.onlineCount / maxOnline) * (height - 40);
+    const y = height - 20 - (sample.onlineCount / maxOnline) * (height - chartTop - 20);
     return `${x},${y}`;
   }).join(" ");
 
@@ -257,7 +259,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
                 <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
                 <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                 {latest && (
-                  <text x={width - 8} y={22} textAnchor="end" fill="#22c55e" fontSize="18" fontWeight="700">{latest.onlineCount}</text>
+                  <text x={width - 8} y={34} textAnchor="end" fill="#22c55e" fontSize="26" fontWeight="800">{latest.onlineCount}</text>
                 )}
               </svg>
               <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
@@ -283,10 +285,6 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
       </Card>
     </>
   );
-}
-
-function formatTelemetryTime(value: string): string {
-  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function MetricCard({ label, value, hint, tone }: { label: string; value: string | number; hint: string; tone: "blue" | "green" | "yellow" }) {
