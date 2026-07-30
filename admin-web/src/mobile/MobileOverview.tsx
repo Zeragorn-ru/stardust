@@ -111,62 +111,64 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         }).join(" ");
         return (
           <>
-            <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
-              <div style={{ flex: 1, border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "10px 12px", background: "var(--panel)" }}>
-                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>TPS</div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444" }}>{latest.tps.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
-                  <span style={{ flex: 1, textAlign: "center" }}>now</span>
-                  <span style={{ flex: 1, textAlign: "center" }}>5min</span>
-                  <span style={{ flex: 1, textAlign: "center" }}>10min</span>
-                </div>
-              </div>
-              <div style={{ flex: 1, border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "10px 12px", background: "var(--panel)" }}>
-                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>MSPT</div>
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{latest.mspt.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
-                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
-                  <span style={{ flex: 1, textAlign: "center" }}>now</span>
-                  <span style={{ flex: 1, textAlign: "center" }}>5min</span>
-                  <span style={{ flex: 1, textAlign: "center" }}>10min</span>
-                </div>
-              </div>
-            </div>
-            <section className="m-section-card">
-            <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px", marginTop: 10 }}>
-              <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
-                <defs>
-                  <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
-                    <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
-                    <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
-                <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                <text x={w - 4} y={14} textAnchor="end" fill="#22c55e" fontSize="22" fontWeight="700">{latest.onlineCount}</text>
-              </svg>
-              <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>24ч</span><span>сейчас</span></div>
-            </div>
-            {telemetry.events.length > 0 && (
-              <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-                {telemetry.events.slice(-4).reverse().map((ev, i) => (
-                  <div key={`${ev.recordedAt}-${i}`} style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 0" }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: ev.event === "join" ? "var(--ok)" : "var(--danger)", flexShrink: 0 }} />
-                    <strong style={{ color: "var(--text)" }}>{ev.username}</strong>
-                    <span>{ev.event === "join" ? "вошёл" : "вышел"}</span>
-                    <time style={{ marginLeft: "auto" }}>{new Date(ev.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+            <section className="m-section-card" style={{ padding: "10px 12px" }}>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>TPS</div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444" }}>{latest.tps.toFixed(1)}</span>
+                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
+                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
                   </div>
-                ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
+                    <span style={{ flex: 1, textAlign: "center" }}>now</span>
+                    <span style={{ flex: 1, textAlign: "center" }}>5min</span>
+                    <span style={{ flex: 1, textAlign: "center" }}>10min</span>
+                  </div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>MSPT</div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{latest.mspt.toFixed(1)}</span>
+                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
+                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
+                    <span style={{ flex: 1, textAlign: "center" }}>now</span>
+                    <span style={{ flex: 1, textAlign: "center" }}>5min</span>
+                    <span style={{ flex: 1, textAlign: "center" }}>10min</span>
+                  </div>
+                </div>
               </div>
-            )}
-          </section>
+            </section>
+            <section className="m-section-card">
+              <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px" }}>
+                <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
+                  <defs>
+                    <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
+                      <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
+                  <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <text x={w - 4} y={20} textAnchor="end" fill="#22c55e" fontSize="22" fontWeight="700">{latest.onlineCount}</text>
+                </svg>
+                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>24ч</span><span>сейчас</span></div>
+              </div>
+              {telemetry.events.length > 0 && (
+                <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
+                  {telemetry.events.slice(-4).reverse().map((ev, i) => (
+                    <div key={`${ev.recordedAt}-${i}`} style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 0" }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: ev.event === "join" ? "var(--ok)" : "var(--danger)", flexShrink: 0 }} />
+                      <strong style={{ color: "var(--text)" }}>{ev.username}</strong>
+                      <span>{ev.event === "join" ? "вошёл" : "вышел"}</span>
+                      <time style={{ marginLeft: "auto" }}>{new Date(ev.recordedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         );
       })()}
