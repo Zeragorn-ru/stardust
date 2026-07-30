@@ -4,6 +4,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
@@ -52,6 +53,8 @@ public final class StardustMod {
             NeoForge.EVENT_BUS.addListener(StardustCrashReporter::onGameShuttingDown);
             NeoForge.EVENT_BUS.addListener(StardustCrashReporter::onClientLoggingIn);
             NeoForge.EVENT_BUS.addListener(StardustCrashReporter::onClientLoggingOut);
+        } else if (FMLEnvironment.dist == Dist.DEDICATED_SERVER) {
+            StardustDedicatedServerCrashReporter.install();
         }
     }
 

@@ -10,6 +10,8 @@
 - клиентская часть позже сможет получать настройки лаунчера/сервера;
 - серверная часть интегрируется с плагином/модом **TAB** (NEZNAMY/TAB):
   выставляет игрокам бейдж (tab-префикс) и цветной ник в табе.
+- на **dedicated server** необработанный краш отправляется администраторам через
+  auth-server; клиентские и integrated server процессы этот отчет не отправляют.
 
 Важно: сам запуск клиента с `username`, `uuid` и `accessToken` сейчас делает
 лаунчер. Для реального отображения серверных скинов в online-mode следующим
@@ -47,6 +49,11 @@ cd stardust-mod
 ```
 
 Готовый jar: `build/libs/stardust-mod-0.1.0.jar`.
+
+Для уведомлений о краше dedicated server задайте `stardust.server-token` в
+`config/stardust-server.properties` или переменную окружения
+`STARDUST_SERVER_TOKEN`. Токен должен совпадать с `server_telemetry_token` в
+auth-server.
 
 На Windows без wrapper можно использовать установленный Gradle 8.10+:
 

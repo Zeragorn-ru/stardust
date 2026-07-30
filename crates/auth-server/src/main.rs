@@ -156,6 +156,7 @@ async fn main() {
         .route("/api/cape/:uuid", get(cape))
         .route("/api/stats", get(stats_get))
         .route("/api/report-crash", post(report_crash))
+        .route("/api/server/report-crash", post(report_server_crash))
         .route("/api/news/seen", post(update_news_seen))
         .route("/api/report-external-mods", post(report_external_mods))
         // --- Yggdrasil / authlib-injector ---
@@ -1348,6 +1349,46 @@ async fn report_crash(
     append_report_summary(&mut summary, "launcher.log", req.launcher_log.as_deref());
     state.store.notify_admins(&summary).await?;
 
+    Ok(StatusCode::OK)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReportServerCrashRequest {
+    server: String,
+    thread: String,
+    error_class: String,
+    message: String,
+    stack_trace: String,
+}
+
+async fn report_server_crash(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<ReportServerCrashRequest>,
+) -> Result<StatusCode, ApiError> {
+    let expected = state
+        .store
+        .get_setting(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN)
+        .await?;
+    let supplied = headers.get("authorization").and_then(|value| value.to_str().ok());
+    let authorized = expected
+        .as_deref()
+        .map(|token| supplied == Some(&format!("Bearer {token}")))
+        .unwrap_or(false);
+    if !authorized {
+        return Err(ApiError::new(StatusCode::UNAUTHORIZED, "Неверный токен сервера"));
+    }
+
+    let mut summary = format!(
+        "⚠️ Dedicated server «{}» завершился аварийно\nПоток: {}\nОшибка: {}: {}",
+        clean_alert_field(&req.server),
+        clean_alert_field(&req.thread),
+        clean_alert_field(&req.error_class),
+        clean_alert_field(&req.message),
+    );
+    append_report_summary(&mut summary, "stack trace", Some(&req.stack_trace));
+    state.store.notify_admins(&summary).await?;
     Ok(StatusCode::OK)
 }
 
