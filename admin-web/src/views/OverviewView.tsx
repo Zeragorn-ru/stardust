@@ -184,7 +184,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const [selected, setSelected] = useState<number | null>(null);
   const latest = samples[samples.length - 1];
   const maxOnline = Math.max(1, ...samples.map((sample) => sample.onlineCount));
-  const chartTop = 56;
+  const chartTop = 20;
 
   // Each sample = ~15s. 5min = 20 samples, 10min = 40 samples.
   const avg = (field: "tps" | "mspt", count: number) => {
@@ -206,39 +206,78 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
 
   return (
     <>
-      <div className="telemetry-cards-row">
-        <Card className="panel-flat telemetry-panel">
-          <CardHeader><small className="telemetry-card-label">TPS</small></CardHeader>
-          <CardContent>
-            <div className="telemetry-metrics-row">
-              <span style={{ color: latest ? (latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444") : undefined }}>{latest ? latest.tps.toFixed(1) : "—"}</span>
-              <span style={{ color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
-              <span style={{ color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
+      <div className="telemetry-top-row">
+        <Card className="panel-flat telemetry-panel telemetry-summary-card">
+          <CardHeader>
+            <div>
+              <span className="eyebrow">Live server telemetry</span>
+              <CardTitle>Онлайн и последние события</CardTitle>
             </div>
-            <div className="telemetry-metrics-labels">
-              <span>now</span><span>5min</span><span>10min</span>
+          </CardHeader>
+          <CardContent>
+            <div className="telemetry-summary">
+              <div className="telemetry-online-metrics">
+                <div className="telemetry-online-metric">
+                  <span>сейчас</span>
+                  <strong>{latest ? latest.onlineCount : "—"}</strong>
+                  <small>игроков</small>
+                </div>
+                <div className="telemetry-online-metric">
+                  <span>среднее</span>
+                  <strong>{averageOnline.toFixed(1)}</strong>
+                  <small>за 24 часа</small>
+                </div>
+              </div>
+              <div className="telemetry-summary-divider" />
+              <div className="telemetry-recent-events">
+                <span className="telemetry-card-label">Последние входы и выходы</span>
+                {(telemetry?.events ?? []).slice(-3).reverse().map((event, index) => (
+                  <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
+                    <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
+                    <strong>{event.username}</strong>
+                    <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
+                    <time>{formatTelemetryTime(event.recordedAt)}</time>
+                  </div>
+                ))}
+                {(telemetry?.events ?? []).length === 0 && <span className="muted">Событий пока нет.</span>}
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="panel-flat telemetry-panel">
-          <CardHeader><small className="telemetry-card-label">MSPT</small></CardHeader>
-          <CardContent>
-            <div className="telemetry-metrics-row">
-              <span style={{ color: "#38bdf8" }}>{latest ? latest.mspt.toFixed(1) : "—"}</span>
-              <span style={{ color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
-              <span style={{ color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
-            </div>
-            <div className="telemetry-metrics-labels">
-              <span>now</span><span>5min</span><span>10min</span>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="telemetry-cards-row">
+          <Card className="panel-flat telemetry-panel">
+            <CardHeader><small className="telemetry-card-label">TPS</small></CardHeader>
+            <CardContent>
+              <div className="telemetry-metrics-row">
+                <span style={{ color: latest ? (latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444") : undefined }}>{latest ? latest.tps.toFixed(1) : "—"}</span>
+                <span style={{ color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
+                <span style={{ color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
+              </div>
+              <div className="telemetry-metrics-labels">
+                <span>now</span><span>5min</span><span>10min</span>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="panel-flat telemetry-panel">
+            <CardHeader><small className="telemetry-card-label">MSPT</small></CardHeader>
+            <CardContent>
+              <div className="telemetry-metrics-row">
+                <span style={{ color: "#38bdf8" }}>{latest ? latest.mspt.toFixed(1) : "—"}</span>
+                <span style={{ color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
+                <span style={{ color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
+              </div>
+              <div className="telemetry-metrics-labels">
+                <span>now</span><span>5min</span><span>10min</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
-      <Card className="panel-flat telemetry-panel">
+      <Card className="panel-flat telemetry-panel telemetry-chart-card">
         <CardHeader>
           <div>
             <span className="eyebrow">Live server telemetry</span>
-            <CardTitle>Онлайн за 24 часа</CardTitle>
+            <CardTitle>График онлайна за 24 часа</CardTitle>
             <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
           </div>
         </CardHeader>
@@ -259,11 +298,6 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
                 </defs>
                 <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
                 <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                {latest && (
-                  <text x={width - 8} y={0} textAnchor="end" dominantBaseline="hanging" fill="#22c55e" fontSize="24" fontWeight="800">
-                    {latest.onlineCount} • {averageOnline.toFixed(1)}
-                  </text>
-                )}
               </svg>
               <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
             </div>
@@ -274,16 +308,6 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
               <span>{samples[selected].players.join(", ") || "В этот момент игроков не было"}</span>
             </div>
           )}
-          <div className="telemetry-events">
-            {(telemetry?.events ?? []).slice(-8).reverse().map((event, index) => (
-              <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
-                <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
-                <strong>{event.username}</strong>
-                <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
-                <time>{formatTelemetryTime(event.recordedAt)}</time>
-              </div>
-            ))}
-          </div>
         </CardContent>
       </Card>
     </>

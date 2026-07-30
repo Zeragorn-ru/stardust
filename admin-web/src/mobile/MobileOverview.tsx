@@ -101,15 +101,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         if (samples.length === 0) return null;
         const latest = samples[samples.length - 1];
         const maxOnline = Math.max(1, ...samples.map((s) => s.onlineCount));
-        const avg = (field: "tps" | "mspt", count: number) => {
-          const slice = samples.slice(-count);
-          return slice.length > 0 ? slice.reduce((s, v) => s + v[field], 0) / slice.length : 0;
-        };
-        const tps5 = avg("tps", 20);
-        const tps10 = avg("tps", 40);
-        const mspt5 = avg("mspt", 20);
-        const mspt10 = avg("mspt", 40);
-        const w = 600, h = 120, chartTop = 44;
+        const w = 600, h = 120, chartTop = 10;
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
           const y = h - 10 - (s.onlineCount / maxOnline) * (h - chartTop - 10);
@@ -117,67 +109,58 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         }).join(" ");
         return (
           <>
-            <section className="m-section-card" style={{ padding: "10px 12px" }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>TPS</div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444" }}>{latest.tps.toFixed(1)}</span>
-                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
-                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
+            <section className="m-section-card m-telemetry-summary">
+              <div className="m-telemetry-summary-head">
+                <div className="m-telemetry-online">
+                  <div className="m-telemetry-online-metric">
+                    <span>Сейчас</span>
+                    <strong>{latest.onlineCount}</strong>
+                    <small>игроков</small>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
-                    <span style={{ flex: 1, textAlign: "center" }}>now</span>
-                    <span style={{ flex: 1, textAlign: "center" }}>5min</span>
-                    <span style={{ flex: 1, textAlign: "center" }}>10min</span>
+                  <div className="m-telemetry-online-metric">
+                    <span>Среднее</span>
+                    <strong>{telemetry.averageOnline.toFixed(1)}</strong>
+                    <small>за 24 часа</small>
                   </div>
                 </div>
-                <div style={{ width: 1, background: "var(--border)", alignSelf: "stretch", margin: "2px 0" }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>MSPT</div>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{latest.mspt.toFixed(1)}</span>
-                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
-                    <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600, color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
-                    <span style={{ flex: 1, textAlign: "center" }}>now</span>
-                    <span style={{ flex: 1, textAlign: "center" }}>5min</span>
-                    <span style={{ flex: 1, textAlign: "center" }}>10min</span>
-                  </div>
+                <div className="m-telemetry-divider" />
+                <div className="m-telemetry-events">
+                  <span className="m-telemetry-label">Последние события</span>
+                  {telemetry.events.slice(-3).reverse().map((ev, i) => (
+                    <div key={`${ev.recordedAt}-${i}`} className="m-telemetry-event">
+                      <span className={`telemetry-event-dot telemetry-event-dot--${ev.event}`} />
+                      <strong>{ev.username}</strong>
+                      <span>{ev.event === "join" ? "вошёл" : "вышел"}</span>
+                      <time>{formatTelemetryTime(ev.recordedAt)}</time>
+                    </div>
+                  ))}
+                  {telemetry.events.length === 0 && <span className="muted">Событий пока нет.</span>}
                 </div>
               </div>
             </section>
-            <div style={{ marginTop: 10, marginBottom: 14 }}>
-              <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "0 8px 6px" }}>
-                <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
-                  <defs>
-                    <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
-                      <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
-                  <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <text x={w - 4} y={0} textAnchor="end" dominantBaseline="hanging" fill="#22c55e" fontSize="24" fontWeight="800">
-                    {latest.onlineCount} • {telemetry.averageOnline.toFixed(1)}
-                  </text>
-                </svg>
-                <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>3ч назад</span><span>сейчас</span></div>
-              </div>
-              {telemetry.events.length > 0 && (
-                <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-                  {telemetry.events.slice(-4).reverse().map((ev, i) => (
-                    <div key={`${ev.recordedAt}-${i}`} style={{ display: "flex", gap: 6, alignItems: "center", padding: "4px 0" }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: ev.event === "join" ? "var(--ok)" : "var(--danger)", flexShrink: 0 }} />
-                      <strong style={{ color: "var(--text)" }}>{ev.username}</strong>
-                      <span>{ev.event === "join" ? "вошёл" : "вышел"}</span>
-                      <time style={{ marginLeft: "auto" }}>{formatTelemetryTime(ev.recordedAt)}</time>
-                    </div>
-                  ))}
+            <section className="m-section-card m-telemetry-chart">
+              <div className="m-section-head">
+                <div>
+                  <span className="m-eyebrow">Live server telemetry</span>
+                  <h2>График онлайна</h2>
                 </div>
-              )}
-            </div>
+              </div>
+              <div className="m-telemetry-chart-wrap">
+                <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "0 8px 6px" }}>
+                  <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
+                    <defs>
+                      <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
+                        <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
+                        <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
+                    <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>3ч назад</span><span>сейчас</span></div>
+                </div>
+              </div>
+            </section>
           </>
         );
       })()}
