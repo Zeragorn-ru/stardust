@@ -105,6 +105,13 @@ body {
     background: var(--bg-deep);
     color: var(--text);
     overflow: hidden;
+    user-select: text;
+}
+
+button,
+[role="button"],
+.titlebar,
+.titlebar__brand {
     user-select: none;
 }
 

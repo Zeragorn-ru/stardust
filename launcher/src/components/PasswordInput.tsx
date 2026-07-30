@@ -33,8 +33,8 @@ export default function PasswordInput({
         type="button"
         className="password-field__toggle"
         onClick={() => setVisible(!visible)}
-        tabIndex={-1}
         aria-label={visible ? "Скрыть пароль" : "Показать пароль"}
+        aria-pressed={visible}
       >
         {visible ? "●" : "○"}
       </button>

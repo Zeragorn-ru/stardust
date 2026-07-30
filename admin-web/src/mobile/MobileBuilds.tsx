@@ -101,7 +101,16 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
             <li
               key={b.id}
               className="m-card"
+              role="button"
+              tabIndex={0}
+              aria-label={`Открыть сборку ${b.name}`}
               onClick={() => onOpenBuild(b.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onOpenBuild(b.id);
+                }
+              }}
             >
               <div className="m-card-body">
                 <div className="m-card-title">
@@ -120,6 +129,7 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
                 <button
                   className="icon-only"
                   title="Клонировать"
+                  aria-label={`Клонировать сборку ${b.name}`}
                   disabled={busy === b.id}
                   onClick={() => cloneBuild(b.id, b.name)}
                 >
@@ -128,6 +138,7 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
                 <button
                   className="danger icon-only"
                   title="Удалить"
+                  aria-label={`Удалить сборку ${b.name}`}
                   disabled={busy === b.id}
                   onClick={() => removeBuild(b.id, b.name)}
                 >

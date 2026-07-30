@@ -307,7 +307,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
               {busy ? "Проверка…" : "Подтвердить кодом"}
             </button>
           </form>
-          {error && <div className="alert alert--error">{error}</div>}
+          {error && <div className="alert alert--error" role="alert">{error}</div>}
           <button
             className="btn btn--ghost"
             type="button"
@@ -361,7 +361,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
             />
           </label>
 
-          {error && <div className="alert alert--error">{error}</div>}
+          {error && <div className="alert alert--error" role="alert">{error}</div>}
 
           <button className="btn btn--primary" type="submit" disabled={busy}>
             {busy ? "Сохранение…" : "Сохранить пароль"}
@@ -407,7 +407,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
             />
           </label>
 
-          {error && <div className="alert alert--error">{error}</div>}
+          {error && <div className="alert alert--error" role="alert">{error}</div>}
 
           <button className="btn btn--primary" type="submit" disabled={busy}>
             {busy ? "Проверка…" : "Подтвердить"}
@@ -485,7 +485,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
           </label>
         )}
 
-        {error && <div className="alert alert--error">{error}</div>}
+        {error && <div className="alert alert--error" role="alert">{error}</div>}
 
         <button className="btn btn--primary" type="submit" disabled={busy}>
           {busy

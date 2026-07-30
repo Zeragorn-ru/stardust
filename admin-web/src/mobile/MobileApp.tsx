@@ -1,7 +1,8 @@
 // Мобильная оболочка админки (/m): один web-app экран с выдвижной левой
-// навигацией. Вкладки переключаются локальным состоянием, без смены URL.
+// навигацией. Вкладки синхронизируются с query-параметрами, чтобы работали
+// обновление страницы и кнопки Back/Forward.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FeedbackProvider } from "../ui/feedback";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { MobileLogin } from "./MobileLogin";
@@ -55,9 +56,10 @@ const NAV: Array<{ tab: MobileTab; label: string; eyebrow: string; icon: ReactNo
 
 function Shell() {
   const { username, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<MobileTab>("overview");
+  const [activeTab, setActiveTab] = useState<MobileTab>(() => readMobileLocation().tab);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedBuildId, setSelectedBuildId] = useState<number | null>(null);
+  const [selectedBuildId, setSelectedBuildId] = useState<number | null>(() => readMobileLocation().buildId);
+  const drawerRef = useRef<HTMLElement>(null);
 
   const activeItem = NAV.find((item) => item.tab === activeTab) ?? NAV[0];
 
@@ -76,16 +78,38 @@ function Shell() {
     };
   }, [drawerOpen]);
 
+  useEffect(() => {
+    if (drawerRef.current) drawerRef.current.inert = !drawerOpen;
+  }, [drawerOpen]);
+
+  useEffect(() => {
+    function onPopState() {
+      const location = readMobileLocation();
+      setActiveTab(location.tab);
+      setSelectedBuildId(location.buildId);
+      setDrawerOpen(false);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   function openTab(tab: MobileTab) {
     setActiveTab(tab);
     setSelectedBuildId(null);
     setDrawerOpen(false);
+    writeMobileLocation(tab, null);
   }
 
   function openBuild(buildId: number) {
     setActiveTab("builds");
     setSelectedBuildId(buildId);
     setDrawerOpen(false);
+    writeMobileLocation("builds", buildId);
+  }
+
+  function closeBuild() {
+    setSelectedBuildId(null);
+    writeMobileLocation("builds", null);
   }
 
   return (
@@ -115,6 +139,7 @@ function Shell() {
       {drawerOpen && <button className="m-drawer-scrim" aria-label="Закрыть меню" onClick={() => setDrawerOpen(false)} />}
       <aside
         id="mobile-drawer"
+        ref={drawerRef}
         className={`m-drawer${drawerOpen ? " open" : ""}`}
         aria-hidden={!drawerOpen}
         aria-label="Навигация админки"
@@ -156,7 +181,7 @@ function Shell() {
         {activeTab === "overview" && <MobileOverview onOpenTab={openTab} onOpenBuild={openBuild} />}
         {activeTab === "builds" && selectedBuildId == null && <MobileBuilds onOpenBuild={openBuild} />}
         {activeTab === "builds" && selectedBuildId != null && (
-          <MobileBuildDetail buildId={selectedBuildId} onBack={() => setSelectedBuildId(null)} onOpenBuild={openBuild} />
+          <MobileBuildDetail buildId={selectedBuildId} onBack={closeBuild} onOpenBuild={openBuild} />
         )}
         {activeTab === "accounts" && <MobileAccounts />}
         {activeTab === "customization" && <MobileCustomization />}
@@ -165,4 +190,23 @@ function Shell() {
       </main>
     </div>
   );
+}
+
+function readMobileLocation(): { tab: MobileTab; buildId: number | null } {
+  const params = new URLSearchParams(window.location.search);
+  const rawTab = params.get("tab");
+  const tab: MobileTab = rawTab === "builds" || rawTab === "accounts" || rawTab === "customization" || rawTab === "news" || rawTab === "settings"
+    ? rawTab
+    : "overview";
+  const rawBuild = params.get("build");
+  const buildId = tab === "builds" && rawBuild && /^\d+$/.test(rawBuild) ? Number(rawBuild) : null;
+  return { tab, buildId };
+}
+
+function writeMobileLocation(tab: MobileTab, buildId: number | null) {
+  const params = new URLSearchParams();
+  if (tab !== "overview") params.set("tab", tab);
+  if (buildId != null) params.set("build", String(buildId));
+  const query = params.toString();
+  window.history.pushState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
 }
