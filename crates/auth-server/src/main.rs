@@ -1343,7 +1343,10 @@ async fn report_crash(
     append_report_summary(&mut summary, "latest.log", Some(&req.log));
     append_report_summary(&mut summary, "debug.log", req.debug_log.as_deref());
     append_report_summary(&mut summary, "launcher.log", req.launcher_log.as_deref());
-    state.store.notify_admins(&summary).await?;
+    state
+        .store
+        .notify_admins_with_document(&summary, "latest.log", req.log.as_bytes())
+        .await?;
     state.store.record_server_log(
         "client_crash",
         Some(&account.username),
