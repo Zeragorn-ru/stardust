@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
-import { parseDate, smoothSvgPath } from "../format";
+import { parseDate } from "../format";
 import { useToast } from "../ui/feedback";
 import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
 
@@ -113,9 +113,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
           const y = h - 10 - (s.onlineCount / maxOnline) * (h - chartTop - 10);
-          return { x, y };
-        });
-        const smoothPath = smoothSvgPath(pathPoints);
+          return `${x},${y}`;
+        }).join(" ");
         return (
           <>
             <section className="m-section-card m-telemetry-performance">
@@ -167,8 +166,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                         <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
                       </linearGradient>
                     </defs>
-                    <path d={`${smoothPath} L ${w},${h} L 0,${h} Z`} fill="url(#m-online-fill)" stroke="none" />
-                    <path d={smoothPath} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
+                    <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>3ч назад</span><span>сейчас</span></div>
                 </div>
