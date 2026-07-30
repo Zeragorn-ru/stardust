@@ -2061,7 +2061,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .ok_or_else(|| "Сессия не найдена, войдите снова".to_string())?;
     let settings = get_settings_cached(&state, &app);
 
-    let child = minecraft::launch(
+    let (child, external_mods) = minecraft::launch(
         app.clone(),
         &state.http(),
         minecraft::LaunchOptions {
@@ -2075,6 +2075,16 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         },
     )
     .await?;
+
+    if !external_mods.is_empty() {
+        let report_http = state.http().clone();
+        let report_token = token.clone();
+        tokio::spawn(async move {
+            if let Err(error) = backend::report_external_mods(&report_http, &report_token, &external_mods).await {
+                tracing::warn!("[security] не удалось отправить отчёт о сторонних модах: {error}");
+            }
+        });
+    }
 
     let launched_at = time::OffsetDateTime::now_utc();
     let launched_at_str = launched_at

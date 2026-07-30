@@ -23,8 +23,9 @@
 mod mojang;
 mod yggdrasil;
 
-use std::sync::Arc;
-use std::time::Duration;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tracing_subscriber::prelude::*;
 
@@ -63,6 +64,8 @@ struct AppState {
     /// Публичный базовый URL (без завершающего слэша), под которым
     /// сервер виден игре. Из него строятся URL текстур и skinDomains.
     public_url: String,
+    /// Ограничивает повторные уведомления о сторонних модах от одного аккаунта.
+    external_mod_alerts: Mutex<HashMap<String, Instant>>,
 }
 
 type Shared = Arc<AppState>;
@@ -114,6 +117,7 @@ async fn main() {
         http,
         keys,
         public_url,
+        external_mod_alerts: Mutex::new(HashMap::new()),
     });
 
     // Фоновое обновление скинов, импортированных с лицензии.
@@ -153,6 +157,7 @@ async fn main() {
         .route("/api/stats", get(stats_get))
         .route("/api/report-crash", post(report_crash))
         .route("/api/news/seen", post(update_news_seen))
+        .route("/api/report-external-mods", post(report_external_mods))
         // --- Yggdrasil / authlib-injector ---
         .route("/", get(ygg_meta))
         .route("/authserver/authenticate", post(ygg_authenticate))
@@ -1344,6 +1349,84 @@ async fn report_crash(
     state.store.notify_admins(&summary).await?;
 
     Ok(StatusCode::OK)
+}
+
+#[derive(Debug, Deserialize)]
+struct ExternalModReportRequest {
+    mods: Vec<ExternalModEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalModEntry {
+    jar_name: String,
+    mod_id: Option<String>,
+    name: Option<String>,
+    version: Option<String>,
+}
+
+async fn report_external_mods(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<ExternalModReportRequest>,
+) -> Result<StatusCode, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    if req.mods.is_empty() {
+        return Ok(StatusCode::OK);
+    }
+
+    {
+        let mut alerts = state
+            .external_mod_alerts
+            .lock()
+            .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Не удалось проверить лимит уведомлений"))?;
+        let now = Instant::now();
+        if alerts
+            .get(&account.uuid)
+            .is_some_and(|last| now.duration_since(*last) < Duration::from_secs(600))
+        {
+            return Ok(StatusCode::OK);
+        }
+        alerts.insert(account.uuid.clone(), now);
+    }
+
+    let mut summary = format!(
+        "⚠️ Обнаружены сторонние моды при запуске Minecraft\nИгрок: «{}»\n\n",
+        clean_alert_field(&account.username),
+    );
+    for entry in req.mods.into_iter().take(32) {
+        let jar_name = clean_alert_field(&entry.jar_name);
+        let name = entry
+            .name
+            .as_deref()
+            .map(clean_alert_field)
+            .unwrap_or_else(|| "неизвестно".to_string());
+        let mod_id = entry
+            .mod_id
+            .as_deref()
+            .map(clean_alert_field)
+            .unwrap_or_else(|| "неизвестно".to_string());
+        let version = entry
+            .version
+            .as_deref()
+            .map(clean_alert_field)
+            .unwrap_or_else(|| "неизвестно".to_string());
+        summary.push_str(&format!("• {jar_name}\n  {name} | id: {mod_id} | версия: {version}\n"));
+    }
+    summary = summary.chars().take(3900).collect();
+    state.store.notify_admins(&summary).await?;
+    Ok(StatusCode::OK)
+}
+
+fn clean_alert_field(value: &str) -> String {
+    value
+        .chars()
+        .filter(|ch| !ch.is_control())
+        .collect::<String>()
+        .trim()
+        .chars()
+        .take(160)
+        .collect()
 }
 
 fn append_report_summary(summary: &mut String, name: &str, report: Option<&str>) {

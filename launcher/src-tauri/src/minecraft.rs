@@ -6,6 +6,7 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Instant;
@@ -46,7 +47,7 @@ pub async fn launch(
     app: AppHandle,
     http: &reqwest::Client,
     options: LaunchOptions,
-) -> Result<Child, String> {
+) -> Result<(Child, Vec<crate::backend::ExternalModReport>), String> {
     let LaunchOptions {
         data_dir,
         settings_memory_mb,
@@ -218,7 +219,100 @@ pub async fn launch(
         .spawn()
         .map_err(|e| format!("Не удалось запустить Java/Minecraft: {e}"))?;
 
-    Ok(child)
+    Ok((child, scan_external_mods(&game_dir, manifest.as_ref())))
+}
+
+fn scan_external_mods(
+    game_dir: &Path,
+    manifest: Option<&protocol::Manifest>,
+) -> Vec<crate::backend::ExternalModReport> {
+    let managed_names: std::collections::HashSet<String> = manifest
+        .into_iter()
+        .flat_map(protocol::Manifest::client_files)
+        .filter(|entry| entry.kind == protocol::FileKind::Mod && entry.path.starts_with("mods/"))
+        .filter_map(|entry| Path::new(&entry.path).file_name())
+        .map(|name| name.to_string_lossy().to_ascii_lowercase())
+        .collect();
+
+    let Ok(entries) = fs::read_dir(game_dir.join("mods")) else {
+        return Vec::new();
+    };
+    let mut reports = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file()
+            || path.extension().is_none_or(|ext| !ext.eq_ignore_ascii_case("jar"))
+        {
+            continue;
+        }
+        let jar_name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "unknown.jar".to_string());
+        if managed_names.contains(&jar_name.to_ascii_lowercase()) {
+            continue;
+        }
+        let (mod_id, name, version) = read_jar_metadata(&path);
+        reports.push(crate::backend::ExternalModReport {
+            jar_name,
+            mod_id,
+            name,
+            version,
+        });
+        if reports.len() >= 32 {
+            break;
+        }
+    }
+    reports.sort_by(|a, b| a.jar_name.cmp(&b.jar_name));
+    reports
+}
+
+fn read_jar_metadata(path: &Path) -> (Option<String>, Option<String>, Option<String>) {
+    let Ok(file) = fs::File::open(path) else {
+        return (None, None, None);
+    };
+    let Ok(mut archive) = zip::ZipArchive::new(file) else {
+        return (None, None, None);
+    };
+
+    for metadata_path in ["META-INF/neoforge.mods.toml", "META-INF/mods.toml"] {
+        let Ok(mut entry) = archive.by_name(metadata_path) else {
+            continue;
+        };
+        let mut content = String::new();
+        if entry.read_to_string(&mut content).is_err() {
+            continue;
+        }
+        if let Ok(value) = content.parse::<toml::Value>() {
+            if let Some(mod_entry) = value
+                .get("mods")
+                .and_then(toml::Value::as_array)
+                .and_then(|mods| mods.first())
+            {
+                return (
+                    mod_entry.get("modId").and_then(toml::Value::as_str).map(str::to_owned),
+                    mod_entry.get("displayName").and_then(toml::Value::as_str).map(str::to_owned),
+                    mod_entry.get("version").and_then(toml::Value::as_str).map(str::to_owned),
+                );
+            }
+        }
+    }
+
+    let Ok(mut entry) = archive.by_name("fabric.mod.json") else {
+        return (None, None, None);
+    };
+    let mut content = String::new();
+    if entry.read_to_string(&mut content).is_err() {
+        return (None, None, None);
+    }
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return (None, None, None);
+    };
+    (
+        value.get("id").and_then(serde_json::Value::as_str).map(str::to_owned),
+        value.get("name").and_then(serde_json::Value::as_str).map(str::to_owned),
+        value.get("version").and_then(serde_json::Value::as_str).map(str::to_owned),
+    )
 }
 
 #[cfg_attr(not(windows), allow(unused_variables))]

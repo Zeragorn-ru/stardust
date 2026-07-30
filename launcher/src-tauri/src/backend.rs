@@ -12,7 +12,7 @@ use protocol::{
     RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
     NewsHighlight, NewsPost, TelegramLinkResponse, TwoFactorRequest,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
 /// URL auth-сервера по умолчанию (продакшен). Для локальной разработки
@@ -129,6 +129,32 @@ pub async fn fetch_manifest(
             Err(network_error(e))
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalModReport {
+    pub jar_name: String,
+    pub mod_id: Option<String>,
+    pub name: Option<String>,
+    pub version: Option<String>,
+}
+
+pub async fn report_external_mods(
+    client: &reqwest::Client,
+    token: &str,
+    mods: &[ExternalModReport],
+) -> Result<(), String> {
+    client
+        .post(format!("{}/api/report-external-mods", base_url()))
+        .bearer_auth(token)
+        .json(&serde_json::json!({ "mods": mods }))
+        .send()
+        .await
+        .map_err(network_error)?
+        .error_for_status()
+        .map(|_| ())
+        .map_err(|e| format!("Не удалось отправить отчёт о сторонних модах ({e})"))
 }
 
 fn read_cached_manifest(cache_path: &std::path::Path) -> Option<protocol::Manifest> {
