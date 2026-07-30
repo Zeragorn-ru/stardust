@@ -109,7 +109,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         const tps10 = avg("tps", 40);
         const mspt5 = avg("mspt", 20);
         const mspt10 = avg("mspt", 40);
-        const w = 600, h = 120, chartTop = 38;
+        const w = 600, h = 120, chartTop = 30;
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
           const y = h - 10 - (s.onlineCount / maxOnline) * (h - chartTop - 10);
@@ -149,7 +149,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
               </div>
             </section>
             <div style={{ marginTop: 10, marginBottom: 14 }}>
-              <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px" }}>
+              <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "0 8px 6px" }}>
                 <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
                   <defs>
                     <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
@@ -159,7 +159,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                   </defs>
                   <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
                   <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  <text x={w - 4} y={28} textAnchor="end" fill="#22c55e" fontSize="28" fontWeight="800">{latest.onlineCount}</text>
+                  <text x={w - 4} y={24} textAnchor="end" fill="#22c55e" fontSize="28" fontWeight="800">{latest.onlineCount}</text>
                 </svg>
                 <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>3ч назад</span><span>сейчас</span></div>
               </div>

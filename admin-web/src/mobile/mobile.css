@@ -458,6 +458,13 @@
     color: var(--text);
     background: rgba(255, 255, 255, 0.025);
     text-decoration: none;
+    transition: transform var(--ease), border-color var(--ease), background var(--ease), box-shadow var(--ease);
+}
+
+.m-service-row:active,
+.m-wide-action:active,
+.m-journey-card:active {
+    transform: scale(0.96);
 }
 
 .m-wide-action + .m-wide-action {
@@ -483,6 +490,7 @@
     color: var(--text);
     background: rgba(255, 255, 255, 0.028);
     text-align: left;
+    transition: transform var(--ease), border-color var(--ease), background var(--ease), box-shadow var(--ease);
 }
 
 .m-journey-card strong {

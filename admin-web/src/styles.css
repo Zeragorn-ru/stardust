@@ -134,7 +134,7 @@ button:hover:not(:disabled) {
 }
 
 button:active:not(:disabled) {
-    transform: translateY(1px);
+    transform: scale(0.96);
 }
 
 button:disabled {
@@ -2301,7 +2301,7 @@ td.num {
     padding: 24px;
     width: 100%;
     max-width: 420px;
-    box-shadow: var(--shadow-lg);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42), 0 4px 18px rgba(0, 0, 0, 0.24);
     animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -3282,7 +3282,7 @@ button,
 
 .sd-button:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 12px 28px rgba(115, 215, 255, 0.12);
+    box-shadow: 0 8px 22px rgba(115, 215, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
 .sd-button:focus-visible {
