@@ -142,7 +142,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </div>
               </div>
             </section>
-            <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10, marginBottom: 14 }}>
               <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "4px 8px 6px" }}>
                 <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
                   <defs>
