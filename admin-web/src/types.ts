@@ -163,3 +163,17 @@ export interface ServerTelemetry {
   events: ServerPlayerEvent[];
   averageOnline: number;
 }
+
+export interface ServerLogEntry {
+  id: number;
+  recordedAt: string;
+  eventType: "external_mods" | "join" | "quit" | "client_crash" | "server_crash" | string;
+  username?: string;
+  summary: string;
+  details: Record<string, unknown>;
+}
+
+export interface ServerLogsResponse {
+  logs: ServerLogEntry[];
+  averageOnline: number;
+}

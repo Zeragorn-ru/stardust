@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import type { NewsPost } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
+import { formatDateTime } from "../format";
 
 export function NewsView({ mobile = false }: { mobile?: boolean }) {
   const toast = useToast();
@@ -167,5 +168,5 @@ function NewsEditor({ initial, mobile, onClose, onSaved }: {
 
 function formatDate(value: string) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("ru-RU", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(date.getTime()) ? value : formatDateTime(value, { day: "2-digit", month: "short" });
 }

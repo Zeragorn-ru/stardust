@@ -18,6 +18,7 @@ import type {
   PlayerStats,
   Settings,
   ServerTelemetry,
+  ServerLogsResponse,
   UploadMeta,
 } from "./types";
 import { baseName } from "./format";
@@ -250,6 +251,10 @@ export const api = {
 
   getServerTelemetry(): Promise<ServerTelemetry> {
     return request("GET", "/api/server/telemetry");
+  },
+
+  getServerLogs(): Promise<ServerLogsResponse> {
+    return request("GET", "/api/server/logs");
   },
   generateServerTelemetryToken(): Promise<{ token: string }> {
     return request("POST", "/api/settings/server-token/generate");

@@ -209,6 +209,7 @@ async fn main() {
         .route("/api/settings/sync-stats", post(sync_stats))
         .route("/api/settings/server-token/generate", post(generate_server_token))
         .route("/api/server/telemetry", get(server_telemetry))
+        .route("/api/server/logs", get(server_logs))
         .route(
             "/api/settings/reset-fingerprint",
             post(reset_fingerprint),
@@ -2540,6 +2541,20 @@ async fn server_telemetry(
     Ok(Json(serde_json::json!({
         "samples": samples,
         "events": events,
+        "averageOnline": average_online,
+    })))
+}
+
+async fn server_logs(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let since = OffsetDateTime::now_utc() - time::Duration::days(30);
+    let logs = state.store.server_logs_since(since).await.map_err(map_store)?;
+    let average_online = state.store.telemetry_average_online().await.map_err(map_store)?;
+    Ok(Json(serde_json::json!({
+        "logs": logs,
         "averageOnline": average_online,
     })))
 }

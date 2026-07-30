@@ -4,6 +4,7 @@ import type { Account, PlayerStats } from "../types";
 import { useToast } from "../ui/feedback";
 import { IconCopy, IconSearch, IconSync } from "../ui/icons";
 import { PlayerCardModal } from "../ui/PlayerCardModal";
+import { formatDateTime } from "../format";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
 
 function normalizeUuid(uuid: string): string {
@@ -23,7 +24,7 @@ function formatLastJoin(iso?: string): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return formatDateTime(iso, { day: "2-digit", month: "2-digit" });
 }
 
 async function copyText(value: string) {

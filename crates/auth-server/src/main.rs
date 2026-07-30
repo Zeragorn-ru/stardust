@@ -1344,6 +1344,12 @@ async fn report_crash(
     append_report_summary(&mut summary, "debug.log", req.debug_log.as_deref());
     append_report_summary(&mut summary, "launcher.log", req.launcher_log.as_deref());
     state.store.notify_admins(&summary).await?;
+    state.store.record_server_log(
+        "client_crash",
+        Some(&account.username),
+        "Клиент Minecraft завершился аварийно",
+        serde_json::json!({ "exitCode": req.exit_code, "crashReport": req.crash_report }),
+    ).await?;
 
     Ok(StatusCode::OK)
 }
@@ -1385,6 +1391,18 @@ async fn report_server_crash(
     );
     append_report_summary(&mut summary, "stack trace", Some(&req.stack_trace));
     state.store.notify_admins(&summary).await?;
+    state.store.record_server_log(
+        "server_crash",
+        None,
+        "Dedicated server завершился аварийно",
+        serde_json::json!({
+            "server": req.server,
+            "thread": req.thread,
+            "errorClass": req.error_class,
+            "message": req.message,
+            "stackTrace": req.stack_trace,
+        }),
+    ).await?;
     Ok(StatusCode::OK)
 }
 
@@ -1393,7 +1411,7 @@ struct ExternalModReportRequest {
     mods: Vec<ExternalModEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExternalModEntry {
     jar_name: String,
@@ -1416,7 +1434,8 @@ async fn report_external_mods(
         "⚠️ Обнаружены сторонние моды при запуске Minecraft\nИгрок: «{}»\n\n",
         clean_alert_field(&account.username),
     );
-    for entry in req.mods.into_iter().take(32) {
+    let mods = req.mods;
+    for entry in mods.iter().take(32) {
         let jar_name = clean_alert_field(&entry.jar_name);
         let name = entry
             .name
@@ -1444,6 +1463,12 @@ async fn report_external_mods(
         .store
         .notify_admins_with_markup(&summary, Some(&reply_markup), None)
         .await?;
+    state.store.record_server_log(
+        "external_mods",
+        Some(&account.username),
+        "Запуск Minecraft со сторонними модами",
+        serde_json::json!({ "mods": mods }),
+    ).await?;
     Ok(StatusCode::OK)
 }
 

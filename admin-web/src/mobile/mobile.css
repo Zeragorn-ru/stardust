@@ -22,6 +22,42 @@
     padding: 14px 12px;
 }
 
+.m-telemetry-performance {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 12px;
+    padding: 12px;
+}
+
+.m-telemetry-performance-block {
+    min-width: 0;
+}
+
+.m-telemetry-performance-values,
+.m-telemetry-performance-labels {
+    display: flex;
+    justify-content: space-around;
+    gap: 6px;
+}
+
+.m-telemetry-performance-values {
+    margin-top: 5px;
+    color: var(--ok);
+}
+
+.m-telemetry-performance-values--blue {
+    color: #38bdf8;
+}
+
+.m-telemetry-performance-values strong {
+    font-size: 20px;
+}
+
+.m-telemetry-performance-labels {
+    color: var(--faint);
+    font-size: 10px;
+}
+
 .m-telemetry-summary-head {
     display: grid;
     grid-template-columns: minmax(0, .9fr) 1px minmax(0, 1.4fr);
@@ -33,6 +69,25 @@
     display: flex;
     justify-content: space-around;
     gap: 10px;
+}
+
+.m-telemetry-players {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 5px 12px;
+    max-height: 92px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+}
+
+.m-telemetry-players span {
+    overflow: hidden;
+    color: var(--text);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .m-telemetry-online-metric {

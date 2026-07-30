@@ -6,6 +6,7 @@ import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { SkinHead } from "../ui/SkinHead";
 import { useConfirm, useToast } from "./feedback";
 import { PlayerSkinTab } from "./PlayerSkinTab";
+import { formatDateTime } from "../format";
 
 type Tab = "info" | "skin" | "badges" | "actions";
 
@@ -142,7 +143,7 @@ function InfoTab({ account }: { account: Account }) {
             <td>
               {account.banned ? (
                 <span className="badge banned">
-                  забанен{account.bannedUntil ? ` до ${new Date(account.bannedUntil).toLocaleString()}` : " навсегда"}
+                   забанен{account.bannedUntil ? ` до ${formatDateTime(account.bannedUntil)}` : " навсегда"}
                 </span>
               ) : (
                 <span className="badge">нет</span>
@@ -158,8 +159,8 @@ function InfoTab({ account }: { account: Account }) {
               <tr>
                 <td className="muted">Последний заход</td>
                 <td>
-                  {stats.lastJoinedAt
-                    ? new Date(stats.lastJoinedAt).toLocaleString()
+                   {stats.lastJoinedAt
+                     ? formatDateTime(stats.lastJoinedAt)
                     : "—"}
                 </td>
               </tr>

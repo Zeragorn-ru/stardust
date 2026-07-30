@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
-import { formatTelemetryTime, parseDate } from "../format";
+import { parseDate } from "../format";
 import { useToast } from "../ui/feedback";
 import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
 
@@ -101,6 +101,14 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         if (samples.length === 0) return null;
         const latest = samples[samples.length - 1];
         const maxOnline = Math.max(1, ...samples.map((s) => s.onlineCount));
+        const avg = (field: "tps" | "mspt", count: number) => {
+          const slice = samples.slice(-count);
+          return slice.length > 0 ? slice.reduce((sum, sample) => sum + sample[field], 0) / slice.length : 0;
+        };
+        const tps5 = avg("tps", 20);
+        const tps10 = avg("tps", 40);
+        const mspt5 = avg("mspt", 20);
+        const mspt10 = avg("mspt", 40);
         const w = 600, h = 120, chartTop = 10;
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
@@ -109,6 +117,23 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         }).join(" ");
         return (
           <>
+            <section className="m-section-card m-telemetry-performance">
+              <div className="m-telemetry-performance-block">
+                <span className="m-telemetry-label">TPS</span>
+                <div className="m-telemetry-performance-values">
+                  <strong>{latest.tps.toFixed(1)}</strong><strong>{tps5.toFixed(1)}</strong><strong>{tps10.toFixed(1)}</strong>
+                </div>
+                <div className="m-telemetry-performance-labels"><span>now</span><span>5min</span><span>10min</span></div>
+              </div>
+              <div className="m-telemetry-divider" />
+              <div className="m-telemetry-performance-block">
+                <span className="m-telemetry-label">MSPT</span>
+                <div className="m-telemetry-performance-values m-telemetry-performance-values--blue">
+                  <strong>{latest.mspt.toFixed(1)}</strong><strong>{mspt5.toFixed(1)}</strong><strong>{mspt10.toFixed(1)}</strong>
+                </div>
+                <div className="m-telemetry-performance-labels"><span>now</span><span>5min</span><span>10min</span></div>
+              </div>
+            </section>
             <section className="m-section-card m-telemetry-summary">
               <div className="m-telemetry-summary-head">
                 <div className="m-telemetry-online">
@@ -117,24 +142,11 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                     <strong>{latest.onlineCount}</strong>
                     <small>игроков</small>
                   </div>
-                  <div className="m-telemetry-online-metric">
-                    <span>Среднее</span>
-                    <strong>{telemetry.averageOnline.toFixed(1)}</strong>
-                    <small>за 24 часа</small>
-                  </div>
                 </div>
                 <div className="m-telemetry-divider" />
-                <div className="m-telemetry-events">
-                  <span className="m-telemetry-label">Последние события</span>
-                  {telemetry.events.slice(-3).reverse().map((ev, i) => (
-                    <div key={`${ev.recordedAt}-${i}`} className="m-telemetry-event">
-                      <span className={`telemetry-event-dot telemetry-event-dot--${ev.event}`} />
-                      <strong>{ev.username}</strong>
-                      <span>{ev.event === "join" ? "вошёл" : "вышел"}</span>
-                      <time>{formatTelemetryTime(ev.recordedAt)}</time>
-                    </div>
-                  ))}
-                  {telemetry.events.length === 0 && <span className="muted">Событий пока нет.</span>}
+                <div className="m-telemetry-players" aria-label="Игроки онлайн">
+                  {latest.players.map((player) => <span key={player}>{player}</span>)}
+                  {latest.players.length === 0 && <span className="muted">Никого нет</span>}
                 </div>
               </div>
             </section>

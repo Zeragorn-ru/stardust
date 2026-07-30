@@ -16,7 +16,8 @@ import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
 import { CustomizationView } from "../views/CustomizationView";
 import { NewsView } from "../views/NewsView";
-import { IconBox, IconChart, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
+import { LogsView } from "../views/LogsView";
+import { IconBox, IconChart, IconFile, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
 export function DesktopApp() {
@@ -126,6 +127,9 @@ function Shell() {
           >
             <IconStar /> <span className="nav-label">Новости</span>
           </NavLink>
+          <NavLink to="/logs" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+            <IconFile /> <span className="nav-label">Логи</span>
+          </NavLink>
         </nav>
         <div className="sidebar-foot">
           {username && (
@@ -167,6 +171,7 @@ function Shell() {
             <Route path="/accounts" element={<AccountsView />} />
             <Route path="/customization" element={<CustomizationView />} />
             <Route path="/news" element={<NewsView />} />
+            <Route path="/logs" element={<LogsView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
@@ -202,6 +207,11 @@ function sectionDetails(section: string): { title: string; description: string }
       return {
         title: "Новости",
         description: "Публикации и закреплённые объявления для лаунчера.",
+      };
+    case "logs":
+      return {
+        title: "Логи сервера",
+        description: "Запуски, входы, выходы и аварийные завершения Minecraft.",
       };
     default:
       return {

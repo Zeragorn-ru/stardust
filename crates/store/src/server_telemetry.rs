@@ -33,6 +33,18 @@ pub struct PlayerEvent {
     pub event: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ServerLogEntry {
+    pub id: i64,
+    #[serde(rename = "recordedAt")]
+    pub recorded_at: String,
+    #[serde(rename = "eventType")]
+    pub event_type: String,
+    pub username: Option<String>,
+    pub summary: String,
+    pub details: serde_json::Value,
+}
+
 impl Store {
     pub async fn record_telemetry(&self, heartbeat: &TelemetryHeartbeat) -> Result<(), StoreError> {
         let players = serde_json::to_value(&heartbeat.players)
@@ -74,7 +86,52 @@ impl Store {
             .bind(event)
             .execute(&self.pool)
             .await?;
+        self.record_server_log(
+            event,
+            Some(username),
+            if event == "join" { "Игрок вошёл на сервер" } else { "Игрок вышел с сервера" },
+            serde_json::json!({}),
+        )
+        .await?;
         Ok(())
+    }
+
+    pub async fn record_server_log(
+        &self,
+        event_type: &str,
+        username: Option<&str>,
+        summary: &str,
+        details: serde_json::Value,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO server_logs (event_type, username, summary, details)
+             VALUES ($1, $2, $3, $4)",
+        )
+        .bind(event_type)
+        .bind(username)
+        .bind(summary)
+        .bind(details)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn server_logs_since(&self, since: OffsetDateTime) -> Result<Vec<ServerLogEntry>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, recorded_at, event_type, username, summary, details
+             FROM server_logs WHERE recorded_at >= $1 ORDER BY recorded_at DESC LIMIT 500",
+        )
+        .bind(since)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|row| ServerLogEntry {
+            id: row.get("id"),
+            recorded_at: format_recorded_at(row.get("recorded_at")),
+            event_type: row.get("event_type"),
+            username: row.get("username"),
+            summary: row.get("summary"),
+            details: row.get("details"),
+        }).collect())
     }
 
     pub async fn telemetry_samples_since(

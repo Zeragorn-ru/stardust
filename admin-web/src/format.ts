@@ -19,7 +19,22 @@ export function parseDate(value: string): Date | null {
 }
 
 export function formatTelemetryTime(value: string): string {
-  return parseDate(value)?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) ?? "—";
+  return parseDate(value)?.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }) ?? "—";
+}
+
+export function formatDateTime(value: string, options: Intl.DateTimeFormatOptions = {}): string {
+  const date = parseDate(value);
+  if (!date) return "—";
+  return date.toLocaleString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    ...options,
+  });
 }
 
 /// Короткий sha1 для отображения (первые 10 символов).
