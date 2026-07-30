@@ -1862,9 +1862,24 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
             .await
             .map_err(|e| internal(format!("парсинг списка релизов: {e}")))?;
 
-        releases
+        let mut mod_releases: Vec<GitHubRelease> = releases
             .into_iter()
-            .find(|r| r.tag_name.starts_with("mod-v"))
+            .filter(|r| r.tag_name.starts_with("mod-v"))
+            .collect();
+        mod_releases.sort_by(|a, b| {
+            let parse = |r: &GitHubRelease| -> Vec<u32> {
+                r.tag_name
+                    .strip_prefix("mod-v")
+                    .unwrap_or(&r.tag_name)
+                    .split('.')
+                    .filter_map(|s| s.parse().ok())
+                    .collect()
+            };
+            parse(b).cmp(&parse(a))
+        });
+        mod_releases
+            .into_iter()
+            .next()
             .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Релизы мода (mod-v*) не найдены"))?
     };
 
