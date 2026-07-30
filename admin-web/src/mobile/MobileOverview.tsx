@@ -95,8 +95,14 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         const latest = telemetry.samples[telemetry.samples.length - 1];
         const samples = telemetry.samples;
         const maxOnline = Math.max(1, ...samples.map((s) => s.onlineCount));
-        const avgTps = samples.reduce((s, v) => s + v.tps, 0) / samples.length;
-        const avgMspt = samples.reduce((s, v) => s + v.mspt, 0) / samples.length;
+        const avg = (field: "tps" | "mspt", count: number) => {
+          const slice = samples.slice(-count);
+          return slice.length > 0 ? slice.reduce((s, v) => s + v[field], 0) / slice.length : 0;
+        };
+        const tps5 = avg("tps", 20);
+        const tps10 = avg("tps", 40);
+        const mspt5 = avg("mspt", 20);
+        const mspt10 = avg("mspt", 40);
         const w = 600, h = 120;
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
@@ -112,8 +118,9 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
               </div>
             </div>
             <div className="m-metric-grid">
-              <Metric label="TPS" value={`${latest.tps.toFixed(1)} / ${avgTps.toFixed(1)}`} hint="" tone={latest.tps >= 18 ? "green" : "yellow"} />
-              <Metric label="Нагрузка" value={`${latest.mspt.toFixed(1)} / ${avgMspt.toFixed(1)}`} hint="ms/тик" tone={latest.mspt <= 40 ? "green" : "yellow"} />
+              <Metric label="TPS" value={latest.tps.toFixed(1)} hint={`5м: ${tps5.toFixed(1)} · 10м: ${tps10.toFixed(1)}`} tone={latest.tps >= 18 ? "green" : "yellow"} />
+              <Metric label="Нагрузка" value={latest.mspt.toFixed(1)} hint={`5м: ${mspt5.toFixed(1)} · 10м: ${mspt10.toFixed(1)}`} tone={latest.mspt <= 40 ? "green" : "yellow"} />
+              <Metric label="Онлайн" value={String(latest.onlineCount)} hint="игроков" tone="blue" />
             </div>
             <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "10px 8px 6px", marginTop: 10 }}>
               <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>

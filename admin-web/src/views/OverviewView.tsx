@@ -182,8 +182,17 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const [selected, setSelected] = useState<number | null>(null);
   const latest = samples[samples.length - 1];
   const maxOnline = Math.max(1, ...samples.map((sample) => sample.onlineCount));
-  const avgTps = samples.length > 0 ? samples.reduce((s, v) => s + v.tps, 0) / samples.length : 0;
-  const avgMspt = samples.length > 0 ? samples.reduce((s, v) => s + v.mspt, 0) / samples.length : 0;
+
+  // Each sample = ~15s. 5min = 20 samples, 10min = 40 samples.
+  const avg = (field: "tps" | "mspt", count: number) => {
+    const slice = samples.slice(-count);
+    return slice.length > 0 ? slice.reduce((s, v) => s + v[field], 0) / slice.length : 0;
+  };
+  const tps5 = avg("tps", 20);
+  const tps10 = avg("tps", 40);
+  const mspt5 = avg("mspt", 20);
+  const mspt10 = avg("mspt", 40);
+
   const width = 900;
   const height = 220;
   const points = samples.map((sample, index) => {
@@ -201,8 +210,16 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
           <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
         </div>
         <div className="telemetry-metrics">
-          <MetricValue label="TPS" value={latest ? `${latest.tps.toFixed(1)} / ${avgTps.toFixed(1)}` : "—"} suffix="" />
-          <MetricValue label="Нагрузка" value={latest ? `${latest.mspt.toFixed(1)} / ${avgMspt.toFixed(1)}` : "—"} suffix=" ms/тик" />
+          <MetricValue
+            label="TPS"
+            value={latest ? latest.tps.toFixed(1) : "—"}
+            sub={`5м: ${tps5.toFixed(1)} · 10м: ${tps10.toFixed(1)}`}
+          />
+          <MetricValue
+            label="Нагрузка"
+            value={latest ? latest.mspt.toFixed(1) : "—"}
+            sub={`5м: ${mspt5.toFixed(1)} · 10м: ${mspt10.toFixed(1)}`}
+          />
         </div>
       </CardHeader>
       <CardContent>
@@ -250,8 +267,8 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   );
 }
 
-function MetricValue({ label, value, suffix }: { label: string; value: string; suffix: string }) {
-  return <div className="telemetry-metric"><small>{label}</small><strong>{value}<em>{suffix}</em></strong></div>;
+function MetricValue({ label, value, suffix, sub }: { label: string; value: string; suffix?: string; sub?: string }) {
+  return <div className="telemetry-metric"><small>{label}</small><strong>{value}{suffix && <em>{suffix}</em>}</strong>{sub && <small className="telemetry-metric-sub">{sub}</small>}</div>;
 }
 
 function formatTelemetryTime(value: string): string {
