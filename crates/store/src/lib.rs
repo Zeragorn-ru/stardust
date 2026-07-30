@@ -30,7 +30,8 @@ pub use build::{
     BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild, UpdateBuild,
 };
 pub use telegram::{
-    ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_DENY,
+    ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_BAN_HOUR,
+    CALLBACK_DENY,
     CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET, SETTING_SFTP_HOST,
     SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
     SETTING_TELEGRAM_USERNAME,
@@ -681,6 +682,31 @@ impl Store {
             return Err(StoreError::NotFound);
         }
         Ok(())
+    }
+
+    /// Банит аккаунт на час по кнопке в Telegram после повторной проверки прав.
+    pub async fn ban_account_from_telegram(
+        &self,
+        admin_chat_id: &str,
+        target_uuid: &str,
+        until: OffsetDateTime,
+        reason: &str,
+    ) -> Result<(), StoreError> {
+        let admin_uuid: Option<String> = sqlx::query_scalar(
+            "SELECT uuid FROM accounts WHERE telegram_chat_id = $1 AND role = 'admin'",
+        )
+        .bind(admin_chat_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some(admin_uuid) = admin_uuid else {
+            return Err(StoreError::NotFound);
+        };
+
+        let target_uuid = normalize_uuid(target_uuid);
+        if normalize_uuid(&admin_uuid) == target_uuid {
+            return Err(StoreError::Backend("нельзя забанить собственный аккаунт".to_string()));
+        }
+        self.ban_account(&target_uuid, Some(until), Some(reason)).await
     }
 
     /// Снимает блокировку с аккаунта.

@@ -18,8 +18,8 @@ use tracing_subscriber::prelude::*;
 use std::time::Duration;
 
 use store::{
-    ChallengeAnswer, Store, CALLBACK_APPROVE, CALLBACK_DENY, SETTING_TELEGRAM_TOKEN,
-    SETTING_TELEGRAM_USERNAME,
+    ChallengeAnswer, Store, CALLBACK_APPROVE, CALLBACK_BAN_HOUR, CALLBACK_DENY,
+    SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 
 /// Как часто опрашивать outbox на новые сообщения.
@@ -400,6 +400,23 @@ async fn handle_callback(
         answer_callback(http, token, &id, None).await;
         return;
     };
+    if let Some(target_uuid) = data.strip_prefix(&format!("{CALLBACK_BAN_HOUR}:")) {
+        let until = time::OffsetDateTime::now_utc() + time::Duration::hours(1);
+        match store
+            .ban_account_from_telegram(&chat_id, target_uuid, until, "читы")
+            .await
+        {
+            Ok(()) => {
+                answer_callback(http, token, &id, Some("Игрок забанен на час")).await;
+                enqueue(store, &chat_id, "Игрок забанен на 1 час. Причина: читы.").await;
+            }
+            Err(e) => {
+                tracing::warn!(?e, "не удалось забанить игрока из Telegram");
+                answer_callback(http, token, &id, Some("Недостаточно прав или игрок уже недоступен")).await;
+            }
+        }
+        return;
+    }
     let Some((action, challenge)) = data.split_once(':') else {
         answer_callback(http, token, &id, None).await;
         return;

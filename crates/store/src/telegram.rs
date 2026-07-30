@@ -45,6 +45,7 @@ pub const CHALLENGE_PASSWORD_RESET: &str = "password_reset";
 /// Префиксы `callback_data` кнопок подтверждения (бот шлёт их обратно).
 pub const CALLBACK_APPROVE: &str = "ok";
 pub const CALLBACK_DENY: &str = "no";
+pub const CALLBACK_BAN_HOUR: &str = "ban1h";
 
 /// Одно сообщение из очереди на отправку (для сервиса telegram-bot).
 #[derive(Debug, Clone)]
@@ -746,11 +747,16 @@ impl Store {
     /// Рассылает уведомление всем админам с привязанным Telegram (фан-аут в
     /// outbox). Ошибки доставки конкретному админу не влияют на остальных.
     pub async fn notify_admins(&self, text: &str) -> Result<(), StoreError> {
-        self.notify_admins_full(text, None).await
+        self.notify_admins_with_markup(text, None, None).await
     }
 
-    /// Рассылает уведомление всем админам с привязанным Telegram с поддержкой parse_mode.
-    pub async fn notify_admins_full(&self, text: &str, parse_mode: Option<&str>) -> Result<(), StoreError> {
+    /// Рассылает уведомление администраторам с inline-клавиатурой.
+    pub async fn notify_admins_with_markup(
+        &self,
+        text: &str,
+        reply_markup: Option<&str>,
+        parse_mode: Option<&str>,
+    ) -> Result<(), StoreError> {
         let chat_ids: Vec<String> = sqlx::query_scalar(
             "SELECT telegram_chat_id FROM accounts
              WHERE role = 'admin' AND telegram_chat_id IS NOT NULL",
@@ -758,9 +764,14 @@ impl Store {
         .fetch_all(&self.pool)
         .await?;
         for chat_id in chat_ids {
-            self.enqueue_message_full(&chat_id, text, None, parse_mode).await?;
+            self.enqueue_message_full(&chat_id, text, reply_markup, parse_mode).await?;
         }
         Ok(())
+    }
+
+    /// Рассылает уведомление всем админам с привязанным Telegram с поддержкой parse_mode.
+    pub async fn notify_admins_full(&self, text: &str, parse_mode: Option<&str>) -> Result<(), StoreError> {
+        self.notify_admins_with_markup(text, None, parse_mode).await
     }
 
     /// Кладёт документ в очередь на отправку.

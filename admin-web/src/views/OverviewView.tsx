@@ -184,7 +184,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const [selected, setSelected] = useState<number | null>(null);
   const latest = samples[samples.length - 1];
   const maxOnline = Math.max(1, ...samples.map((sample) => sample.onlineCount));
-  const chartTop = 42;
+  const chartTop = 56;
 
   // Each sample = ~15s. 5min = 20 samples, 10min = 40 samples.
   const avg = (field: "tps" | "mspt", count: number) => {
@@ -260,8 +260,8 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
                 <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
                 <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                 {latest && (
-                  <text x={width - 8} y={4} textAnchor="end" dominantBaseline="hanging" fill="#22c55e" fontSize="22" fontWeight="800">
-                    {latest.onlineCount} • {averageOnline.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  <text x={width - 8} y={0} textAnchor="end" dominantBaseline="hanging" fill="#22c55e" fontSize="24" fontWeight="800">
+                    {latest.onlineCount} • {averageOnline.toFixed(1)}
                   </text>
                 )}
               </svg>

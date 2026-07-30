@@ -1436,7 +1436,14 @@ async fn report_external_mods(
         summary.push_str(&format!("• {jar_name}\n  {name} | id: {mod_id} | версия: {version}\n"));
     }
     summary = summary.chars().take(3900).collect();
-    state.store.notify_admins(&summary).await?;
+    let reply_markup = format!(
+        r#"{{"inline_keyboard":[[{{"text":"🚫 Забанить на час","callback_data":"ban1h:{}"}}]]}}"#,
+        account.uuid
+    );
+    state
+        .store
+        .notify_admins_with_markup(&summary, Some(&reply_markup), None)
+        .await?;
     Ok(StatusCode::OK)
 }
 
