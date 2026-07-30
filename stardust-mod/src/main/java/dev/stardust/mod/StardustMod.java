@@ -151,13 +151,17 @@ public final class StardustMod {
 
     private long lastTelemetryTick;
     private long telemetryTickNanos;
+    private long telemetryTickIntervalNanos;
     private long lastTickNanos;
     private long telemetryTickCount;
     private void onServerTick(ServerTickEvent.Post event) {
         var server = event.getServer();
         if (server == null) return;
         long now = System.nanoTime();
-        if (lastTickNanos != 0) telemetryTickNanos += now - lastTickNanos;
+        if (lastTickNanos != 0) {
+            telemetryTickNanos += now - lastTickNanos;
+            telemetryTickIntervalNanos += now - lastTickNanos;
+        }
         lastTickNanos = now;
         telemetryTickCount++;
         if (server.getTickCount() - lastTelemetryTick < 300) return;
@@ -165,10 +169,12 @@ public final class StardustMod {
         StardustHttpProvider provider = StardustTabIntegration.getHttpProvider();
         if (provider != null && telemetryTickCount > 1) {
             double mspt = (telemetryTickNanos / (double) telemetryTickCount) / 1_000_000.0;
+            double tps = Math.min(20.0, 1_000_000_000.0 / Math.max(1, telemetryTickIntervalNanos / telemetryTickCount));
             provider.sendTelemetry(
                 server.getPlayerList().getPlayers().stream().map(p -> p.getGameProfile().getName()).toList(),
-                Math.min(20.0, 1000.0 / Math.max(0.001, mspt)), mspt);
+                tps, mspt);
             telemetryTickNanos = 0;
+            telemetryTickIntervalNanos = 0;
             telemetryTickCount = 0;
             lastTickNanos = now;
         }
