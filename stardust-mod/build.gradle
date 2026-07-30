@@ -24,6 +24,13 @@ repositories {
             includeGroup 'com.github.NEZNAMY'
         }
     }
+    maven {
+        name = 'lucko'
+        url = 'https://repo.lucko.me/'
+        content {
+            includeModule 'me.lucko', 'spark-api'
+        }
+    }
 }
 
 neoForge {
@@ -50,6 +57,8 @@ dependencies {
     // TAB's developer API. compileOnly: TAB is installed as a separate mod on
     // the server at runtime and provides these classes. Never shade/relocate it.
     compileOnly 'com.github.NEZNAMY:TAB-API:5.2.1'
+    // Spark API — TPS/MSPT from the profiler. compileOnly: Spark is a separate mod.
+    compileOnly 'me.lucko:spark-api:0.1-SNAPSHOT'
 }
 
 tasks.named('processResources', ProcessResources).configure {

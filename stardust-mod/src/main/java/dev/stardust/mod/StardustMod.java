@@ -157,6 +157,11 @@ public final class StardustMod {
     private void onServerTick(ServerTickEvent.Post event) {
         var server = event.getServer();
         if (server == null) return;
+
+        // Try Spark first — it has accurate TPS/MSPT with proper averaging.
+        me.lucko.spark.api.Spark spark = null;
+        try { spark = me.lucko.spark.api.SparkProvider.get(); } catch (Exception ignored) {}
+
         long now = System.nanoTime();
         if (lastTickNanos != 0) {
             telemetryTickNanos += now - lastTickNanos;
@@ -168,8 +173,15 @@ public final class StardustMod {
         lastTelemetryTick = server.getTickCount();
         StardustHttpProvider provider = StardustTabIntegration.getHttpProvider();
         if (provider != null && telemetryTickCount > 1) {
-            double mspt = (telemetryTickNanos / (double) telemetryTickCount) / 1_000_000.0;
-            double tps = Math.min(20.0, 1_000_000_000.0 / Math.max(1, telemetryTickIntervalNanos / telemetryTickCount));
+            double mspt;
+            double tps;
+            if (spark != null && spark.mspt() != null && spark.tps() != null) {
+                mspt = spark.mspt().poll(me.lucko.spark.api.statistic.StatisticWindow.MillisPerTick.MINUTES_1).mean();
+                tps = spark.tps().poll(me.lucko.spark.api.statistic.StatisticWindow.TicksPerSecond.SECONDS_10);
+            } else {
+                mspt = (telemetryTickNanos / (double) telemetryTickCount) / 1_000_000.0;
+                tps = Math.min(20.0, 1_000_000_000.0 / Math.max(1, telemetryTickIntervalNanos / telemetryTickCount));
+            }
             provider.sendTelemetry(
                 server.getPlayerList().getPlayers().stream().map(p -> p.getGameProfile().getName()).toList(),
                 tps, mspt);
