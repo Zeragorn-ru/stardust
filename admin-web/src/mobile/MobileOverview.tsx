@@ -117,26 +117,32 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 <h2>Телеметрия</h2>
               </div>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, padding: "4px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{latest.tps.toFixed(1)}</span>
-                <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{tps5.toFixed(1)}</span>
-                <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{tps10.toFixed(1)}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "4px 0" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>TPS</div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{latest.tps.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{tps5.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{tps10.toFixed(1)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
+                  <span style={{ flex: 1, textAlign: "center" }}>now</span>
+                  <span style={{ flex: 1, textAlign: "center" }}>5min</span>
+                  <span style={{ flex: 1, textAlign: "center" }}>10min</span>
+                </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".06em" }}>
-                <span style={{ flex: 1, textAlign: "center" }}>TPS now</span>
-                <span style={{ flex: 1, textAlign: "center" }}>5m</span>
-                <span style={{ flex: 1, textAlign: "center" }}>10m</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{latest.mspt.toFixed(1)}</span>
-                <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{mspt5.toFixed(1)}</span>
-                <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{mspt10.toFixed(1)}</span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)", textTransform: "uppercase", letterSpacing: ".06em" }}>
-                <span style={{ flex: 1, textAlign: "center" }}>MSPT now</span>
-                <span style={{ flex: 1, textAlign: "center" }}>5m</span>
-                <span style={{ flex: 1, textAlign: "center" }}>10m</span>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 2 }}>MSPT</div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{latest.mspt.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{mspt5.toFixed(1)}</span>
+                  <span style={{ flex: 1, textAlign: "center", fontSize: 22, fontWeight: 600 }}>{mspt10.toFixed(1)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--faint)" }}>
+                  <span style={{ flex: 1, textAlign: "center" }}>now</span>
+                  <span style={{ flex: 1, textAlign: "center" }}>5min</span>
+                  <span style={{ flex: 1, textAlign: "center" }}>10min</span>
+                </div>
               </div>
             </div>
             <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "10px 8px 6px", marginTop: 10 }}>

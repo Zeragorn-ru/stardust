@@ -65,11 +65,13 @@
 .telemetry-panel { margin-top: 20px; }
 .telemetry-panel .card-header { align-items: flex-start; }
 .telemetry-metrics { display: flex; gap: 18px; flex-wrap: wrap; }
-.telemetry-metrics { display: flex; flex-direction: column; gap: 2px; min-width: 260px; }
+.telemetry-metrics { display: flex; gap: 24px; }
+.telemetry-metric-block { display: flex; flex-direction: column; gap: 2px; min-width: 160px; }
+.telemetry-metric-block small { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-metrics-row { display: flex; justify-content: space-between; }
-.telemetry-metrics-row span { min-width: 70px; text-align: center; font-size: 22px; font-weight: 600; }
+.telemetry-metrics-row span { min-width: 48px; text-align: center; font-size: 22px; font-weight: 600; }
 .telemetry-metrics-labels { display: flex; justify-content: space-between; }
-.telemetry-metrics-labels span { min-width: 70px; text-align: center; font-size: 10px; color: var(--faint); text-transform: uppercase; letter-spacing: .06em; }
+.telemetry-metrics-labels span { min-width: 48px; text-align: center; font-size: 10px; color: var(--faint); }
 .telemetry-metric { min-width: 78px; }
 .telemetry-metric small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-metric strong { display: block; font-size: 22px; margin-top: 4px; }
