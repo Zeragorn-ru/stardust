@@ -210,16 +210,22 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
           <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
         </div>
         <div className="telemetry-metrics">
-          <MetricValue
-            label="TPS"
-            value={latest ? latest.tps.toFixed(1) : "—"}
-            sub={`5м: ${tps5.toFixed(1)} · 10м: ${tps10.toFixed(1)}`}
-          />
-          <MetricValue
-            label="Нагрузка"
-            value={latest ? latest.mspt.toFixed(1) : "—"}
-            sub={`5м: ${mspt5.toFixed(1)} · 10м: ${mspt10.toFixed(1)}`}
-          />
+          <div className="telemetry-metrics-row">
+            <span>{latest ? latest.tps.toFixed(1) : "—"}</span>
+            <span>{tps5.toFixed(1)}</span>
+            <span>{tps10.toFixed(1)}</span>
+          </div>
+          <div className="telemetry-metrics-labels">
+            <span>TPS now</span><span>5m</span><span>10m</span>
+          </div>
+          <div className="telemetry-metrics-row">
+            <span>{latest ? latest.mspt.toFixed(1) : "—"}</span>
+            <span>{mspt5.toFixed(1)}</span>
+            <span>{mspt10.toFixed(1)}</span>
+          </div>
+          <div className="telemetry-metrics-labels">
+            <span>MSPT now</span><span>5m</span><span>10m</span>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -265,10 +271,6 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
       </CardContent>
     </Card>
   );
-}
-
-function MetricValue({ label, value, suffix, sub }: { label: string; value: string; suffix?: string; sub?: string }) {
-  return <div className="telemetry-metric"><small>{label}</small><strong>{value}{suffix && <em>{suffix}</em>}</strong>{sub && <small className="telemetry-metric-sub">{sub}</small>}</div>;
 }
 
 function formatTelemetryTime(value: string): string {
