@@ -23,9 +23,8 @@
 mod mojang;
 mod yggdrasil;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::Arc;
+use std::time::Duration;
 
 use tracing_subscriber::prelude::*;
 
@@ -64,8 +63,6 @@ struct AppState {
     /// Публичный базовый URL (без завершающего слэша), под которым
     /// сервер виден игре. Из него строятся URL текстур и skinDomains.
     public_url: String,
-    /// Ограничивает повторные уведомления о сторонних модах от одного аккаунта.
-    external_mod_alerts: Mutex<HashMap<String, Instant>>,
 }
 
 type Shared = Arc<AppState>;
@@ -117,7 +114,6 @@ async fn main() {
         http,
         keys,
         public_url,
-        external_mod_alerts: Mutex::new(HashMap::new()),
     });
 
     // Фоновое обновление скинов, импортированных с лицензии.
@@ -1414,21 +1410,6 @@ async fn report_external_mods(
     let account = current_account(&state, &headers).await?;
     if req.mods.is_empty() {
         return Ok(StatusCode::OK);
-    }
-
-    {
-        let mut alerts = state
-            .external_mod_alerts
-            .lock()
-            .map_err(|_| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Не удалось проверить лимит уведомлений"))?;
-        let now = Instant::now();
-        if alerts
-            .get(&account.uuid)
-            .is_some_and(|last| now.duration_since(*last) < Duration::from_secs(600))
-        {
-            return Ok(StatusCode::OK);
-        }
-        alerts.insert(account.uuid.clone(), now);
     }
 
     let mut summary = format!(
