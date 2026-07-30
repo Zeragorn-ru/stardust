@@ -95,6 +95,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         const latest = telemetry.samples[telemetry.samples.length - 1];
         const samples = telemetry.samples;
         const maxOnline = Math.max(1, ...samples.map((s) => s.onlineCount));
+        const avgTps = samples.reduce((s, v) => s + v.tps, 0) / samples.length;
+        const avgMspt = samples.reduce((s, v) => s + v.mspt, 0) / samples.length;
         const w = 600, h = 120;
         const pathPoints = samples.map((s, i) => {
           const x = samples.length < 2 ? w / 2 : (i / (samples.length - 1)) * w;
@@ -110,9 +112,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
               </div>
             </div>
             <div className="m-metric-grid">
-              <Metric label="Онлайн" value={String(latest.onlineCount)} hint="игроков" tone="blue" />
-              <Metric label="TPS" value={latest.tps.toFixed(1)} hint="/ 20" tone={latest.tps >= 18 ? "green" : "yellow"} />
-              <Metric label="Нагрузка" value={latest.mspt.toFixed(1)} hint="ms/тик" tone={latest.mspt <= 40 ? "green" : "yellow"} />
+              <Metric label="TPS" value={`${latest.tps.toFixed(1)} / ${avgTps.toFixed(1)}`} hint="" tone={latest.tps >= 18 ? "green" : "yellow"} />
+              <Metric label="Нагрузка" value={`${latest.mspt.toFixed(1)} / ${avgMspt.toFixed(1)}`} hint="ms/тик" tone={latest.mspt <= 40 ? "green" : "yellow"} />
             </div>
             <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "10px 8px 6px", marginTop: 10 }}>
               <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
@@ -124,6 +125,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </defs>
                 <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
                 <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                <text x={w - 4} y={h - 8 - (latest.onlineCount / maxOnline) * (h - 20)} textAnchor="end" fill="var(--accent)" fontSize="14" fontWeight="600">{latest.onlineCount}</text>
               </svg>
               <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>24ч</span><span>сейчас</span></div>
             </div>

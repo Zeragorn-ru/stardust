@@ -182,6 +182,8 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   const [selected, setSelected] = useState<number | null>(null);
   const latest = samples[samples.length - 1];
   const maxOnline = Math.max(1, ...samples.map((sample) => sample.onlineCount));
+  const avgTps = samples.length > 0 ? samples.reduce((s, v) => s + v.tps, 0) / samples.length : 0;
+  const avgMspt = samples.length > 0 ? samples.reduce((s, v) => s + v.mspt, 0) / samples.length : 0;
   const width = 900;
   const height = 220;
   const points = samples.map((sample, index) => {
@@ -195,13 +197,12 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
       <CardHeader>
         <div>
           <span className="eyebrow">Live server telemetry</span>
-          <CardTitle>Онлайн за последние 24 часа</CardTitle>
+          <CardTitle>Телеметрия за 24 часа</CardTitle>
           <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
         </div>
         <div className="telemetry-metrics">
-          <MetricValue label="Сейчас" value={latest ? `${latest.onlineCount}` : "—"} suffix=" игроков" />
-          <MetricValue label="TPS" value={latest ? latest.tps.toFixed(1) : "—"} suffix=" / 20" />
-          <MetricValue label="Нагрузка" value={latest ? latest.mspt.toFixed(1) : "—"} suffix=" ms/тик" />
+          <MetricValue label="TPS" value={latest ? `${latest.tps.toFixed(1)} / ${avgTps.toFixed(1)}` : "—"} suffix="" />
+          <MetricValue label="Нагрузка" value={latest ? `${latest.mspt.toFixed(1)} / ${avgMspt.toFixed(1)}` : "—"} suffix=" ms/тик" />
         </div>
       </CardHeader>
       <CardContent>
@@ -221,6 +222,9 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
               </defs>
               <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
               <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              {latest && (
+                <text x={width - 4} y={height - 22 - (latest.onlineCount / maxOnline) * (height - 40)} textAnchor="end" fill="var(--accent)" fontSize="16" fontWeight="600">{latest.onlineCount}</text>
+              )}
             </svg>
             <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
           </div>
