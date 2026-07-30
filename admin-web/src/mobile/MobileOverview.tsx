@@ -112,7 +112,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         return (
           <>
             <section className="m-section-card" style={{ padding: "10px 12px" }}>
-              <div style={{ display: "flex", gap: 12 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>TPS</div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -126,6 +126,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                     <span style={{ flex: 1, textAlign: "center" }}>10min</span>
                   </div>
                 </div>
+                <div style={{ width: 1, background: "var(--border)", alignSelf: "stretch", margin: "2px 0" }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4, textAlign: "left" }}>MSPT</div>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
