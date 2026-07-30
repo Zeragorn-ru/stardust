@@ -207,8 +207,6 @@ jobs:
             # Фиксируем имя проекта, чтобы контейнеры с жёстким container_name
             # (launcher-*) не оказались "чужими" и не ломали up конфликтом имён.
             export COMPOSE_PROJECT_NAME=stardust
-            # Source .env so POSTGRES_USER/POSTGRES_DB are available for psql.
-            if [ -f .env ]; then set -a; . ./.env; set +a; fi
             docker compose pull
             # Пересоздаём стек начисто: сносим контейнеры проекта и orphan'ов.
             docker compose down --remove-orphans
@@ -219,19 +217,6 @@ jobs:
                 docker rm -f "$name" >/dev/null 2>&1 || true
               fi
             done
-            # Запускаем БД отдельно и чиним checksum миграций до старта сервисов.
-            docker compose up -d auth-db
-            echo "Waiting for auth-db to be healthy..."
-            for i in $(seq 1 30); do
-              if docker compose exec -T auth-db pg_isready -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" >/dev/null 2>&1; then
-                echo "auth-db is ready"; break
-              fi
-              sleep 1
-            done
-            # Чиним checksum migration 17 — удаляем запись, чтобы sqlx переприменил.
-            # Миграция использует CREATE TABLE IF NOT EXISTS, поэтому re-apply безопасен.
-            docker compose exec -T auth-db psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" \
-              -c "DELETE FROM _sqlx_migrations WHERE version = 17" || true
             docker compose up -d --remove-orphans
             docker compose ps
             failed=0

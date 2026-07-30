@@ -43,6 +43,12 @@ services:
     depends_on:
       auth-db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:8080/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     environment:
       AUTH_BIND: 0.0.0.0:8080
       # Строка подключения PostgreSQL. Миграции применяются автоматически
@@ -74,7 +80,7 @@ services:
     container_name: launcher-admin-server
     restart: unless-stopped
     depends_on:
-      auth-db:
+      auth-server:
         condition: service_healthy
     environment:
       ADMIN_BIND: 0.0.0.0:8081
@@ -109,7 +115,7 @@ services:
     container_name: launcher-telegram-bot
     restart: unless-stopped
     depends_on:
-      auth-db:
+      auth-server:
         condition: service_healthy
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
