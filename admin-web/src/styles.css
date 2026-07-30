@@ -63,6 +63,9 @@
 }
 
 .telemetry-panel { margin-top: 20px; }
+.telemetry-cards-row { display: flex; gap: 16px; margin-top: 20px; }
+.telemetry-cards-row .telemetry-panel { margin-top: 0; flex: 1; }
+.telemetry-card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-panel .card-header { align-items: flex-start; }
 .telemetry-metrics { display: flex; gap: 18px; flex-wrap: wrap; }
 .telemetry-metrics { display: flex; gap: 24px; }

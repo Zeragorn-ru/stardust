@@ -202,16 +202,11 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   }).join(" ");
 
   return (
-    <Card className="panel-flat telemetry-panel">
-      <CardHeader>
-        <div>
-          <span className="eyebrow">Live server telemetry</span>
-          <CardTitle>Телеметрия за 24 часа</CardTitle>
-          <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
-        </div>
-        <div className="telemetry-metrics">
-          <div className="telemetry-metric-block">
-            <small>TPS</small>
+    <>
+      <div className="telemetry-cards-row">
+        <Card className="panel-flat telemetry-panel">
+          <CardHeader><small className="telemetry-card-label">TPS</small></CardHeader>
+          <CardContent>
             <div className="telemetry-metrics-row">
               <span style={{ color: latest ? (latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444") : undefined }}>{latest ? latest.tps.toFixed(1) : "—"}</span>
               <span style={{ color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
@@ -220,9 +215,11 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
             <div className="telemetry-metrics-labels">
               <span>now</span><span>5min</span><span>10min</span>
             </div>
-          </div>
-          <div className="telemetry-metric-block">
-            <small>MSPT</small>
+          </CardContent>
+        </Card>
+        <Card className="panel-flat telemetry-panel">
+          <CardHeader><small className="telemetry-card-label">MSPT</small></CardHeader>
+          <CardContent>
             <div className="telemetry-metrics-row">
               <span style={{ color: "#38bdf8" }}>{latest ? latest.mspt.toFixed(1) : "—"}</span>
               <span style={{ color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
@@ -231,51 +228,60 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
             <div className="telemetry-metrics-labels">
               <span>now</span><span>5min</span><span>10min</span>
             </div>
+          </CardContent>
+        </Card>
+      </div>
+      <Card className="panel-flat telemetry-panel">
+        <CardHeader>
+          <div>
+            <span className="eyebrow">Live server telemetry</span>
+            <CardTitle>Онлайн за 24 часа</CardTitle>
+            <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
           </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {samples.length === 0 ? <p className="muted">Мод ещё не прислал телеметрию.</p> : (
-          <div className="telemetry-chart-wrap">
-            <svg className="telemetry-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="График онлайна" onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const relX = (e.clientX - rect.left) / rect.width;
-              const idx = Math.round(relX * (samples.length - 1));
-              setSelected(idx >= 0 && idx < samples.length ? idx : null);
-            }}>
-              <defs>
-                <linearGradient id="online-fill" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
-                  <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
-                </linearGradient>
-              </defs>
-              <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
-              <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-              {latest && (
-                <text x={width - 8} y={22} textAnchor="end" fill="#22c55e" fontSize="18" fontWeight="700">{latest.onlineCount}</text>
-              )}
-            </svg>
-            <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
-          </div>
-        )}
-        {selected !== null && samples[selected] && (
-          <div className="telemetry-selected">
-            <strong>{formatTelemetryTime(samples[selected].recordedAt)} · {samples[selected].onlineCount} игроков</strong>
-            <span>{samples[selected].players.join(", ") || "В этот момент игроков не было"}</span>
-          </div>
-        )}
-        <div className="telemetry-events">
-          {(telemetry?.events ?? []).slice(-8).reverse().map((event, index) => (
-            <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
-              <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
-              <strong>{event.username}</strong>
-              <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
-              <time>{formatTelemetryTime(event.recordedAt)}</time>
+        </CardHeader>
+        <CardContent>
+          {samples.length === 0 ? <p className="muted">Мод ещё не прислал телеметрию.</p> : (
+            <div className="telemetry-chart-wrap">
+              <svg className="telemetry-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="График онлайна" onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const relX = (e.clientX - rect.left) / rect.width;
+                const idx = Math.round(relX * (samples.length - 1));
+                setSelected(idx >= 0 && idx < samples.length ? idx : null);
+              }}>
+                <defs>
+                  <linearGradient id="online-fill" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
+                    <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
+                <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                {latest && (
+                  <text x={width - 8} y={22} textAnchor="end" fill="#22c55e" fontSize="18" fontWeight="700">{latest.onlineCount}</text>
+                )}
+              </svg>
+              <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
             </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+          )}
+          {selected !== null && samples[selected] && (
+            <div className="telemetry-selected">
+              <strong>{formatTelemetryTime(samples[selected].recordedAt)} · {samples[selected].onlineCount} игроков</strong>
+              <span>{samples[selected].players.join(", ") || "В этот момент игроков не было"}</span>
+            </div>
+          )}
+          <div className="telemetry-events">
+            {(telemetry?.events ?? []).slice(-8).reverse().map((event, index) => (
+              <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
+                <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
+                <strong>{event.username}</strong>
+                <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
+                <time>{formatTelemetryTime(event.recordedAt)}</time>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 
