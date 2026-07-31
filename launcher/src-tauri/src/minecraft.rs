@@ -1350,6 +1350,12 @@ async fn ensure_neoforge(
             let _ = fs::remove_file(&installer);
             continue;
         }
+        if let Err(e) = validate_downloaded_file(&installer, &expected_sha1) {
+            last_err = format!("NeoForge installer изменён после загрузки: {e}");
+            tracing::warn!("[neoforge] {last_err} (попытка {attempt})");
+            let _ = fs::remove_file(&installer);
+            continue;
+        }
 
         progress.set_label(
             "extracting",
@@ -1468,6 +1474,14 @@ fn validate_neoforge_installer(path: &Path) -> Result<(), String> {
         .by_name("net/minecraftforge/installer/SimpleInstaller.class")
         .map(|_| ())
         .map_err(|_| "в JAR отсутствует net/minecraftforge/installer/SimpleInstaller.class".to_string())
+}
+
+fn validate_downloaded_file(path: &Path, expected_sha1: &str) -> Result<(), String> {
+    let actual = compute_sha1(path)?;
+    if !actual.eq_ignore_ascii_case(expected_sha1) {
+        return Err(format!("SHA-1 не совпал: {actual} != {expected_sha1}"));
+    }
+    validate_neoforge_installer(path)
 }
 
 /// Читает установленный профиль NeoForge из versions/<id>/<id>.json.
@@ -1696,7 +1710,16 @@ async fn download_inner(
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
 
-    let tmp = path.with_extension("download");
+    // Не используем общий `<file>.download`: два параллельных запуска могли
+    // дописывать один временный JAR и затем проверять уже чужое содержимое.
+    let tmp = path.with_extension(format!(
+        "download-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or_default()
+    ));
     let mut last_err = String::new();
 
     for attempt in 1..=MAX_ATTEMPTS {
