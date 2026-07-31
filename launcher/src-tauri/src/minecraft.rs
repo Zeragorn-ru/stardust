@@ -38,41 +38,12 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 /// prefix while keeping the path absolute and resolved.
 #[cfg(windows)]
 fn canonicalize_clean(path: &Path) -> Result<PathBuf, String> {
-    let canonical = fs::canonicalize(path)
-        .map_err(|e| format!("Не удалось определить абсолютный путь {}: {e}", path.display()))?;
-    Ok(strip_extended_prefix(canonical))
+    crate::paths::canonical_clean(path)
 }
 
 #[cfg(not(windows))]
 fn canonicalize_clean(path: &Path) -> Result<PathBuf, String> {
-    let canonical = fs::canonicalize(path)
-        .map_err(|e| format!("Не удалось определить абсолютный путь {}: {e}", path.display()))?;
-    Ok(strip_extended_prefix(canonical))
-}
-
-/// Strip `\\?\` extended-length prefix on Windows.
-#[cfg(windows)]
-fn strip_extended_prefix(path: PathBuf) -> PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(rest) = s.strip_prefix(r"\\?\") {
-        // Only strip for drive-letter paths (C:\...) or UNC paths.
-        let bytes = rest.as_bytes();
-        // Drive letter: single char + ':' + '\'
-        if bytes.len() >= 3 && bytes[1] == b':' && bytes[2] == b'\\' {
-            return PathBuf::from(rest);
-        }
-        // UNC: \\server\share → \\?\UNC\server\share
-        if rest.starts_with("UNC\\") || rest.starts_with("UNC\\") {
-            return PathBuf::from(format!("\\{}", &rest[4..]));
-        }
-    }
-    path
-}
-
-/// Strip `\\?\` extended-length prefix on Windows.
-#[cfg(not(windows))]
-fn strip_extended_prefix(path: PathBuf) -> PathBuf {
-    path
+    crate::paths::canonical_clean(path)
 }
 
 pub struct LaunchOptions {

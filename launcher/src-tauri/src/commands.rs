@@ -1324,13 +1324,11 @@ fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Resul
     }
 
     let source = paths::data_dir(app);
-    let source = source
-        .canonicalize()
+    let source = paths::canonical_clean(&source)
         .map_err(|e| format!("не удалось открыть текущую папку данных: {e}"))?;
     std::fs::create_dir_all(destination)
         .map_err(|e| format!("не удалось создать выбранную папку: {e}"))?;
-    let destination = destination
-        .canonicalize()
+    let destination = paths::canonical_clean(destination)
         .map_err(|e| format!("не удалось открыть выбранную папку: {e}"))?;
 
     tracing::info!(
@@ -1732,19 +1730,19 @@ async fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     }
 
     let target = std::path::Path::new(&path);
-    let target_canonical = match target.canonicalize() {
+    let target_canonical = match paths::canonical_clean(target) {
         Ok(c) => c,
         Err(_) => return Err("путь не существует или недоступен".into()),
     };
 
     let data_dir = paths::data_dir(&app);
-    let data_dir_canonical = match data_dir.canonicalize() {
+    let data_dir_canonical = match paths::canonical_clean(&data_dir) {
         Ok(c) => c,
         Err(_) => return Err("ошибка получения папки данных".into()),
     };
 
     let game_dir = game_dir(&app);
-    let game_dir_canonical = game_dir.canonicalize().ok();
+    let game_dir_canonical = paths::canonical_clean(&game_dir).ok();
 
     let is_descendant = target_canonical.starts_with(&data_dir_canonical)
         || game_dir_canonical
@@ -1764,6 +1762,7 @@ async fn open_java_path(path: String) -> Result<(), String> {
     let target = std::path::Path::new(&path)
         .canonicalize()
         .map_err(|_| "путь Java не существует или недоступен".to_string())?;
+    let target = crate::paths::strip_extended_prefix(target);
     if !target.is_file()
         || !target.file_name().is_some_and(|name| {
             name.eq_ignore_ascii_case("java") || name.eq_ignore_ascii_case("java.exe")
@@ -1904,13 +1903,13 @@ fn allowed_log_roots(app: &AppHandle) -> Result<Vec<std::path::PathBuf>, String>
     let mut roots = Vec::new();
 
     let data_dir = paths::data_dir(app);
-    if let Ok(c) = data_dir.canonicalize() {
+    if let Ok(c) = paths::canonical_clean(&data_dir) {
         roots.push(c);
     }
 
     let log_dir = launcher_log_dir();
     let _ = std::fs::create_dir_all(&log_dir);
-    if let Ok(c) = log_dir.canonicalize() {
+    if let Ok(c) = paths::canonical_clean(&log_dir) {
         roots.push(c);
     }
 
@@ -1931,8 +1930,7 @@ fn validate_log_path(
     {
         return Err("путь содержит недопустимые элементы".into());
     }
-    let canonical = path
-        .canonicalize()
+    let canonical = paths::canonical_clean(path)
         .map_err(|_| "путь не существует или недоступен".to_string())?;
     for root in allowed_log_roots(app)? {
         if canonical.starts_with(&root) {
@@ -2048,8 +2046,7 @@ async fn open_log_folder(app: AppHandle, kind: LogFolderKind) -> Result<(), Stri
         LogFolderKind::CrashReports => game_dir(&app).join("crash-reports"),
     };
     let _ = std::fs::create_dir_all(&path);
-    let canonical = path
-        .canonicalize()
+    let canonical = paths::canonical_clean(&path)
         .map_err(|_| "путь не существует или недоступен".to_string())?;
     open::that(&canonical).map_err(|e| format!("не удалось открыть папку: {e}"))
 }

@@ -166,7 +166,7 @@ fn collect_installations(data_dir: &Path, deep: bool) -> Vec<JavaInstallation> {
             .canonicalize()
             .or_else(|_| Ok::<_, std::io::Error>(home.clone()))
         {
-            Ok(p) => p,
+            Ok(p) => crate::paths::strip_extended_prefix(p),
             Err(_) => home,
         };
         let key = home.to_string_lossy().to_lowercase();

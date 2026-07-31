@@ -11,6 +11,38 @@ use std::path::{Path, PathBuf};
 
 use tauri::{AppHandle, Manager};
 
+/// On Windows `fs::canonicalize` / `std::env::current_exe` return extended-
+/// length paths (`\\?\...`) which some Java/Minecraft tooling cannot handle.
+/// This strips that prefix while keeping the path absolute and resolved.
+#[cfg(windows)]
+pub fn strip_extended_prefix(path: PathBuf) -> PathBuf {
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        let bytes = rest.as_bytes();
+        // Drive letter: C:\...
+        if bytes.len() >= 3 && bytes[1] == b':' && bytes[2] == b'\\' {
+            return PathBuf::from(rest);
+        }
+        // UNC: \\?\UNC\server\share → \\server\share
+        if rest.starts_with("UNC\\") {
+            return PathBuf::from(format!("\\{}", &rest[4..]));
+        }
+    }
+    path
+}
+
+#[cfg(not(windows))]
+pub fn strip_extended_prefix(path: PathBuf) -> PathBuf {
+    path
+}
+
+/// Canonicalize + strip extended-length prefix on Windows.
+pub fn canonical_clean(path: &Path) -> Result<PathBuf, String> {
+    let canonical = std::fs::canonicalize(path)
+        .map_err(|e| format!("Не удалось определить абсолютный путь {}: {e}", path.display()))?;
+    Ok(strip_extended_prefix(canonical))
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct DataDirectoryLocation {
     path: PathBuf,
@@ -36,7 +68,7 @@ pub fn exe_dir() -> Option<PathBuf> {
     std::env::current_exe()
         .ok()?
         .parent()
-        .map(|p| p.to_path_buf())
+        .map(|p| strip_extended_prefix(p.to_path_buf()))
 }
 
 /// Есть ли рядом с exe маркер портативного режима.
@@ -106,7 +138,8 @@ pub fn mod_choices_file(app: &AppHandle) -> PathBuf {
 pub fn configured_data_dir(app: &AppHandle) -> Option<PathBuf> {
     let raw = std::fs::read_to_string(location_file(app)).ok()?;
     let location: DataDirectoryLocation = serde_json::from_str(&raw).ok()?;
-    location.path.is_absolute().then_some(location.path)
+    let path = strip_extended_prefix(location.path);
+    path.is_absolute().then_some(path)
 }
 
 /// Корневая папка данных лаунчера для текущего режима.
@@ -127,8 +160,9 @@ pub fn set_data_dir(app: &AppHandle, dir: &Path) -> Result<(), String> {
         .map(Path::to_path_buf)
         .ok_or("не удалось определить папку конфигурации")?;
     std::fs::create_dir_all(parent).map_err(|e| format!("не удалось создать папку конфигурации: {e}"))?;
+    let clean = strip_extended_prefix(dir.to_path_buf());
     let json = serde_json::to_string_pretty(&DataDirectoryLocation {
-        path: dir.to_path_buf(),
+        path: clean,
     })
     .map_err(|e| e.to_string())?;
     std::fs::write(location_file(app), json)
