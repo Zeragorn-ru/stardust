@@ -2293,7 +2293,12 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let looks_like_start_failure = failed_exit || minecraft_log_has_fatal_error(&log_content);
         // Alt+F4 can produce a platform-specific non-zero exit code. The mod's
         // shutdown event is the authoritative signal for a normal close.
-        let is_normal_shutdown = mod_status.as_deref() == Some("normal");
+        // If the mod marker is absent (mod not loaded, force-kill, etc.), fall
+        // back to parsing the tail of latest.log for Minecraft's own shutdown
+        // message ("Stopping!").
+        let marker_says_normal = mod_status.as_deref() == Some("normal");
+        let log_says_normal = minecraft_log_shows_normal_shutdown(&log_content);
+        let is_normal_shutdown = marker_says_normal || log_says_normal;
         let is_crash = !is_normal_shutdown
             && (failed_exit
                 || recent_crash_content.is_some()
@@ -2389,6 +2394,16 @@ fn minecraft_log_snippet(log_content: &str, max_lines: usize) -> Option<String> 
         lines = lines[lines.len() - max_lines..].to_vec();
     }
     Some(lines.join("\n"))
+}
+
+fn minecraft_log_shows_normal_shutdown(log_content: &str) -> bool {
+    log_content.lines().rev().take(80).any(|line| {
+        let line = line.to_ascii_lowercase();
+        line.contains("stopping!")
+            || line.contains("stopping server")
+            || line.contains("shutting down")
+            || line.contains("goodbye")
+    })
 }
 
 fn minecraft_log_has_fatal_error(log_content: &str) -> bool {

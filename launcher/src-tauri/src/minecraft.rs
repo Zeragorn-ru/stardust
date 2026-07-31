@@ -53,7 +53,6 @@ fn canonicalize_clean(path: &Path) -> Result<PathBuf, String> {
 /// Strip `\\?\` extended-length prefix on Windows.
 #[cfg(windows)]
 fn strip_extended_prefix(path: PathBuf) -> PathBuf {
-    use std::path::{Component, Prefix};
     let s = path.to_string_lossy();
     if let Some(rest) = s.strip_prefix(r"\\?\") {
         // Only strip for drive-letter paths (C:\...) or UNC paths.
