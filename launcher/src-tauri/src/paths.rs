@@ -89,6 +89,12 @@ fn location_file(app: &AppHandle) -> PathBuf {
     }
 }
 
+/// Файл, в котором хранится указатель на пользовательскую папку данных.
+/// Нужен для диагностических сообщений и не является частью игровых данных.
+pub fn data_location_path(app: &AppHandle) -> PathBuf {
+    location_file(app)
+}
+
 /// Stable launcher configuration, independent of the movable game data dir.
 pub fn mod_choices_file(app: &AppHandle) -> PathBuf {
     location_file(app)

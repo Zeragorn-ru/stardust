@@ -70,6 +70,13 @@ pub async fn launch(
     fs::create_dir_all(&root).map_err(|e| format!("Не удалось создать папку Minecraft: {e}"))?;
     let root = fs::canonicalize(&root)
         .map_err(|e| format!("Не удалось определить абсолютный путь Minecraft: {e}"))?;
+    tracing::info!(
+        "[game] подготовка запуска: data_dir={}, minecraft_root={}, version={}, java_provider={:?}",
+        data_dir.display(),
+        root.display(),
+        version_id,
+        java_provider
+    );
 
     // Минимум один поток; верхнюю границу ограничиваем, чтобы не открыть
     // слишком много соединений к серверам Mojang.
@@ -84,6 +91,7 @@ pub async fn launch(
         &data_dir,
     )
     .await?;
+    tracing::info!("[game] выбрана Java: {}", java.display());
 
     let version = ensure_version(&progress, http, &root, &version_id).await?;
     ensure_client(&progress, http, &root, &version).await?;
@@ -122,6 +130,7 @@ pub async fn launch(
 
     let game_dir = root.join("game");
     fs::create_dir_all(&game_dir).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
+    tracing::info!("[game] game_dir={}", game_dir.display());
 
     // Синхронизируем активную сборку (моды/конфиги) в игровой каталог.
     // Если активной сборки нет — функция тихо вернётся, запустим без модпака.
@@ -186,16 +195,19 @@ pub async fn launch(
     }
 
     args.push("-cp".into());
+    let classpath_length = classpath.len();
     args.push(classpath);
     args.push(loader.main_class.clone());
     // Сначала vanilla game-аргументы (--username, --uuid и т.д.), затем FML-аргументы.
-    args.extend(game_args(
+    let vanilla_game_args = game_args(
         &root,
         &game_dir,
         &version,
         &profile,
         &access_token,
-    ));
+    );
+    let game_args_count = vanilla_game_args.len();
+    args.extend(vanilla_game_args);
     args.extend(modloader_game_args(&loader));
 
     // macOS OpenGL 4.1 (в т.ч. Hackintosh AMD):
@@ -215,6 +227,13 @@ pub async fn launch(
     crate::macos_permissions::ensure_microphone_permission();
 
     let mut command = Command::new(java);
+    tracing::info!(
+        "[game] запускаем Minecraft: cwd={}, classpath_length={}, jvm_args={}, game_args={}",
+        game_dir.display(),
+        classpath_length,
+        args.len(),
+        game_args_count
+    );
     command.args(&args).current_dir(&game_dir);
     hide_console(&mut command);
 
@@ -1278,7 +1297,16 @@ async fn ensure_neoforge(
         .join("net/neoforged/neoforge")
         .join(&neoforge_version)
         .join(format!("neoforge-{neoforge_version}-client.jar"));
+    tracing::info!(
+        "[neoforge] проверка установки: version={}, root={}, installer={}, marker={}, patched_client={}",
+        neoforge_version,
+        root.display(),
+        installer.display(),
+        marker.display(),
+        patched_client.display()
+    );
     if marker.exists() && patched_client.exists() {
+        tracing::info!("[neoforge] установка уже существует, installer не запускаем");
         return Ok(profile_id);
     }
     // Если маркер есть, но patched client отсутствует — удаляем маркер,
@@ -1362,6 +1390,12 @@ async fn ensure_neoforge(
                 root_clone.display()
             );
             tracing::debug!("[neoforge] Java для installer: {}", java_clone.display());
+            tracing::info!(
+                "[neoforge] команда: \"{}\" -jar \"{}\" --install-client \"{}\"",
+                java_clone.display(),
+                installer_clone.display(),
+                root_clone.display()
+            );
             let mut command = Command::new(&java_clone);
             command
                 .arg("-jar")

@@ -585,10 +585,32 @@ fn migrate_appdata(app: &AppHandle) {
 
 pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
     migrate_appdata(app);
+    let mode = paths::launch_mode();
+    let default_dir = paths::default_data_dir(app);
+    let location_file = paths::data_location_path(app);
+    let configured_dir = paths::configured_data_dir(app);
+    tracing::info!(
+        "[paths] bootstrap: mode={}, default={}, configured={}, location_file={}, location_exists={}",
+        mode.as_str(),
+        default_dir.display(),
+        configured_dir
+            .as_deref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "<none>".to_string()),
+        location_file.display(),
+        location_file.exists()
+    );
     let settings = if paths::selection_required(app) {
+        tracing::info!("[paths] bootstrap: требуется выбор папки данных");
         Settings::default()
     } else {
         let settings_path = paths::settings_file(app);
+        tracing::info!(
+            "[paths] bootstrap: используем data_dir={}, settings={}, settings_exists={}",
+            paths::data_dir(app).display(),
+            settings_path.display(),
+            settings_path.exists()
+        );
         if !settings_path.exists() {
             write_settings(app, &Settings::default())?;
         }
@@ -1311,6 +1333,14 @@ fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Resul
         .canonicalize()
         .map_err(|e| format!("не удалось открыть выбранную папку: {e}"))?;
 
+    tracing::info!(
+        "[data-dir] перенос: source={}, destination={}, source_exists={}, destination_exists={}",
+        source.display(),
+        destination.display(),
+        source.exists(),
+        destination.exists()
+    );
+
     if source == destination {
         paths::set_data_dir(app, &destination)?;
         return Ok(());
@@ -1333,6 +1363,11 @@ fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Resul
     });
     let mut totals = TransferTotals::default();
     scan_directory(&source, &mut totals)?;
+    tracing::info!(
+        "[data-dir] перенос: найдено файлов={}, байт={}",
+        totals.files,
+        totals.bytes
+    );
 
     if totals.files == 0 {
         paths::set_data_dir(app, &destination)?;
@@ -1348,6 +1383,7 @@ fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Resul
     }
     std::fs::create_dir(&staging)
         .map_err(|e| format!("не удалось подготовить перенос: {e}"))?;
+    tracing::debug!("[data-dir] staging={}", staging.display());
 
     let result = (|| {
         let mut reporter = TransferReporter::new(app, totals);

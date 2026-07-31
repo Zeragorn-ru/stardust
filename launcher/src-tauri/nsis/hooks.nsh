@@ -67,6 +67,14 @@ Var LaunchAfterInstall
 
   delete_appdata:
     RMDir /r "$APPDATA\com.stardust.launcher"
+    RMDir /r "$APPDATA\com.project.launcher"
+    ; data-location.json и mod-choices.json хранятся в app_cache_dir,
+    ; поэтому удаляем также cache, иначе переустановка восстановит старый
+    ; путь к внешней папке данных.
+    RMDir /r "$LOCALAPPDATA\com.stardust.launcher"
+    ; Portable marker/указатель могут лежать рядом с exe и пережить
+    ; переустановку в ту же папку.
+    Delete "$INSTDIR\data-location.json"
     Goto appdata_done
 
   keep_appdata:

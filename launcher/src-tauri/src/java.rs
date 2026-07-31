@@ -214,6 +214,11 @@ pub async fn resolve_java(
     http: &reqwest::Client,
     data_dir: &Path,
 ) -> Result<PathBuf, String> {
+    tracing::info!(
+        "[java] resolve: provider={:?}, custom_path={}",
+        provider,
+        custom_path.unwrap_or("<none>")
+    );
     match provider {
         JavaProvider::Custom => {
             let raw = custom_path
@@ -221,6 +226,7 @@ pub async fn resolve_java(
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| "Выберите Java в настройках".to_string())?;
             let path = normalize_java_path(Path::new(raw));
+            tracing::debug!("[java] custom path normalized: {}", path.display());
             validate_java_exe(&path)?;
             Ok(launch_exe_from(&path))
         }
