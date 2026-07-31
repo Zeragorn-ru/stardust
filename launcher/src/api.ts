@@ -338,6 +338,12 @@ export async function openPath(path: string): Promise<void> {
   if (invoke) await invoke<void>("open_path", { path });
 }
 
+/** Открыть папку установки Java, включая системные пути вне папки данных. */
+export async function openJavaPath(path: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (invoke) await invoke<void>("open_java_path", { path });
+}
+
 /** Пути к логам лаунчера и Minecraft. */
 export async function getLogPaths(): Promise<LogPaths> {
   const invoke = await getInvoke();
@@ -516,6 +522,13 @@ export async function relocateDataDirectory(path: string): Promise<DataDirectory
   const invoke = await getInvoke();
   if (!invoke) return { path, defaultPath: "(dev) ./data", selectionRequired: false };
   return invoke<DataDirectoryInfo>("relocate_data_directory", { path });
+}
+
+/** Вернуть данные в стандартную папку приложения. */
+export async function resetDataDirectory(): Promise<DataDirectoryInfo> {
+  const invoke = await getInvoke();
+  if (!invoke) return { path: "(dev) ./data", defaultPath: "(dev) ./data", selectionRequired: false };
+  return invoke<DataDirectoryInfo>("reset_data_directory");
 }
 
 /** Прочитать текущий скин. */

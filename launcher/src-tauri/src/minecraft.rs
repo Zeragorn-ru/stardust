@@ -68,6 +68,8 @@ pub async fn launch(
     let version_id =
         std::env::var("LAUNCHER_MC_VERSION").unwrap_or_else(|_| DEFAULT_VERSION.into());
     fs::create_dir_all(&root).map_err(|e| format!("Не удалось создать папку Minecraft: {e}"))?;
+    let root = fs::canonicalize(&root)
+        .map_err(|e| format!("Не удалось определить абсолютный путь Minecraft: {e}"))?;
 
     // Минимум один поток; верхнюю границу ограничиваем, чтобы не открыть
     // слишком много соединений к серверам Mojang.
@@ -1362,9 +1364,11 @@ async fn ensure_neoforge(
             "extracting",
             format!("Устанавливаем NeoForge {neoforge_version}…"),
         );
-        let java_clone = java.to_path_buf();
-        let installer_clone = installer.clone();
-        let root_clone = root.to_path_buf();
+        let java_clone = crate::java::console_java_exe(java);
+        let installer_clone = fs::canonicalize(&installer)
+            .map_err(|e| format!("Не удалось определить путь NeoForge installer: {e}"))?;
+        let root_clone = fs::canonicalize(root)
+            .map_err(|e| format!("Не удалось определить путь папки Minecraft: {e}"))?;
         let neoforge_version_clone = neoforge_version.clone();
         let status = tauri::async_runtime::spawn_blocking(move || {
             tracing::debug!(
@@ -1372,6 +1376,7 @@ async fn ensure_neoforge(
                 installer_clone.display(),
                 root_clone.display()
             );
+            tracing::debug!("[neoforge] Java для installer: {}", java_clone.display());
             let mut command = Command::new(&java_clone);
             command
                 .arg("-jar")
@@ -2343,8 +2348,10 @@ mod tests {
 
     #[test]
     fn game_args_substitutes_tokens_from_1211_fragment() {
-        let version = version_json_with_game_args("");
-        let root = std::env::temp_dir().join("stardust_test_game_args");
+        let version = version_json_with_game_args(
+            r#"{"value":["--gameDir","${game_directory}","--assetsDir","${assets_root}"]}"#,
+        );
+        let root = std::env::temp_dir().join("stardust test game args");
         let game_dir = root.join("game");
         let _ = std::fs::create_dir_all(&game_dir);
         let profile = PlayerProfile {
@@ -2358,6 +2365,8 @@ mod tests {
         let args = game_args(&root, &game_dir, &version, &profile, "token123");
         assert!(args.contains(&"Steve".to_string()));
         assert!(args.contains(&"1.21.1".to_string()));
+        assert!(args.contains(&game_dir.to_string_lossy().to_string()));
+        assert!(args.contains(&root.join("assets").to_string_lossy().to_string()));
         assert!(!args.iter().any(|a| a.contains("${")));
         let _ = std::fs::remove_dir_all(&root);
     }

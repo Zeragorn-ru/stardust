@@ -1263,6 +1263,34 @@ async fn relocate_data_directory(
     Ok(get_data_directory_info(app))
 }
 
+#[tauri::command]
+async fn reset_data_directory(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<DataDirectoryInfo, String> {
+    let default_path = paths::default_data_dir(&app);
+    if paths::data_dir(&app) == default_path {
+        return Ok(get_data_directory_info(app));
+    }
+    if state.game.lock().unwrap().is_some()
+        || crate::game_guard::is_running(&paths::data_dir(&app))
+    {
+        return Err("Закройте Minecraft перед сбросом папки данных".into());
+    }
+
+    let app_for_transfer = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        relocate_data_directory_on_disk(&app_for_transfer, &default_path)
+    })
+    .await
+    .map_err(|e| format!("сброс папки был прерван: {e}"))??;
+
+    let settings = read_settings(&app);
+    *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
+    *state.settings.lock().unwrap() = Some(settings);
+    Ok(get_data_directory_info(app))
+}
+
 fn destination_from_config(app: &AppHandle) -> Result<PathBuf, String> {
     paths::configured_data_dir(app)
         .ok_or_else(|| "после переноса не найден файл расположения данных".to_string())
@@ -1694,6 +1722,26 @@ async fn open_path(app: tauri::AppHandle, path: String) -> Result<(), String> {
     open::that(&target_canonical).map_err(|e| format!("не удалось открыть папку: {e}"))
 }
 
+/// Открыть папку установки Java, включая системные пути вне папки данных.
+#[tauri::command]
+async fn open_java_path(path: String) -> Result<(), String> {
+    let target = std::path::Path::new(&path)
+        .canonicalize()
+        .map_err(|_| "путь Java не существует или недоступен".to_string())?;
+    if !target.is_file()
+        || !target.file_name().is_some_and(|name| {
+            name.eq_ignore_ascii_case("java") || name.eq_ignore_ascii_case("java.exe")
+        })
+    {
+        return Err("разрешено открывать только исполняемый файл Java".into());
+    }
+    let home = target
+        .parent()
+        .and_then(std::path::Path::parent)
+        .ok_or_else(|| "не удалось определить папку Java".to_string())?;
+    open::that(home).map_err(|e| format!("не удалось открыть папку Java: {e}"))
+}
+
 // ---------- Логи ----------
 
 #[derive(Debug, Clone, Serialize)]
@@ -2104,6 +2152,8 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .ok_or_else(|| "Сессия не найдена, войдите снова".to_string())?;
     let settings = get_settings_cached(&state, &app);
 
+    archive_previous_latest_log(&data_dir);
+
     let (child, external_mods) = minecraft::launch(
         app.clone(),
         &state.http(),
@@ -2266,7 +2316,28 @@ fn launch_failure_label(log_content: &str, exit_code: Option<i32>) -> String {
     let snippet = minecraft_log_snippet(log_content, 8);
     match snippet {
         Some(s) => format!("{base}\n{s}"),
-        None => base,
+        None => format!("{base}\nНовый latest.log не создан: процесс завершился до инициализации Minecraft."),
+    }
+}
+
+fn archive_previous_latest_log(data_dir: &std::path::Path) {
+    let logs_dir = data_dir.join("minecraft").join("game").join("logs");
+    let latest = logs_dir.join("latest.log");
+    if !latest.is_file() {
+        return;
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or_default();
+    let archived = logs_dir.join(format!("latest.previous-{stamp}.log"));
+    if let Err(error) = std::fs::rename(&latest, &archived) {
+        tracing::warn!(
+            "[game] не удалось архивировать старый latest.log {}: {error}",
+            latest.display()
+        );
+    } else {
+        tracing::debug!("[game] старый latest.log сохранён как {}", archived.display());
     }
 }
 
@@ -2754,6 +2825,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             get_data_directory_info,
             choose_data_directory,
             relocate_data_directory,
+            reset_data_directory,
             get_skin,
             load_skin_cache,
             set_skin,
@@ -2762,6 +2834,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             telegram_link_start,
             open_external,
             open_path,
+            open_java_path,
             get_log_paths,
             read_log_tail,
             open_log_folder,

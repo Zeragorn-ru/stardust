@@ -17,8 +17,10 @@ import {
   onDataDirectoryProgress,
   onUpdateProgress,
   openLogFolder,
+  openJavaPath,
   openPath,
   relocateDataDirectory,
+  resetDataDirectory,
   resetSettings,
   saveSettings,
 } from "../api";
@@ -149,6 +151,27 @@ export default function SettingsScreen({
     const unlisten = await onDataDirectoryProgress(setRelocationProgress);
     try {
       const next = await relocateDataDirectory(path);
+      setDataDirectory(next);
+      setInfo(await getAppInfo());
+    } catch (e) {
+      setRelocationError(e instanceof Error ? e.message : String(e));
+    } finally {
+      unlisten();
+      setRelocating(false);
+    }
+  }
+
+  async function handleResetDataDirectory() {
+    if (!dataDirectory || dataDirectory.path === dataDirectory.defaultPath) return;
+    if (!window.confirm(`Вернуть данные в стандартную папку?\n\n${dataDirectory.defaultPath}\n\nТекущая папка будет перенесена обратно.`)) {
+      return;
+    }
+    setRelocating(true);
+    setRelocationError(null);
+    setRelocationProgress(null);
+    const unlisten = await onDataDirectoryProgress(setRelocationProgress);
+    try {
+      const next = await resetDataDirectory();
       setDataDirectory(next);
       setInfo(await getAppInfo());
     } catch (e) {
@@ -831,6 +854,11 @@ export default function SettingsScreen({
               <button type="button" className="btn btn--ghost" onClick={() => void handleRelocateDataDirectory()} disabled={relocating}>
                 {relocating ? "Переносим…" : "Изменить папку"}
               </button>
+              {dataDirectory && dataDirectory.path !== dataDirectory.defaultPath && (
+                <button type="button" className="btn btn--ghost" onClick={() => void handleResetDataDirectory()} disabled={relocating}>
+                  Вернуть стандартную папку
+                </button>
+              )}
               {relocationProgress && (
                 <div className="data-directory-card__progress">
                   <div className="progress__label">
@@ -1026,13 +1054,20 @@ export default function SettingsScreen({
                         (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) === "custom" &&
                         settings.javaCustomPath === install.path;
                       return (
-                        <button
+                        <div
                           key={`${install.path}-${install.source}`}
-                          type="button"
+                          role="button"
+                          tabIndex={0}
                           className={
                             "java-list__item" + (selected ? " java-list__item--selected" : "")
                           }
                           onClick={() => selectJavaInstall(install)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              selectJavaInstall(install);
+                            }
+                          }}
                           title={install.path}
                         >
                           <span className="java-list__title">
@@ -1040,8 +1075,26 @@ export default function SettingsScreen({
                             <span className="muted"> · {install.version}</span>
                           </span>
                           <span className="muted java-list__source">{install.source}</span>
-                          <span className="java-list__path">{install.path}</span>
-                        </button>
+                           <span className="java-list__path">{install.path}</span>
+                           <button
+                             type="button"
+                             className="java-list__open"
+                             onClick={(event) => {
+                               event.stopPropagation();
+                               void openJavaPath(install.path);
+                             }}
+                             onKeyDown={(event) => {
+                               if (event.key === "Enter" || event.key === " ") {
+                                 event.preventDefault();
+                                 event.stopPropagation();
+                                 void openJavaPath(install.path);
+                               }
+                             }}
+                             aria-label={`Открыть папку Java: ${install.path}`}
+                           >
+                             Открыть
+                           </button>
+                         </div>
                       );
                     })}
                   </div>

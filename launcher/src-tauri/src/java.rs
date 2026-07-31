@@ -220,7 +220,7 @@ pub async fn resolve_java(
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| "Выберите Java в настройках".to_string())?;
-            let path = PathBuf::from(raw);
+            let path = normalize_java_path(Path::new(raw));
             validate_java_exe(&path)?;
             Ok(launch_exe_from(&path))
         }
@@ -269,12 +269,38 @@ fn validate_java_exe(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn normalize_java_path(path: &Path) -> PathBuf {
+    if path.is_dir() {
+        let unix = path.join("bin").join("java");
+        if unix.exists() {
+            return unix;
+        }
+        let windows = path.join("bin").join("java.exe");
+        if windows.exists() {
+            return windows;
+        }
+    }
+    path.to_path_buf()
+}
+
 fn launch_exe_from(path: &Path) -> PathBuf {
     if cfg!(windows) && path.file_name().and_then(|n| n.to_str()) == Some("java.exe") {
         let parent = path.parent().unwrap_or(path);
         let javaw = parent.join("javaw.exe");
         if javaw.exists() {
             return javaw;
+        }
+    }
+    path.to_path_buf()
+}
+
+/// The installer must use the console Java binary, not the GUI launcher used
+/// for Minecraft on Windows.
+pub(crate) fn console_java_exe(path: &Path) -> PathBuf {
+    if cfg!(windows) && path.file_name().and_then(|n| n.to_str()) == Some("javaw.exe") {
+        let java = path.with_file_name("java.exe");
+        if java.exists() {
+            return java;
         }
     }
     path.to_path_buf()
