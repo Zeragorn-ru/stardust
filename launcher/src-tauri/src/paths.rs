@@ -24,8 +24,8 @@ pub fn strip_extended_prefix(path: PathBuf) -> PathBuf {
             return PathBuf::from(rest);
         }
         // UNC: \\?\UNC\server\share → \\server\share
-        if rest.starts_with("UNC\\") {
-            return PathBuf::from(format!("\\{}", &rest[4..]));
+        if let Some(stripped) = rest.strip_prefix("UNC\\") {
+            return PathBuf::from(format!("\\{}", stripped));
         }
     }
     path
