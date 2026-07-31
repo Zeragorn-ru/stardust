@@ -1301,6 +1301,11 @@ async fn ensure_neoforge(
     // Повтор при ошибке: перекачиваем installer и пробуем установить заново.
     const MAX_ATTEMPTS: u32 = 3;
     let mut last_err = String::new();
+    let url = format!(
+        "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar",
+        neoforge_version
+    );
+    let expected_sha1 = fetch_neoforge_sha1(http, &url).await?;
 
     for attempt in 1..=MAX_ATTEMPTS {
         if attempt > 1 {
@@ -1313,6 +1318,7 @@ async fn ensure_neoforge(
             );
             // Удаляем битый installer, чтобы download_to перекачал.
             let _ = fs::remove_file(&installer);
+            let _ = fs::remove_file(installer.with_extension("download"));
             // Пауза перед повтором.
             let _ = tauri::async_runtime::spawn_blocking(|| {
                 std::thread::sleep(std::time::Duration::from_secs(3));
@@ -1320,18 +1326,13 @@ async fn ensure_neoforge(
             .await;
         }
 
-        // Скачиваем installer (если нет на диске).
-        let url = format!(
-            "https://maven.neoforged.net/releases/net/neoforged/neoforge/{0}/neoforge-{0}-installer.jar",
-            neoforge_version
-        );
         if let Err(e) = download_to(
             progress,
             http,
             &url,
             &installer,
             "NeoForge installer",
-            None,
+            Some(&expected_sha1),
             None,
         )
         .await
@@ -1340,6 +1341,13 @@ async fn ensure_neoforge(
             tracing::warn!(
                 "[neoforge] ошибка скачивания installer (попытка {attempt}): {last_err}"
             );
+            continue;
+        }
+
+        if let Err(e) = validate_neoforge_installer(&installer) {
+            last_err = format!("NeoForge installer повреждён: {e}");
+            tracing::warn!("[neoforge] {last_err} (попытка {attempt})");
+            let _ = fs::remove_file(&installer);
             continue;
         }
 
@@ -1434,6 +1442,32 @@ async fn ensure_neoforge(
     }
 
     Err(last_err)
+}
+
+async fn fetch_neoforge_sha1(http: &reqwest::Client, installer_url: &str) -> Result<String, String> {
+    let checksum_url = format!("{installer_url}.sha1");
+    let response = http_get_with_retry(http, &checksum_url, "SHA-1 NeoForge installer", 5).await?;
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("Не удалось прочитать SHA-1 NeoForge installer: {e}"))?;
+    let checksum = text
+        .split_whitespace()
+        .next()
+        .filter(|value| value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or_else(|| "сервер вернул некорректный SHA-1 NeoForge installer".to_string())?;
+    Ok(checksum.to_ascii_lowercase())
+}
+
+fn validate_neoforge_installer(path: &Path) -> Result<(), String> {
+    let file = fs::File::open(path)
+        .map_err(|e| format!("не удалось открыть JAR: {e}"))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| format!("некорректный ZIP/JAR: {e}"))?;
+    archive
+        .by_name("net/minecraftforge/installer/SimpleInstaller.class")
+        .map(|_| ())
+        .map_err(|_| "в JAR отсутствует net/minecraftforge/installer/SimpleInstaller.class".to_string())
 }
 
 /// Читает установленный профиль NeoForge из versions/<id>/<id>.json.
@@ -1814,7 +1848,9 @@ async fn download_inner(
         if let Some(e) = chunk_err {
             last_err = e;
             tracing::warn!("[download] обрыв (попытка {attempt}): {last_err}");
-            // НЕ удаляем tmp — при следующей попытке сделаем resume.
+            // После ошибки декодирования/потока начинаем заново. Resume через
+            // прокси может склеить несовместимые или уже распакованные куски.
+            let _ = fs::remove_file(&tmp);
             continue;
         }
 

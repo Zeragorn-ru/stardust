@@ -1346,9 +1346,11 @@ fn scan_directory(directory: &Path, totals: &mut TransferTotals) -> Result<(), S
         let file_type = entry.file_type().map_err(|e| e.to_string())?;
         if file_type.is_dir() {
             scan_directory(&entry.path(), totals)?;
-        } else if file_type.is_file() {
+        } else if file_type.is_file() || file_type.is_symlink() {
             totals.files += 1;
-            totals.bytes = totals.bytes.saturating_add(entry.metadata().map_err(|e| e.to_string())?.len());
+            if file_type.is_file() {
+                totals.bytes = totals.bytes.saturating_add(entry.metadata().map_err(|e| e.to_string())?.len());
+            }
         }
     }
     Ok(())
@@ -1420,9 +1422,33 @@ fn copy_directory(source: &Path, destination: &Path, reporter: &mut TransferRepo
             let bytes = std::fs::copy(entry.path(), &target)
                 .map_err(|e| format!("не удалось скопировать {}: {e}", entry.path().display()))?;
             reporter.copied_file(bytes);
+        } else if file_type.is_symlink() {
+            let link_target = std::fs::read_link(entry.path())
+                .map_err(|e| format!("не удалось прочитать ссылку {}: {e}", entry.path().display()))?;
+            create_symlink(&link_target, &target, entry.path().is_dir())
+                .map_err(|e| format!("не удалось перенести ссылку {}: {e}", entry.path().display()))?;
+            reporter.copied_file(0);
+        } else {
+            return Err(format!("неподдерживаемый тип файла: {}", entry.path().display()));
         }
     }
     Ok(())
+}
+
+fn create_symlink(target: &Path, link: &Path, directory: bool) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        let _ = directory;
+        std::os::unix::fs::symlink(target, link)
+    }
+    #[cfg(windows)]
+    {
+        if directory {
+            std::os::windows::fs::symlink_dir(target, link)
+        } else {
+            std::os::windows::fs::symlink_file(target, link)
+        }
+    }
 }
 
 fn emit_data_directory_progress(app: &AppHandle, progress: DataDirectoryProgress) {
