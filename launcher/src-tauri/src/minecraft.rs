@@ -33,6 +33,49 @@ const VERSION_MANIFEST_URL: &str =
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+/// On Windows `fs::canonicalize` returns extended-length paths (`\\?\...`)
+/// which some Java/Minecraft tooling cannot handle. This helper strips that
+/// prefix while keeping the path absolute and resolved.
+#[cfg(windows)]
+fn canonicalize_clean(path: &Path) -> Result<PathBuf, String> {
+    let canonical = fs::canonicalize(path)
+        .map_err(|e| format!("Не удалось определить абсолютный путь {}: {e}", path.display()))?;
+    Ok(strip_extended_prefix(canonical))
+}
+
+#[cfg(not(windows))]
+fn canonicalize_clean(path: &Path) -> Result<PathBuf, String> {
+    let canonical = fs::canonicalize(path)
+        .map_err(|e| format!("Не удалось определить абсолютный путь {}: {e}", path.display()))?;
+    Ok(strip_extended_prefix(canonical))
+}
+
+/// Strip `\\?\` extended-length prefix on Windows.
+#[cfg(windows)]
+fn strip_extended_prefix(path: PathBuf) -> PathBuf {
+    use std::path::{Component, Prefix};
+    let s = path.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        // Only strip for drive-letter paths (C:\...) or UNC paths.
+        let bytes = rest.as_bytes();
+        // Drive letter: single char + ':' + '\'
+        if bytes.len() >= 3 && bytes[1] == b':' && bytes[2] == b'\\' {
+            return PathBuf::from(rest);
+        }
+        // UNC: \\server\share → \\?\UNC\server\share
+        if rest.starts_with("UNC\\") || rest.starts_with("UNC\\") {
+            return PathBuf::from(format!("\\{}", &rest[4..]));
+        }
+    }
+    path
+}
+
+/// Strip `\\?\` extended-length prefix on Windows.
+#[cfg(not(windows))]
+fn strip_extended_prefix(path: PathBuf) -> PathBuf {
+    path
+}
+
 pub struct LaunchOptions {
     pub data_dir: PathBuf,
     pub settings_memory_mb: u32,
@@ -68,8 +111,7 @@ pub async fn launch(
     let version_id =
         std::env::var("LAUNCHER_MC_VERSION").unwrap_or_else(|_| DEFAULT_VERSION.into());
     fs::create_dir_all(&root).map_err(|e| format!("Не удалось создать папку Minecraft: {e}"))?;
-    let root = fs::canonicalize(&root)
-        .map_err(|e| format!("Не удалось определить абсолютный путь Minecraft: {e}"))?;
+    let root = canonicalize_clean(&root)?;
     tracing::info!(
         "[game] подготовка запуска: data_dir={}, minecraft_root={}, version={}, java_provider={:?}",
         data_dir.display(),
@@ -1378,10 +1420,8 @@ async fn ensure_neoforge(
             format!("Устанавливаем NeoForge {neoforge_version}…"),
         );
         let java_clone = crate::java::console_java_exe(java);
-        let installer_clone = fs::canonicalize(&installer)
-            .map_err(|e| format!("Не удалось определить путь NeoForge installer: {e}"))?;
-        let root_clone = fs::canonicalize(root)
-            .map_err(|e| format!("Не удалось определить путь папки Minecraft: {e}"))?;
+        let installer_clone = canonicalize_clean(&installer)?;
+        let root_clone = canonicalize_clean(root)?;
         let neoforge_version_clone = neoforge_version.clone();
         let status = tauri::async_runtime::spawn_blocking(move || {
             tracing::debug!(
