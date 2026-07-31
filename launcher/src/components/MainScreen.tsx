@@ -431,7 +431,10 @@ export default function MainScreen({
           </button>
           {progress?.phase === "error" && (
             <div className="play-recovery stagger-item" role="status">
-              <span>Запуск не завершился. Попробуйте ещё раз или проверьте логи.</span>
+              <span>
+                Запуск не завершился.
+                {progress.label ? ` ${progress.label}` : " Попробуйте ещё раз или проверьте логи."}
+              </span>
               <button
                 type="button"
                 className="btn btn--ghost"

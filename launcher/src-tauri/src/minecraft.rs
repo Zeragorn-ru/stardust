@@ -128,6 +128,7 @@ pub async fn launch(
         &progress,
         http,
         &data_dir,
+        &crate::paths::mod_choices_file(&app),
         &game_dir,
         concurrency,
         manifest.as_ref(),

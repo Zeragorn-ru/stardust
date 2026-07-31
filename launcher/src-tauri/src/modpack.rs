@@ -139,6 +139,7 @@ pub async fn sync(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
+    choices_file: &Path,
     game_dir: &Path,
     concurrency: usize,
     manifest: Option<&protocol::Manifest>,
@@ -153,7 +154,7 @@ pub async fn sync(
         }
     };
 
-    let choices = read_choices(data_dir);
+    let choices = read_choices(data_dir, choices_file);
     let mut state = read_state(game_dir);
     let mut desired: BTreeMap<String, String> = BTreeMap::new();
 
@@ -303,12 +304,13 @@ pub async fn sync(
 pub async fn list_optional_mods(
     http: &reqwest::Client,
     data_dir: &Path,
+    choices_file: &Path,
     game_dir: &Path,
 ) -> Result<Vec<OptionalMod>, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Ok(Vec::new());
     };
-    let choices = read_choices(data_dir);
+    let choices = read_choices(data_dir, choices_file);
 
     let mods = manifest
         .optional_client_mods()
@@ -354,14 +356,15 @@ pub async fn list_optional_mods(
 pub async fn set_mod_enabled(
     http: &reqwest::Client,
     data_dir: &Path,
+    choices_file: &Path,
     game_dir: &Path,
     mod_id: String,
     enabled: bool,
 ) -> Result<(), String> {
     // Выбор сохраняем всегда — даже если сервер недоступен.
-    let mut choices = read_choices(data_dir);
+    let mut choices = read_choices(data_dir, choices_file);
     choices.insert(mod_id.clone(), enabled);
-    write_choices(data_dir, &choices);
+    write_choices(choices_file, &choices);
 
     // Пытаемся применить переименование сразу. Путь берём из манифеста (не
     // доверяем фронту). Если манифест недоступен — переименование произойдёт
@@ -671,22 +674,27 @@ fn write_state(game_dir: &Path, state: &ManagedState) {
     }
 }
 
-fn choices_path(data_dir: &Path) -> PathBuf {
-    data_dir.join(CHOICES_FILE)
-}
-
 /// Выбор игрока по опциональным модам: `mod_id` -> включён ли.
-fn read_choices(data_dir: &Path) -> BTreeMap<String, bool> {
-    std::fs::read_to_string(choices_path(data_dir))
+fn read_choices(data_dir: &Path, stable_file: &Path) -> BTreeMap<String, bool> {
+    if let Ok(contents) = std::fs::read_to_string(stable_file) {
+        return serde_json::from_str(&contents).unwrap_or_default();
+    }
+
+    let choices = std::fs::read_to_string(data_dir.join(CHOICES_FILE))
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    write_choices(stable_file, &choices);
+    choices
 }
 
-fn write_choices(data_dir: &Path, choices: &BTreeMap<String, bool>) {
+fn write_choices(path: &Path, choices: &BTreeMap<String, bool>) {
     match serde_json::to_string_pretty(choices) {
         Ok(json) => {
-            if let Err(e) = std::fs::write(choices_path(data_dir), json) {
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if let Err(e) = std::fs::write(path, json) {
                 tracing::warn!("Не удалось сохранить выбор модов: {e}");
             }
         }

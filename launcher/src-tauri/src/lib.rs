@@ -25,7 +25,10 @@ pub fn run() {
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("logs");
     let file_appender = tracing_appender::rolling::daily(&log_dir, "launcher.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    // The worker must live for the entire process. Dropping the guard at the
+    // end of setup can leave launcher logs buffered and the file empty.
+    let _log_guard: &'static _ = Box::leak(Box::new(guard));
 
     let default_level = if cfg!(debug_assertions) {
         "launcher=debug"

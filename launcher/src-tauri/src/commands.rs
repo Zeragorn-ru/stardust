@@ -1246,9 +1246,26 @@ async fn relocate_data_directory(
         relocate_data_directory_on_disk(&app_for_transfer, &destination)
     })
     .await
-    .map_err(|e| format!("перенос папки был прерван: {e}"))??;
+        .map_err(|e| format!("перенос папки был прерван: {e}"))??;
+
+    let settings = read_settings(&app);
+    *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
+    *state.settings.lock().unwrap() = Some(settings);
+    let active_dir = paths::data_dir(&app);
+    if active_dir != destination_from_config(&app)? {
+        return Err(format!(
+            "после переноса лаунчер не смог переключиться на новую папку: {}",
+            active_dir.display()
+        ));
+    }
+    tracing::info!("[data-dir] перенос завершён, текущая папка: {}", active_dir.display());
 
     Ok(get_data_directory_info(app))
+}
+
+fn destination_from_config(app: &AppHandle) -> Result<PathBuf, String> {
+    paths::configured_data_dir(app)
+        .ok_or_else(|| "после переноса не найден файл расположения данных".to_string())
 }
 
 fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Result<(), String> {
@@ -2394,7 +2411,13 @@ async fn list_optional_mods(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Vec<crate::modpack::OptionalMod>, String> {
-    crate::modpack::list_optional_mods(&state.http(), &paths::data_dir(&app), &game_dir(&app)).await
+    crate::modpack::list_optional_mods(
+        &state.http(),
+        &paths::data_dir(&app),
+        &paths::mod_choices_file(&app),
+        &game_dir(&app),
+    )
+    .await
 }
 
 /// Включить/выключить опциональный мод. Сохраняет выбор и, если файл уже
@@ -2409,6 +2432,7 @@ async fn set_mod_enabled(
     crate::modpack::set_mod_enabled(
         &state.http(),
         &paths::data_dir(&app),
+        &paths::mod_choices_file(&app),
         &game_dir(&app),
         mod_id,
         enabled,

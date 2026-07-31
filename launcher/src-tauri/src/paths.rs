@@ -89,6 +89,14 @@ fn location_file(app: &AppHandle) -> PathBuf {
     }
 }
 
+/// Stable launcher configuration, independent of the movable game data dir.
+pub fn mod_choices_file(app: &AppHandle) -> PathBuf {
+    location_file(app)
+        .parent()
+        .map(|dir| dir.join("mod-choices.json"))
+        .unwrap_or_else(|| PathBuf::from("mod-choices.json"))
+}
+
 pub fn configured_data_dir(app: &AppHandle) -> Option<PathBuf> {
     let raw = std::fs::read_to_string(location_file(app)).ok()?;
     let location: DataDirectoryLocation = serde_json::from_str(&raw).ok()?;
