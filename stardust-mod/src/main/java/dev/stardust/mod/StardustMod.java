@@ -47,6 +47,9 @@ public final class StardustMod {
         NeoForge.EVENT_BUS.addListener(this::onPlayerLoggedOut);
         NeoForge.EVENT_BUS.addListener(this::onServerChat);
         NeoForge.EVENT_BUS.addListener(this::onServerTick);
+        NeoForge.EVENT_BUS.addListener(StardustLightBlockInteraction::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(StardustLightBlockInteraction::onRightClickItem);
+        NeoForge.EVENT_BUS.addListener(StardustLightBlockInteraction::onLightBlockDrops);
 
         if (FMLEnvironment.dist.isClient()) {
             StardustCrashReporter.installClientHooks();

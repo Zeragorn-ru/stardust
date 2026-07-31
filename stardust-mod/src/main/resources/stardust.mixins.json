@@ -8,7 +8,8 @@
     "PlayerListMixin"
   ],
   "client": [
-    "ChatListenerMixin"
+    "ChatListenerMixin",
+    "LightBlockMixin"
   ],
   "injectors": {
     "defaultRequire": 1

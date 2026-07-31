@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    " g ",
+    "gLg",
+    " c "
+  ],
+  "key": {
+    "g": {
+      "item": "minecraft:glass"
+    },
+    "L": {
+      "tag": "lightitup:light_blocks"
+    },
+    "c": {
+      "item": "minecraft:copper_ingot"
+    }
+  },
+  "result": {
+    "id": "minecraft:light",
+    "count": 4
+  }
+}
