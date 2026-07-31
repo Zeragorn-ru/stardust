@@ -210,6 +210,8 @@ async fn main() {
         .route("/api/settings/server-token/generate", post(generate_server_token))
         .route("/api/server/telemetry", get(server_telemetry))
         .route("/api/server/logs", get(server_logs))
+        .route("/api/server/external-mod-allowlist", get(list_external_mod_allowlist).post(add_external_mod_allowlist))
+        .route("/api/server/external-mod-allowlist/:id", axum::routing::delete(remove_external_mod_allowlist))
         .route(
             "/api/settings/reset-fingerprint",
             post(reset_fingerprint),
@@ -2557,6 +2559,50 @@ async fn server_logs(
         "logs": logs,
         "averageOnline": average_online,
     })))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalModAllowlistInput {
+    mod_id: String,
+    jar_name: String,
+    sha256: String,
+}
+
+async fn list_external_mod_allowlist(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    Ok(Json(serde_json::json!({
+        "entries": state.store.list_external_mod_allowlist().await.map_err(map_store)?,
+    })))
+}
+
+async fn add_external_mod_allowlist(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<ExternalModAllowlistInput>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    let mod_id = input.mod_id.trim();
+    let jar_name = input.jar_name.trim();
+    let sha256 = input.sha256.trim().to_ascii_lowercase();
+    if mod_id.is_empty() || jar_name.is_empty() || !sha256.chars().all(|ch| ch.is_ascii_hexdigit()) || sha256.len() != 64 {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Некорректные данные allowlist"));
+    }
+    state.store.add_external_mod_allowlist(mod_id, jar_name, &sha256).await.map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn remove_external_mod_allowlist(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.remove_external_mod_allowlist(id).await.map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ───────────────────────── Новости ─────────────────────────

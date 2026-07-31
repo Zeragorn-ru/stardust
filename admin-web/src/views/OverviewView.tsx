@@ -74,9 +74,9 @@ export function OverviewView() {
       <section className="hero-panel hero-panel--overview">
         <div className="hero-copy">
           <span className="eyebrow">Stardust operations</span>
-          <h1>Infrastructure overview</h1>
+          <h1>Панель сервера</h1>
           <p>
-            Живое состояние платформы: активная сборка, доступ игроков, Telegram, SFTP и быстрые операции без лишней навигации.
+            Ключевые статусы платформы, активная сборка и состояние сервера в одном рабочем экране.
           </p>
           <div className="overview-hero-pills">
             <span>{activeBuild ? `Активна сборка ${activeBuild.name}` : "Активная сборка не выбрана"}</span>
@@ -100,30 +100,6 @@ export function OverviewView() {
       </section>
 
       <TelemetryPanel telemetry={telemetry} />
-
-      <section className="overview-action-grid">
-        <Link className="overview-action-card" to={activeBuild ? `/builds/${activeBuild.id}` : "/builds"}>
-          <span className="row-icon"><IconBox size={16} /></span>
-          <div>
-            <strong>{activeBuild ? "Открыть активную сборку" : "Перейти к сборкам"}</strong>
-            <small>{activeBuild ? `${activeBuild.loaderKind} · MC ${activeBuild.mcVersion}` : "Проверить релизы, файлы и версии"}</small>
-          </div>
-        </Link>
-        <Link className="overview-action-card" to="/accounts">
-          <span className="row-icon"><IconUsers size={16} /></span>
-          <div>
-            <strong>Проверить игроков</strong>
-            <small>{totals.linked}/{accounts.length} аккаунтов связаны с Telegram</small>
-          </div>
-        </Link>
-        <Link className="overview-action-card" to="/settings">
-          <span className="row-icon"><IconSettings size={16} /></span>
-          <div>
-            <strong>Открыть инфраструктуру</strong>
-            <small>Telegram, SFTP и authlib-injector в одном разделе</small>
-          </div>
-        </Link>
-      </section>
 
       <section className="overview-columns">
         <Card className="panel-flat">
@@ -174,6 +150,30 @@ export function OverviewView() {
           </CardContent>
         </Card>
       </section>
+
+      <section className="overview-action-grid overview-quick-actions">
+        <Link className="overview-action-card" to={activeBuild ? `/builds/${activeBuild.id}` : "/builds"}>
+          <span className="row-icon"><IconBox size={16} /></span>
+          <div>
+            <strong>{activeBuild ? "Открыть активную сборку" : "Перейти к сборкам"}</strong>
+            <small>{activeBuild ? `${activeBuild.loaderKind} · MC ${activeBuild.mcVersion}` : "Проверить релизы, файлы и версии"}</small>
+          </div>
+        </Link>
+        <Link className="overview-action-card" to="/accounts">
+          <span className="row-icon"><IconUsers size={16} /></span>
+          <div>
+            <strong>Проверить игроков</strong>
+            <small>{totals.linked}/{accounts.length} аккаунтов связаны с Telegram</small>
+          </div>
+        </Link>
+        <Link className="overview-action-card" to="/settings">
+          <span className="row-icon"><IconSettings size={16} /></span>
+          <div>
+            <strong>Открыть инфраструктуру</strong>
+            <small>Telegram, SFTP и authlib-injector в одном разделе</small>
+          </div>
+        </Link>
+      </section>
     </div>
   );
 }
@@ -205,74 +205,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
   }).join(" ");
 
   return (
-    <>
-      <div className="telemetry-top-row">
-        <Card className="panel-flat telemetry-panel telemetry-summary-card">
-          <CardHeader>
-            <div>
-              <span className="eyebrow">Live server telemetry</span>
-              <CardTitle>Онлайн и последние события</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="telemetry-summary">
-              <div className="telemetry-online-metrics">
-                <div className="telemetry-online-metric">
-                  <span>сейчас</span>
-                  <strong>{latest ? latest.onlineCount : "—"}</strong>
-                  <small>игроков</small>
-                </div>
-                <div className="telemetry-online-metric">
-                  <span>среднее</span>
-                  <strong>{averageOnline.toFixed(1)}</strong>
-                  <small>за 24 часа</small>
-                </div>
-              </div>
-              <div className="telemetry-summary-divider" />
-              <div className="telemetry-recent-events">
-                <span className="telemetry-card-label">Последние входы и выходы</span>
-                {(telemetry?.events ?? []).slice(-3).reverse().map((event, index) => (
-                  <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
-                    <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
-                    <strong>{event.username}</strong>
-                    <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
-                    <time>{formatTelemetryTime(event.recordedAt)}</time>
-                  </div>
-                ))}
-                {(telemetry?.events ?? []).length === 0 && <span className="muted">Событий пока нет.</span>}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <div className="telemetry-cards-row">
-          <Card className="panel-flat telemetry-panel">
-            <CardHeader><small className="telemetry-card-label">TPS</small></CardHeader>
-            <CardContent>
-              <div className="telemetry-metrics-row">
-                <span style={{ color: latest ? (latest.tps >= 19 ? "#22c55e" : latest.tps >= 10 ? "#f97316" : "#ef4444") : undefined }}>{latest ? latest.tps.toFixed(1) : "—"}</span>
-                <span style={{ color: tps5 >= 19 ? "#22c55e" : tps5 >= 10 ? "#f97316" : "#ef4444" }}>{tps5.toFixed(1)}</span>
-                <span style={{ color: tps10 >= 19 ? "#22c55e" : tps10 >= 10 ? "#f97316" : "#ef4444" }}>{tps10.toFixed(1)}</span>
-              </div>
-              <div className="telemetry-metrics-labels">
-                <span>now</span><span>5min</span><span>10min</span>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="panel-flat telemetry-panel">
-            <CardHeader><small className="telemetry-card-label">MSPT</small></CardHeader>
-            <CardContent>
-              <div className="telemetry-metrics-row">
-                <span style={{ color: "#38bdf8" }}>{latest ? latest.mspt.toFixed(1) : "—"}</span>
-                <span style={{ color: "#38bdf8" }}>{mspt5.toFixed(1)}</span>
-                <span style={{ color: "#38bdf8" }}>{mspt10.toFixed(1)}</span>
-              </div>
-              <div className="telemetry-metrics-labels">
-                <span>now</span><span>5min</span><span>10min</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+    <section className="desktop-telemetry">
       <Card className="panel-flat telemetry-panel telemetry-chart-card">
         <CardHeader>
           <div>
@@ -310,7 +243,67 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
           )}
         </CardContent>
       </Card>
-    </>
+      <aside className="desktop-telemetry-side">
+        <Card className="panel-flat telemetry-panel telemetry-health-card">
+          <CardHeader>
+            <div>
+              <span className="eyebrow">Server health</span>
+              <CardTitle>Состояние сейчас</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="telemetry-online-metrics">
+              <div className="telemetry-online-metric">
+                <span>онлайн</span>
+                <strong>{latest ? latest.onlineCount : "—"}</strong>
+                <small>игроков сейчас</small>
+              </div>
+              <div className="telemetry-online-metric">
+                <span>среднее</span>
+                <strong>{averageOnline.toFixed(1)}</strong>
+                <small>за 24 часа</small>
+              </div>
+            </div>
+            <div className="telemetry-performance-grid">
+              <PerformanceMetric label="TPS" values={[latest?.tps, tps5, tps10]} tone="green" />
+              <PerformanceMetric label="MSPT" values={[latest?.mspt, mspt5, mspt10]} tone="blue" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="panel-flat telemetry-panel telemetry-events-card">
+          <CardHeader>
+            <div>
+              <span className="eyebrow">Activity</span>
+              <CardTitle>Последние события</CardTitle>
+            </div>
+            <CardAction><Link className="link-action" to="/logs">Все логи</Link></CardAction>
+          </CardHeader>
+          <CardContent className="telemetry-recent-events">
+            {(telemetry?.events ?? []).slice(-4).reverse().map((event, index) => (
+              <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
+                <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
+                <strong>{event.username}</strong>
+                <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
+                <time>{formatTelemetryTime(event.recordedAt)}</time>
+              </div>
+            ))}
+            {(telemetry?.events ?? []).length === 0 && <span className="muted">Событий пока нет.</span>}
+          </CardContent>
+        </Card>
+      </aside>
+    </section>
+  );
+}
+
+function PerformanceMetric({ label, values, tone }: { label: string; values: Array<number | undefined>; tone: "green" | "blue" }) {
+  return (
+    <div className={`telemetry-performance telemetry-performance--${tone}`}>
+      <span className="telemetry-card-label">{label}</span>
+      <div className="telemetry-metrics-row">
+        {values.map((value, index) => <span key={`${label}-${index}`}>{value === undefined ? "—" : value.toFixed(1)}</span>)}
+      </div>
+      <div className="telemetry-metrics-labels"><span>сейчас</span><span>5 мин</span><span>10 мин</span></div>
+    </div>
   );
 }
 

@@ -1,226 +1,146 @@
 # Roadmap
 
-Документ отражает текущее состояние репозитория и ближайшие задачи. Здесь нет
-исторических шагов «как начинали»; только то, что уже сделано, и то, что ещё
-имеет смысл добивать.
+Этот документ описывает фактическое состояние Stardust на 30 июля 2026 года и следующие инженерные приоритеты. Список составлен по текущему коду, миграциям, API и интерфейсам; старые исторические планы сюда не переносятся.
 
-## Vision
+## Направление
 
-**Stardust Launcher** — десктопный лаунчер одной кураторской сборки и одного
-сервера. Ощущение: **Modrinth App + Prism Launcher**, но проще и цельнее — без
-мульти-инстансов, без браузера модов, с интеграцией auth/скин/ban/playtime из
-коробки.
+Stardust — управляемая платформа для curated Minecraft-сборки и сервера. Приоритет продукта — не каталог модов и не универсальный менеджер десятков инстансов, а надежный путь:
 
-## Goals
+```text
+аккаунт -> проверка окружения -> синхронизация сборки -> Minecraft -> статистика и поддержка
+```
 
-- Запуск «Играть → sync → Minecraft» без сюрпризов на macOS / Windows / Linux
-- Curated optional mods с конфликтами (DH ↔ Voxy) и категориями
-- Нативный desktop UX: title bar, shortcuts, скролл, честный progress
-- Безопасность auth/2FA/sessions на уровне production
-- Админка для сборки без ручного SFTP-хаоса
+## Уже работает
+
+### Launcher
+
+- Tauri 2 + React/TypeScript UI;
+- onboarding, login/register, persistent session, logout;
+- Telegram 2FA, passwordless authentication и password reset;
+- bearer token в OS keyring;
+- offline/degraded запуск с локальным профилем и queued statistics;
+- Minecraft 1.21.1 + NeoForge;
+- Java 21 download/autodetect, assets, libraries, natives, authlib-injector;
+- защита от второй копии и восстановление незавершенной игровой сессии;
+- manifest sync с параллельными загрузками, SHA-1, progress, speed, ETA и retry;
+- managed files, `overwrite: false`, optional mods и `.dis`;
+- manifest/static conflicts для optional mods;
+- память JVM, proxy, Java provider/path, concurrency и перенос data directory;
+- скины, плащи, classic/slim и 3D viewer;
+- launcher update для Windows/macOS/Linux через GitHub Releases;
+- launcher/Minecraft/crash logs и crash telemetry.
+
+### Backend
+
+- `protocol`: DTO API, `Manifest`, loader/side/kind и optional metadata;
+- `store`: PostgreSQL migrations, accounts, sessions, builds, news, customization, Telegram outbox, playtime and telemetry;
+- `auth-server`: launcher API, Yggdrasil/sessionserver, profile/textures, skins, stats, bans, news and crash reports;
+- `admin-server`: accounts, builds, file storage, build/deps checks, SFTP deploy, settings and telemetry;
+- `telegram-bot`: 2FA, admin notifications and queued documents.
+
+### Admin web
+
+- desktop и отдельный mobile entrypoint;
+- accounts: search, filters, roles, bans, password, Telegram binding, skin and cosmetics;
+- builds: CRUD, clone, activation, file manager, upload, text editor and checks;
+- news, customization and infrastructure settings;
+- SFTP deployment with progress;
+- server overview with online, TPS, MSPT, join/quit and logs.
+
+### Stardust mod
+
+- единый NeoForge client/server JAR;
+- TAB placeholders, badges, name colors and gradients;
+- server chat, join/quit and private messages;
+- auth-server customization lookup with cache/fallback;
+- server telemetry using Spark or local measurement;
+- super-challenge health bonus;
+- client/server crash markers and BACAP-related resources.
+
+## P0: надежность и безопасность
+
+1. **Repair Installation.** Проверка manifest, докачка поврежденных файлов, quarantine битых файлов, исправление `.dis`, resume и безопасное сохранение user-owned данных.
+2. **Atomic update state.** Staging directory, lock/operation state и восстановление после убийства лаунчера или отключения питания.
+3. **Release rollback.** Хранить предыдущую рабочую сборку, показывать diff перед обновлением и возвращать ее одним действием.
+4. **Session lifecycle.** TTL, отзыв отдельных сессий, «выйти со всех устройств» и список активных устройств.
+5. **Admin Telegram confirmation.** Вход в админку должен требовать подтверждение через Telegram после проверки логина и пароля; challenge должен быть одноразовым, иметь срок действия и быть привязан к сессии/устройству.
+6. **Audit log.** Кто и когда изменил аккаунт, бан, роль, косметику, сборку, файл, новость или запустил deploy.
+7. **Supply-chain checks.** Сделать checksum обязательным для updater и перейти с SHA-1 на SHA-256/SHA-512 для новых manifest entries.
+8. **Input validation.** Декодировать и проверять размеры skin PNG, ограничить размер и усилить проверки загружаемых файлов.
+
+## P1: release operations
+
+1. **Channels:** `stable`, `beta`, `nightly`, доступ по invite-коду и staged rollout.
+2. **Manifest v2:** dependencies, conflicts, loader constraints, changelog, release metadata и более сильные хэши.
+3. **Release console:** preview diff, validation, activation, mandatory update, rollback и история деплоев.
+4. **Crash grouping:** группировать падения по stack trace, mod, Java, OS, launcher/build version вместо отдельных Telegram-сообщений.
+5. **Детали событий в админских логах:** открытие записи по клику с полной информацией, metadata, stack trace, версией сборки, игроком, окружением и связанными событиями.
+6. **Crash log bundle:** из карточки вылета скачивать архив всех связанных файлов: `latest.log`, crash report, launcher log, debug log, список модов, manifest и диагностические metadata.
+7. **Per-mod allowlist по хэшу:** для сторонних модов из crash/launch telemetry добавлять конкретный hash в разрешенные отдельно для каждого мода; разрешенные версии не должны отправлять Telegram-уведомления, но остаются видимыми в админке и статистике.
+8. **Release health:** launch success, crash-free sessions, download failures, repair rate и server join success по версии сборки.
+9. **Support bundle:** logs, crash reports, manifest, runtime info, hashes и operation ID одним архивом без пользовательских миров и приватных данных.
+10. **Maintenance mode:** закрытие новых входов на сервер с объяснением в лаунчере, Telegram и админке.
+
+## P1: модель платформы
+
+1. **Loader honesty or support.** Либо ограничить protocol/admin реальным NeoForge runtime, либо добавить отдельные installers и launch arguments для Vanilla/Fabric/Quilt/Forge.
+2. **Multi-server model.** Добавить `server_id` в telemetry, logs, manifests, SFTP targets и launcher server selection.
+3. **Server health.** Health checks для auth, admin, Telegram, SFTP, file storage и Minecraft connectivity.
+4. **Retention and storage.** Retention для telemetry/logs и безопасный garbage collection orphaned content-addressed blobs.
+5. **Telemetry correctness.** Средние значения должны считаться за выбранное окно, а не по всей истории; join/quit должны быть разделены по серверу.
+6. **Security boundaries.** Защитить server customization signed server token-ом или ограниченным batch endpoint-ом; включить host-key verification во всех SFTP flows.
+
+## P2: удобство игрока
+
+1. **Update preview:** список изменений, место на диске, затронутые файлы и сохраненные пользовательские настройки.
+2. **Diagnostic center:** Java, RAM, disk, backend connectivity, build version, last operation and repair action.
+3. **Deep links:** `stardust://invite/...`, `stardust://build/...`, `stardust://news/...`.
+4. **Optional mod profiles:** performance, visuals, QoL; resolver зависимостей и объяснение конфликтов.
+5. **Session history:** история запусков, длительность, ошибки до join и последние crash reports.
+6. **Discord integration:** Rich Presence, account linking и invite-to-play без переноса чата в launcher.
+7. **Progress profile:** playtime, achievements, challenges, cosmetic ownership and seasonal rewards.
+
+## P2: админка и community
+
+1. Command palette и глобальный поиск по игрокам, сборкам, логам и операциям.
+2. Bulk actions с preview и подтверждением.
+3. Incident timeline, broadcast через Telegram и release notes из одного места.
+4. Список текущего онлайна и opt-in friends/activity.
+5. Group launch: invite party, проверка совместимости и общий переход на сервер.
+6. Несколько серверов из одной админки после завершения multi-server model.
+
+## P1: публичный сайт и личный кабинет
+
+Публичный `website/` нужно переделать не как простую страницу скачивания, а как основной web-вход в Stardust. `website` и `admin-web` остаются разными приложениями и разными контейнерами: игроки используют публичный сайт, а сотрудники управляют контентом через отдельную админку и `admin-server`. В качестве UX-референса использовать структуру PepeLand: отдельный личный кабинет, wiki/guides, новости и игровые разделы, но сохранить визуальный язык Stardust и не копировать чужой дизайн.
+
+1. **Личный кабинет через сайт.** Авторизация существующим auth API, профиль игрока, скин и плащ, бейджи/градиенты, статистика, playtime, last joined, достижения и настройки аккаунта.
+2. **Безопасная auth-связка.** Единая web-сессия с launcher/backend, Telegram-подтверждение для чувствительных действий и отдельное обязательное Telegram-подтверждение при входе в админку.
+3. **Публичные топы.** Рейтинги по времени в игре, убийствам и другим доступным игровым метрикам; страницы игрока, периодические/сезонные таблицы, фильтры и защита от публикации скрытых данных.
+4. **Гайды и wiki.** Раздел с категориями, поиском, оглавлением, related links и Markdown-редактором в админке. Минимальные категории: старт, правила, команды, моды, ресурспак, строительство, технические механики и FAQ.
+5. **Новости.** Публичная лента и страницы новостей из существующей news-модели, pinned-публикации, excerpt, дата обновления, теги и ссылки на связанные гайды/релизы.
+6. **Страница сервера.** Онлайн, состояние сервисов, адрес сервера, текущая сборка, версия Minecraft, правила, ссылки на Discord/Telegram и инструкция по установке лаунчера.
+7. **Игровой профиль.** Публичная карточка игрока с opt-in настройкой приватности, косметикой, достижениями, статистикой и историей сезона.
+8. **Mobile-first навигация.** Сайт должен одинаково хорошо работать на desktop и mobile: быстрый доступ к «Играть», личному кабинету, топам, гайдам и новостям.
+9. **Контентная админка.** CRUD в отдельном `admin-web` для гайдов, категорий, тегов, SEO/meta, черновиков, публикации и предварительного просмотра; публичный `website` только отображает опубликованный контент.
+10. **Deep links.** Ссылки из сайта должны открывать launcher: установка, выбранная сборка, новость, гайд или invite-код.
 
 ## Non-goals
 
-- Универсальный менеджер инстансов (как Prism для десятков профилей)
-- Встроенный CurseForge/Modrinth browser и произвольная установка модов
-- Поддержка нескольких независимых серверов/сборок в одном лаунчере
-- Редактор модов, скриптинг, плагины лаунчера
-- Замена полноценного server panel (только sync + manifest + ops API)
+- встроенный каталог CurseForge/Modrinth;
+- произвольная установка неподдержанных модов;
+- полноценный универсальный multi-instance launcher без связи с curated-сборками;
+- встроенный чат и социальная сеть;
+- полноценная панель управления Minecraft-хостингом;
+- автоматические опасные действия администратора без подтверждения.
 
-## Приоритеты (P0 / P1 / P2)
+## Порядок ближайших итераций
 
-### P0 — блокеры и доверие
+1. Repair Installation + operation state.
+2. Support bundle + diagnostic center.
+3. Audit log и session lifecycle.
+4. Manifest v2, update preview и rollback.
+5. Crash grouping и release health.
+6. Multi-server abstraction.
+7. Deep links, invite codes и Discord Rich Presence.
 
-| Область | Задача |
-|---------|--------|
-| Auth | Yggdrasil authenticate не обходит Telegram 2FA; rate limits |
-| Store | Session tokens только SHA-256 в БД (`create_session`) |
-| Admin | Закрыть `/api/build-check`, `/api/deps-check` без auth |
-| Launch | `-Xms` ≠ `-Xmx`; default RAM не 16 GB |
-| Update | macOS `get_install_dir` → `.app`, обязательный SHA-256 |
-| UX | Скролл настроек/модов; Java progress не блокирует Play |
-| macOS | Native Overlay title bar, Cmd+W, Escape не убивает окно над модалками |
-
-*Часть P0 UX (macOS bar, scroll, conflicts UI) — в незакоммиченных изменениях ветки `integrate/launcher-patches`.*
-
-### P1 — «Modrinth + Prism для одной сборки»
-
-- Mod cards + категории optional mods (оптимизация / визуал / QoL)
-- `conflictsWith` в admin UI и manifest
-- Platform matrix для **лаунчера и игры** (см. ниже)
-- Rename не сбрасывает ban; `PlayerProfile` camelCase
-- Prism-style launch log + retry на экране Play
-- Рекомендации optional mods: [`modpack-optional-mods.md`](modpack-optional-mods.md)
-
-### P2 — полировка
-
-- FancyMenu / Drippy / Seamless loading в curated optional
-- Fusion CTM вместо Continuity на чистом NeoForge
-- Mod cards с иконками из jar; bulk enable «performance pack»
-- In-game keybind presets per platform в доке + дефолтный resource pack hints
-
-## Platform matrix: кейбинды
-
-### Лаунчер (Tauri / WebView)
-
-| Действие | macOS | Windows / Linux |
-|----------|-------|-----------------|
-| Закрыть окно | Cmd+W | Alt+F4 / Ctrl+W (по желанию) |
-| Назад из настроек | Escape | Escape |
-| Закрыть модалку | Escape (не закрывает окно) | Escape |
-| Quit | Cmd+Q (native menu) | Alt+F4 |
-
-### Minecraft / моды (боль игроков)
-
-| Проблема | macOS | Win/Linux |
-|----------|-------|-----------|
-| «Ctrl» в подсказках модов | Часто нужен **Cmd** (GLFW) | Ctrl |
-| Fullscreen / F3 debug | Fn+F3, Option+клик | F3 |
-| Inventar / drop | Q без conflicts | Q |
-| Sodium/Iris меню | Зависит от binding; не пересекать с OS | Аналогично |
-| Modrinth «Controlling» | Искать по **Cmd** | Ctrl |
-
-**План:** документ `docs/KEYBINDS.md` + optional mod **Controlling** + в лаунчере
-ссылка «Кейбинды на Mac»; для сборки — не включать DH и Voxy одновременно;
-проверять conflicts в ModsSection.
-
-## Метрики успеха
-
-- Первый запуск → Play без рестарта devtools / лаунчера
-- macOS: нативные traffic lights, без кастомного «Windows title bar»
-- 0 critical из P0 security после релиза
-- Optional mods: видны конфликты до запуска игры
-- Время до «Minecraft main menu» не регрессирует после UX-правок
-
-## Уже сделано
-
-### 1. Базовая платформа
-- [x] Монорепозиторий с Cargo workspace и отдельными frontend-пакетами
-- [x] Общие crates `protocol` и `store`
-- [x] PostgreSQL-хранилище для аккаунтов, сессий, сборок и кастомизации
-
-### 2. Лаунчер
-- [x] Tauri + React интерфейс
-- [x] Логин и регистрация
-- [x] Telegram 2FA
-- [x] Вход без пароля через Telegram
-- [x] Сброс пароля через Telegram-код
-- [x] Автологин и восстановление локальной сессии
-- [x] Хранение токена сессии в системном keyring вместо `session.json`
-- [x] Экран профиля, скин, плащ, статистика
-- [x] Настройки памяти, параллельности загрузок, прокси и UI-поведения
-- [x] Список опциональных модов
-- [x] Прогресс, скорость, ETA, ошибки и повтор при обновлении лаунчера
-- [x] Самообновление лаунчера через GitHub Releases
-
-### 3. Запуск игры и модпак
-- [x] Подготовка vanilla Minecraft 1.21.1
-- [x] Загрузка Java 21 для Windows и использование системной Java на Linux
-- [x] Установка и запуск NeoForge
-- [x] Синхронизация модпака по `manifest.json` и SHA-1
-- [x] Поддержка `overwrite: false` для пользовательских конфигов
-- [x] Учёт управляемых файлов и удаление лишнего
-- [x] Подключение `authlib-injector`
-- [x] Отправка игровой статистики и crash-отчётов на backend
-
-### 4. Auth-сервер
-- [x] Регистрация и логин
-- [x] Сессии и `/api/session`
-- [x] Смена ника, пароля и удаление аккаунта
-- [x] Telegram-привязка
-- [x] Импорт и загрузка скинов
-- [x] Выдача плаща и профиля игрока
-- [x] Yggdrasil `authenticate/refresh/validate/invalidate`
-- [x] Yggdrasil `join/hasJoined/profile`
-- [x] `server_customization` для серверного мода
-- [x] Сбор и выдача статистики игрока
-
-### 5. Admin API и web-админка
-- [x] Логин администратора
-- [x] CRUD сборок
-- [x] Загрузка и редактирование файлов сборки
-- [x] Активация и клонирование сборок
-- [x] Публичный `/manifest` и `/files`
-- [x] Проверка целостности сборки (`build-check`)
-- [x] Проверка зависимостей модов (`deps-check`)
-- [x] Управление аккаунтами, ролями и банами
-- [x] Управление бейджами и градиентами
-- [x] Настройки Telegram и SFTP
-- [x] SFTP-синхронизация на внешнюю панель
-- [x] Загрузка и деплой общего мода
-
-### 6. Общий мод
-- [x] Один jar для клиента и сервера
-- [x] Интеграция с TAB
-- [x] Подавление стандартных join/leave-сообщений
-- [x] HTTP-получение кастомизации игроков с backend
-
-## Ближайшие задачи
-
-### 1. Безопасность
-- [x] Перестать записывать bearer-токен в `session.json`; хранить его только в keyring
-- [ ] Убрать жёстко прошитый builtin-прокси из обновлятора; настройки прокси уже используются, но fallback-адрес всё ещё встроен
-- [ ] Довести хеширование паролей до полноценного Argon2 для новых записей, а не только fallback-проверки
-- [ ] Расширить rate limiting на все критичные endpoints и задокументировать лимиты; текущий лимитер покрывает только отдельные сценарии
-
-### 2. Качество и тесты
-- [x] Добавить CI smoke-проверки сборки для `launcher` и `admin-web`
-- [ ] Добавить frontend-тесты для пользовательских сценариев `launcher` и `admin-web`; сейчас в npm-пакетах есть только `build`
-- [ ] Добавить интеграционные тесты для `auth-server` и `admin-server`
-- [ ] Проверять end-to-end сценарий: логин -> sync modpack -> launch -> report stats
-- [ ] Добавить contract-тесты для JSON API между `crates/protocol`, launcher, admin-web и серверными endpoints
-
-### 3. UX/UI и QoL
-- [ ] Добавить единый центр уведомлений в launcher и admin-web: история операций, повтор действия, копирование ошибки и ссылка на логи
-- [ ] Добавить глобальный быстрый поиск/command palette в admin-web для перехода к сборкам, игрокам, настройкам и частым операциям
-- [ ] Улучшить onboarding лаунчера: чек-лист первого запуска, проверка Java/диска/доступа к backend и понятные подсказки до кнопки «Играть»
-- [ ] Добавить подсказки и inline-help для сложных настроек: прокси, память, optional mods, Telegram, SFTP, authlib-injector и deploy общего мода
-- [ ] Добавить сохранение UI-предпочтений: фильтры и сортировка таблицы аккаунтов уже сохраняются; остались последняя вкладка настроек, фильтры модов, выбранная сборка и плотность интерфейса
-- [ ] Добавить skeleton/empty/error states для всех долгих списков и карточек: health-блок сайта и warning при частичной ошибке статистики аккаунтов уже добавлены; остались расширенные states для сборок и файлов в admin-web
-- [ ] Улучшить админский файловый менеджер: retry только упавших загрузок, summary очереди и остановка после текущего файла уже добавлены; остались расширенный batch edit метаданных, true-cancel активного XHR и preview массовых операций
-- [ ] Добавить drag-and-drop reorder/preview для файлов сборки там, где порядок влияет на UX или диагностику; минимум — визуальные превью и сравнение перед публикацией
-- [ ] Расширить таблицу аккаунтов: сортировка и фильтры по роли/бану/Telegram/активности уже добавлены; остались пагинация или виртуализация при большом числе игроков
-- [ ] Добавить bulk-actions для аккаунтов и сборок с безопасным preview перед применением
-- [ ] Добавить copy-to-clipboard действия: UUID игроков, пути файлов, SHA-1, ссылки на manifest/files и server address уже копируются; остались diagnostic IDs
-- [ ] Улучшить доступность: skip-link, aria-live для website статусов и возврат фокуса из map dialog уже добавлены; остались полная клавиатурная навигация по модалкам, focus trap, проверка контраста и reduced-motion для новых эффектов
-- [ ] Унифицировать дизайн-систему между launcher, admin-web и website: токены цветов/отступов/радиусов, состояния кнопок, форм, toast и modal
-- [ ] Добавить browser-based визуальные smoke-тесты ключевых экранов на desktop/tablet/mobile breakpoints
-- [ ] Улучшить публичный сайт QoL: автоопределение платформы скачивания, прямые ссылки на latest assets, более прямой download flow, вынос карты из основного сценария, копирование адреса и fallback-карточка статуса уже добавлены; остались более точный онлайн Minecraft-сервера и проверка fallback-сценариев на production-конфиге
-- [ ] Провести полный UX/UI review публичного сайта `website`: first iteration упростила hero, навигацию, стартовый download flow, статус перед стартом и accessibility основы, а отдельный map-блок и лишние map-styles убраны из main flow; дальше нужен аудит mobile/tablet breakpoints, скорости восприятия, визуальной иерархии, trust-блоков и production fallback
-
-### 4. CI/CD и релизы
-- [ ] Починить ручной выбор платформы в `launcher-release.yml` и `launcher-build.yml`: input `platform` есть, но matrix сейчас всё равно запускает все платформы
-- [ ] Разнести сборку лаунчера и публикацию GitHub Release, чтобы matrix jobs не создавали и не изменяли один release параллельно
-- [ ] Добавить `concurrency` для release/deploy workflow, чтобы параллельные запуски не перетирали релизы и production-контур
-- [ ] Добавить `deploy/docker-compose.yml` в path-фильтр backend workflow, иначе изменение compose не запускает деплой
-- [ ] Сузить permissions и область действия release tokens: сейчас release jobs получают `contents: write` и токены на уровне всего job
-- [ ] Валидировать ручные версии и release tags до shell-скриптов в launcher/mod workflows
-- [ ] Закрепить сторонние GitHub Actions по commit SHA или ввести регулярный аудит обновлений
-- [ ] Убрать изменение macOS `.app` после подписания или добавить повторную подпись и `codesign --verify --deep --strict`
-- [ ] Добавить Gradle cache и проверку wrapper для сборки мода
-
-### 5. Лаунчер
-- [ ] Доработать оффлайн-режим и явно отделить его UX от «сервер временно недоступен»
-- [x] Полировать UX обновлений и статусов скачивания: прогресс, скорость, ETA, ошибки и повтор
-- [ ] Расширить настройки runtime и диагностику проблем запуска
-- [ ] Добавить восстановление после частично скачанного/повреждённого модпака: resume, quarantine битых файлов и понятный repair-flow
-
-### 6. Серверная интеграция и эксплуатация
-- [ ] Довести compose/nix/scripts до развёртывания полного контура; базовый Compose и скрипт обновления уже есть
-- [ ] Описать production-схему reverse proxy, TLS и доменов; архитектурная схема есть, практического гайда нет
-- [ ] Описать production-сценарий кастомизации и скинов; кодовый поток уже работает
-- [ ] Перевести деплой с `docker compose down` на rolling/zero-downtime стратегию хотя бы для stateless-сервисов
-- [ ] Убрать запуск production-деплоя от root и описать минимальные права пользователя деплоя
-- [ ] Добавить healthcheck для `auth-server`, `admin-server`, web-контейнеров и squid в compose, а не только для PostgreSQL
-- [ ] Добавить backup/restore runbook для PostgreSQL, ключа Yggdrasil, модпака, скинов и настроек
-- [ ] Добавить метрики и алерты: latency/error rate endpoints, очередь Telegram, SFTP sync, размер/ошибки modpack-хранилища
-- [ ] Ограничить CORS в production по умолчанию и явно документировать допустимые origins
-
-### 7. Мод и кастомизация
-- [ ] Расширить runtime-интеграцию мода beyond TAB; уже есть обработка join/leave и challenge-логика
-- [ ] Добавить полноценные админские инструменты диагностики кастомизации; debug-логи и `/stardust refresh` уже есть
-
-### 8. Зависимости и supply chain
-- [ ] Добавить Dependabot/Renovate для Cargo, npm, Gradle, Docker images и GitHub Actions
-- [ ] Добавить SBOM и checksum/signature publication для launcher, mod jar и Docker images
-- [ ] Заменить плавающие Docker tags (`latest`, `ubuntu/squid:latest`) на pinning по версии или digest с регламентом обновления
+Критерий завершения каждой крупной функции: backend/API контракт, launcher/admin UI, миграции при необходимости, тесты и обновление этой документации.

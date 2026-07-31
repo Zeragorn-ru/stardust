@@ -1,233 +1,122 @@
-# Minecraft Launcher & Server Platform
+# Stardust
 
-Приватная платформа для Minecraft-сервера: кастомный лаунчер, собственная
-авторизация, доставка модпака, веб-админка и общий серверный/клиентский мод.
+Приватная платформа Minecraft с собственным десктопным лаунчером, auth/Yggdrasil-сервисом, доставкой curated-сборки, веб-админкой, Telegram-интеграцией и общим NeoForge-модом.
 
-Репозиторий уже содержит рабочие сервисы, а не только каркас: лаунчер умеет
-логинить игрока, синхронизировать сборку и запускать игру; `auth-server`
-обслуживает как launcher API, так и Yggdrasil/sessionserver-эндпоинты;
-`admin-server` и `admin-web` управляют сборками, аккаунтами и кастомизацией.
+Проект рассчитан прежде всего на управляемую сборку и сервер, а не на каталог произвольных модпаков.
 
 ## Компоненты
 
-| Путь | Что это | Стек |
+| Путь | Назначение | Стек |
 | --- | --- | --- |
-| `launcher/` | Десктоп-лаунчер: логин, 2FA, обновление сборки, запуск Minecraft, самообновление | Tauri 2, Rust, React, TypeScript |
-| `crates/auth-server/` | Auth API + Yggdrasil/sessionserver + скины/плащи/статистика | Rust, Axum, PostgreSQL |
-| `crates/admin-server/` | Admin API: сборки, файлы, аккаунты, бейджи, градиенты, SFTP-синхронизация | Rust, Axum, PostgreSQL |
-| `admin-web/` | Веб-админка для сборок, аккаунтов и настроек инфраструктуры | React, TypeScript, Vite |
-| `stardust-mod/` | Общий NeoForge-мод для клиента и сервера, интеграция с TAB и кастомизацией | Java 21, NeoForge |
-| `crates/store/` | Общий storage-слой: аккаунты, сессии, сборки, challenge'ы, кастомизация | Rust, sqlx |
-| `crates/protocol/` | Общие типы API и формата `manifest.json` | Rust, serde |
-| `crates/telegram-bot/` | Telegram-бот для 2FA-кодов и системных уведомлений | Rust |
-| `docs/` | Архитектура, дорожная карта, гайды по установке | Markdown |
+| `launcher/` | Лаунчер: onboarding, логин, 2FA, скин, синхронизация сборки, запуск Minecraft, диагностика и самообновление | Tauri 2, Rust, React, TypeScript |
+| `crates/auth-server/` | Регистрация, сессии, Telegram flows, API профиля, скины, статистика, crash reports и Yggdrasil/sessionserver | Rust, Axum, PostgreSQL |
+| `crates/admin-server/` | Admin API для аккаунтов, сборок, файлов, настроек, SFTP-деплоя и server telemetry | Rust, Axum, PostgreSQL |
+| `admin-web/` | Desktop и mobile web-админка | React, TypeScript, Vite |
+| `website/` | Публичный сайт проекта и скачивание лаунчера | Vite, JavaScript, CSS |
+| `stardust-mod/` | NeoForge-мод клиента и dedicated server: TAB, чат, кастомизация, телеметрия, crash markers и challenges | Java 21, NeoForge |
+| `crates/store/` | PostgreSQL storage, миграции, сборки, Telegram outbox, статистика и telemetry | Rust, sqlx |
+| `crates/protocol/` | Общие DTO API и формат `Manifest` | Rust, serde |
+| `crates/telegram-bot/` | Telegram 2FA, уведомления и доставка queued-документов | Rust |
+| `docs/` | Архитектура, roadmap, инструкции по macOS и modpack | Markdown |
 
-## Что уже реализовано
+`website` и `admin-web` — разные приложения и разные Docker-контейнеры (`launcher-website` и `launcher-admin-web`). Публичный сайт предназначен игрокам; управление аккаунтами, сборками и контентом выполняется через отдельную админку и `admin-server`.
 
-1. **Лаунчер.**
-   Есть реальные вход/регистрация, Telegram 2FA, вход без пароля, сброс пароля,
-   сессия, профиль со скином/плащом, настройки, список опциональных модов,
-   прогресс загрузок, самообновление и запуск Minecraft 1.21.1 через NeoForge.
+## Реализовано
 
-2. **Авторизация и игровые сессии.**
-   `auth-server` отдаёт `register/login/session/account`, загрузку и импорт
-   скинов, статистику, crash-отчёты, а также Yggdrasil-совместимые
-   `authenticate/refresh/validate/invalidate`, `join/hasJoined` и profile/textures.
+### Лаунчер
 
-3. **Модпак и доставка файлов.**
-   `admin-server` хранит метаданные сборок в PostgreSQL, раздаёт публичный
-   `GET /manifest` и `/files`, а лаунчер синхронизирует клиентские файлы по SHA-1,
-   не затирая пользовательские конфиги с `overwrite: false`.
+- регистрация, логин, автологин и logout;
+- Telegram 2FA, passwordless-вход и сброс пароля;
+- хранение bearer-токена в системном keyring;
+- offline/degraded поведение с сохранением локальной сессии и очередью статистики;
+- запуск Minecraft 1.21.1 через NeoForge;
+- скачивание клиента, библиотек, assets, natives и Java 21;
+- защита от второй копии игры и восстановление незавершенной игровой сессии;
+- синхронизация curated-сборки по manifest и SHA-1;
+- optional-моды, `.dis`, сохранение пользовательских конфигов и удаление измененных managed-файлов с защитой от потери правок;
+- конфликты optional-модов, включая Distant Horizons/Voxy;
+- настройки памяти JVM, concurrency, прокси, Java и папки данных;
+- импорт, загрузка и 3D-просмотр скинов, включая classic/slim и плащ;
+- самообновление Windows/macOS/Linux через GitHub Releases с retry, resume и необязательной SHA-256-проверкой;
+- просмотр логов, crash reports, marker-диагностика и отправка crash telemetry администраторам.
 
-4. **Админка.**
-   `admin-web` и `admin-server` уже покрывают логин администратора, CRUD сборок,
-   загрузку файлов, активацию сборки, проверку зависимостей, управление
-   аккаунтами, банами, ролями, Telegram-привязкой, бейджами и градиентами.
+### Backend и auth
 
-5. **Серверная кастомизация.**
-   `stardust-mod` и `auth-server` уже умеют отдавать кастомизацию игроков для TAB:
-   бейджи, цвет ника и градиенты.
+- PostgreSQL-хранилище аккаунтов, сессий, сборок, новостей, косметики, Telegram challenges, статистики и telemetry;
+- Argon2 для паролей с поддержкой миграции старых SHA-256 записей;
+- persistent sessions с хешированием токенов в базе;
+- Yggdrasil `authenticate`, `refresh`, `validate`, `invalidate`, `join`, `hasJoined`, profile и textures;
+- server-side ban, который блокирует вход в Minecraft, но не сам лаунчер;
+- импорт и загрузка скинов/плащей;
+- новости с Markdown, закреплением и отметкой прочтения;
+- server customization API для бейджей, цветов и градиентов;
+- crash reports, server logs, Telegram outbox и отправка документов администраторам.
 
-Подробнее — в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) и
-[`docs/ROADMAP.md`](docs/ROADMAP.md).
+### Сборки и админка
 
-## Сборка и CI
+- CRUD, clone и activation сборок;
+- manifest-файлы с `side`, `kind`, `sha1`, `size`, `overwrite`, optional metadata и конфликтами;
+- content-addressed хранение файлов;
+- файловый менеджер, загрузка крупных файлов, редактирование текстовых файлов;
+- build-check и deps-check;
+- аккаунты, поиск, фильтры, роли, баны, Telegram binding, скины и косметика;
+- SFTP-деплой server/both файлов с atomic upload, progress polling и known-host fingerprint;
+- server telemetry: online, TPS, MSPT, join/quit и server logs;
+- desktop и mobile entrypoints админки.
 
-Корневой [`Makefile`](Makefile) — единая точка входа (`make help`):
+## Быстрый старт
 
-```sh
-make ci                  # проверки как в .github/workflows/ci.yml
-make ci-launcher         # полная сборка лаунчера + dist/launcher-bundles/
-make test-backend        # cargo test серверных крейтов
-```
-
-Rust **1.96** закреплён в [`rust-toolchain.toml`](rust-toolchain.toml). Подробности CI —
-в [`.github/actions/README.md`](.github/actions/README.md) и [`AGENTS.md`](AGENTS.md).
-
-| Workflow | Триггер | Назначение |
-|----------|---------|------------|
-| `ci.yml` | push/PR `master` | Быстрые проверки без релизов |
-| `launcher-release.yml` | тег `v*` | Установщики → GitHub Releases |
-| `launcher-build.yml` | `workflow_dispatch` | Отладочная сборка лаунчера |
-| `backend.yml` | push `master` | Docker → ghcr.io + деплой |
-| `mod-release.yml` | тег `mod-v*` | JAR мода → GitHub Releases |
-
-Нативная упаковка (Arch, Fedora, Homebrew, Flatpak) — [`packaging/`](packaging/).
-
-## Разработка
-
-Backend и shared-код живут в Cargo workspace (см. корневой `Cargo.toml`).
-Сейчас в воркспейсе: `protocol`, `store`, `auth-server`, `admin-server`,
-`telegram-bot` и Tauri-бэкенд лаунчера (`launcher/src-tauri`).
-
-### Запуск auth-сервера
+Rust закреплен в `rust-toolchain.toml` (1.96), Node и Java-версии для CI указаны в `Makefile`.
 
 ```sh
-cargo run -p auth-server
+make help
+make ci
 ```
 
-По умолчанию сервер слушает `127.0.0.1:8080`. Если порт занят:
+Основные команды:
 
 ```sh
-AUTH_BIND=127.0.0.1:8090 cargo run -p auth-server
+make test-backend          # тесты backend crates
+make build-launcher-frontend
+make build-admin-web
+make build-website
+make build-mod
+make ci                    # backend, launcher clippy, web-сборки и mod
+make ci-launcher           # полная сборка лаунчера и артефактов
 ```
 
-Тогда лаунчер надо запускать с тем же адресом:
-
-```sh
-LAUNCHER_AUTH_URL=http://127.0.0.1:8090 npm run tauri dev
-```
-
-### Запуск admin-server
-
-```sh
-ADMIN_BIND=127.0.0.1:8081 DATABASE_URL=postgres://... cargo run -p admin-server
-```
-
-По умолчанию публичный `files`-префикс строится как
-`http://127.0.0.1:8081/files`. При необходимости можно переопределить через
-`FILES_BASE_URL`.
-
-### Сборка backend (Rust)
-
-```sh
-cargo build            # собрать весь воркспейс
-cargo build -p auth-server
-cargo build -p admin-server
-cargo build -p protocol
-```
-
-### Запуск лаунчера (dev)
-
-```sh
-cd launcher
-npm install            # один раз
-npm run tauri dev      # запускает Vite + Tauri-окно
-```
-
-Для локальной разработки обычно нужны оба backend-сервиса:
+Локальный запуск:
 
 ```sh
 cargo run -p auth-server
 ADMIN_BIND=127.0.0.1:8081 DATABASE_URL=postgres://... cargo run -p admin-server
-LAUNCHER_AUTH_URL=http://127.0.0.1:8080 LAUNCHER_ADMIN_URL=http://127.0.0.1:8081 npm run tauri dev
+cd launcher && npm ci && npm run tauri dev
 ```
 
-### Запуск admin-web
+Для dev-адресов используются `LAUNCHER_AUTH_URL` и `LAUNCHER_ADMIN_URL`. Admin web запускается через `make dev-admin-web`, публичный сайт — через `make dev-website`.
 
-```sh
-cd admin-web
-npm install
-npm run dev
-```
+Подробности по production-схеме находятся в [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), установка macOS — в [`docs/MACOS_INSTALL.md`](docs/MACOS_INSTALL.md), структура roadmap — в [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-Dev-сервер поднимается на `http://localhost:1430` и проксирует API на
-`admin-server`.
+## CI и релизы
 
-### Самообновление лаунчера
+| Workflow | Назначение |
+| --- | --- |
+| `ci.yml` | Быстрые проверки на push/PR в `master` |
+| `backend.yml` | Backend tests, Docker images и deploy на `master` |
+| `launcher-release.yml` | Релизные установщики по тегу `vX.Y.Z` |
+| `launcher-build.yml` | Ручная debug-сборка лаунчера |
+| `mod-release.yml` | JAR мода по тегу `mod-v*` |
 
-Лаунчер сам опрашивает GitHub Releases API, сравнивает версию с текущей и при
-наличии новой скачивает установщик NSIS (`*-setup.exe`) по HTTPS и запускает
-его в тихом режиме (`/S`), без окон мастера установки. После установки NSIS
-снова запускает уже обновлённый `StarDust.exe`. Поэтому при обычном обновлении
-пользователь не может случайно выбрать полное удаление локальных данных.
-Криптоподпись апдейтов не используется — безопасность обеспечивается
-транспортом HTTPS GitHub. Эндпоинт по умолчанию задан в
-`launcher/src-tauri/src/update.rs` (`RELEASES_API`), но его можно переопределить
-переменной окружения (должна указывать на JSON одного релиза GitHub API):
+Исходная версия лаунчера остается `0.0.0`; версия релиза определяется git-тегом. Для patch-релиза используется `sh scripts/release.sh`, для локальной полной проверки — `make ci-launcher`.
 
-```sh
-LAUNCHER_UPDATE_URL=https://api.github.com/repos/OWNER/REPO/releases/latest npm run tauri dev
-```
+## Текущие ограничения
 
-Проверка и установка доступны в настройках лаунчера (раздел «Обновления»).
+- launcher фактически запускает NeoForge 1.21.1, несмотря на более широкий enum loader-ов в protocol;
+- telemetry и server logs пока рассчитаны на один Minecraft-сервер;
+- optional dependencies/conflicts хранятся в manifest, но не образуют полноценный dependency resolver;
+- у сессий нет полноценного TTL/device management;
+- updater может продолжить установку, если `.sha256` отсутствует или не удалось скачать checksum;
+- нет полноценного audit log действий администраторов, release health и rollback сборок;
+- content-addressed storage пока не имеет безопасного garbage collection.
 
-### Установка на macOS
-
-Скачайте **`StarDust_X.Y.Z_universal.dmg`** из [GitHub Releases](https://github.com/Zeragorn-ru/stardust/releases).
-
-Полный гайд (Gatekeeper, первый запуск, обновления):
-
-**[docs/MACOS_INSTALL.md](docs/MACOS_INSTALL.md)**
-
-Кратко: откройте DMG → перетащите StarDust в **Applications** → при первом запуске
-**ПКМ → Open** (лаунчер пока без платного Apple-сертификата). В DMG есть файл
-**«Установка»** — он откроет гайд в браузере.
-
-### Релиз новой версии лаунчера
-
-Сборка лаунчера запускается **только по git-тегу вида `vX.Y.Z`**
-(`.github/workflows/launcher-release.yml`). Просто запушить код в `master`
-недостаточно — без тега установщики не соберутся и в Release ничего не
-попадёт.
-
-**Источник правды версии — git-тег.** В исходниках версия хранится как
-плейсхолдер `0.0.0` (в `launcher/package.json`,
-`launcher/src-tauri/Cargo.toml`, `launcher/src-tauri/tauri.conf.json` и
-`Cargo.lock`). На пуш тега workflow сам подставляет реальную версию (тег без
-префикса `v`) во все эти файлы перед сборкой. Руками версию править не нужно.
-
-Проще всего выпускать релиз скриптом — он берёт последний тег, считает
-следующий и пушит новый:
-
-```sh
-sh scripts/release.sh            # патч-бамп:  v0.2.9 -> v0.2.10
-sh scripts/release.sh minor      # минор:      v0.2.9 -> v0.3.0
-sh scripts/release.sh major      # мажор:      v0.2.9 -> v1.0.0
-sh scripts/release.sh 0.3.0      # явная версия -> тег v0.3.0
-sh scripts/release.sh --dry-run  # показать вычисленный тег, ничего не делая
-sh scripts/release.sh --no-push  # создать тег локально, без пуша
-```
-
-Либо вручную — достаточно поставить и запушить тег (файлы трогать не надо):
-
-```sh
-git tag v0.2.10
-git push origin v0.2.10
-```
-
-Дальше workflow `launcher-release` создаст GitHub Release `v0.2.10` и соберёт
-установщики для **Windows** (NSIS `.exe`), **Linux** (`.deb`, `.rpm`, AppImage) и
-**macOS** (universal `.dmg` с гайдом по установке). Установленные лаунчеры
-подхватят обновление через GitHub Releases API.
-
-Сборка не требует ключей подписи Apple — без сертификата macOS-сборка идёт
-unsigned (см. [гайд по установке](docs/MACOS_INSTALL.md)). Релизный workflow
-собирает установщики и прикладывает их к GitHub Release:
-
-```sh
-cd launcher
-npm run tauri build
-```
-
-> При ручной деинсталляции (Windows/NSIS) лаунчер спросит, удалять ли данные из
-> `%APPDATA%\com.project.launcher` (Java, клиент, NeoForge, ассеты, настройки).
-> По умолчанию данные сохраняются. При автообновлении установщик запускается
-> тихо, выбор удаления данных не показывается, а после установки лаунчер
-> открывается обратно.
-
-## Текущее состояние
-
-Проект уже рабочий как внутренний контур платформы, но остаются заметные зоны
-развития: безопасность хранения локальной сессии, покрытие тестами фронтенда,
-инфраструктурная сборка и полировка серверной интеграции вокруг мода.
+Актуальный список задач и порядок приоритетов ведется в [`docs/ROADMAP.md`](docs/ROADMAP.md).

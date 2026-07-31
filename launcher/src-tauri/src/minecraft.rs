@@ -253,11 +253,15 @@ fn scan_external_mods(
             continue;
         }
         let (mod_id, name, version) = read_jar_metadata(&path);
+        let Ok(sha256) = crate::sha256::compute_sha256_file(&path) else {
+            continue;
+        };
         reports.push(crate::backend::ExternalModReport {
             jar_name,
             mod_id,
             name,
             version,
+            sha256,
         });
         if reports.len() >= 32 {
             break;

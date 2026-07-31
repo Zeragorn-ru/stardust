@@ -177,3 +177,11 @@ export interface ServerLogsResponse {
   logs: ServerLogEntry[];
   averageOnline: number;
 }
+
+export interface ExternalModAllowlistEntry {
+  id: number;
+  modId: string;
+  jarName: string;
+  sha256: string;
+  createdAt: string;
+}

@@ -116,6 +116,22 @@
 .log-card__topline time, .log-card__user, .log-card__details { color: var(--muted); font-size: 12px; }
 .log-card__summary { font-size: 15px; }
 .log-card__details { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.log-card__open { margin-top: 2px; color: var(--accent); font-size: 12px; font-weight: 700; text-align: start; }
+.logs-list .log-card { width: 100%; text-align: start; cursor: pointer; }
+.log-details-modal { width: min(760px, calc(100vw - 32px)); max-width: 760px; max-height: min(820px, calc(100vh - 48px)); overflow: auto; }
+.log-details-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
+.log-details-head h2 { margin: 4px 0 6px; font-size: 20px; line-height: 1.25; }
+.log-details-section { display: grid; gap: 10px; margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
+.log-details-section__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.log-file-list, .log-mod-list { display: grid; gap: 8px; }
+.log-file, .log-mod-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elev); color: var(--text); text-align: start; }
+.log-file { width: 100%; }
+.log-file:hover { border-color: var(--accent); background: var(--accent-soft); }
+.log-file small { color: var(--accent); }
+.log-mod-row > div { display: grid; gap: 4px; min-width: 0; }
+.log-mod-row small { color: var(--muted); overflow-wrap: anywhere; }
+.log-mod-row code { font-size: 11px; }
+.log-json { max-height: 300px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--muted); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .logs-empty { display: grid; gap: 10px; justify-items: start; }
 .logs-average-card { display: grid; gap: 4px; margin-bottom: 16px; }
 .logs-average-card strong { color: var(--accent); font-size: 30px; line-height: 1; }
@@ -3972,6 +3988,146 @@ input[type="radio"] {
 .metric-card--green { box-shadow: inset 0 0 0 1px rgba(95, 240, 167, 0.05), inset 0 -60px 80px rgba(95, 240, 167, 0.05); }
 .metric-card--yellow { box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.06), inset 0 -60px 80px rgba(255, 209, 102, 0.045); }
 .metric-card--red { box-shadow: inset 0 0 0 1px rgba(255, 93, 108, 0.06), inset 0 -60px 80px rgba(255, 93, 108, 0.045); }
+
+/* Desktop overview: establish one reading path instead of a collection of equal cards. */
+@media (min-width: 1121px) {
+    .overview-view {
+        width: min(100%, 1380px);
+        margin-inline: auto;
+        display: grid;
+        gap: 20px;
+    }
+
+    .overview-view .hero-panel {
+        min-height: 188px;
+        align-items: center;
+        margin-bottom: 0;
+        padding: 28px 32px;
+        border-radius: 24px;
+    }
+
+    .overview-view .hero-copy {
+        max-width: 720px;
+    }
+
+    .overview-view .hero-copy h1 {
+        font-size: clamp(32px, 3vw, 42px);
+    }
+
+    .overview-view .hero-copy p {
+        max-width: 600px;
+        margin-top: 10px;
+        line-height: 1.55;
+    }
+
+    .overview-view .overview-hero-pills {
+        margin-top: 14px;
+    }
+
+    .overview-view .ops-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 0;
+    }
+
+    .overview-view .metric-card {
+        min-height: 112px;
+        padding: 16px;
+        border-radius: 16px;
+        gap: 8px;
+    }
+
+    .overview-view .metric-card strong {
+        font-size: 28px;
+    }
+
+    .desktop-telemetry {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(330px, .8fr);
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .desktop-telemetry .telemetry-panel,
+    .desktop-telemetry .telemetry-chart-card {
+        margin-top: 0;
+    }
+
+    .desktop-telemetry .telemetry-chart-card {
+        min-height: 100%;
+    }
+
+    .desktop-telemetry-side {
+        display: grid;
+        align-content: start;
+        gap: 16px;
+    }
+
+    .telemetry-health-card,
+    .telemetry-events-card {
+        min-width: 0;
+    }
+
+    .telemetry-health-card .telemetry-online-metrics {
+        justify-content: space-between;
+        gap: 18px;
+    }
+
+    .telemetry-health-card .telemetry-online-metric {
+        min-width: 0;
+    }
+
+    .telemetry-health-card .telemetry-online-metric > strong {
+        font-size: 34px;
+    }
+
+    .telemetry-performance-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        padding-top: 16px;
+        margin-top: 16px;
+        border-top: 1px solid var(--border);
+    }
+
+    .telemetry-performance {
+        display: grid;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .telemetry-performance--green .telemetry-metrics-row span:first-child {
+        color: var(--ok);
+    }
+
+    .telemetry-performance--blue .telemetry-metrics-row span:first-child {
+        color: #38bdf8;
+    }
+
+    .telemetry-events-card .telemetry-recent-events {
+        gap: 8px;
+    }
+
+    .overview-view .overview-columns {
+        grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr);
+        gap: 16px;
+    }
+
+    .overview-view .overview-columns > .sd-card {
+        min-width: 0;
+    }
+
+    .overview-view .overview-quick-actions {
+        gap: 12px;
+        margin-bottom: 0;
+    }
+
+    .overview-view .overview-action-card {
+        min-height: 76px;
+        padding: 14px 16px;
+        border-radius: 16px;
+    }
+}
 
 .overview-columns {
     display: grid;

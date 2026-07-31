@@ -19,6 +19,7 @@ import type {
   Settings,
   ServerTelemetry,
   ServerLogsResponse,
+  ExternalModAllowlistEntry,
   UploadMeta,
 } from "./types";
 import { baseName } from "./format";
@@ -255,6 +256,15 @@ export const api = {
 
   getServerLogs(): Promise<ServerLogsResponse> {
     return request("GET", "/api/server/logs");
+  },
+  listExternalModAllowlist(): Promise<{ entries: ExternalModAllowlistEntry[] }> {
+    return request("GET", "/api/server/external-mod-allowlist");
+  },
+  allowExternalMod(input: { modId: string; jarName: string; sha256: string }): Promise<void> {
+    return request("POST", "/api/server/external-mod-allowlist", input);
+  },
+  removeExternalModAllowlist(id: number): Promise<void> {
+    return request("DELETE", `/api/server/external-mod-allowlist/${id}`);
   },
   generateServerTelemetryToken(): Promise<{ token: string }> {
     return request("POST", "/api/settings/server-token/generate");

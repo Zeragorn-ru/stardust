@@ -138,6 +138,7 @@ pub struct ExternalModReport {
     pub mod_id: Option<String>,
     pub name: Option<String>,
     pub version: Option<String>,
+    pub sha256: String,
 }
 
 pub async fn report_external_mods(

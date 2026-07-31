@@ -45,7 +45,69 @@ pub struct ServerLogEntry {
     pub details: serde_json::Value,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalModAllowlistEntry {
+    pub id: i64,
+    pub mod_id: String,
+    pub jar_name: String,
+    pub sha256: String,
+    pub created_at: String,
+}
+
 impl Store {
+    pub async fn is_external_mod_allowed(&self, mod_id: &str, sha256: &str) -> Result<bool, StoreError> {
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM external_mod_allowlist WHERE mod_id = $1 AND sha256 = $2)",
+        )
+        .bind(mod_id)
+        .bind(sha256)
+        .fetch_one(&self.pool)
+        .await?)
+    }
+
+    pub async fn list_external_mod_allowlist(&self) -> Result<Vec<ExternalModAllowlistEntry>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, mod_id, jar_name, sha256, created_at
+             FROM external_mod_allowlist ORDER BY mod_id, jar_name, sha256",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|row| ExternalModAllowlistEntry {
+            id: row.get("id"),
+            mod_id: row.get("mod_id"),
+            jar_name: row.get("jar_name"),
+            sha256: row.get("sha256"),
+            created_at: format_recorded_at(row.get("created_at")),
+        }).collect())
+    }
+
+    pub async fn add_external_mod_allowlist(
+        &self,
+        mod_id: &str,
+        jar_name: &str,
+        sha256: &str,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO external_mod_allowlist (mod_id, jar_name, sha256)
+             VALUES ($1, $2, $3) ON CONFLICT (mod_id, sha256) DO UPDATE SET jar_name = EXCLUDED.jar_name",
+        )
+        .bind(mod_id)
+        .bind(jar_name)
+        .bind(sha256)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn remove_external_mod_allowlist(&self, id: i64) -> Result<(), StoreError> {
+        sqlx::query("DELETE FROM external_mod_allowlist WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn record_telemetry(&self, heartbeat: &TelemetryHeartbeat) -> Result<(), StoreError> {
         let players = serde_json::to_value(&heartbeat.players)
             .map_err(|e| StoreError::Backend(e.to_string()))?;

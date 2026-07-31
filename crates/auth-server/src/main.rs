@@ -1351,7 +1351,14 @@ async fn report_crash(
         "client_crash",
         Some(&account.username),
         "Клиент Minecraft завершился аварийно",
-        serde_json::json!({ "exitCode": req.exit_code, "crashReport": req.crash_report }),
+        serde_json::json!({
+            "exitCode": req.exit_code,
+            "crashReport": req.crash_report,
+            "latestLog": req.log,
+            "debugLog": req.debug_log,
+            "launcherLog": req.launcher_log,
+            "modReport": req.mod_report,
+        }),
     ).await?;
 
     Ok(StatusCode::OK)
@@ -1421,6 +1428,7 @@ struct ExternalModEntry {
     mod_id: Option<String>,
     name: Option<String>,
     version: Option<String>,
+    sha256: String,
 }
 
 async fn report_external_mods(
@@ -1438,7 +1446,12 @@ async fn report_external_mods(
         clean_alert_field(&account.username),
     );
     let mods = req.mods;
+    let mut unapproved = Vec::new();
     for entry in mods.iter().take(32) {
+        let mod_id = entry.mod_id.as_deref().unwrap_or(&entry.jar_name);
+        if !state.store.is_external_mod_allowed(mod_id, &entry.sha256).await? {
+            unapproved.push(entry);
+        }
         let jar_name = clean_alert_field(&entry.jar_name);
         let name = entry
             .name
@@ -1455,7 +1468,18 @@ async fn report_external_mods(
             .as_deref()
             .map(clean_alert_field)
             .unwrap_or_else(|| "неизвестно".to_string());
-        summary.push_str(&format!("• {jar_name}\n  {name} | id: {mod_id} | версия: {version}\n"));
+        if unapproved.last().is_some_and(|candidate| std::ptr::eq(*candidate, entry)) {
+            summary.push_str(&format!("• {jar_name}\n  {name} | id: {mod_id} | версия: {version}\n  sha256: {}\n", clean_alert_field(&entry.sha256)));
+        }
+    }
+    if unapproved.is_empty() {
+        state.store.record_server_log(
+            "external_mods_allowed",
+            Some(&account.username),
+            "Запуск только с разрешенными сторонними модами",
+            serde_json::json!({ "mods": mods }),
+        ).await?;
+        return Ok(StatusCode::OK);
     }
     summary = summary.chars().take(3900).collect();
     let reply_markup = format!(
