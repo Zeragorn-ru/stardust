@@ -267,13 +267,18 @@ button,
     transition:
         background var(--t-fast),
         border-color var(--t-fast),
-        color var(--t-fast);
+        color var(--t-fast),
+        transform var(--t-fast);
 }
 
 .window-btn:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: var(--glass-border);
     color: #fff;
+}
+
+.window-btn:active {
+    transform: scale(0.92);
 }
 
 .window-btn span {
@@ -725,11 +730,16 @@ button,
     transition:
         background var(--t-fast),
         box-shadow var(--t-mid),
-        opacity var(--t-fast);
+        opacity var(--t-fast),
+        transform var(--t-fast);
 }
 
 .btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
+}
+
+.btn:active:not(:disabled) {
+    transform: scale(0.96);
 }
 
 .btn:disabled {
@@ -745,6 +755,9 @@ button,
 }
 .btn--primary:hover:not(:disabled) {
     box-shadow: var(--glow);
+}
+.btn--primary:active:not(:disabled) {
+    transform: scale(0.96);
 }
 /* Световой блик пробегает по primary-кнопке при наведении. */
 .btn--primary::after {
@@ -774,6 +787,10 @@ button,
     color: #fff;
 }
 
+.btn--success:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
 .btn--ghost {
     background: rgba(255, 255, 255, 0.06);
     border-color: var(--glass-border);
@@ -783,6 +800,7 @@ button,
 .btn--ghost:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.12);
     color: var(--text);
+    box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.3);
 }
 
 .btn--link {
@@ -796,6 +814,9 @@ button,
 .btn--link:hover:not(:disabled) {
     color: var(--text);
     transform: none;
+}
+.btn--link:active:not(:disabled) {
+    transform: scale(0.96);
 }
 
 /* Альтернативные действия под формой входа: без пароля / сброс пароля. */
@@ -836,6 +857,9 @@ button,
     box-shadow:
         0 16px 46px -18px rgba(16, 185, 129, 0.9),
         0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+}
+.btn--play:active:not(:disabled) {
+    transform: scale(0.96);
 }
 /* Мягкое «дыхание» свечения, пока кнопка готова к запуску. */
 .btn--play:not(:disabled) {
@@ -886,6 +910,9 @@ button,
 .btn--play-retry:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.14);
     box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
+}
+.btn--play-retry:active:not(:disabled) {
+    transform: scale(0.96);
 }
 .btn--play-retry::after {
     display: none;
@@ -959,6 +986,10 @@ button,
     font-size: 18px;
     line-height: 1;
     flex-shrink: 0;
+}
+
+.btn--stepper:active:not(:disabled) {
+    transform: scale(0.92);
 }
 
 .range-row__number {
@@ -1044,7 +1075,12 @@ button,
     transition:
         border-color var(--t-mid),
         box-shadow var(--t-mid),
-        background var(--t-mid);
+        background var(--t-mid),
+        transform var(--t-fast);
+}
+
+.choice:active {
+    transform: scale(0.96);
 }
 
 .choice--active {
@@ -1461,6 +1497,11 @@ button,
     border: 1px solid var(--glass-border);
     color: var(--text);
     box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.7);
+    transition:
+        background var(--t-fast),
+        box-shadow var(--t-mid),
+        opacity var(--t-fast),
+        transform var(--t-fast);
 }
 .hero__skin-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.13);
@@ -1468,6 +1509,9 @@ button,
     box-shadow:
         0 10px 26px -12px rgba(124, 92, 255, 0.6),
         0 0 0 1px rgba(124, 92, 255, 0.35) inset;
+}
+.hero__skin-btn:active:not(:disabled) {
+    transform: scale(0.96);
 }
 
 .hero__launch-card {
@@ -1564,12 +1608,16 @@ button,
     font: inherit;
     text-align: left;
     box-shadow: var(--shadow);
-    transition: border-color var(--t-fast), background var(--t-fast);
+    transition: border-color var(--t-fast), background var(--t-fast), transform var(--t-fast);
 }
 
 .hero__news-banner:hover {
     border-color: rgba(124, 92, 255, .48);
     background: rgba(124, 92, 255, .1);
+}
+
+.hero__news-banner:active {
+    transform: scale(0.98);
 }
 
 .hero__news-banner-label {
@@ -1628,12 +1676,17 @@ button,
     cursor: pointer;
     transition:
         background var(--t-fast),
-        border-color var(--t-fast);
+        border-color var(--t-fast),
+        transform var(--t-fast);
 }
 
 .server-map-button:hover {
     border-color: rgba(92, 184, 168, 0.5);
     background: rgba(92, 184, 168, 0.16);
+}
+
+.server-map-button:active {
+    transform: scale(0.96);
 }
 
 .hero__stats-title {
@@ -1674,12 +1727,17 @@ button,
     cursor: pointer;
     transition:
         background var(--t-fast),
-        border-color var(--t-fast);
+        border-color var(--t-fast),
+        transform var(--t-fast);
 }
 
 .server-players-button:hover {
     border-color: rgba(74, 222, 128, 0.35);
     background: rgba(74, 222, 128, 0.1);
+}
+
+.server-players-button:active {
+    transform: scale(0.96);
 }
 
 .hero__stat-value {
@@ -2040,7 +2098,8 @@ button,
     cursor: pointer;
     transition:
         background var(--t-fast),
-        color var(--t-fast);
+        color var(--t-fast),
+        transform var(--t-fast);
 }
 
 /* Вертикальный акцентный «язычок» слева: вырастает у активного пункта. */
@@ -2054,12 +2113,16 @@ button,
     border-radius: 99px;
     background: var(--accent-grad);
     transform: translateY(-50%);
-    transition: height var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1);
+    transition: height var(--t-mid) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .settings__nav-item:hover {
     background: rgba(255, 255, 255, 0.04);
     color: var(--text);
+}
+
+.settings__nav-item:active {
+    transform: scale(0.97);
 }
 
 .settings__nav-item--active {
@@ -2194,6 +2257,10 @@ button,
     transform: none;
 }
 
+.btn--danger:active:not(:disabled) {
+    transform: scale(0.96);
+}
+
 .form-msg {
     font-size: 13px;
     margin: 0;
@@ -2242,11 +2309,16 @@ button,
     background: rgba(255, 255, 255, 0.12);
     cursor: pointer;
     padding: 3px;
-    transition: background var(--t-mid);
+    transition: background var(--t-mid), box-shadow var(--t-mid);
+}
+
+.switch:hover {
+    background: rgba(255, 255, 255, 0.16);
 }
 
 .switch--on {
     background: var(--accent-grad);
+    box-shadow: 0 2px 10px -2px rgba(124, 92, 255, 0.5);
 }
 
 .switch__knob {
@@ -2255,9 +2327,11 @@ button,
     height: 22px;
     border-radius: 50%;
     background: #fff;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    box-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.3),
+        0 2px 8px rgba(0, 0, 0, 0.15);
     transform: translateX(0);
-    transition: transform var(--t-mid) cubic-bezier(0.22, 1, 0.36, 1);
+    transition: transform var(--t-mid) cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .switch--on .switch__knob {
@@ -2320,11 +2394,16 @@ button,
     cursor: pointer;
     transition:
         background var(--t-fast),
-        color var(--t-fast);
+        color var(--t-fast),
+        transform var(--t-fast);
 }
 
 .tabs__tab:hover:not(.is-active) {
     color: var(--text);
+}
+
+.tabs__tab:active:not(.is-active) {
+    transform: scale(0.96);
 }
 
 .tabs__tab.is-active {
@@ -2672,6 +2751,10 @@ button,
     color: var(--text);
 }
 
+.btn--icon:active:not(:disabled) {
+    transform: scale(0.92);
+}
+
 /* ============ Модалка скина ============ */
 
 .skin-modal__body {
@@ -2731,11 +2814,16 @@ button,
     cursor: pointer;
     transition:
         background var(--t-fast),
-        color var(--t-fast);
+        color var(--t-fast),
+        transform var(--t-fast);
 }
 
 .segmented__opt:hover:not(.is-active) {
     color: var(--text);
+}
+
+.segmented__opt:active:not(.is-active) {
+    transform: scale(0.96);
 }
 
 .segmented__opt.is-active {
@@ -2767,11 +2855,15 @@ button,
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: color var(--t-fast);
+    transition: color var(--t-fast), transform var(--t-fast);
 }
 
 .skin-tab:hover:not(.is-active) {
     color: var(--text);
+}
+
+.skin-tab:active:not(.is-active) {
+    transform: scale(0.96);
 }
 
 .skin-tab.is-active {
@@ -2822,6 +2914,9 @@ button,
     background: rgba(124, 92, 255, 0.22);
     box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.16);
 }
+.btn--soft:active:not(:disabled) {
+    transform: scale(0.96);
+}
 
 /* Чекбокс «держать в синхроне» */
 .skin-sync {
@@ -2859,7 +2954,8 @@ button,
         linear-gradient(135deg, rgba(124, 92, 255, 0.1), rgba(79, 140, 255, 0.04)),
         rgba(0, 0, 0, 0.22);
     border: 1px solid rgba(124, 92, 255, 0.2);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 32px -12px rgba(0, 0, 0, 0.3);
 }
 
 .advanced-card__head,
@@ -2893,7 +2989,7 @@ button,
     padding: 16px 18px;
     background: rgba(0, 0, 0, 0.22);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
 }
 
 .java-card__head {
@@ -2932,23 +3028,32 @@ button,
     color: var(--text);
     text-align: left;
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
     background: rgba(0, 0, 0, 0.18);
     cursor: pointer;
     transition:
         border-color var(--t-fast),
-        background var(--t-fast);
+        background var(--t-fast),
+        box-shadow var(--t-fast),
+        transform var(--t-fast);
 }
 
 .java-provider:hover {
     border-color: rgba(124, 92, 255, 0.45);
     background: rgba(124, 92, 255, 0.08);
+    box-shadow: 0 4px 16px -6px rgba(124, 92, 255, 0.25);
+}
+
+.java-provider:active {
+    transform: scale(0.96);
 }
 
 .java-provider--selected {
     border-color: var(--accent);
     background: rgba(124, 92, 255, 0.16);
-    box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.16) inset;
+    box-shadow:
+        0 0 0 1px rgba(124, 92, 255, 0.16) inset,
+        0 4px 16px -6px rgba(124, 92, 255, 0.3);
 }
 
 .java-provider__title {
@@ -2976,7 +3081,7 @@ button,
     align-items: flex-start;
     gap: 2px;
     padding: 10px 12px;
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
     border: 1px solid var(--glass-border);
     background: rgba(0, 0, 0, 0.18);
     color: var(--text);
@@ -2984,12 +3089,19 @@ button,
     text-align: left;
     transition:
         border-color var(--t-fast),
-        background var(--t-fast);
+        background var(--t-fast),
+        box-shadow var(--t-fast),
+        transform var(--t-fast);
 }
 
 .java-vendors__item:hover:not(:disabled) {
     border-color: rgba(92, 184, 168, 0.45);
     background: rgba(92, 184, 168, 0.08);
+    box-shadow: 0 4px 16px -6px rgba(92, 184, 168, 0.2);
+}
+
+.java-vendors__item:active:not(:disabled) {
+    transform: scale(0.96);
 }
 
 .java-vendors__item:disabled {
@@ -3037,19 +3149,26 @@ button,
     width: 100%;
     text-align: left;
     padding: 12px 14px;
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
     border: 1px solid var(--glass-border);
     background: rgba(0, 0, 0, 0.18);
     color: var(--text);
     cursor: pointer;
     transition:
         border-color var(--t-fast),
-        background var(--t-fast);
+        background var(--t-fast),
+        box-shadow var(--t-fast),
+        transform var(--t-fast);
 }
 
 .java-list__item:hover {
     border-color: rgba(124, 92, 255, 0.45);
     background: rgba(124, 92, 255, 0.08);
+    box-shadow: 0 4px 16px -6px rgba(124, 92, 255, 0.2);
+}
+
+.java-list__item:active {
+    transform: scale(0.96);
 }
 
 .java-list__item--selected {
@@ -3085,7 +3204,8 @@ button,
     padding: 16px 18px;
     background: rgba(0, 0, 0, 0.22);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.2);
 }
 
 .info-card__row {
@@ -3123,8 +3243,9 @@ button,
     align-items: center;
     padding: 15px;
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius);
+    border-radius: 8px;
     background: var(--glass);
+    box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.2);
 }
 
 .data-directory-card .toggle-row__text,
@@ -3166,7 +3287,8 @@ button.data-directory-card__path:disabled {
     padding: 16px 18px;
     background: rgba(0, 0, 0, 0.22);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.2);
 }
 
 .logs-card__actions {
@@ -3211,6 +3333,11 @@ button.data-directory-card__path:disabled {
     padding: 6px 12px;
     font-size: 12px;
     cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast), transform var(--t-fast);
+}
+
+.log-viewer-modal__tab:active:not(.log-viewer-modal__tab--active) {
+    transform: scale(0.96);
 }
 
 .log-viewer-modal__tab--active {
@@ -3357,10 +3484,10 @@ button.data-directory-card__path:disabled {
     padding: 16px 18px;
     background: rgba(0, 0, 0, 0.22);
     border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
+    border-radius: 8px;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    box-shadow: none;
+    box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.2);
 }
 
 .settings .update-card__head {
@@ -3446,7 +3573,7 @@ button.data-directory-card__path:disabled {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    transition: color var(--t-fast);
+    transition: color var(--t-fast), transform var(--t-fast);
     white-space: nowrap;
     display: flex;
     align-items: center;
@@ -3454,6 +3581,7 @@ button.data-directory-card__path:disabled {
 }
 
 .customize-tab:hover:not(.is-active) { color: var(--text); }
+.customize-tab:active:not(.is-active) { transform: scale(0.96); }
 .customize-tab.is-active { color: #fff; }
 
 .customize-tabs__ink {
@@ -3600,7 +3728,7 @@ button.data-directory-card__path:disabled {
     color: var(--text);
     font-size: 13px;
     cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
+    transition: border-color 0.2s, background 0.2s, transform var(--t-fast);
     text-align: left;
     min-width: 0;
     --minecraft-nick-size: 14px;
@@ -3608,6 +3736,10 @@ button.data-directory-card__path:disabled {
 
 .nick-option-btn:hover {
     background: rgba(255, 255, 255, 0.05);
+}
+
+.nick-option-btn:active {
+    transform: scale(0.96);
 }
 
 .nick-option-btn.selected {
@@ -3692,7 +3824,11 @@ select {
     color: var(--text);
     outline: none;
     cursor: pointer;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+
+select:hover {
+    border-color: rgba(255, 255, 255, 0.16);
 }
 
 select:focus {
