@@ -1,7 +1,6 @@
 package dev.stardust.mod.mixin;
 
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.LightBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -15,7 +14,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /** Keeps light-block outlines visible while holding the item in survival. */
 @Mixin(LightBlock.class)
 public abstract class LightBlockMixin {
-    @Inject(method = "getShape", at = @At("RETURN"), cancellable = true)
+    @Inject(method = "getShape", at = @At("HEAD"), cancellable = true)
     private void stardust$showHeldLightBlock(
             BlockState state,
             net.minecraft.world.level.BlockGetter level,

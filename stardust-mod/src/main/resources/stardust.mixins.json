@@ -5,11 +5,11 @@
   "compatibilityLevel": "JAVA_21",
   "refmap": "stardust.refmap.json",
   "mixins": [
-    "PlayerListMixin"
+    "PlayerListMixin",
+    "LightBlockMixin"
   ],
   "client": [
-    "ChatListenerMixin",
-    "LightBlockMixin"
+    "ChatListenerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

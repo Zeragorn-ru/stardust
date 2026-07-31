@@ -61,7 +61,12 @@ public final class StardustLightBlockInteraction {
         int next = event.getEntity().isShiftKeyDown()
                 ? (current == 0 ? 15 : current - 1)
                 : (current + 1) % 16;
-        LightBlock.setLightOnStack(stack, next);
+        if (next == 15) {
+            // Level 15 is the vanilla default and is represented by no component.
+            stack.remove(DataComponents.BLOCK_STATE);
+        } else {
+            LightBlock.setLightOnStack(stack, next);
+        }
         event.setCanceled(true);
         event.setCancellationResult(InteractionResult.sidedSuccess(event.getEntity().level().isClientSide));
     }
