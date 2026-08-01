@@ -1,0 +1,14 @@
+{
+  "trumpet": {
+    "sounds": ["stardust:trumpet"]
+  },
+  "trumpet_exposed": {
+    "sounds": ["stardust:trumpet_exposed"]
+  },
+  "trumpet_weathered": {
+    "sounds": ["stardust:trumpet_weathered"]
+  },
+  "trumpet_oxidized": {
+    "sounds": ["stardust:trumpet_oxidized"]
+  }
+}
