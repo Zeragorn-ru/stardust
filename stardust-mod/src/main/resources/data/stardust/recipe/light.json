@@ -10,7 +10,7 @@
       "item": "minecraft:glass"
     },
     "L": {
-      "tag": "stardust:light_blocks"
+      "item": "minecraft:torch"
     },
     "c": {
       "item": "minecraft:copper_ingot"
