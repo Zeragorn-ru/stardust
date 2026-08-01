@@ -17,6 +17,7 @@ import { SettingsView } from "../views/SettingsView";
 import { CustomizationView } from "../views/CustomizationView";
 import { NewsView } from "../views/NewsView";
 import { LogsView } from "../views/LogsView";
+import { ExternalModsView } from "../views/ExternalModsView";
 import { IconBox, IconChart, IconFile, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
@@ -78,7 +79,7 @@ function Shell() {
           </button>
         </div>
         <nav className="nav">
-          <span className="nav-group">Overview</span>
+          <span className="nav-group">Обзор</span>
           <NavLink
             to="/overview"
             className={({ isActive }) =>
@@ -87,7 +88,7 @@ function Shell() {
           >
             <IconChart /> <span className="nav-label">Обзор</span>
           </NavLink>
-          <span className="nav-group">Infrastructure</span>
+          <span className="nav-group">Инфраструктура</span>
           <NavLink
             to="/builds"
             className={({ isActive }) =>
@@ -104,7 +105,7 @@ function Shell() {
           >
             <IconSettings /> <span className="nav-label">Интеграции</span>
           </NavLink>
-          <span className="nav-group">Operations</span>
+          <span className="nav-group">Операции</span>
           <NavLink
             to="/accounts"
             className={({ isActive }) =>
@@ -129,6 +130,9 @@ function Shell() {
           </NavLink>
           <NavLink to="/logs" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
             <IconFile /> <span className="nav-label">Логи</span>
+          </NavLink>
+          <NavLink to="/mods" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+            <IconBox /> <span className="nav-label">Внешние моды</span>
           </NavLink>
         </nav>
         <div className="sidebar-foot">
@@ -172,6 +176,7 @@ function Shell() {
             <Route path="/customization" element={<CustomizationView />} />
             <Route path="/news" element={<NewsView />} />
             <Route path="/logs" element={<LogsView />} />
+            <Route path="/mods" element={<ExternalModsView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
@@ -212,6 +217,11 @@ function sectionDetails(section: string): { title: string; description: string }
       return {
         title: "Логи сервера",
         description: "Запуски, входы, выходы и аварийные завершения Minecraft.",
+      };
+    case "mods":
+      return {
+        title: "Внешние моды",
+        description: "Разрешённые моды и правила очистки перед запуском клиента.",
       };
     default:
       return {

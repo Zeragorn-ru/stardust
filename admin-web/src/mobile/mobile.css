@@ -197,8 +197,8 @@
 }
 
 .m-menu-button {
-    width: 42px;
-    height: 42px;
+    width: 44px;
+    height: 44px;
     flex: none;
     display: grid;
     place-content: center;
@@ -373,9 +373,9 @@
 }
 
 .m-drawer-close {
-    width: 36px;
-    height: 36px;
-    min-height: 36px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
     border-radius: 13px;
     padding: 0;
 }
@@ -766,7 +766,7 @@
 .m-fab {
     position: fixed;
     right: 16px;
-    bottom: calc(82px + 16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     z-index: 35;
     width: 52px;
     height: 52px;
@@ -1308,6 +1308,22 @@ button.secondary:hover:not(:disabled) {
     flex-direction: column;
 }
 
+/* Кнопка-карточка логов не должна наследовать центрирование содержимого. */
+.m-screen .logs-list .log-card {
+    align-items: start;
+    justify-items: stretch;
+    text-align: left;
+}
+
+.m-screen .logs-list .log-card__topline,
+.m-screen .logs-list .log-card__summary,
+.m-screen .logs-list .log-card__user,
+.m-screen .logs-list .log-card__details,
+.m-screen .logs-list .log-card__open {
+    width: 100%;
+    text-align: left;
+}
+
 .m-screen .fm-toolbar .search,
 .m-screen .files-toolbar .search,
 .m-screen .fm-toolbar .seg,
@@ -1417,9 +1433,9 @@ button.secondary:hover:not(:disabled) {
 
 .m-screen .fm-actions .icon-only,
 .m-screen .fm-actions a.icon-only {
-    width: 32px;
-    height: 32px;
-    min-height: 32px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
 }
 
 .m-screen .fm-drawer-backdrop {

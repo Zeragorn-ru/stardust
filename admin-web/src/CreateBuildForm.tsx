@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { CreateBuildInput } from "./types";
 import { useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
+import { useDialogFocus } from "./ui/useDialogFocus";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
 
@@ -14,7 +15,9 @@ export function CreateBuildForm({
   onClose: () => void;
 }) {
   const toast = useToast();
+  const dialogRef = useRef<HTMLFormElement>(null);
   useBodyScrollLock();
+  useDialogFocus(dialogRef, onClose);
   const [form, setForm] = useState<CreateBuildInput>({
     name: "",
     version: "",
@@ -23,14 +26,6 @@ export function CreateBuildForm({
     loaderVersion: "",
   });
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   function set<K extends keyof CreateBuildInput>(
     key: K,
@@ -67,11 +62,16 @@ export function CreateBuildForm({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <form
+        ref={dialogRef}
         className="modal modal-wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="create-build-title"
+        tabIndex={-1}
         onSubmit={submit}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>Новая сборка</h3>
+        <h3 id="create-build-title">Новая сборка</h3>
         <div className="row">
           <div className="field">
             <label>Название</label>

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import type { NewsPost } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
 import { formatDateTime } from "../format";
+import { useDialogFocus } from "../ui/useDialogFocus";
 
 export function NewsView({ mobile = false }: { mobile?: boolean }) {
   const toast = useToast();
@@ -115,6 +116,8 @@ function NewsEditor({ initial, mobile, onClose, onSaved }: {
   const [markdown, setMarkdown] = useState(initial?.markdown ?? "");
   const [pinned, setPinned] = useState(initial?.pinned ?? false);
   const [busy, setBusy] = useState(false);
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -136,11 +139,11 @@ function NewsEditor({ initial, mobile, onClose, onSaved }: {
 
   return (
     <div className={`modal-backdrop news-editor-backdrop${mobile ? " news-editor-backdrop--mobile" : ""}`} onClick={onClose}>
-      <form className="modal news-editor" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+       <form ref={dialogRef} className="modal news-editor" role="dialog" aria-modal="true" aria-labelledby="news-editor-title" tabIndex={-1} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
         <header className="news-editor__head">
           <div>
             <span className="eyebrow">Launcher feed</span>
-            <h3>{initial ? "Редактировать новость" : "Новая новость"}</h3>
+           <h3 id="news-editor-title">{initial ? "Редактировать новость" : "Новая новость"}</h3>
           </div>
           {mobile && <button className="news-editor__close" type="button" aria-label="Закрыть" onClick={onClose}>Закрыть</button>}
         </header>

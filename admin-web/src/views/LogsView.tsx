@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { ServerLogEntry } from "../types";
 import { formatTelemetryTime } from "../format";
+import { useDialogFocus } from "../ui/useDialogFocus";
 
 const labels: Record<string, string> = {
   external_mods: "Сторонние моды",
@@ -94,10 +95,12 @@ function CrashDetails({ details }: { details: Record<string, unknown> }) {
 function LogDetails({ log, onClose }: { log: ServerLogEntry; onClose: () => void }) {
   const files = log.eventType.endsWith("crash") ? crashFiles(log.details) : [];
   const mods = Array.isArray(log.details.mods) ? log.details.mods : [];
+  const dialogRef = useRef<HTMLElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-      <section className="modal log-details-modal" role="dialog" aria-modal="true" aria-labelledby="log-details-title">
+       <section ref={dialogRef} className="modal log-details-modal" role="dialog" aria-modal="true" aria-labelledby="log-details-title" tabIndex={-1}>
         <header className="log-details-head">
           <div>
             <span className="eyebrow">{labels[log.eventType] ?? log.eventType}</span>

@@ -4,6 +4,7 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 use crate::{Store, StoreError};
+use protocol::{ExternalModAllowlistEntry, ExternalModBlockRule, ExternalModPolicy};
 
 pub const SETTING_SERVER_TELEMETRY_TOKEN: &str = "server_telemetry_token";
 
@@ -45,18 +46,27 @@ pub struct ServerLogEntry {
     pub details: serde_json::Value,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ExternalModAllowlistEntry {
-    pub id: i64,
-    pub mod_id: String,
-    pub jar_name: String,
-    pub sha256: String,
-    pub created_at: String,
-}
-
 impl Store {
-    pub async fn is_external_mod_allowed(&self, mod_id: &str, sha256: &str) -> Result<bool, StoreError> {
+    pub async fn is_external_mod_allowed(
+        &self,
+        mod_id: &str,
+        jar_name: &str,
+        sha256: &str,
+    ) -> Result<bool, StoreError> {
+        let blocked: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                SELECT 1 FROM external_mod_block_rules
+                WHERE ($1 IS NOT NULL AND sha256 = $1)
+                   OR ($2 <> '' AND name_substring IS NOT NULL AND position(lower(name_substring) in lower($2)) > 0)
+            )",
+        )
+        .bind(sha256)
+        .bind(jar_name)
+        .fetch_one(&self.pool)
+        .await?;
+        if blocked {
+            return Ok(false);
+        }
         Ok(sqlx::query_scalar(
             "SELECT EXISTS(SELECT 1 FROM external_mod_allowlist WHERE mod_id = $1 AND sha256 = $2)",
         )
@@ -106,6 +116,56 @@ impl Store {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    pub async fn list_external_mod_block_rules(&self) -> Result<Vec<ExternalModBlockRule>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, sha256, name_substring, created_at
+             FROM external_mod_block_rules ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(|row| ExternalModBlockRule {
+            id: row.get("id"),
+            sha256: row.get("sha256"),
+            name_substring: row.get("name_substring"),
+            created_at: format_recorded_at(row.get("created_at")),
+        }).collect())
+    }
+
+    pub async fn add_external_mod_block_rule(
+        &self,
+        sha256: Option<&str>,
+        name_substring: Option<&str>,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO external_mod_block_rules (sha256, name_substring)
+             VALUES ($1, $2)",
+        )
+        .bind(sha256)
+        .bind(name_substring)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn remove_external_mod_block_rule(&self, id: i64) -> Result<(), StoreError> {
+        let changed = sqlx::query("DELETE FROM external_mod_block_rules WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        if changed == 0 {
+            return Err(StoreError::NotFound);
+        }
+        Ok(())
+    }
+
+    pub async fn external_mod_policy(&self) -> Result<ExternalModPolicy, StoreError> {
+        Ok(ExternalModPolicy {
+            allowlist: self.list_external_mod_allowlist().await?,
+            block_rules: self.list_external_mod_block_rules().await?,
+        })
     }
 
     pub async fn record_telemetry(&self, heartbeat: &TelemetryHeartbeat) -> Result<(), StoreError> {

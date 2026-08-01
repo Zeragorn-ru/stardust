@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, Badge, Gradient, PlayerStats } from "../types";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
+import { useDialogFocus } from "../ui/useDialogFocus";
 import { SkinHead } from "../ui/SkinHead";
 import { useConfirm, useToast } from "./feedback";
 import { PlayerSkinTab } from "./PlayerSkinTab";
@@ -20,30 +21,27 @@ interface Props {
 export function PlayerCardModal({ account, onClose, onUpdated, onDeleted }: Props) {
   const [tab, setTab] = useState<Tab>("info");
   const onCloseRef = useRef(onClose);
+  const dialogRef = useRef<HTMLDivElement>(null);
   onCloseRef.current = onClose;
   useBodyScrollLock();
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCloseRef.current();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  useDialogFocus(dialogRef, () => onCloseRef.current());
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="modal modal-wide player-card-modal"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="player-card-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Шапка */}
         <div className="pc-head">
           <SkinHead uuid={account.uuid} username={account.username} size={48} />
           <div className="pc-head__text">
-            <div className="pc-head__name">{account.username}</div>
+            <div className="pc-head__name" id="player-card-title">{account.username}</div>
             <div className="pc-head__uuid">
               {account.uuid}
             </div>

@@ -158,6 +158,14 @@ pub async fn launch(
     )
     .await?;
 
+    let removed_blocked = remove_blocked_external_mods(&game_dir, manifest.as_ref())?;
+    if !removed_blocked.is_empty() {
+        tracing::warn!(
+            "[mods] перед запуском удалены заблокированные внешние моды: {}",
+            removed_blocked.join(", ")
+        );
+    }
+
     let classpath = build_modloader_classpath(&root, &version, &loader);
     let natives_dir = natives_dir(&root, &version.id);
 
@@ -303,6 +311,63 @@ fn scan_external_mods(
     }
     reports.sort_by(|a, b| a.jar_name.cmp(&b.jar_name));
     reports
+}
+
+/// Удаляет сторонние JAR, совпавшие с серверными block rules, до запуска JVM.
+/// Управляемые файлы сборки намеренно исключены: их жизненным циклом занимается
+/// синхронизация manifest.
+fn remove_blocked_external_mods(
+    game_dir: &Path,
+    manifest: Option<&protocol::Manifest>,
+) -> Result<Vec<String>, String> {
+    let Some(policy) = manifest.and_then(|value| value.external_mod_policy.as_ref()) else {
+        return Ok(Vec::new());
+    };
+    if policy.block_rules.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mods_dir = game_dir.join("mods");
+    let Ok(entries) = fs::read_dir(&mods_dir) else {
+        return Ok(Vec::new());
+    };
+    let mut removed = Vec::new();
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file()
+            || path.extension().is_none_or(|ext| !ext.eq_ignore_ascii_case("jar"))
+        {
+            continue;
+        }
+        let jar_name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let Ok(sha256) = crate::sha256::compute_sha256_file(&path) else {
+            continue;
+        };
+        let (mod_id, display_name, _) = read_jar_metadata(&path);
+        let lower_name = jar_name.to_ascii_lowercase();
+        let blocked = policy.block_rules.iter().any(|rule| {
+            rule.sha256.as_deref() == Some(sha256.as_str())
+                || rule.name_substring.as_deref().is_some_and(|needle| {
+                    let needle = needle.to_ascii_lowercase();
+                    !needle.is_empty()
+                        && (lower_name.contains(&needle)
+                            || mod_id.as_deref().is_some_and(|value| value.to_ascii_lowercase().contains(&needle))
+                            || display_name.as_deref().is_some_and(|value| value.to_ascii_lowercase().contains(&needle)))
+                })
+        });
+        if !blocked {
+            continue;
+        }
+        fs::remove_file(&path)
+            .map_err(|error| format!("Не удалось удалить заблокированный мод {jar_name}: {error}"))?;
+        removed.push(jar_name);
+    }
+
+    Ok(removed)
 }
 
 fn read_jar_metadata(path: &Path) -> (Option<String>, Option<String>, Option<String>) {

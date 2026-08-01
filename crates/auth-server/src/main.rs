@@ -1449,7 +1449,7 @@ async fn report_external_mods(
     let mut unapproved = Vec::new();
     for entry in mods.iter().take(32) {
         let mod_id = entry.mod_id.as_deref().unwrap_or(&entry.jar_name);
-        if !state.store.is_external_mod_allowed(mod_id, &entry.sha256).await? {
+        if !state.store.is_external_mod_allowed(mod_id, &entry.jar_name, &entry.sha256).await? {
             unapproved.push(entry);
         }
         let jar_name = clean_alert_field(&entry.jar_name);
@@ -1614,8 +1614,12 @@ async fn server_customization(
         .map(|(name, (badge, gradient, name_color))| {
             let sc = protocol::ServerPlayerCustomization {
                 badge: badge.as_ref().map(|b| b.emoji.clone()),
+                badge_label: badge.as_ref().map(|b| b.label.clone()),
+                badge_description: badge.as_ref().map(|b| b.description.clone()),
                 badge_color: badge.map(|b| b.color),
                 name_color,
+                gradient_label: gradient.as_ref().map(|g| g.label.clone()),
+                gradient_description: gradient.as_ref().map(|g| g.description.clone()),
                 gradient_start: gradient.as_ref().map(|g| g.color_start.clone()),
                 gradient_end: gradient.map(|g| g.color_end.clone()),
             };

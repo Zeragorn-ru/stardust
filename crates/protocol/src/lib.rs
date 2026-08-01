@@ -157,6 +157,38 @@ pub struct Manifest {
     pub version: String,
     pub loader: LoaderInfo,
     pub files: Vec<FileEntry>,
+    /// Политика сторонних модов, если сервер её публикует.
+    #[serde(default, rename = "externalModPolicy", skip_serializing_if = "Option::is_none")]
+    pub external_mod_policy: Option<ExternalModPolicy>,
+}
+
+/// Политика сторонних модов для лаунчера и серверной проверки.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalModPolicy {
+    pub allowlist: Vec<ExternalModAllowlistEntry>,
+    pub block_rules: Vec<ExternalModBlockRule>,
+}
+
+/// Разрешённый сторонний мод.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalModAllowlistEntry {
+    pub id: i64,
+    pub mod_id: String,
+    pub jar_name: String,
+    pub sha256: String,
+    pub created_at: String,
+}
+
+/// Правило блокировки стороннего мода. Достаточно одного из условий.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalModBlockRule {
+    pub id: i64,
+    pub sha256: Option<String>,
+    pub name_substring: Option<String>,
+    pub created_at: String,
 }
 
 impl Manifest {
@@ -218,6 +250,8 @@ pub struct Badge {
     pub id: i32,
     pub emoji: String,
     pub label: String,
+    #[serde(default)]
+    pub description: String,
     pub color: String,
 }
 
@@ -227,6 +261,8 @@ pub struct Badge {
 pub struct Gradient {
     pub id: i32,
     pub label: String,
+    #[serde(default)]
+    pub description: String,
     pub color_start: String,
     pub color_end: String,
 }
@@ -249,8 +285,12 @@ pub struct PlayerCustomization {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerPlayerCustomization {
     pub badge: Option<String>,
+    pub badge_label: Option<String>,
+    pub badge_description: Option<String>,
     pub badge_color: Option<String>,
     pub name_color: Option<String>,
+    pub gradient_label: Option<String>,
+    pub gradient_description: Option<String>,
     pub gradient_start: Option<String>,
     pub gradient_end: Option<String>,
 }
@@ -352,11 +392,13 @@ mod tests {
                 id: 1,
                 emoji: "⭐".into(),
                 label: "VIP".into(),
+                description: "Особый статус игрока".into(),
                 color: "#ffd700".into(),
             }),
             active_gradient: Some(Gradient {
                 id: 2,
                 label: "Огонь".into(),
+                description: "Тёплая огненная раскраска".into(),
                 color_start: "#ff0000".into(),
                 color_end: "#ffaa00".into(),
             }),
@@ -383,11 +425,13 @@ mod tests {
                 id: 1,
                 emoji: "⭐".into(),
                 label: "VIP".into(),
+                description: "Особый статус игрока".into(),
                 color: "#ffd700".into(),
             }],
             available_gradients: vec![Gradient {
                 id: 2,
                 label: "Огонь".into(),
+                description: "Тёплая огненная раскраска".into(),
                 color_start: "#ff0000".into(),
                 color_end: "#ffaa00".into(),
             }],
@@ -410,8 +454,12 @@ mod tests {
     fn server_customization_stays_snake_case_for_java_mod() {
         let dto = ServerPlayerCustomization {
             badge: Some("⭐".into()),
+            badge_label: Some("VIP".into()),
+            badge_description: Some("Особый статус игрока".into()),
             badge_color: Some("#ffd700".into()),
             name_color: Some("#ffffff".into()),
+            gradient_label: Some("Огонь".into()),
+            gradient_description: Some("Тёплая огненная раскраска".into()),
             gradient_start: Some("#ff0000".into()),
             gradient_end: Some("#ffaa00".into()),
         };

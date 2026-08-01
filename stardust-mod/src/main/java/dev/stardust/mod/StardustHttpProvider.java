@@ -36,7 +36,9 @@ public final class StardustHttpProvider {
 
     /** Данные кастомизации для одного игрока. */
     public record Assignment(String badge, String badgeColor, String nameColor,
-                             String gradientStart, String gradientEnd) {
+                             String gradientStart, String gradientEnd,
+                             String badgeLabel, String badgeDescription,
+                             String gradientLabel, String gradientDescription) {
     }
 
     private volatile String authUrl;
@@ -73,6 +75,10 @@ public final class StardustHttpProvider {
     }
 
     public void sendTelemetry(Collection<String> players, double tps, double mspt) {
+        scheduler.execute(() -> sendTelemetryBlocking(players, tps, mspt));
+    }
+
+    private void sendTelemetryBlocking(Collection<String> players, double tps, double mspt) {
         try {
             if (debug) StardustMod.LOGGER.info("Stardust telemetry: players={}, tps={}, mspt={}", players, String.format("%.1f", tps), String.format("%.2f", mspt));
             String body = GSON.toJson(Map.of("players", List.copyOf(players), "tps", tps, "mspt", mspt));
@@ -126,10 +132,9 @@ public final class StardustHttpProvider {
         Assignment cached = cache.get(key);
         if (cached != null) return cached;
 
-        // Первый вход: синхронный fetch только этого игрока
-        if (debug) StardustMod.LOGGER.info("Stardust lookup: {} → кеш пустой, fetch", playerName);
-        fetchPlayers(Set.of(playerName));
-        return cache.get(key);
+        // Никогда не выполняем HTTP на серверном потоке.
+        if (debug) StardustMod.LOGGER.info("Stardust lookup: {} → кеш пустой, используем fallback", playerName);
+        return null;
     }
 
     public boolean isEmpty() {
@@ -141,12 +146,14 @@ public final class StardustHttpProvider {
      * Вызывается командой /stardust refresh.
      */
     public void refreshNow() {
-        cache.clear();
-        Supplier<Collection<String>> provider = this.onlinePlayersProvider;
-        if (provider == null) return;
-        Collection<String> online = provider.get();
-        if (online == null || online.isEmpty()) return;
-        if (fetchPlayers(online)) notifyAfterRefresh();
+        scheduler.execute(() -> {
+            Supplier<Collection<String>> provider = this.onlinePlayersProvider;
+            if (provider == null) return;
+            Collection<String> online = provider.get();
+            if (online == null || online.isEmpty()) return;
+            // Не удаляем старый снимок, пока новый запрос не завершился успешно.
+            if (fetchPlayers(online)) notifyAfterRefresh();
+        });
     }
 
     /** Обновляет кеш только для онлайн-игроков. */
@@ -200,7 +207,11 @@ public final class StardustHttpProvider {
                             sr.badge_color,
                             sr.name_color,
                             sr.gradient_start,
-                            sr.gradient_end
+                            sr.gradient_end,
+                            sr.badge_label,
+                            sr.badge_description,
+                            sr.gradient_label,
+                            sr.gradient_description
                     ));
                 }
             }
@@ -231,5 +242,9 @@ public final class StardustHttpProvider {
         String name_color;
         String gradient_start;
         String gradient_end;
+        String badge_label;
+        String badge_description;
+        String gradient_label;
+        String gradient_description;
     }
 }

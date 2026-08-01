@@ -974,25 +974,27 @@ impl Store {
 
     /// Список всех бейджей.
     pub async fn list_badges(&self) -> Result<Vec<Badge>, StoreError> {
-        let rows = sqlx::query("SELECT id, emoji, label, color FROM badges ORDER BY id")
+        let rows = sqlx::query("SELECT id, emoji, label, description, color FROM badges ORDER BY id")
             .fetch_all(&self.pool)
             .await?;
         Ok(rows.iter().map(|r| Badge {
             id: r.get("id"),
             emoji: r.get("emoji"),
             label: r.get("label"),
+            description: r.get("description"),
             color: r.get("color"),
         }).collect())
     }
 
     /// Создать бейдж.
-    pub async fn create_badge(&self, emoji: &str, label: &str, color: &str) -> Result<Badge, StoreError> {
+    pub async fn create_badge(&self, emoji: &str, label: &str, description: &str, color: &str) -> Result<Badge, StoreError> {
         let emoji = strip_vs16(emoji);
         let row = sqlx::query(
-            "INSERT INTO badges (emoji, label, color) VALUES ($1, $2, $3) RETURNING id, emoji, label, color",
+            "INSERT INTO badges (emoji, label, description, color) VALUES ($1, $2, $3, $4) RETURNING id, emoji, label, description, color",
         )
         .bind(&emoji)
         .bind(label)
+        .bind(description)
         .bind(color)
         .fetch_one(&self.pool)
         .await?;
@@ -1000,17 +1002,21 @@ impl Store {
             id: row.get("id"),
             emoji: row.get("emoji"),
             label: row.get("label"),
+            description: row.get("description"),
             color: row.get("color"),
         })
     }
 
     /// Обновить бейдж.
-    pub async fn update_badge(&self, id: i32, emoji: &str, label: &str, color: &str) -> Result<(), StoreError> {
+    pub async fn update_badge(&self, id: i32, emoji: &str, label: &str, description: &str, color: &str) -> Result<(), StoreError> {
         let emoji = strip_vs16(emoji);
-        sqlx::query("UPDATE badges SET emoji = $2, label = $3, color = $4 WHERE id = $1")
+        sqlx::query(
+            "UPDATE badges SET emoji = $2, label = $3, description = $4, color = $5 WHERE id = $1",
+        )
             .bind(id)
             .bind(&emoji)
             .bind(label)
+            .bind(description)
             .bind(color)
             .execute(&self.pool)
             .await?;
@@ -1028,23 +1034,25 @@ impl Store {
 
     /// Список всех градиентов.
     pub async fn list_gradients(&self) -> Result<Vec<Gradient>, StoreError> {
-        let rows = sqlx::query("SELECT id, label, color_start, color_end FROM gradients ORDER BY id")
+        let rows = sqlx::query("SELECT id, label, description, color_start, color_end FROM gradients ORDER BY id")
             .fetch_all(&self.pool)
             .await?;
         Ok(rows.iter().map(|r| Gradient {
             id: r.get("id"),
             label: r.get("label"),
+            description: r.get("description"),
             color_start: r.get("color_start"),
             color_end: r.get("color_end"),
         }).collect())
     }
 
     /// Создать градиент.
-    pub async fn create_gradient(&self, label: &str, color_start: &str, color_end: &str) -> Result<Gradient, StoreError> {
+    pub async fn create_gradient(&self, label: &str, description: &str, color_start: &str, color_end: &str) -> Result<Gradient, StoreError> {
         let row = sqlx::query(
-            "INSERT INTO gradients (label, color_start, color_end) VALUES ($1, $2, $3) RETURNING id, label, color_start, color_end",
+            "INSERT INTO gradients (label, description, color_start, color_end) VALUES ($1, $2, $3, $4) RETURNING id, label, description, color_start, color_end",
         )
         .bind(label)
+        .bind(description)
         .bind(color_start)
         .bind(color_end)
         .fetch_one(&self.pool)
@@ -1052,16 +1060,20 @@ impl Store {
         Ok(Gradient {
             id: row.get("id"),
             label: row.get("label"),
+            description: row.get("description"),
             color_start: row.get("color_start"),
             color_end: row.get("color_end"),
         })
     }
 
     /// Обновить градиент.
-    pub async fn update_gradient(&self, id: i32, label: &str, color_start: &str, color_end: &str) -> Result<(), StoreError> {
-        sqlx::query("UPDATE gradients SET label = $2, color_start = $3, color_end = $4 WHERE id = $1")
+    pub async fn update_gradient(&self, id: i32, label: &str, description: &str, color_start: &str, color_end: &str) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE gradients SET label = $2, description = $3, color_start = $4, color_end = $5 WHERE id = $1",
+        )
             .bind(id)
             .bind(label)
+            .bind(description)
             .bind(color_start)
             .bind(color_end)
             .execute(&self.pool)
@@ -1081,7 +1093,7 @@ impl Store {
     /// Доступные бейджи для игрока.
     pub async fn player_available_badges(&self, uuid: &str) -> Result<Vec<Badge>, StoreError> {
         let rows = sqlx::query(
-            "SELECT b.id, b.emoji, b.label, b.color
+            "SELECT b.id, b.emoji, b.label, b.description, b.color
              FROM badges b
              INNER JOIN player_badges pb ON pb.badge_id = b.id
              WHERE pb.account_uuid = $1
@@ -1094,6 +1106,7 @@ impl Store {
             id: r.get("id"),
             emoji: r.get("emoji"),
             label: r.get("label"),
+            description: r.get("description"),
             color: r.get("color"),
         }).collect())
     }
@@ -1118,7 +1131,7 @@ impl Store {
     /// Доступные градиенты для игрока.
     pub async fn player_available_gradients(&self, uuid: &str) -> Result<Vec<Gradient>, StoreError> {
         let rows = sqlx::query(
-            "SELECT g.id, g.label, g.color_start, g.color_end
+            "SELECT g.id, g.label, g.description, g.color_start, g.color_end
              FROM gradients g
              INNER JOIN player_gradients pg ON pg.gradient_id = g.id
              WHERE pg.account_uuid = $1
@@ -1130,6 +1143,7 @@ impl Store {
         Ok(rows.iter().map(|r| Gradient {
             id: r.get("id"),
             label: r.get("label"),
+            description: r.get("description"),
             color_start: r.get("color_start"),
             color_end: r.get("color_end"),
         }).collect())
@@ -1217,7 +1231,7 @@ impl Store {
             let gradient_id: Option<i32> = row.get("active_gradient_id");
 
             let badge = if let Some(id) = badge_id {
-                let r = sqlx::query("SELECT id, emoji, label, color FROM badges WHERE id = $1")
+                    let r = sqlx::query("SELECT id, emoji, label, description, color FROM badges WHERE id = $1")
                     .bind(id)
                     .fetch_optional(&self.pool)
                     .await?;
@@ -1225,6 +1239,7 @@ impl Store {
                     id: r.get("id"),
                     emoji: r.get("emoji"),
                     label: r.get("label"),
+                    description: r.get("description"),
                     color: r.get("color"),
                 })
             } else {
@@ -1232,13 +1247,14 @@ impl Store {
             };
 
             let gradient = if let Some(id) = gradient_id {
-                let r = sqlx::query("SELECT id, label, color_start, color_end FROM gradients WHERE id = $1")
+                let r = sqlx::query("SELECT id, label, description, color_start, color_end FROM gradients WHERE id = $1")
                     .bind(id)
                     .fetch_optional(&self.pool)
                     .await?;
                 r.map(|r| Gradient {
                     id: r.get("id"),
                     label: r.get("label"),
+                    description: r.get("description"),
                     color_start: r.get("color_start"),
                     color_end: r.get("color_end"),
                 })
@@ -1256,7 +1272,7 @@ impl Store {
     async fn attach_cosmetics(&self, mut account: Account) -> Account {
         if let Some(id) = account.active_badge_id {
             if let Ok(Some(row)) = sqlx::query(
-                "SELECT id, emoji, label, color FROM badges WHERE id = $1",
+                "SELECT id, emoji, label, description, color FROM badges WHERE id = $1",
             )
             .bind(id)
             .fetch_optional(&self.pool)
@@ -1266,13 +1282,14 @@ impl Store {
                     id: row.get("id"),
                     emoji: row.get("emoji"),
                     label: row.get("label"),
+                    description: row.get("description"),
                     color: row.get("color"),
                 });
             }
         }
         if let Some(id) = account.active_gradient_id {
             if let Ok(Some(row)) = sqlx::query(
-                "SELECT id, label, color_start, color_end FROM gradients WHERE id = $1",
+                "SELECT id, label, description, color_start, color_end FROM gradients WHERE id = $1",
             )
             .bind(id)
             .fetch_optional(&self.pool)
@@ -1281,6 +1298,7 @@ impl Store {
                 account.active_gradient = Some(Gradient {
                     id: row.get("id"),
                     label: row.get("label"),
+                    description: row.get("description"),
                     color_start: row.get("color_start"),
                     color_end: row.get("color_end"),
                 });

@@ -431,6 +431,7 @@ impl BuildRecord {
                 version: self.header.loader_version.clone(),
             },
             files,
+            external_mod_policy: None,
         }
     }
 }

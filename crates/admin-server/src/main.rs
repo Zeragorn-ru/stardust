@@ -212,6 +212,8 @@ async fn main() {
         .route("/api/server/logs", get(server_logs))
         .route("/api/server/external-mod-allowlist", get(list_external_mod_allowlist).post(add_external_mod_allowlist))
         .route("/api/server/external-mod-allowlist/:id", axum::routing::delete(remove_external_mod_allowlist))
+        .route("/api/server/external-mod-block-rules", get(list_external_mod_block_rules).post(add_external_mod_block_rule))
+        .route("/api/server/external-mod-block-rules/:id", axum::routing::delete(remove_external_mod_block_rule))
         .route(
             "/api/settings/reset-fingerprint",
             post(reset_fingerprint),
@@ -2569,6 +2571,13 @@ struct ExternalModAllowlistInput {
     sha256: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalModBlockRuleInput {
+    sha256: Option<String>,
+    name_substring: Option<String>,
+}
+
 async fn list_external_mod_allowlist(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -2602,6 +2611,47 @@ async fn remove_external_mod_allowlist(
 ) -> Result<StatusCode, ApiError> {
     require_admin(&state, &headers).await?;
     state.store.remove_external_mod_allowlist(id).await.map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn list_external_mod_block_rules(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    Ok(Json(serde_json::json!({
+        "rules": state.store.list_external_mod_block_rules().await.map_err(map_store)?,
+    })))
+}
+
+async fn add_external_mod_block_rule(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<ExternalModBlockRuleInput>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    let sha256 = input.sha256.as_deref().map(str::trim).map(str::to_ascii_lowercase);
+    let sha256 = sha256.filter(|value| !value.is_empty());
+    if let Some(value) = sha256.as_deref() {
+        if value.len() != 64 || !value.chars().all(|ch| ch.is_ascii_hexdigit()) {
+            return Err(ApiError::new(StatusCode::BAD_REQUEST, "Некорректный SHA-256 правила блокировки"));
+        }
+    }
+    let name_substring = input.name_substring.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    if sha256.is_none() && name_substring.is_none() {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Нужно указать SHA-256 или подстроку имени"));
+    }
+    state.store.add_external_mod_block_rule(sha256.as_deref(), name_substring).await.map_err(map_store)?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn remove_external_mod_block_rule(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.remove_external_mod_block_rule(id).await.map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -2718,6 +2768,7 @@ fn news_to_dto(post: store::NewsPost) -> protocol::NewsPost {
 struct BadgeInput {
     emoji: String,
     label: String,
+    description: String,
     color: String,
 }
 
@@ -2725,6 +2776,7 @@ struct BadgeInput {
 #[serde(rename_all = "camelCase")]
 struct GradientInput {
     label: String,
+    description: String,
     color_start: String,
     color_end: String,
 }
@@ -2756,7 +2808,7 @@ async fn create_badge(
     Json(input): Json<BadgeInput>,
 ) -> Result<Json<protocol::Badge>, ApiError> {
     require_admin(&state, &headers).await?;
-    let badge = state.store.create_badge(&input.emoji, &input.label, &input.color)
+    let badge = state.store.create_badge(&input.emoji, &input.label, &input.description, &input.color)
         .await.map_err(map_store)?;
     Ok(Json(badge))
 }
@@ -2768,7 +2820,7 @@ async fn update_badge(
     Json(input): Json<BadgeInput>,
 ) -> Result<(), ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.update_badge(id, &input.emoji, &input.label, &input.color)
+    state.store.update_badge(id, &input.emoji, &input.label, &input.description, &input.color)
         .await.map_err(map_store)?;
     Ok(())
 }
@@ -2798,7 +2850,7 @@ async fn create_gradient(
     Json(input): Json<GradientInput>,
 ) -> Result<Json<protocol::Gradient>, ApiError> {
     require_admin(&state, &headers).await?;
-    let gradient = state.store.create_gradient(&input.label, &input.color_start, &input.color_end)
+    let gradient = state.store.create_gradient(&input.label, &input.description, &input.color_start, &input.color_end)
         .await.map_err(map_store)?;
     Ok(Json(gradient))
 }
@@ -2810,7 +2862,7 @@ async fn update_gradient(
     Json(input): Json<GradientInput>,
 ) -> Result<(), ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.update_gradient(id, &input.label, &input.color_start, &input.color_end)
+    state.store.update_gradient(id, &input.label, &input.description, &input.color_start, &input.color_end)
         .await.map_err(map_store)?;
     Ok(())
 }
@@ -2901,7 +2953,9 @@ async fn manifest(State(state): State<Shared>) -> Result<Json<protocol::Manifest
         .await
         .map_err(internal)?
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
-    Ok(Json(record.client_manifest(&state.files_base_url)))
+    let mut manifest = record.client_manifest(&state.files_base_url);
+    manifest.external_mod_policy = Some(state.store.external_mod_policy().await.map_err(internal)?);
+    Ok(Json(manifest))
 }
 
 // ───────────────────── проверка сборки ─────────────────────

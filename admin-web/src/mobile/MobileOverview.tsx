@@ -76,7 +76,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
   return (
     <div className="m-screen m-overview">
       <section className="m-hero-card m-hero-card--overview">
-        <span className="m-eyebrow">Infrastructure Overview</span>
+         <span className="m-eyebrow">Обзор инфраструктуры</span>
         <h1>Панель сервера</h1>
         <p>Состояние сборки, игроков и интеграций без перехода в десктопную версию.</p>
         <div className="m-hero-pills">
@@ -88,8 +88,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
       <div className="m-metric-grid">
         <Metric label="Сборки" value={loading ? "..." : String(builds.length)} hint={activeBuild?.name ?? "активная не выбрана"} tone="blue" />
         <Metric label="Игроки" value={loading ? "..." : String(accounts.length)} hint={`${stats.admins} админ · ${stats.banned} бан`} tone="green" />
-        <Metric label="Telegram" value={settings?.telegramTokenSet ? "online" : "offline"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
-        <Metric label="SFTP" value={settings?.sftpPasswordSet ? "ready" : "setup"} hint={settings?.sftpHost || "хост не задан"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+       <Metric label="Telegram" value={settings?.telegramTokenSet ? "подключён" : "не настроен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
+       <Metric label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "настроить"} hint={settings?.sftpHost || "хост не задан"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
       </div>
 
       {telemetry && telemetry.samples.length > 0 && (() => {
@@ -153,7 +153,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
             <section className="m-section-card m-telemetry-chart">
               <div className="m-section-head">
                 <div>
-                  <span className="m-eyebrow">Live server telemetry</span>
+                   <span className="m-eyebrow">Телеметрия сервера</span>
                   <h2>График онлайна</h2>
                 </div>
               </div>
@@ -180,7 +180,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
       <section className="m-section-card">
         <div className="m-section-head">
           <div>
-            <span className="m-eyebrow">Deployment</span>
+             <span className="m-eyebrow">Поставка сборки</span>
             <h2>Активная сборка</h2>
           </div>
           <button className="m-text-link" type="button" onClick={() => onOpenTab("builds")}>Все</button>
@@ -199,7 +199,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
       <section className="m-section-card">
         <div className="m-section-head">
           <div>
-            <span className="m-eyebrow">Operations</span>
+             <span className="m-eyebrow">Операции</span>
             <h2>Быстрые действия</h2>
           </div>
         </div>

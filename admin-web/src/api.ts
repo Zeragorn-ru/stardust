@@ -20,6 +20,7 @@ import type {
   ServerTelemetry,
   ServerLogsResponse,
   ExternalModAllowlistEntry,
+  ExternalModBlockRule,
   UploadMeta,
 } from "./types";
 import { baseName } from "./format";
@@ -266,6 +267,15 @@ export const api = {
   removeExternalModAllowlist(id: number): Promise<void> {
     return request("DELETE", `/api/server/external-mod-allowlist/${id}`);
   },
+  listExternalModBlockRules(): Promise<{ rules: ExternalModBlockRule[] }> {
+    return request("GET", "/api/server/external-mod-block-rules");
+  },
+  addExternalModBlockRule(input: { sha256?: string; nameSubstring?: string }): Promise<void> {
+    return request("POST", "/api/server/external-mod-block-rules", input);
+  },
+  removeExternalModBlockRule(id: number): Promise<void> {
+    return request("DELETE", `/api/server/external-mod-block-rules/${id}`);
+  },
   generateServerTelemetryToken(): Promise<{ token: string }> {
     return request("POST", "/api/settings/server-token/generate");
   },
@@ -414,12 +424,12 @@ export const api = {
     return request("GET", "/api/badges");
   },
 
-  createBadge(emoji: string, label: string, color: string): Promise<Badge> {
-    return request("POST", "/api/badges", { emoji, label, color });
+  createBadge(emoji: string, label: string, description: string, color: string): Promise<Badge> {
+    return request("POST", "/api/badges", { emoji, label, description, color });
   },
 
-  updateBadge(id: number, emoji: string, label: string, color: string): Promise<void> {
-    return request("PATCH", `/api/badges/${id}`, { emoji, label, color });
+  updateBadge(id: number, emoji: string, label: string, description: string, color: string): Promise<void> {
+    return request("PATCH", `/api/badges/${id}`, { emoji, label, description, color });
   },
 
   deleteBadge(id: number): Promise<void> {
@@ -430,12 +440,12 @@ export const api = {
     return request("GET", "/api/gradients");
   },
 
-  createGradient(label: string, colorStart: string, colorEnd: string): Promise<Gradient> {
-    return request("POST", "/api/gradients", { label, colorStart, colorEnd });
+  createGradient(label: string, description: string, colorStart: string, colorEnd: string): Promise<Gradient> {
+    return request("POST", "/api/gradients", { label, description, colorStart, colorEnd });
   },
 
-  updateGradient(id: number, label: string, colorStart: string, colorEnd: string): Promise<void> {
-    return request("PATCH", `/api/gradients/${id}`, { label, colorStart, colorEnd });
+  updateGradient(id: number, label: string, description: string, colorStart: string, colorEnd: string): Promise<void> {
+    return request("PATCH", `/api/gradients/${id}`, { label, description, colorStart, colorEnd });
   },
 
   deleteGradient(id: number): Promise<void> {

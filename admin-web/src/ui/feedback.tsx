@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import { useBodyScrollLock } from "./useBodyScrollLock";
+import { useDialogFocus } from "./useDialogFocus";
 import { IconCheck, IconAlert, IconInfo, IconClose } from "./icons";
 
 // ───────────────────────── Типы и контексты ─────────────────────────
@@ -156,7 +157,9 @@ function ConfirmDialog({
   state: ConfirmState;
   onClose: (ok: boolean) => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock();
+  useDialogFocus(dialogRef, () => onClose(false));
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose(false);
@@ -171,12 +174,15 @@ function ConfirmDialog({
   return (
     <div className="modal-backdrop" onClick={() => onClose(false)}>
       <div
+        ref={dialogRef}
         className="modal"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>{state.title}</h3>
+        <h3 id="confirm-dialog-title">{state.title}</h3>
         {state.body && <p className="muted">{state.body}</p>}
         <div className="modal-actions">
           <button onClick={() => onClose(false)} autoFocus>

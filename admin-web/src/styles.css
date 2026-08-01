@@ -117,7 +117,14 @@
 .log-card__summary { font-size: 15px; }
 .log-card__details { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .log-card__open { margin-top: 2px; color: var(--accent); font-size: 12px; font-weight: 700; text-align: start; }
-.logs-list .log-card { width: 100%; text-align: start; cursor: pointer; }
+.logs-list .log-card {
+    width: 100%;
+    align-items: start;
+    justify-content: initial;
+    justify-items: stretch;
+    text-align: start;
+    cursor: pointer;
+}
 .log-details-modal { width: min(760px, calc(100vw - 32px)); max-width: 760px; max-height: min(820px, calc(100vh - 48px)); overflow: auto; }
 .log-details-head { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; }
 .log-details-head h2 { margin: 4px 0 6px; font-size: 20px; line-height: 1.25; }
@@ -570,6 +577,10 @@ label {
     grid-template-columns: minmax(150px, 0.8fr) repeat(5, minmax(130px, 1fr)) auto;
     gap: 12px;
     align-items: end;
+}
+
+.accounts-filter-toolbar {
+    display: none;
 }
 
 .accounts-filter-panel label {
@@ -2797,6 +2808,14 @@ td.num {
     }
     .accounts-filter-panel {
         grid-template-columns: 1fr;
+        display: none;
+    }
+    .accounts-filter-panel.is-open {
+        display: grid;
+    }
+    .accounts-filter-toolbar {
+        display: block;
+        margin-bottom: 10px;
     }
     .accounts-filter-panel button {
         justify-content: center;
@@ -4367,6 +4386,11 @@ th {
     cursor: pointer;
 }
 
+.clickable-row:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px var(--accent);
+}
+
 .clickable-row:hover {
     background: rgba(115, 215, 255, 0.045);
 }
@@ -4613,6 +4637,97 @@ th {
 .news-editor__pin small { margin-top: 3px; font-size: 12px; }
 .news-editor__close { display: none; }
 
+.external-mods-warning {
+    display: grid;
+    gap: 6px;
+    border-color: rgba(255, 209, 102, 0.3);
+    background: rgba(255, 209, 102, 0.06);
+}
+
+.external-mods-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.external-mod-rule-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 12px;
+}
+
+.external-mod-rule-form label {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+}
+
+.external-mod-list {
+    display: grid;
+    gap: 8px;
+}
+
+.external-mod-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-elev);
+}
+
+.external-mod-row__main {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
+}
+
+.external-mod-row__main strong,
+.external-mod-row__main small,
+.external-mod-row__main code {
+    overflow-wrap: anywhere;
+}
+
+.external-mod-row__main small {
+    color: var(--muted);
+}
+
+.external-mod-row__main code {
+    color: var(--accent);
+    font-size: 11px;
+}
+
+.external-mod-row__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
 @media (max-width: 640px) {
     .news-admin-card { flex-direction: column; }
+    .external-mods-columns,
+    .external-mod-rule-form {
+        grid-template-columns: 1fr;
+    }
+
+    .external-mod-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .external-mod-row button {
+        justify-content: center;
+    }
+
+    .external-mod-row__actions {
+        justify-content: stretch;
+    }
+
+    .external-mod-row__actions button {
+        flex: 1;
+    }
 }

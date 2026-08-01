@@ -1,10 +1,11 @@
 // Управление бейджами и градиентами для кастомизации ника.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { api, ApiError } from "../api";
 import type { Badge, Gradient } from "../types";
 import { useToast, useConfirm } from "../ui/feedback";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
+import { useDialogFocus } from "../ui/useDialogFocus";
 import { IconPlus, IconTrash, IconPencil } from "../ui/icons";
 
 export function CustomizationView() {
@@ -32,13 +33,13 @@ export function CustomizationView() {
 
   // ─── Badges CRUD ───
 
-  async function handleSaveBadge(emoji: string, label: string, color: string) {
+  async function handleSaveBadge(emoji: string, label: string, description: string, color: string) {
     try {
       if (badgeModal && "badge" in badgeModal) {
-        await api.updateBadge(badgeModal.badge.id, emoji, label, color);
+        await api.updateBadge(badgeModal.badge.id, emoji, label, description, color);
         toast.success("Бейдж обновлён");
       } else {
-        await api.createBadge(emoji, label, color);
+        await api.createBadge(emoji, label, description, color);
         toast.success("Бейдж создан");
       }
       await load();
@@ -67,13 +68,13 @@ export function CustomizationView() {
 
   // ─── Gradients CRUD ───
 
-  async function handleSaveGradient(label: string, colorStart: string, colorEnd: string) {
+  async function handleSaveGradient(label: string, description: string, colorStart: string, colorEnd: string) {
     try {
       if (gradientModal && "gradient" in gradientModal) {
-        await api.updateGradient(gradientModal.gradient.id, label, colorStart, colorEnd);
+        await api.updateGradient(gradientModal.gradient.id, label, description, colorStart, colorEnd);
         toast.success("Градиент обновлён");
       } else {
-        await api.createGradient(label, colorStart, colorEnd);
+        await api.createGradient(label, description, colorStart, colorEnd);
         toast.success("Градиент создан");
       }
       await load();
@@ -155,10 +156,11 @@ export function CustomizationView() {
                     <span className="badge-sample-emoji">{b.emoji}</span>
                     <span>{b.label}</span>
                   </div>
-                  <div className="cosmetic-meta">
+                   <div className="cosmetic-meta">
                     <span className="color-swatch" style={{ background: b.color }} />
-                    <span className="mono muted">{b.color}</span>
-                  </div>
+                     <span className="mono muted">{b.color}</span>
+                   </div>
+                   <p className="muted">{b.description || "Без описания"}</p>
                   <div className="cosmetic-actions">
                     <button className="secondary icon-btn" onClick={() => setBadgeModal({ mode: "edit", badge: b })}>
                       <IconPencil size={14} /> Редактировать
@@ -200,7 +202,8 @@ export function CustomizationView() {
                   >
                     {g.label}
                   </strong>
-                  <div className="gradient-strip" style={{ background: `linear-gradient(90deg, ${g.colorStart}, ${g.colorEnd})` }} />
+                   <div className="gradient-strip" style={{ background: `linear-gradient(90deg, ${g.colorStart}, ${g.colorEnd})` }} />
+                   <p className="muted">{g.description || "Без описания"}</p>
                   <div className="cosmetic-meta cosmetic-meta--split">
                     <span className="mono muted">{g.colorStart}</span>
                     <span className="mono muted">{g.colorEnd}</span>
@@ -245,29 +248,24 @@ function BadgeModal({
   onClose,
 }: {
   initial?: Badge;
-  onSave: (emoji: string, label: string, color: string) => Promise<void>;
+  onSave: (emoji: string, label: string, description: string, color: string) => Promise<void>;
   onClose: () => void;
 }) {
   useBodyScrollLock();
   const [emoji, setEmoji] = useState(initial?.emoji ?? "");
   const [label, setLabel] = useState(initial?.label ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [color, setColor] = useState(initial?.color ?? "#ffffff");
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!emoji.trim() || !label.trim() || !color.trim()) return;
+    if (!emoji.trim() || !label.trim() || !description.trim() || !color.trim()) return;
     setBusy(true);
     try {
-      await onSave(emoji.trim(), label.trim(), color.trim());
+      await onSave(emoji.trim(), label.trim(), description.trim(), color.trim());
       onClose();
     } catch {
       // toast is handled in parent
@@ -278,8 +276,8 @@ function BadgeModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-        <h3>{initial ? "Редактировать бейдж" : "Создать бейдж"}</h3>
+      <form ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="badge-dialog-title" tabIndex={-1} onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+        <h3 id="badge-dialog-title">{initial ? "Редактировать бейдж" : "Создать бейдж"}</h3>
         <div className="field">
           <label>Эмодзи</label>
           <input
@@ -308,11 +306,15 @@ function BadgeModal({
             required
           />
         </div>
+        <div className="field">
+          <label>Описание</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Что означает этот бейдж" required />
+        </div>
         <div className="modal-actions">
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="primary" type="submit" disabled={busy || !emoji.trim() || !label.trim() || !color.trim()}>
+          <button className="primary" type="submit" disabled={busy || !emoji.trim() || !label.trim() || !description.trim() || !color.trim()}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
@@ -327,29 +329,24 @@ function GradientModal({
   onClose,
 }: {
   initial?: Gradient;
-  onSave: (label: string, colorStart: string, colorEnd: string) => Promise<void>;
+  onSave: (label: string, description: string, colorStart: string, colorEnd: string) => Promise<void>;
   onClose: () => void;
 }) {
   useBodyScrollLock();
   const [label, setLabel] = useState(initial?.label ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
   const [colorStart, setColorStart] = useState(initial?.colorStart ?? "#ff0000");
   const [colorEnd, setColorEnd] = useState(initial?.colorEnd ?? "#ff8800");
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  const dialogRef = useRef<HTMLFormElement>(null);
+  useDialogFocus(dialogRef, onClose);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!label.trim() || !colorStart.trim() || !colorEnd.trim()) return;
+    if (!label.trim() || !description.trim() || !colorStart.trim() || !colorEnd.trim()) return;
     setBusy(true);
     try {
-      await onSave(label.trim(), colorStart.trim(), colorEnd.trim());
+      await onSave(label.trim(), description.trim(), colorStart.trim(), colorEnd.trim());
       onClose();
     } catch {
       // toast is handled in parent
@@ -360,8 +357,8 @@ function GradientModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <form className="modal" onSubmit={submit} onClick={(e) => e.stopPropagation()}>
-        <h3>{initial ? "Редактировать градиент" : "Создать градиент"}</h3>
+      <form ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="gradient-dialog-title" tabIndex={-1} onSubmit={submit} onClick={(e) => e.stopPropagation()}>
+        <h3 id="gradient-dialog-title">{initial ? "Редактировать градиент" : "Создать градиент"}</h3>
         <div className="field">
           <label>Название</label>
           <input
@@ -382,6 +379,10 @@ function GradientModal({
           />
         </div>
         <div className="field">
+          <label>Описание</label>
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Как выглядит эта покраска" required />
+        </div>
+        <div className="field">
           <label>Цвет конца (hex)</label>
           <input
             value={colorEnd}
@@ -394,7 +395,7 @@ function GradientModal({
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="primary" type="submit" disabled={busy || !label.trim() || !colorStart.trim() || !colorEnd.trim()}>
+          <button className="primary" type="submit" disabled={busy || !label.trim() || !description.trim() || !colorStart.trim() || !colorEnd.trim()}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
         </div>

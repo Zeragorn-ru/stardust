@@ -259,6 +259,18 @@ final class StardustTabIntegration {
         return localFallback;
     }
 
+    static StardustHttpProvider.Assignment resolveAssignmentForName(String playerName) {
+        StardustHttpProvider http = httpProvider;
+        StardustBadgeConfig local = localFallback;
+        StardustHttpProvider.Assignment remote = http == null ? null : http.lookup(playerName);
+        if (remote != null) return remote;
+        StardustBadgeConfig.Assignment fallback = local == null ? null : local.lookup(playerName);
+        if (fallback == null) return null;
+        return new StardustHttpProvider.Assignment(
+                fallback.badge(), null, fallback.nameColor(), null, null,
+                null, null, null, null);
+    }
+
     /** Форматирует бейдж для имени игрока (для чат-уведомлений). */
     static String resolveBadgeForName(String playerName) {
         StardustHttpProvider http = httpProvider;
@@ -308,6 +320,10 @@ final class StardustTabIntegration {
             return wrapWithColor(playerName, l.nameColor());
         }
         return playerName;
+    }
+
+    static String formatGradientForChat(String text, String startHex, String endHex) {
+        return applyHexGradient(text, startHex, endHex);
     }
 
     private static String resolveBadge(StardustHttpProvider http,

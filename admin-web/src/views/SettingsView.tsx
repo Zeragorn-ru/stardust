@@ -159,16 +159,16 @@ export function SettingsView() {
     <div className="view settings-view">
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Infrastructure</span>
+          <span className="eyebrow">Инфраструктура</span>
           <h1>Настройки</h1>
           <p className="muted">Интеграции, доставка файлов и вспомогательные артефакты.</p>
         </div>
       </header>
 
       <div className="settings-status-row">
-        <div className="metric-card metric-card--blue"><span>Telegram</span><strong>{settings?.telegramTokenSet ? "online" : "off"}</strong><small>{settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "бот не подключён"}</small></div>
-        <div className="metric-card metric-card--green"><span>SFTP</span><strong>{settings?.sftpPasswordSet ? "ready" : "setup"}</strong><small>{settings?.sftpHost || "host не задан"}</small></div>
-        <div className="metric-card metric-card--yellow"><span>Stats path</span><strong>{settings?.sftpStatsPath ? "set" : "empty"}</strong><small>{settings?.sftpStatsPath || "путь к stats не задан"}</small></div>
+        <div className="metric-card metric-card--blue"><span>Telegram</span><strong>{settings?.telegramTokenSet ? "подключён" : "отключён"}</strong><small>{settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "бот не подключён"}</small></div>
+        <div className="metric-card metric-card--green"><span>SFTP</span><strong>{settings?.sftpPasswordSet ? "готов" : "настроить"}</strong><small>{settings?.sftpHost || "хост не задан"}</small></div>
+        <div className="metric-card metric-card--yellow"><span>Путь статистики</span><strong>{settings?.sftpStatsPath ? "задан" : "пусто"}</strong><small>{settings?.sftpStatsPath || "путь к stats не задан"}</small></div>
       </div>
 
       <div className="settings-grid">

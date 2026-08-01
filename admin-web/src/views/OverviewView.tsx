@@ -105,7 +105,7 @@ export function OverviewView() {
         <Card className="panel-flat">
           <CardHeader>
             <div>
-              <span className="eyebrow">Deployment pipeline</span>
+              <span className="eyebrow">Поставка сборки</span>
               <CardTitle>Сборки</CardTitle>
               <CardDescription>Последние сборки и активный релиз.</CardDescription>
             </div>
@@ -129,7 +129,7 @@ export function OverviewView() {
         <Card className="panel-flat">
           <CardHeader>
             <div>
-              <span className="eyebrow">Service status</span>
+              <span className="eyebrow">Статус сервисов</span>
               <CardTitle>Сервисы</CardTitle>
               <CardDescription>Auth, Telegram и серверная статистика.</CardDescription>
             </div>
@@ -137,7 +137,7 @@ export function OverviewView() {
           </CardHeader>
           <CardContent className="compact-list">
             <InfoLine icon={<IconUsers size={15} />} label="Auth / аккаунты" value={`${accounts.length} игроков`} />
-            <InfoLine icon={<IconUsers size={15} />} label="Telegram linked" value={`${totals.linked}/${accounts.length}`} />
+             <InfoLine icon={<IconUsers size={15} />} label="Telegram привязан" value={`${totals.linked}/${accounts.length}`} />
             <InfoLine icon={<IconUsers size={15} />} label="Администраторы" value={String(totals.admins)} />
             <InfoLine icon={<IconUsers size={15} />} label="Баны" value={String(totals.banned)} />
             <Link className="compact-row compact-row--cta" to="/settings">
@@ -209,7 +209,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
       <Card className="panel-flat telemetry-panel telemetry-chart-card">
         <CardHeader>
           <div>
-            <span className="eyebrow">Live server telemetry</span>
+               <span className="eyebrow">Телеметрия сервера</span>
             <CardTitle>График онлайна за 24 часа</CardTitle>
             <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
           </div>
@@ -217,12 +217,17 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
         <CardContent>
           {samples.length === 0 ? <p className="muted">Мод ещё не прислал телеметрию.</p> : (
             <div className="telemetry-chart-wrap">
-              <svg className="telemetry-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="График онлайна" onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const relX = (e.clientX - rect.left) / rect.width;
-                const idx = Math.round(relX * (samples.length - 1));
-                setSelected(idx >= 0 && idx < samples.length ? idx : null);
-              }}>
+               <svg className="telemetry-chart" viewBox={`0 0 ${width} ${height}`} role="button" tabIndex={0} aria-label="Выбрать момент на графике онлайна" onClick={(e) => {
+                 const rect = e.currentTarget.getBoundingClientRect();
+                 const relX = (e.clientX - rect.left) / rect.width;
+                 const idx = Math.round(relX * (samples.length - 1));
+                 setSelected(idx >= 0 && idx < samples.length ? idx : null);
+               }} onKeyDown={(e) => {
+                 if (e.key === "Enter" || e.key === " ") {
+                   e.preventDefault();
+                   setSelected(samples.length - 1);
+                 }
+               }}>
                 <defs>
                   <linearGradient id="online-fill" x1="0" x2="0" y1="0" y2="1">
                     <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
@@ -247,7 +252,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
         <Card className="panel-flat telemetry-panel telemetry-health-card">
           <CardHeader>
             <div>
-              <span className="eyebrow">Server health</span>
+               <span className="eyebrow">Состояние сервера</span>
               <CardTitle>Состояние сейчас</CardTitle>
             </div>
           </CardHeader>
@@ -273,7 +278,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
         <Card className="panel-flat telemetry-panel telemetry-events-card">
           <CardHeader>
             <div>
-              <span className="eyebrow">Activity</span>
+               <span className="eyebrow">Активность</span>
               <CardTitle>Последние события</CardTitle>
             </div>
             <CardAction><Link className="link-action" to="/logs">Все логи</Link></CardAction>

@@ -115,12 +115,14 @@ export interface Badge {
   id: number;
   emoji: string;
   label: string;
+  description: string;
   color: string;
 }
 
 export interface Gradient {
   id: number;
   label: string;
+  description: string;
   colorStart: string;
   colorEnd: string;
 }
@@ -183,5 +185,12 @@ export interface ExternalModAllowlistEntry {
   modId: string;
   jarName: string;
   sha256: string;
+  createdAt: string;
+}
+
+export interface ExternalModBlockRule {
+  id: number;
+  sha256?: string;
+  nameSubstring?: string;
   createdAt: string;
 }

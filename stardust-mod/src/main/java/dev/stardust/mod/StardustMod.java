@@ -13,12 +13,19 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.EntityArgument;
-import com.mojang.brigadier.arguments.StringArgumentType;
+import net.minecraft.commands.arguments.MessageArgument;
+import net.minecraft.network.chat.PlayerChatMessage;
 import net.minecraft.commands.Commands;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+
+import java.util.Collection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -91,34 +98,112 @@ public final class StardustMod {
 
     private void registerPrivateMessage(RegisterCommandsEvent event, String literal) {
         event.getDispatcher().register(Commands.literal(literal)
-                .then(Commands.argument("target", EntityArgument.player())
-                        .then(Commands.argument("message", StringArgumentType.greedyString())
-                                .executes(ctx -> sendPrivateMessage(ctx.getSource(),
-                                        EntityArgument.getPlayer(ctx, "target"),
-                                        StringArgumentType.getString(ctx, "message"))))));
+                .requires(source -> source.getEntity() instanceof ServerPlayer)
+                .then(Commands.argument("targets", EntityArgument.players())
+                        .then(Commands.argument("message", MessageArgument.message())
+                                .executes(ctx -> {
+                                    Collection<ServerPlayer> targets = EntityArgument.getPlayers(ctx, "targets");
+                                    MessageArgument.resolveChatMessage(ctx, "message", message ->
+                                            sendPrivateMessages(ctx.getSource(), targets, message));
+                                    return targets.size();
+                                }))));
     }
 
-    private int sendPrivateMessage(CommandSourceStack source, ServerPlayer target, String text) {
-        if (!(source.getEntity() instanceof ServerPlayer sender)) return 0;
-        Component senderName = StardustChatNotifications.parseFormattedString(
-                StardustTabIntegration.resolveBadgeForName(sender.getGameProfile().getName())
-                        + StardustTabIntegration.resolveNameForChat(sender.getGameProfile().getName()));
-        Component targetName = StardustChatNotifications.parseFormattedString(
-                StardustTabIntegration.resolveBadgeForName(target.getGameProfile().getName())
-                        + StardustTabIntegration.resolveNameForChat(target.getGameProfile().getName()));
-        MutableComponent toTarget = Component.empty()
-                .append(Component.literal("✦ ЛС от ").withStyle(ChatFormatting.DARK_AQUA))
-                .append(senderName)
-                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
+    private void sendPrivateMessages(CommandSourceStack source,
+                                     Collection<ServerPlayer> targets,
+                                     PlayerChatMessage message) {
+        if (!(source.getEntity() instanceof ServerPlayer sender)) return;
+
+        Component senderName = formatPlayerName(sender);
+        for (ServerPlayer target : targets) {
+            Component targetName = formatPlayerName(target);
+            String text = message.signedContent();
+
+            // Send two explicit system messages so the sender always gets a local echo.
+            sender.sendSystemMessage(formatPrivateMessage("▸ ЛС для ", targetName, text));
+            if (target != sender) {
+                target.sendSystemMessage(formatPrivateMessage("◂ ЛС от ", senderName, text));
+                target.playNotifySound(SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 1.0f, 1.0f);
+            }
+        }
+    }
+
+    private Component formatPlayerName(ServerPlayer player) {
+        String name = player.getGameProfile().getName();
+        StardustHttpProvider.Assignment assignment = StardustTabIntegration.resolveAssignmentForName(name);
+        ClickEvent click = new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/w " + name + " ");
+
+        MutableComponent result = Component.empty();
+        String badgeText = StardustTabIntegration.resolveBadgeForName(name);
+        if (!badgeText.isEmpty()) {
+            result.append(withPlayerActions(
+                    StardustChatNotifications.parseFormattedString(badgeText),
+                    click,
+                    badgeHover(assignment)));
+        }
+        result.append(withPlayerActions(
+                StardustChatNotifications.parseFormattedString(StardustTabIntegration.resolveNameForChat(name)),
+                click,
+                nameHover(assignment)));
+        return result;
+    }
+
+    private Component withPlayerActions(Component component, ClickEvent click, Component tooltip) {
+        return component.copy().withStyle(style -> style
+                .withClickEvent(click)
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, tooltip)));
+    }
+
+    private Component badgeHover(StardustHttpProvider.Assignment assignment) {
+        String badge = assignment == null || assignment.badge() == null ? "✦" : assignment.badge();
+        String label = assignment != null && assignment.badgeLabel() != null && !assignment.badgeLabel().isBlank()
+                ? assignment.badgeLabel() : "Бейдж игрока";
+        String color = assignment == null ? null : assignment.badgeColor();
+        String coloredBadge = colorPrefix(color) + badge + " - " + label;
+        String description = assignment != null && assignment.badgeDescription() != null
+                && !assignment.badgeDescription().isBlank()
+                ? assignment.badgeDescription() : "Персональный бейдж игрока";
+        return hoverText(StardustChatNotifications.parseFormattedString(coloredBadge), description);
+    }
+
+    private Component nameHover(StardustHttpProvider.Assignment assignment) {
+        Component title;
+        String description;
+        if (assignment != null && assignment.gradientLabel() != null && !assignment.gradientLabel().isBlank()) {
+            title = StardustChatNotifications.parseFormattedString(
+                    StardustTabIntegration.formatGradientForChat(
+                            assignment.gradientLabel(), assignment.gradientStart(), assignment.gradientEnd()));
+            description = assignment.gradientDescription();
+        } else {
+            title = Component.literal("Цвет ника").withStyle(ChatFormatting.WHITE);
+            description = "Цветной ник игрока";
+        }
+        return hoverText(title, description);
+    }
+
+    private String colorPrefix(String color) {
+        if (color == null || color.isBlank()) return "";
+        String value = color.trim();
+        if (value.startsWith("&#") || (value.startsWith("&") && value.length() == 2)) return value;
+        if (value.startsWith("#")) return "&" + value;
+        if (value.length() == 6) return "&#" + value;
+        return value;
+    }
+
+    private Component hoverText(Component title, String description) {
+        String detail = description == null || description.isBlank() ? "Описание отсутствует" : description;
+        return Component.empty()
+                .append(title)
+                .append(Component.literal("\n\n" + detail).withStyle(ChatFormatting.WHITE))
+                .append(Component.literal("\n(Нажмите, чтобы написать в ЛС)").withStyle(ChatFormatting.GRAY));
+    }
+
+    private MutableComponent formatPrivateMessage(String prefix, Component playerName, String text) {
+        return Component.empty()
+                .append(Component.literal(prefix).withStyle(ChatFormatting.AQUA))
+                .append(playerName)
+                .append(Component.literal("  ").withStyle(ChatFormatting.DARK_GRAY))
                 .append(Component.literal(text).withStyle(ChatFormatting.WHITE));
-        MutableComponent toSender = Component.empty()
-                .append(Component.literal("✦ ЛС для ").withStyle(ChatFormatting.DARK_AQUA))
-                .append(targetName)
-                .append(Component.literal(": ").withStyle(ChatFormatting.GRAY))
-                .append(Component.literal(text).withStyle(ChatFormatting.WHITE));
-        target.sendSystemMessage(toTarget);
-        sender.sendSystemMessage(toSender);
-        return 1;
     }
 
     private void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
@@ -138,14 +223,10 @@ public final class StardustMod {
         event.setCanceled(true);
 
         ServerPlayer player = event.getPlayer();
-        String name = player.getGameProfile().getName();
-        String badge = StardustTabIntegration.resolveBadgeForName(name);
-        String coloredName = StardustTabIntegration.resolveNameForChat(name);
-        Component styled = StardustChatNotifications.parseFormattedString(badge + coloredName);
 
         MutableComponent chatMessage = Component.empty()
                 .append(Component.literal("[").withStyle(ChatFormatting.GRAY))
-                .append(styled != null && !styled.getString().isEmpty() ? styled : Component.literal(name))
+                .append(formatPlayerName(player))
                 .append(Component.literal("] ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal(event.getRawText()));
 

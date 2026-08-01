@@ -100,6 +100,7 @@ export function AccountsView() {
   const [selfUuid, setSelfUuid] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [accountStats, setAccountStats] = useState<Record<string, PlayerStats>>({});
   const [statsErrorCount, setStatsErrorCount] = useState(0);
 
@@ -251,7 +252,18 @@ export function AccountsView() {
         <div className="metric-card metric-card--red"><span>Баны</span><strong>{bannedCount}</strong><small>ограниченный доступ</small></div>
       </div>
 
-      <div className="panel panel-flat accounts-filter-panel">
+      <div className="accounts-filter-toolbar">
+        <Button
+          className="accounts-filter-toggle"
+          variant="secondary"
+          onClick={() => setFiltersOpen((open) => !open)}
+          aria-expanded={filtersOpen}
+          aria-controls="accounts-filters"
+        >
+          Фильтры{filtersActive ? " · применены" : ""}
+        </Button>
+      </div>
+      <div id="accounts-filters" className={`panel panel-flat accounts-filter-panel${filtersOpen ? " is-open" : ""}`}>
         <div className="filter-summary"><strong>{filtered.length}</strong><span>показано из {accounts.length}</span></div>
         <label>
           Роль
@@ -340,6 +352,14 @@ export function AccountsView() {
                     key={a.uuid}
                     className="clickable-row account-row"
                     onClick={() => setSelectedAccount(a)}
+                    tabIndex={0}
+                    aria-label={`Открыть аккаунт ${a.username}`}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedAccount(a);
+                      }
+                    }}
                   >
                     <TableCell>
                       <div className="cell-main">
