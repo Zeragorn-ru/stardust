@@ -11,7 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/** Keeps light-block outlines visible while holding the item in survival. */
+/** Makes vanilla light blocks targetable while holding the light item. */
 @Mixin(LightBlock.class)
 public abstract class LightBlockMixin {
     @Inject(method = "getShape", at = @At("HEAD"), cancellable = true)

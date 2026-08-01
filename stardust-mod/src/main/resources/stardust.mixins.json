@@ -6,10 +6,12 @@
   "refmap": "stardust.refmap.json",
   "mixins": [
     "PlayerListMixin",
-    "LightBlockMixin"
+    "LightBlockMixin",
+    "BlockBehaviourMixin"
   ],
   "client": [
-    "ChatListenerMixin"
+    "ChatListenerMixin",
+    "ClientLevelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
