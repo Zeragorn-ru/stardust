@@ -9,33 +9,37 @@
 //! Доступ к БД и сессиям переиспользуется из крейта `store` — те же аккаунты
 //! и токены, что и у auth-server. Админом считается аккаунт с ролью `admin`.
 
+use rand::{distributions::Alphanumeric, Rng};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use rand::{distributions::Alphanumeric, Rng};
 
 use tracing_subscriber::prelude::*;
 
 use axum::{
-    extract::{DefaultBodyLimit, Multipart, Path, Query, State, ConnectInfo},
+    extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
     Json, Router,
 };
+use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
-    NewBuild, Role, Store, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD,
-    SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
+    NewBuild, Role, Store, SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET,
+    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
+    SETTING_BACKUP_SECRET_KEY, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
+    SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
-use futures_util::TryStreamExt;
+
+mod backup;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
 const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
@@ -69,6 +73,9 @@ struct AppState {
     deploy_mod_running: Mutex<bool>,
     /// Последний статус деплоя мода для polling из админки.
     deploy_mod_status: Mutex<DeployModStatus>,
+    backup_source_dir: PathBuf,
+    backup_running: Mutex<bool>,
+    backup_status: Mutex<backup::Status>,
 }
 
 /// Закэшированный authlib-injector.jar с временем загрузки.
@@ -132,6 +139,11 @@ async fn main() {
         sync_to_panel_status: Mutex::new(SyncStatus::default()),
         deploy_mod_running: Mutex::new(false),
         deploy_mod_status: Mutex::new(DeployModStatus::default()),
+        backup_source_dir: PathBuf::from(
+            std::env::var("BACKUP_SOURCE_DIR").unwrap_or_else(|_| "/data".to_string()),
+        ),
+        backup_running: Mutex::new(false),
+        backup_status: Mutex::new(backup::Status::default()),
     });
 
     // Фоновая задача: синхронизация статистики с SFTP каждые 15 минут.
@@ -148,6 +160,17 @@ async fn main() {
                 }
             }
             tokio::time::sleep(Duration::from_secs(15 * 60)).await;
+        }
+    });
+
+    // Ежедневный бекап: первый запуск после старта, затем раз в 24 часа.
+    let backup_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            if let Err(e) = start_backup(Arc::clone(&backup_state), false).await {
+                tracing::warn!("[backup] {e}");
+            }
+            tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
         }
     });
 
@@ -172,7 +195,9 @@ async fn main() {
                 CorsLayer::new().allow_origin(origins)
             }
             None => {
-                tracing::warn!("CORS: allowed origins не заданы, разрешаем все (только для разработки!)");
+                tracing::warn!(
+                    "CORS: allowed origins не заданы, разрешаем все (только для разработки!)"
+                );
                 CorsLayer::permissive()
             }
         }
@@ -203,21 +228,38 @@ async fn main() {
             axum::routing::patch(update_file).delete(delete_file),
         )
         .route("/api/builds/:id/sync-to-panel", post(sync_to_panel))
-        .route("/api/builds/:id/sync-to-panel/status", get(sync_to_panel_status))
+        .route(
+            "/api/builds/:id/sync-to-panel/status",
+            get(sync_to_panel_status),
+        )
         .route("/api/build-check", get(build_check))
         .route("/api/deps-check", get(deps_check))
         .route("/api/settings/sync-stats", post(sync_stats))
-        .route("/api/settings/server-token/generate", post(generate_server_token))
+        .route(
+            "/api/settings/server-token/generate",
+            post(generate_server_token),
+        )
+        .route("/api/settings/backup-status", get(backup_status))
+        .route("/api/settings/backup", post(run_backup))
         .route("/api/server/telemetry", get(server_telemetry))
         .route("/api/server/logs", get(server_logs))
-        .route("/api/server/external-mod-allowlist", get(list_external_mod_allowlist).post(add_external_mod_allowlist))
-        .route("/api/server/external-mod-allowlist/:id", axum::routing::delete(remove_external_mod_allowlist))
-        .route("/api/server/external-mod-block-rules", get(list_external_mod_block_rules).post(add_external_mod_block_rule))
-        .route("/api/server/external-mod-block-rules/:id", axum::routing::delete(remove_external_mod_block_rule))
         .route(
-            "/api/settings/reset-fingerprint",
-            post(reset_fingerprint),
+            "/api/server/external-mod-allowlist",
+            get(list_external_mod_allowlist).post(add_external_mod_allowlist),
         )
+        .route(
+            "/api/server/external-mod-allowlist/:id",
+            axum::routing::delete(remove_external_mod_allowlist),
+        )
+        .route(
+            "/api/server/external-mod-block-rules",
+            get(list_external_mod_block_rules).post(add_external_mod_block_rule),
+        )
+        .route(
+            "/api/server/external-mod-block-rules/:id",
+            axum::routing::delete(remove_external_mod_block_rule),
+        )
+        .route("/api/settings/reset-fingerprint", post(reset_fingerprint))
         .route(
             "/api/builds/files/:file_id/content",
             axum::routing::put(update_file_content),
@@ -235,9 +277,15 @@ async fn main() {
             "/api/accounts/:uuid/telegram",
             axum::routing::delete(unlink_account_telegram).put(set_account_telegram),
         )
-        .route("/api/accounts/:uuid/skin", get(account_skin).put(update_account_skin))
+        .route(
+            "/api/accounts/:uuid/skin",
+            get(account_skin).put(update_account_skin),
+        )
         .route("/api/accounts/:uuid/stats", get(account_stats))
-        .route("/api/accounts/:uuid/customization", get(get_account_customization))
+        .route(
+            "/api/accounts/:uuid/customization",
+            get(get_account_customization),
+        )
         .route("/api/accounts/:uuid/badges", put(set_account_badges))
         .route("/api/accounts/:uuid/gradients", put(set_account_gradients))
         .route("/api/accounts/:uuid/active", put(set_account_active))
@@ -269,10 +317,13 @@ async fn main() {
         .unwrap_or_else(|e| panic!("не удалось привязаться к {addr}: {e}"));
     tracing::info!("admin-server слушает на http://{addr}");
 
-    axum::serve(listener, app.into_make_service_with_connect_info::<std::net::SocketAddr>())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("ошибка сервера");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .expect("ошибка сервера");
 }
 
 async fn shutdown_signal() {
@@ -481,6 +532,18 @@ struct SettingsDto {
     sftp_stats_path: Option<String>,
     #[serde(rename = "serverTelemetryTokenSet")]
     server_telemetry_token_set: bool,
+    #[serde(rename = "backupEndpoint", skip_serializing_if = "Option::is_none")]
+    backup_endpoint: Option<String>,
+    #[serde(rename = "backupBucket", skip_serializing_if = "Option::is_none")]
+    backup_bucket: Option<String>,
+    #[serde(rename = "backupRegion", skip_serializing_if = "Option::is_none")]
+    backup_region: Option<String>,
+    #[serde(rename = "backupPrefix", skip_serializing_if = "Option::is_none")]
+    backup_prefix: Option<String>,
+    #[serde(rename = "backupAccessKeySet")]
+    backup_access_key_set: bool,
+    #[serde(rename = "backupSecretKeySet")]
+    backup_secret_key_set: bool,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -492,6 +555,12 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_SFTP_PASSWORD,
         SETTING_SFTP_STATS_PATH,
         store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN,
+        SETTING_BACKUP_ENDPOINT,
+        SETTING_BACKUP_BUCKET,
+        SETTING_BACKUP_REGION,
+        SETTING_BACKUP_PREFIX,
+        SETTING_BACKUP_ACCESS_KEY,
+        SETTING_BACKUP_SECRET_KEY,
     ];
     let map = state
         .store
@@ -499,17 +568,13 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         .await
         .map_err(internal)?;
 
-    let get = |key: &str| -> Option<String> {
-        map.get(key)
-            .and_then(|v| v.clone())
-    };
+    let get = |key: &str| -> Option<String> { map.get(key).and_then(|v| v.clone()) };
 
     Ok(SettingsDto {
         telegram_token_set: get(SETTING_TELEGRAM_TOKEN)
             .map(|t| !t.trim().is_empty())
             .unwrap_or(false),
-        telegram_bot_username: get(SETTING_TELEGRAM_USERNAME)
-            .filter(|u| !u.trim().is_empty()),
+        telegram_bot_username: get(SETTING_TELEGRAM_USERNAME).filter(|u| !u.trim().is_empty()),
         sftp_host: get(SETTING_SFTP_HOST).filter(|s| !s.trim().is_empty()),
         sftp_username: get(SETTING_SFTP_USERNAME).filter(|s| !s.trim().is_empty()),
         sftp_password_set: get(SETTING_SFTP_PASSWORD)
@@ -518,6 +583,12 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         sftp_stats_path: get(SETTING_SFTP_STATS_PATH).filter(|s| !s.trim().is_empty()),
         server_telemetry_token_set: get(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN)
             .is_some_and(|s| !s.trim().is_empty()),
+        backup_endpoint: get(SETTING_BACKUP_ENDPOINT).filter(|s| !s.trim().is_empty()),
+        backup_bucket: get(SETTING_BACKUP_BUCKET).filter(|s| !s.trim().is_empty()),
+        backup_region: get(SETTING_BACKUP_REGION).filter(|s| !s.trim().is_empty()),
+        backup_prefix: get(SETTING_BACKUP_PREFIX).filter(|s| !s.trim().is_empty()),
+        backup_access_key_set: get(SETTING_BACKUP_ACCESS_KEY).is_some_and(|s| !s.trim().is_empty()),
+        backup_secret_key_set: get(SETTING_BACKUP_SECRET_KEY).is_some_and(|s| !s.trim().is_empty()),
     })
 }
 
@@ -551,8 +622,24 @@ struct UpdateSettingsRequest {
         skip_serializing_if = "Option::is_none"
     )]
     sftp_password: Option<String>,
-    #[serde(rename = "sftpStatsPath", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "sftpStatsPath",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     sftp_stats_path: Option<String>,
+    #[serde(rename = "backupEndpoint", default)]
+    backup_endpoint: Option<String>,
+    #[serde(rename = "backupBucket", default)]
+    backup_bucket: Option<String>,
+    #[serde(rename = "backupRegion", default)]
+    backup_region: Option<String>,
+    #[serde(rename = "backupPrefix", default)]
+    backup_prefix: Option<String>,
+    #[serde(rename = "backupAccessKey", default)]
+    backup_access_key: Option<String>,
+    #[serde(rename = "backupSecretKey", default)]
+    backup_secret_key: Option<String>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -648,9 +735,39 @@ async fn update_settings(
     if let Some(v) = req.sftp_stats_path {
         let v = v.trim();
         if v.is_empty() {
-            state.store.delete_setting(SETTING_SFTP_STATS_PATH).await.map_err(internal)?;
+            state
+                .store
+                .delete_setting(SETTING_SFTP_STATS_PATH)
+                .await
+                .map_err(internal)?;
         } else {
-            state.store.set_setting(SETTING_SFTP_STATS_PATH, v).await.map_err(internal)?;
+            state
+                .store
+                .set_setting(SETTING_SFTP_STATS_PATH, v)
+                .await
+                .map_err(internal)?;
+        }
+    }
+
+    for (value, key) in [
+        (req.backup_endpoint, SETTING_BACKUP_ENDPOINT),
+        (req.backup_bucket, SETTING_BACKUP_BUCKET),
+        (req.backup_region, SETTING_BACKUP_REGION),
+        (req.backup_prefix, SETTING_BACKUP_PREFIX),
+        (req.backup_access_key, SETTING_BACKUP_ACCESS_KEY),
+        (req.backup_secret_key, SETTING_BACKUP_SECRET_KEY),
+    ] {
+        if let Some(value) = value {
+            let value = value.trim();
+            if value.is_empty() {
+                state.store.delete_setting(key).await.map_err(internal)?;
+            } else {
+                state
+                    .store
+                    .set_setting(key, value)
+                    .await
+                    .map_err(internal)?;
+            }
         }
     }
 
@@ -667,8 +784,167 @@ async fn generate_server_token(
         .take(64)
         .map(char::from)
         .collect();
-    state.store.set_setting(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN, &token).await.map_err(map_store)?;
+    state
+        .store
+        .set_setting(
+            store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN,
+            &token,
+        )
+        .await
+        .map_err(map_store)?;
     Ok(Json(serde_json::json!({ "token": token })))
+}
+
+async fn backup_config(state: &Shared) -> Result<Option<backup::Config>, ApiError> {
+    let keys = [
+        SETTING_BACKUP_ENDPOINT,
+        SETTING_BACKUP_BUCKET,
+        SETTING_BACKUP_REGION,
+        SETTING_BACKUP_PREFIX,
+        SETTING_BACKUP_ACCESS_KEY,
+        SETTING_BACKUP_SECRET_KEY,
+    ];
+    let values = state
+        .store
+        .get_settings_batch(&keys)
+        .await
+        .map_err(internal)?;
+    let get = |key: &str| {
+        values
+            .get(key)
+            .and_then(Clone::clone)
+            .filter(|v| !v.trim().is_empty())
+    };
+    let Some(endpoint) = get(SETTING_BACKUP_ENDPOINT) else {
+        return Ok(None);
+    };
+    let Some(bucket) = get(SETTING_BACKUP_BUCKET) else {
+        return Ok(None);
+    };
+    let Some(access_key) = get(SETTING_BACKUP_ACCESS_KEY) else {
+        return Ok(None);
+    };
+    let Some(secret_key) = get(SETTING_BACKUP_SECRET_KEY) else {
+        return Ok(None);
+    };
+    Ok(Some(backup::Config {
+        endpoint,
+        bucket,
+        region: get(SETTING_BACKUP_REGION).unwrap_or_else(|| "ru-central1".to_string()),
+        prefix: get(SETTING_BACKUP_PREFIX).unwrap_or_else(|| "backups/".to_string()),
+        access_key,
+        secret_key,
+    }))
+}
+
+async fn backup_status(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<backup::Status>, ApiError> {
+    require_admin(&state, &headers).await?;
+    Ok(Json(state.backup_status.lock().await.clone()))
+}
+
+async fn run_backup(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    require_admin(&state, &headers).await?;
+    if *state.backup_running.lock().await {
+        return Err(ApiError::new(StatusCode::CONFLICT, "Бекап уже выполняется"));
+    }
+    let task_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        if let Err(e) = start_backup(task_state, true).await {
+            tracing::warn!("[backup] ручной запуск: {e}");
+        }
+    });
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "inProgress": true })),
+    ))
+}
+
+async fn start_backup(state: Shared, manual: bool) -> Result<(), String> {
+    {
+        let mut running = state.backup_running.lock().await;
+        if *running {
+            return if manual {
+                Err("бекап уже выполняется".to_string())
+            } else {
+                Ok(())
+            };
+        }
+        *running = true;
+    }
+    let started = OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_default();
+    {
+        let mut status = state.backup_status.lock().await;
+        status.state = "running".to_string();
+        status.last_started_at = Some(started);
+        status.error = None;
+    }
+
+    let result = async {
+        let config = backup_config(&state)
+            .await
+            .map_err(|e| e.message)?
+            .ok_or_else(|| "настройки Object Storage не заполнены".to_string())?;
+        if !state.backup_source_dir.is_dir() {
+            return Err(format!(
+                "каталог источника не найден: {:?}",
+                state.backup_source_dir
+            ));
+        }
+        let (archive, size) = backup::create_archive(state.backup_source_dir.clone()).await?;
+        let now = OffsetDateTime::now_utc();
+        let date = now
+            .format(
+                &time::format_description::parse("[year]-[month]-[day]T[hour]-[minute]-[second]Z")
+                    .unwrap(),
+            )
+            .unwrap();
+        let prefix = config.prefix.trim_matches('/');
+        let key = if prefix.is_empty() {
+            format!("data-{date}.tar.gz")
+        } else {
+            format!("{prefix}/data-{date}.tar.gz")
+        };
+        backup::upload_and_prune(&state.http, &config, archive, &key).await?;
+        Ok::<(String, u64), String>((key, size))
+    }
+    .await;
+
+    let mut status = state.backup_status.lock().await;
+    match result {
+        Ok((key, size)) => {
+            status.state = "success".to_string();
+            status.last_finished_at = Some(
+                OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_default(),
+            );
+            status.last_object = Some(key);
+            status.last_size_bytes = Some(size);
+            status.error = None;
+        }
+        Err(error) => {
+            status.state = if manual { "error" } else { "disabled" }.to_string();
+            status.last_finished_at = Some(
+                OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_default(),
+            );
+            status.error = Some(error.clone());
+            if manual {
+                tracing::warn!("[backup] {error}");
+            }
+        }
+    }
+    *state.backup_running.lock().await = false;
+    Ok(())
 }
 
 // ───────────────────────── Сборки ─────────────────────────
@@ -979,11 +1255,9 @@ async fn upload_file(
                     .map_err(|e| internal(format!("create temp: {e}")))?;
                 let mut stream = field.into_stream();
                 use tokio::io::AsyncWriteExt;
-                while let Some(chunk) = stream
-                    .try_next()
-                    .await
-                    .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, format!("file chunk: {e}")))?
-                {
+                while let Some(chunk) = stream.try_next().await.map_err(|e| {
+                    ApiError::new(StatusCode::BAD_REQUEST, format!("file chunk: {e}"))
+                })? {
                     file.write_all(&chunk)
                         .await
                         .map_err(|e| internal(format!("write chunk: {e}")))?;
@@ -992,8 +1266,11 @@ async fn upload_file(
                     .await
                     .map_err(|e| internal(format!("flush: {e}")))?;
                 drop(file);
-                temp_path = Some(tp.into_temp_path().keep()
-                    .map_err(|e| internal(format!("keep temp: {e}")))?);
+                temp_path = Some(
+                    tp.into_temp_path()
+                        .keep()
+                        .map_err(|e| internal(format!("keep temp: {e}")))?,
+                );
             }
             _ => {}
         }
@@ -1012,15 +1289,24 @@ async fn upload_file(
         match comp {
             std::path::Component::Prefix(_) => {
                 tokio::fs::remove_file(&temp_path).await.ok();
-                return Err(ApiError::new(StatusCode::BAD_REQUEST, "Недопустимый префикс пути"));
+                return Err(ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Недопустимый префикс пути",
+                ));
             }
             std::path::Component::RootDir => {
                 tokio::fs::remove_file(&temp_path).await.ok();
-                return Err(ApiError::new(StatusCode::BAD_REQUEST, "Абсолютный путь запрещен"));
+                return Err(ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Абсолютный путь запрещен",
+                ));
             }
             std::path::Component::ParentDir => {
                 tokio::fs::remove_file(&temp_path).await.ok();
-                return Err(ApiError::new(StatusCode::BAD_REQUEST, "Выход за пределы директории запрещен"));
+                return Err(ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Выход за пределы директории запрещен",
+                ));
             }
             _ => {}
         }
@@ -1257,7 +1543,11 @@ impl SyncStatus {
             build_id: Some(build_id),
             state: SyncState::Running,
             phase: "Подготовка".to_string(),
-            started_at: Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default()),
+            started_at: Some(
+                OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_default(),
+            ),
             ..Self::default()
         }
     }
@@ -1403,7 +1693,11 @@ async fn sync_to_panel(
                     status.skipped = result.skipped;
                     status.deleted = result.deleted;
                     status.error = None;
-                    status.finished_at = Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                    status.finished_at = Some(
+                        OffsetDateTime::now_utc()
+                            .format(&Rfc3339)
+                            .unwrap_or_default(),
+                    );
                 })
                 .await;
                 tracing::info!(
@@ -1419,7 +1713,11 @@ async fn sync_to_panel(
                     status.state = SyncState::Error;
                     status.phase = "Ошибка".to_string();
                     status.error = Some(err.message.clone());
-                    status.finished_at = Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                    status.finished_at = Some(
+                        OffsetDateTime::now_utc()
+                            .format(&Rfc3339)
+                            .unwrap_or_default(),
+                    );
                 })
                 .await;
                 tracing::error!(
@@ -1504,9 +1802,13 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
 
     // Устанавливаем SSH-сессию и аутентифицируемся паролем.
     let config = Arc::new(russh::client::Config::default());
-    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler::new(&state.modpack_dir))
-        .await
-        .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
+    let mut session = russh::client::connect(
+        config,
+        (host_part.as_str(), port),
+        SftpHandler::new(&state.modpack_dir),
+    )
+    .await
+    .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
     let auth = session
         .authenticate_password(&username, &password)
         .await
@@ -1708,7 +2010,10 @@ async fn write_sftp_file_atomic(
 
     let write_result = async {
         let mut remote = sftp
-            .open_with_flags(&tmp, OpenFlags::CREATE | OpenFlags::WRITE | OpenFlags::TRUNCATE)
+            .open_with_flags(
+                &tmp,
+                OpenFlags::CREATE | OpenFlags::WRITE | OpenFlags::TRUNCATE,
+            )
             .await
             .map_err(|e| internal(format!("открытие временного файла {tmp} на сервере: {e}")))?;
 
@@ -1796,7 +2101,11 @@ async fn deploy_mod(
         *status = DeployModStatus {
             state: SyncState::Running,
             phase: "Подготовка".to_string(),
-            started_at: Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default()),
+            started_at: Some(
+                OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_default(),
+            ),
             ..Default::default()
         };
     })
@@ -1810,8 +2119,11 @@ async fn deploy_mod(
                     status.state = SyncState::Success;
                     status.phase = "Готово".to_string();
                     status.version = Some(version);
-                    status.finished_at =
-                        Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                    status.finished_at = Some(
+                        OffsetDateTime::now_utc()
+                            .format(&Rfc3339)
+                            .unwrap_or_default(),
+                    );
                 })
                 .await;
             }
@@ -1822,8 +2134,11 @@ async fn deploy_mod(
                     status.state = SyncState::Error;
                     status.phase = "Ошибка".to_string();
                     status.error = Some(msg);
-                    status.finished_at =
-                        Some(OffsetDateTime::now_utc().format(&Rfc3339).unwrap_or_default());
+                    status.finished_at = Some(
+                        OffsetDateTime::now_utc()
+                            .format(&Rfc3339)
+                            .unwrap_or_default(),
+                    );
                 })
                 .await;
             }
@@ -1831,7 +2146,10 @@ async fn deploy_mod(
         *task_state.deploy_mod_running.lock().await = false;
     });
 
-    Ok((StatusCode::ACCEPTED, Json(serde_json::json!({ "inProgress": true }))))
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "inProgress": true })),
+    ))
 }
 
 async fn deploy_mod_status(
@@ -1882,10 +2200,9 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
             };
             parse(b).cmp(&parse(a))
         });
-        mod_releases
-            .into_iter()
-            .next()
-            .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Релизы мода (mod-v*) не найдены"))?
+        mod_releases.into_iter().next().ok_or_else(|| {
+            ApiError::new(StatusCode::NOT_FOUND, "Релизы мода (mod-v*) не найдены")
+        })?
     };
 
     let version = release
@@ -1934,9 +2251,7 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
     let size_bytes = jar_bytes.len() as i64;
     let sha1 = sha1_hex(&jar_bytes);
 
-    tracing::info!(
-        "deploy-mod: скачан {jar_name} ({size_bytes} байт, sha1={sha1})",
-    );
+    tracing::info!("deploy-mod: скачан {jar_name} ({size_bytes} байт, sha1={sha1})",);
 
     // 3. Сохраняем jar в контент-адресное хранилище (modpack_dir/sha1).
     update_deploy_mod_status(&state, |s| {
@@ -1974,7 +2289,9 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
 
     for f in &build.files {
         let is_stardust_mod = f.mod_id.as_deref() == Some("stardust")
-            || (f.path.starts_with("mods/") && f.path.contains("stardust") && f.path.ends_with(".jar"));
+            || (f.path.starts_with("mods/")
+                && f.path.contains("stardust")
+                && f.path.ends_with(".jar"));
         if is_stardust_mod {
             old_side = f.side.clone();
             old_overwrite = f.overwrite;
@@ -1986,7 +2303,11 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
     }
 
     for file_id in old_files_to_delete {
-        state.store.delete_build_file(file_id).await.map_err(map_store)?;
+        state
+            .store
+            .delete_build_file(file_id)
+            .await
+            .map_err(map_store)?;
     }
 
     let file_path = format!("mods/{jar_name}");
@@ -2393,7 +2714,10 @@ async fn update_account_skin(
 
     state
         .store
-        .set_skin(&account.uuid, store::StoredSkin::new(png, req.model, None, None))
+        .set_skin(
+            &account.uuid,
+            store::StoredSkin::new(png, req.model, None, None),
+        )
         .await
         .map_err(map_store)?;
     Ok(Json(AccountDto::from(account)))
@@ -2440,9 +2764,13 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
     };
 
     let config = Arc::new(russh::client::Config::default());
-    let mut session = russh::client::connect(config, (host_part.as_str(), port), SftpHandler::new(&state.modpack_dir))
-        .await
-        .map_err(|e| format!("SSH-подключение к {host_part}:{port}: {e}"))?;
+    let mut session = russh::client::connect(
+        config,
+        (host_part.as_str(), port),
+        SftpHandler::new(&state.modpack_dir),
+    )
+    .await
+    .map_err(|e| format!("SSH-подключение к {host_part}:{port}: {e}"))?;
     let auth = session
         .authenticate_password(&username, &password)
         .await
@@ -2528,8 +2856,7 @@ async fn account_stats(
         state.store.get_playtime(&uuid).await.map_err(map_store)?;
     Ok(Json(protocol::PlayerStats {
         playtime_seconds,
-        last_joined_at: last_joined_at
-            .map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        last_joined_at: last_joined_at.map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
 }
 
@@ -2539,9 +2866,21 @@ async fn server_telemetry(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&state, &headers).await?;
     let since = OffsetDateTime::now_utc() - time::Duration::hours(24);
-    let samples = state.store.telemetry_samples_since(since).await.map_err(map_store)?;
-    let events = state.store.player_events_since(since).await.map_err(map_store)?;
-    let average_online = state.store.telemetry_average_online().await.map_err(map_store)?;
+    let samples = state
+        .store
+        .telemetry_samples_since(since)
+        .await
+        .map_err(map_store)?;
+    let events = state
+        .store
+        .player_events_since(since)
+        .await
+        .map_err(map_store)?;
+    let average_online = state
+        .store
+        .telemetry_average_online()
+        .await
+        .map_err(map_store)?;
     Ok(Json(serde_json::json!({
         "samples": samples,
         "events": events,
@@ -2555,8 +2894,16 @@ async fn server_logs(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&state, &headers).await?;
     let since = OffsetDateTime::now_utc() - time::Duration::days(30);
-    let logs = state.store.server_logs_since(since).await.map_err(map_store)?;
-    let average_online = state.store.telemetry_average_online().await.map_err(map_store)?;
+    let logs = state
+        .store
+        .server_logs_since(since)
+        .await
+        .map_err(map_store)?;
+    let average_online = state
+        .store
+        .telemetry_average_online()
+        .await
+        .map_err(map_store)?;
     Ok(Json(serde_json::json!({
         "logs": logs,
         "averageOnline": average_online,
@@ -2597,10 +2944,21 @@ async fn add_external_mod_allowlist(
     let mod_id = input.mod_id.trim();
     let jar_name = input.jar_name.trim();
     let sha256 = input.sha256.trim().to_ascii_lowercase();
-    if mod_id.is_empty() || jar_name.is_empty() || !sha256.chars().all(|ch| ch.is_ascii_hexdigit()) || sha256.len() != 64 {
-        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Некорректные данные allowlist"));
+    if mod_id.is_empty()
+        || jar_name.is_empty()
+        || !sha256.chars().all(|ch| ch.is_ascii_hexdigit())
+        || sha256.len() != 64
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Некорректные данные allowlist",
+        ));
     }
-    state.store.add_external_mod_allowlist(mod_id, jar_name, &sha256).await.map_err(map_store)?;
+    state
+        .store
+        .add_external_mod_allowlist(mod_id, jar_name, &sha256)
+        .await
+        .map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -2610,7 +2968,11 @@ async fn remove_external_mod_allowlist(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.remove_external_mod_allowlist(id).await.map_err(map_store)?;
+    state
+        .store
+        .remove_external_mod_allowlist(id)
+        .await
+        .map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -2630,18 +2992,36 @@ async fn add_external_mod_block_rule(
     Json(input): Json<ExternalModBlockRuleInput>,
 ) -> Result<StatusCode, ApiError> {
     require_admin(&state, &headers).await?;
-    let sha256 = input.sha256.as_deref().map(str::trim).map(str::to_ascii_lowercase);
+    let sha256 = input
+        .sha256
+        .as_deref()
+        .map(str::trim)
+        .map(str::to_ascii_lowercase);
     let sha256 = sha256.filter(|value| !value.is_empty());
     if let Some(value) = sha256.as_deref() {
         if value.len() != 64 || !value.chars().all(|ch| ch.is_ascii_hexdigit()) {
-            return Err(ApiError::new(StatusCode::BAD_REQUEST, "Некорректный SHA-256 правила блокировки"));
+            return Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Некорректный SHA-256 правила блокировки",
+            ));
         }
     }
-    let name_substring = input.name_substring.as_deref().map(str::trim).filter(|value| !value.is_empty());
+    let name_substring = input
+        .name_substring
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     if sha256.is_none() && name_substring.is_none() {
-        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Нужно указать SHA-256 или подстроку имени"));
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Нужно указать SHA-256 или подстроку имени",
+        ));
     }
-    state.store.add_external_mod_block_rule(sha256.as_deref(), name_substring).await.map_err(map_store)?;
+    state
+        .store
+        .add_external_mod_block_rule(sha256.as_deref(), name_substring)
+        .await
+        .map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -2651,7 +3031,11 @@ async fn remove_external_mod_block_rule(
     Path(id): Path<i64>,
 ) -> Result<StatusCode, ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.remove_external_mod_block_rule(id).await.map_err(map_store)?;
+    state
+        .store
+        .remove_external_mod_block_rule(id)
+        .await
+        .map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -2808,8 +3192,11 @@ async fn create_badge(
     Json(input): Json<BadgeInput>,
 ) -> Result<Json<protocol::Badge>, ApiError> {
     require_admin(&state, &headers).await?;
-    let badge = state.store.create_badge(&input.emoji, &input.label, &input.description, &input.color)
-        .await.map_err(map_store)?;
+    let badge = state
+        .store
+        .create_badge(&input.emoji, &input.label, &input.description, &input.color)
+        .await
+        .map_err(map_store)?;
     Ok(Json(badge))
 }
 
@@ -2820,8 +3207,17 @@ async fn update_badge(
     Json(input): Json<BadgeInput>,
 ) -> Result<(), ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.update_badge(id, &input.emoji, &input.label, &input.description, &input.color)
-        .await.map_err(map_store)?;
+    state
+        .store
+        .update_badge(
+            id,
+            &input.emoji,
+            &input.label,
+            &input.description,
+            &input.color,
+        )
+        .await
+        .map_err(map_store)?;
     Ok(())
 }
 
@@ -2850,8 +3246,16 @@ async fn create_gradient(
     Json(input): Json<GradientInput>,
 ) -> Result<Json<protocol::Gradient>, ApiError> {
     require_admin(&state, &headers).await?;
-    let gradient = state.store.create_gradient(&input.label, &input.description, &input.color_start, &input.color_end)
-        .await.map_err(map_store)?;
+    let gradient = state
+        .store
+        .create_gradient(
+            &input.label,
+            &input.description,
+            &input.color_start,
+            &input.color_end,
+        )
+        .await
+        .map_err(map_store)?;
     Ok(Json(gradient))
 }
 
@@ -2862,8 +3266,17 @@ async fn update_gradient(
     Json(input): Json<GradientInput>,
 ) -> Result<(), ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.update_gradient(id, &input.label, &input.description, &input.color_start, &input.color_end)
-        .await.map_err(map_store)?;
+    state
+        .store
+        .update_gradient(
+            id,
+            &input.label,
+            &input.description,
+            &input.color_start,
+            &input.color_end,
+        )
+        .await
+        .map_err(map_store)?;
     Ok(())
 }
 
@@ -2883,10 +3296,21 @@ async fn get_account_customization(
     Path(uuid): Path<String>,
 ) -> Result<Json<protocol::PlayerCustomization>, ApiError> {
     require_admin(&state, &headers).await?;
-    let account = state.store.find_by_uuid(&uuid).await
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
-    let owned_badges = state.store.player_available_badges(&uuid).await.map_err(map_store)?;
-    let owned_gradients = state.store.player_available_gradients(&uuid).await.map_err(map_store)?;
+    let owned_badges = state
+        .store
+        .player_available_badges(&uuid)
+        .await
+        .map_err(map_store)?;
+    let owned_gradients = state
+        .store
+        .player_available_gradients(&uuid)
+        .await
+        .map_err(map_store)?;
     let owned_badge_ids = owned_badges.iter().map(|b| b.id).collect();
     let owned_gradient_ids = owned_gradients.iter().map(|g| g.id).collect();
     let available_badges = state.store.list_badges().await.map_err(map_store)?;
@@ -2908,7 +3332,11 @@ async fn set_account_badges(
     Json(input): Json<IdList>,
 ) -> Result<(), ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.set_player_badges(&uuid, &input.ids).await.map_err(map_store)?;
+    state
+        .store
+        .set_player_badges(&uuid, &input.ids)
+        .await
+        .map_err(map_store)?;
     Ok(())
 }
 
@@ -2919,7 +3347,11 @@ async fn set_account_gradients(
     Json(input): Json<IdList>,
 ) -> Result<(), ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.set_player_gradients(&uuid, &input.ids).await.map_err(map_store)?;
+    state
+        .store
+        .set_player_gradients(&uuid, &input.ids)
+        .await
+        .map_err(map_store)?;
     Ok(())
 }
 
@@ -2930,8 +3362,11 @@ async fn set_account_active(
     Json(input): Json<ActiveInput>,
 ) -> Result<(), ApiError> {
     require_admin(&state, &headers).await?;
-    state.store.set_active_customization(&uuid, input.badge_id, input.gradient_id)
-        .await.map_err(map_store)?;
+    state
+        .store
+        .set_active_customization(&uuid, input.badge_id, input.gradient_id)
+        .await
+        .map_err(map_store)?;
     Ok(())
 }
 
@@ -3028,10 +3463,7 @@ async fn build_check(
                         path: f.path.clone(),
                         sha1: f.sha1.clone(),
                         kind: "size_mismatch".into(),
-                        detail: format!(
-                            "ожидается {} байт, на диске {}",
-                            f.size_bytes, disk_size
-                        ),
+                        detail: format!("ожидается {} байт, на диске {}", f.size_bytes, disk_size),
                     });
                 }
             }

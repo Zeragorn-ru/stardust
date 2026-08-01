@@ -53,6 +53,22 @@ export interface Settings {
   sftpPasswordSet: boolean;
   sftpStatsPath?: string;
   serverTelemetryTokenSet: boolean;
+  backupEndpoint?: string;
+  backupBucket?: string;
+  backupRegion?: string;
+  backupPrefix?: string;
+  backupAccessKeySet: boolean;
+  backupSecretKeySet: boolean;
+}
+
+export interface BackupStatus {
+  state?: "idle" | "running" | "success" | "error" | string;
+  status?: "idle" | "running" | "success" | "error" | string;
+  message?: string | null;
+  error?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  lastRunAt?: string | null;
 }
 
 export interface PlayerStats {

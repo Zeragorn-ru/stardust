@@ -6,6 +6,7 @@
 import type {
   Account,
   Badge,
+  BackupStatus,
   BuildCheckResult,
   BuildDetail,
   BuildFile,
@@ -324,6 +325,10 @@ export const api = {
     return request("GET", "/api/settings");
   },
 
+  getBackupStatus(): Promise<BackupStatus> {
+    return request("GET", "/api/settings/backup-status");
+  },
+
   updateBuild(id: number, input: CreateBuildInput): Promise<void> {
     return request("PATCH", `/api/builds/${id}`, input);
   },
@@ -344,8 +349,18 @@ export const api = {
     sftpUsername?: string;
     sftpPassword?: string;
     sftpStatsPath?: string;
+    backupEndpoint?: string;
+    backupBucket?: string;
+    backupRegion?: string;
+    backupPrefix?: string;
+    backupAccessKey?: string;
+    backupSecretKey?: string;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
+  },
+
+  runBackup(): Promise<void> {
+    return request("POST", "/api/settings/backup");
   },
 
   syncStats(): Promise<{ updated: number }> {

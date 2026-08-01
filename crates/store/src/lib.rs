@@ -31,8 +31,9 @@ pub use build::{
 };
 pub use telegram::{
     ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_BAN_HOUR,
-    CALLBACK_DENY,
-    CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET, SETTING_SFTP_HOST,
+    CALLBACK_DENY, CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET,
+    SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET, SETTING_BACKUP_ENDPOINT,
+    SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION, SETTING_BACKUP_SECRET_KEY, SETTING_SFTP_HOST,
     SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
     SETTING_TELEGRAM_USERNAME,
 };
@@ -246,7 +247,8 @@ pub struct Store {
     pool: PgPool,
     /// Записи `join`: serverId -> запись. Кратковременные (см. `JOIN_TTL`).
     joins: RwLock<HashMap<String, JoinRecord>>,
-    rate_limiter: std::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
+    rate_limiter:
+        std::sync::Mutex<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
 }
 
 impl Store {
@@ -267,7 +269,9 @@ impl Store {
         // sqlx::migrate!().run() can re-apply it. Only safe for idempotent
         // migrations (CREATE TABLE IF NOT EXISTS etc.).
         Self::repair_migration_checksums(&pool, &migrator).await?;
-        migrator.run(&pool).await
+        migrator
+            .run(&pool)
+            .await
             .map_err(|e| StoreError::Backend(format!("миграции: {e}")))?;
         Ok(Self {
             pool,
@@ -292,26 +296,25 @@ impl Store {
         if !migrations_table_exists {
             return Ok(());
         }
-        let applied: Vec<(i64, Vec<u8>)> = sqlx::query_as(
-            "SELECT version, checksum FROM _sqlx_migrations ORDER BY version",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(|e| StoreError::Backend(format!("repair read: {e}")))?;
+        let applied: Vec<(i64, Vec<u8>)> =
+            sqlx::query_as("SELECT version, checksum FROM _sqlx_migrations ORDER BY version")
+                .fetch_all(pool)
+                .await
+                .map_err(|e| StoreError::Backend(format!("repair read: {e}")))?;
 
         for migration in migrator.iter() {
             let version = migration.version;
             let expected: &[u8] = &migration.checksum;
             if let Some((_v, db_checksum)) = applied.iter().find(|(v, _)| *v == version) {
                 if db_checksum.as_slice() != expected {
-                    sqlx::query(
-                        "UPDATE _sqlx_migrations SET checksum = $1 WHERE version = $2",
-                    )
-                    .bind(expected)
-                    .bind(version)
-                    .execute(pool)
-                    .await
-                    .map_err(|e| StoreError::Backend(format!("repair update v{version}: {e}")))?;
+                    sqlx::query("UPDATE _sqlx_migrations SET checksum = $1 WHERE version = $2")
+                        .bind(expected)
+                        .bind(version)
+                        .execute(pool)
+                        .await
+                        .map_err(|e| {
+                            StoreError::Backend(format!("repair update v{version}: {e}"))
+                        })?;
                 }
             }
         }
@@ -325,15 +328,20 @@ impl Store {
 
     /// Проверяет лимит запросов для IP-адреса.
     /// Возвращает true, если лимит превышен (надо вернуть TooMany), false если всё ок.
-    pub fn check_rate_limit(&self, ip: std::net::IpAddr, max_requests: usize, window_secs: u64) -> bool {
+    pub fn check_rate_limit(
+        &self,
+        ip: std::net::IpAddr,
+        max_requests: usize,
+        window_secs: u64,
+    ) -> bool {
         let mut reqs = self.rate_limiter.lock().unwrap();
         let now = std::time::Instant::now();
         let window = std::time::Duration::from_secs(window_secs);
         let list = reqs.entry(ip).or_default();
-        
+
         // Удаляем устаревшие метки времени
         list.retain(|&t| now.duration_since(t) < window);
-        
+
         if list.len() >= max_requests {
             true
         } else {
@@ -491,7 +499,8 @@ impl Store {
             .await
             .ok_or(StoreError::NotFound)?;
         if verify_password(password, &account.password_hash) {
-            self.migrate_password_hash_if_needed(&account, password).await?;
+            self.migrate_password_hash_if_needed(&account, password)
+                .await?;
             Ok(account.profile())
         } else {
             Err(StoreError::BadPassword)
@@ -510,7 +519,8 @@ impl Store {
         if !verify_password(current, &account.password_hash) {
             return Err(StoreError::BadPassword);
         }
-        self.migrate_password_hash_if_needed(&account, current).await?;
+        self.migrate_password_hash_if_needed(&account, current)
+            .await?;
         sqlx::query("UPDATE accounts SET password_hash = $1 WHERE uuid = $2")
             .bind(hash_password(new_password))
             .bind(&account.uuid)
@@ -638,7 +648,8 @@ impl Store {
         if !verify_password(password, &account.password_hash) {
             return Err(StoreError::BadPassword);
         }
-        self.migrate_password_hash_if_needed(&account, password).await?;
+        self.migrate_password_hash_if_needed(&account, password)
+            .await?;
         self.delete_account(&account.uuid).await
     }
 
@@ -704,9 +715,12 @@ impl Store {
 
         let target_uuid = normalize_uuid(target_uuid);
         if normalize_uuid(&admin_uuid) == target_uuid {
-            return Err(StoreError::Backend("нельзя забанить собственный аккаунт".to_string()));
+            return Err(StoreError::Backend(
+                "нельзя забанить собственный аккаунт".to_string(),
+            ));
         }
-        self.ban_account(&target_uuid, Some(until), Some(reason)).await
+        self.ban_account(&target_uuid, Some(until), Some(reason))
+            .await
     }
 
     /// Снимает блокировку с аккаунта.
@@ -758,9 +772,7 @@ impl Store {
             return Vec::new();
         }
         let keys: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
-        let sql = format!(
-            "SELECT {ACCOUNT_COLUMNS} FROM accounts WHERE username_lower = ANY($1)"
-        );
+        let sql = format!("SELECT {ACCOUNT_COLUMNS} FROM accounts WHERE username_lower = ANY($1)");
         sqlx::query(&sql)
             .bind(&keys)
             .fetch_all(&self.pool)
@@ -778,10 +790,9 @@ impl Store {
 
     /// Возвращает UUID всех аккаунтов (без дефисов).
     pub async fn all_account_uuids(&self) -> Result<Vec<String>, StoreError> {
-        let uuids: Vec<String> =
-            sqlx::query_scalar("SELECT uuid FROM accounts")
-                .fetch_all(&self.pool)
-                .await?;
+        let uuids: Vec<String> = sqlx::query_scalar("SELECT uuid FROM accounts")
+            .fetch_all(&self.pool)
+            .await?;
         Ok(uuids)
     }
 
@@ -930,21 +941,16 @@ impl Store {
         &self,
         uuid: &str,
     ) -> Result<(i64, Option<OffsetDateTime>), StoreError> {
-        let row = sqlx::query(
-            "SELECT playtime_seconds, last_joined_at FROM accounts WHERE uuid = $1",
-        )
-        .bind(normalize_uuid(uuid))
-        .fetch_one(&self.pool)
-        .await?;
+        let row =
+            sqlx::query("SELECT playtime_seconds, last_joined_at FROM accounts WHERE uuid = $1")
+                .bind(normalize_uuid(uuid))
+                .fetch_one(&self.pool)
+                .await?;
         Ok((row.get("playtime_seconds"), row.get("last_joined_at")))
     }
 
     /// Устанавливает абсолютное время игры (в секундах) из статистики Minecraft.
-    pub async fn set_playtime_absolute(
-        &self,
-        uuid: &str,
-        seconds: i64,
-    ) -> Result<(), StoreError> {
+    pub async fn set_playtime_absolute(&self, uuid: &str, seconds: i64) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
              SET playtime_seconds = GREATEST(playtime_seconds, $2)
@@ -974,20 +980,30 @@ impl Store {
 
     /// Список всех бейджей.
     pub async fn list_badges(&self) -> Result<Vec<Badge>, StoreError> {
-        let rows = sqlx::query("SELECT id, emoji, label, description, color FROM badges ORDER BY id")
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(rows.iter().map(|r| Badge {
-            id: r.get("id"),
-            emoji: r.get("emoji"),
-            label: r.get("label"),
-            description: r.get("description"),
-            color: r.get("color"),
-        }).collect())
+        let rows =
+            sqlx::query("SELECT id, emoji, label, description, color FROM badges ORDER BY id")
+                .fetch_all(&self.pool)
+                .await?;
+        Ok(rows
+            .iter()
+            .map(|r| Badge {
+                id: r.get("id"),
+                emoji: r.get("emoji"),
+                label: r.get("label"),
+                description: r.get("description"),
+                color: r.get("color"),
+            })
+            .collect())
     }
 
     /// Создать бейдж.
-    pub async fn create_badge(&self, emoji: &str, label: &str, description: &str, color: &str) -> Result<Badge, StoreError> {
+    pub async fn create_badge(
+        &self,
+        emoji: &str,
+        label: &str,
+        description: &str,
+        color: &str,
+    ) -> Result<Badge, StoreError> {
         let emoji = strip_vs16(emoji);
         let row = sqlx::query(
             "INSERT INTO badges (emoji, label, description, color) VALUES ($1, $2, $3, $4) RETURNING id, emoji, label, description, color",
@@ -1008,18 +1024,25 @@ impl Store {
     }
 
     /// Обновить бейдж.
-    pub async fn update_badge(&self, id: i32, emoji: &str, label: &str, description: &str, color: &str) -> Result<(), StoreError> {
+    pub async fn update_badge(
+        &self,
+        id: i32,
+        emoji: &str,
+        label: &str,
+        description: &str,
+        color: &str,
+    ) -> Result<(), StoreError> {
         let emoji = strip_vs16(emoji);
         sqlx::query(
             "UPDATE badges SET emoji = $2, label = $3, description = $4, color = $5 WHERE id = $1",
         )
-            .bind(id)
-            .bind(&emoji)
-            .bind(label)
-            .bind(description)
-            .bind(color)
-            .execute(&self.pool)
-            .await?;
+        .bind(id)
+        .bind(&emoji)
+        .bind(label)
+        .bind(description)
+        .bind(color)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -1034,20 +1057,31 @@ impl Store {
 
     /// Список всех градиентов.
     pub async fn list_gradients(&self) -> Result<Vec<Gradient>, StoreError> {
-        let rows = sqlx::query("SELECT id, label, description, color_start, color_end FROM gradients ORDER BY id")
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(rows.iter().map(|r| Gradient {
-            id: r.get("id"),
-            label: r.get("label"),
-            description: r.get("description"),
-            color_start: r.get("color_start"),
-            color_end: r.get("color_end"),
-        }).collect())
+        let rows = sqlx::query(
+            "SELECT id, label, description, color_start, color_end FROM gradients ORDER BY id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|r| Gradient {
+                id: r.get("id"),
+                label: r.get("label"),
+                description: r.get("description"),
+                color_start: r.get("color_start"),
+                color_end: r.get("color_end"),
+            })
+            .collect())
     }
 
     /// Создать градиент.
-    pub async fn create_gradient(&self, label: &str, description: &str, color_start: &str, color_end: &str) -> Result<Gradient, StoreError> {
+    pub async fn create_gradient(
+        &self,
+        label: &str,
+        description: &str,
+        color_start: &str,
+        color_end: &str,
+    ) -> Result<Gradient, StoreError> {
         let row = sqlx::query(
             "INSERT INTO gradients (label, description, color_start, color_end) VALUES ($1, $2, $3, $4) RETURNING id, label, description, color_start, color_end",
         )
@@ -1067,7 +1101,14 @@ impl Store {
     }
 
     /// Обновить градиент.
-    pub async fn update_gradient(&self, id: i32, label: &str, description: &str, color_start: &str, color_end: &str) -> Result<(), StoreError> {
+    pub async fn update_gradient(
+        &self,
+        id: i32,
+        label: &str,
+        description: &str,
+        color_start: &str,
+        color_end: &str,
+    ) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE gradients SET label = $2, description = $3, color_start = $4, color_end = $5 WHERE id = $1",
         )
@@ -1102,13 +1143,16 @@ impl Store {
         .bind(normalize_uuid(uuid))
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.iter().map(|r| Badge {
-            id: r.get("id"),
-            emoji: r.get("emoji"),
-            label: r.get("label"),
-            description: r.get("description"),
-            color: r.get("color"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| Badge {
+                id: r.get("id"),
+                emoji: r.get("emoji"),
+                label: r.get("label"),
+                description: r.get("description"),
+                color: r.get("color"),
+            })
+            .collect())
     }
 
     /// Установить доступные бейджи игрока (полная замена).
@@ -1129,7 +1173,10 @@ impl Store {
     }
 
     /// Доступные градиенты для игрока.
-    pub async fn player_available_gradients(&self, uuid: &str) -> Result<Vec<Gradient>, StoreError> {
+    pub async fn player_available_gradients(
+        &self,
+        uuid: &str,
+    ) -> Result<Vec<Gradient>, StoreError> {
         let rows = sqlx::query(
             "SELECT g.id, g.label, g.description, g.color_start, g.color_end
              FROM gradients g
@@ -1140,17 +1187,24 @@ impl Store {
         .bind(normalize_uuid(uuid))
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.iter().map(|r| Gradient {
-            id: r.get("id"),
-            label: r.get("label"),
-            description: r.get("description"),
-            color_start: r.get("color_start"),
-            color_end: r.get("color_end"),
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| Gradient {
+                id: r.get("id"),
+                label: r.get("label"),
+                description: r.get("description"),
+                color_start: r.get("color_start"),
+                color_end: r.get("color_end"),
+            })
+            .collect())
     }
 
     /// Установить доступные градиенты игрока (полная замена).
-    pub async fn set_player_gradients(&self, uuid: &str, gradient_ids: &[i32]) -> Result<(), StoreError> {
+    pub async fn set_player_gradients(
+        &self,
+        uuid: &str,
+        gradient_ids: &[i32],
+    ) -> Result<(), StoreError> {
         let uuid = normalize_uuid(uuid);
         sqlx::query("DELETE FROM player_gradients WHERE account_uuid = $1")
             .bind(&uuid)
@@ -1169,7 +1223,12 @@ impl Store {
     /// Установить активные бейдж и градиент игрока.
     /// Бейдж/градиент должны быть выданы игроку (`player_badges` / `player_gradients`),
     /// иначе — `NotFound` (нельзя активировать чужой id).
-    pub async fn set_active_customization(&self, uuid: &str, badge_id: Option<i32>, gradient_id: Option<i32>) -> Result<(), StoreError> {
+    pub async fn set_active_customization(
+        &self,
+        uuid: &str,
+        badge_id: Option<i32>,
+        gradient_id: Option<i32>,
+    ) -> Result<(), StoreError> {
         let uuid = normalize_uuid(uuid);
         if let Some(id) = badge_id {
             let owned: bool = sqlx::query_scalar(
@@ -1213,7 +1272,13 @@ impl Store {
     }
 
     /// Lookup кастомизации для списка ников (для серверного мода).
-    pub async fn server_customization_lookup(&self, names: &[String]) -> Result<std::collections::HashMap<String, (Option<Badge>, Option<Gradient>, Option<String>)>, StoreError> {
+    pub async fn server_customization_lookup(
+        &self,
+        names: &[String],
+    ) -> Result<
+        std::collections::HashMap<String, (Option<Badge>, Option<Gradient>, Option<String>)>,
+        StoreError,
+    > {
         let lower_names: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
         let rows = sqlx::query(
             "SELECT username, active_badge_id, active_gradient_id
@@ -1231,10 +1296,12 @@ impl Store {
             let gradient_id: Option<i32> = row.get("active_gradient_id");
 
             let badge = if let Some(id) = badge_id {
-                    let r = sqlx::query("SELECT id, emoji, label, description, color FROM badges WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&self.pool)
-                    .await?;
+                let r = sqlx::query(
+                    "SELECT id, emoji, label, description, color FROM badges WHERE id = $1",
+                )
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
                 r.map(|r| Badge {
                     id: r.get("id"),
                     emoji: r.get("emoji"),
@@ -1271,12 +1338,11 @@ impl Store {
     /// Подгружает объекты бейджа/градиента по active_*_id.
     async fn attach_cosmetics(&self, mut account: Account) -> Account {
         if let Some(id) = account.active_badge_id {
-            if let Ok(Some(row)) = sqlx::query(
-                "SELECT id, emoji, label, description, color FROM badges WHERE id = $1",
-            )
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
+            if let Ok(Some(row)) =
+                sqlx::query("SELECT id, emoji, label, description, color FROM badges WHERE id = $1")
+                    .bind(id)
+                    .fetch_optional(&self.pool)
+                    .await
             {
                 account.active_badge = Some(Badge {
                     id: row.get("id"),
@@ -1338,7 +1404,11 @@ fn news_excerpt(markdown: &str) -> String {
     const MAX_CHARS: usize = 220;
     let text = markdown
         .lines()
-        .map(|line| line.trim().trim_start_matches('#').trim_start_matches(['-', '*', ' ']))
+        .map(|line| {
+            line.trim()
+                .trim_start_matches('#')
+                .trim_start_matches(['-', '*', ' '])
+        })
         .filter(|line| !line.is_empty())
         .collect::<Vec<_>>()
         .join(" ");

@@ -20,6 +20,11 @@ tracing-appender = { workspace = true }
 reqwest = { workspace = true, features = ["multipart"] }
 sha1 = "0.10"
 sha2 = { workspace = true }
+hmac = { workspace = true }
+hex = { workspace = true }
+quick-xml = { workspace = true }
+tar = { workspace = true }
+flate2 = { workspace = true }
 time = { workspace = true }
 russh = "0.61"
 russh-sftp = "2"

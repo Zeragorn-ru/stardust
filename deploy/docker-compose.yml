@@ -96,9 +96,13 @@ services:
       ADMIN_BOOTSTRAP: ${ADMIN_BOOTSTRAP:-}
       RUST_LOG: ${ADMIN_RUST_LOG:-admin_server=info,tower_http=warn}
       LOG_DIR: /app/logs
+      # Весь host data монтируется только для чтения: архив создаётся внутри
+      # admin-server и отправляется в Object Storage.
+      BACKUP_SOURCE_DIR: /backup-data
     volumes:
       # Файлы сборок — ./data/modpack.
       - ./data/modpack:/data/modpack
+      - ./data:/backup-data:ro
       # Логи — ./logs/admin-server/.
       - ./logs/admin-server:/app/logs
     networks:

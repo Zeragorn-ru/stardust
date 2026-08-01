@@ -26,6 +26,11 @@ uuid = { version = "1", features = ["v4"] }
 rand = "0.8"
 time = { version = "0.3", features = ["formatting", "parsing", "serde"] }
 sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+quick-xml = { version = "0.37", features = ["serialize"] }
+tar = "0.4"
+flate2 = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "signal"] }
 axum = "0.7"
 tower-http = { version = "0.6", features = ["cors", "fs"] }

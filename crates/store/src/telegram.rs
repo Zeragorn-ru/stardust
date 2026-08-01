@@ -16,6 +16,13 @@ pub const SETTING_TELEGRAM_TOKEN: &str = "telegram_bot_token";
 /// Ключ настройки: закэшированный username бота (`@name`), для UI и deep-link.
 pub const SETTING_TELEGRAM_USERNAME: &str = "telegram_bot_username";
 
+pub const SETTING_BACKUP_ENDPOINT: &str = "backup_s3_endpoint";
+pub const SETTING_BACKUP_BUCKET: &str = "backup_s3_bucket";
+pub const SETTING_BACKUP_REGION: &str = "backup_s3_region";
+pub const SETTING_BACKUP_PREFIX: &str = "backup_s3_prefix";
+pub const SETTING_BACKUP_ACCESS_KEY: &str = "backup_s3_access_key";
+pub const SETTING_BACKUP_SECRET_KEY: &str = "backup_s3_secret_key";
+
 /// Ключ настройки: SFTP-хост сервера (`host` или `host:port`).
 pub const SETTING_SFTP_HOST: &str = "sftp_host";
 /// Ключ настройки: SFTP-логин.
@@ -339,8 +346,13 @@ impl Store {
     }
 
     /// Совместимость: запуск 2FA при входе по паролю.
-    pub async fn start_2fa(&self, uuid: &str, client_ip: Option<&str>) -> Result<Option<String>, StoreError> {
-        self.start_challenge(uuid, CHALLENGE_LOGIN_2FA, client_ip).await
+    pub async fn start_2fa(
+        &self,
+        uuid: &str,
+        client_ip: Option<&str>,
+    ) -> Result<Option<String>, StoreError> {
+        self.start_challenge(uuid, CHALLENGE_LOGIN_2FA, client_ip)
+            .await
     }
 
     /// Проверяет код challenge по `challenge` для входа (выдача сессии). При
@@ -461,12 +473,11 @@ impl Store {
         }
 
         // Запись есть, но ещё pending (или чужой purpose / отсутствует).
-        let row = sqlx::query(
-            "SELECT status, purpose FROM telegram_2fa_codes WHERE challenge = $1",
-        )
-        .bind(challenge)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row =
+            sqlx::query("SELECT status, purpose FROM telegram_2fa_codes WHERE challenge = $1")
+                .bind(challenge)
+                .fetch_optional(&self.pool)
+                .await?;
         let Some(row) = row else {
             return Ok(ChallengeOutcome::NotFound);
         };
@@ -636,9 +647,7 @@ impl Store {
         let purpose: String = row.get("purpose");
         let stored_ip: Option<String> = row.get("client_ip");
 
-        if expires_at <= now
-            || purpose != CHALLENGE_PASSWORD_RESET
-            || attempts >= MAX_2FA_ATTEMPTS
+        if expires_at <= now || purpose != CHALLENGE_PASSWORD_RESET || attempts >= MAX_2FA_ATTEMPTS
         {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)
@@ -764,13 +773,18 @@ impl Store {
         .fetch_all(&self.pool)
         .await?;
         for chat_id in chat_ids {
-            self.enqueue_message_full(&chat_id, text, reply_markup, parse_mode).await?;
+            self.enqueue_message_full(&chat_id, text, reply_markup, parse_mode)
+                .await?;
         }
         Ok(())
     }
 
     /// Рассылает уведомление всем админам с привязанным Telegram с поддержкой parse_mode.
-    pub async fn notify_admins_full(&self, text: &str, parse_mode: Option<&str>) -> Result<(), StoreError> {
+    pub async fn notify_admins_full(
+        &self,
+        text: &str,
+        parse_mode: Option<&str>,
+    ) -> Result<(), StoreError> {
         self.notify_admins_with_markup(text, None, parse_mode).await
     }
 
@@ -795,7 +809,12 @@ impl Store {
     }
 
     /// Рассылает документ всем админам с привязанным Telegram.
-    pub async fn notify_admins_with_document(&self, caption: &str, doc_name: &str, doc_content: &[u8]) -> Result<(), StoreError> {
+    pub async fn notify_admins_with_document(
+        &self,
+        caption: &str,
+        doc_name: &str,
+        doc_content: &[u8],
+    ) -> Result<(), StoreError> {
         let chat_ids: Vec<String> = sqlx::query_scalar(
             "SELECT telegram_chat_id FROM accounts
              WHERE role = 'admin' AND telegram_chat_id IS NOT NULL",
@@ -803,7 +822,8 @@ impl Store {
         .fetch_all(&self.pool)
         .await?;
         for chat_id in chat_ids {
-            self.enqueue_document(&chat_id, caption, doc_name, doc_content).await?;
+            self.enqueue_document(&chat_id, caption, doc_name, doc_content)
+                .await?;
         }
         Ok(())
     }

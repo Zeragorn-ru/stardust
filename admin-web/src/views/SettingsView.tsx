@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
-import type { Settings } from "../types";
+import type { BackupStatus, Settings } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
-import { IconKey, IconSettings, IconTelegram } from "../ui/icons";
+import { IconBox, IconKey, IconSettings, IconTelegram } from "../ui/icons";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
 
 export function SettingsView() {
@@ -10,6 +10,8 @@ export function SettingsView() {
   const confirm = useConfirm();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [backupStatus, setBackupStatus] = useState<BackupStatus | null>(null);
+  const [backupStatusLoading, setBackupStatusLoading] = useState(true);
   const [token, setTokenValue] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -23,6 +25,16 @@ export function SettingsView() {
   const [generatingTelemetryToken, setGeneratingTelemetryToken] = useState(false);
   const [resettingFp, setResettingFp] = useState(false);
 
+  // Yandex Object Storage fields. Secret values are never loaded from the API.
+  const [backupEndpoint, setBackupEndpoint] = useState("");
+  const [backupBucket, setBackupBucket] = useState("");
+  const [backupRegion, setBackupRegion] = useState("");
+  const [backupPrefix, setBackupPrefix] = useState("");
+  const [backupAccessKey, setBackupAccessKey] = useState("");
+  const [backupSecretKey, setBackupSecretKey] = useState("");
+  const [savingBackup, setSavingBackup] = useState(false);
+  const [runningBackup, setRunningBackup] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const s = await api.getSettings();
@@ -30,6 +42,19 @@ export function SettingsView() {
       setSftpHost(s.sftpHost ?? "");
       setSftpUsername(s.sftpUsername ?? "");
       setSftpStatsPath(s.sftpStatsPath ?? "");
+      setBackupEndpoint(s.backupEndpoint ?? "");
+      setBackupBucket(s.backupBucket ?? "");
+      setBackupRegion(s.backupRegion ?? "");
+      setBackupPrefix(s.backupPrefix ?? "");
+      try {
+        setBackupStatus(await api.getBackupStatus());
+      } catch (err) {
+        if (!(err instanceof ApiError && err.status === 404)) {
+          toast.error(
+            err instanceof ApiError ? err.message : "Не удалось загрузить статус бекапа",
+          );
+        }
+      }
     } catch (err) {
       toast.error(
         err instanceof ApiError
@@ -38,6 +63,7 @@ export function SettingsView() {
       );
     } finally {
       setLoading(false);
+      setBackupStatusLoading(false);
     }
   }, [toast]);
 
@@ -115,6 +141,56 @@ export function SettingsView() {
       );
     } finally {
       setSavingPanel(false);
+    }
+  }
+
+  async function saveBackup() {
+    setSavingBackup(true);
+    try {
+      const patch: {
+        backupEndpoint: string;
+        backupBucket: string;
+        backupRegion: string;
+        backupPrefix: string;
+        backupAccessKey?: string;
+        backupSecretKey?: string;
+      } = {
+        backupEndpoint: backupEndpoint.trim(),
+        backupBucket: backupBucket.trim(),
+        backupRegion: backupRegion.trim(),
+        backupPrefix: backupPrefix.trim(),
+      };
+      if (backupAccessKey.trim()) patch.backupAccessKey = backupAccessKey.trim();
+      if (backupSecretKey.trim()) patch.backupSecretKey = backupSecretKey.trim();
+
+      const next = await api.saveSettings(patch);
+      setSettings(next);
+      setBackupEndpoint(next.backupEndpoint ?? "");
+      setBackupBucket(next.backupBucket ?? "");
+      setBackupRegion(next.backupRegion ?? "");
+      setBackupPrefix(next.backupPrefix ?? "");
+      setBackupAccessKey("");
+      setBackupSecretKey("");
+      toast.success("Настройки бекапов сохранены");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сохранить настройки бекапов",
+      );
+    } finally {
+      setSavingBackup(false);
+    }
+  }
+
+  async function runBackup() {
+    setRunningBackup(true);
+    try {
+      await api.runBackup();
+      setBackupStatus(await api.getBackupStatus());
+      toast.success("Бекап запущен");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось запустить бекап");
+    } finally {
+      setRunningBackup(false);
     }
   }
 
@@ -345,6 +421,68 @@ export function SettingsView() {
                 >
                   Сохранить
                 </Button>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        <Card className="settings-card">
+          <CardHeader className="settings-card-head">
+            <IconBox />
+            <div>
+              <CardTitle>Бекапы в Yandex Object Storage</CardTitle>
+              <CardDescription>
+                S3-совместимое хранилище для резервных копий. Ключи не показываются после сохранения.
+              </CardDescription>
+            </div>
+          </CardHeader>
+
+          {loading ? (
+            <p className="muted"><span className="spinner" />Загрузка…</p>
+          ) : (
+            <CardContent>
+              <div className="settings-status">
+                <Badge variant={settings?.backupSecretKeySet ? "secondary" : "outline"}>
+                  {settings?.backupSecretKeySet ? "настроено" : "не настроено"}
+                </Badge>
+                {backupStatusLoading ? (
+                  <span className="muted">Проверка статуса…</span>
+                ) : (
+                  <span className="muted">
+                    {backupStatus?.state ?? backupStatus?.status ?? "статус недоступен"}
+                  </span>
+                )}
+              </div>
+
+              <label className="fm-prompt-field">
+                <span className="muted">Endpoint</span>
+                <input type="url" placeholder="https://storage.yandexcloud.net" value={backupEndpoint} onChange={(e) => setBackupEndpoint(e.target.value)} />
+              </label>
+              <label className="fm-prompt-field">
+                <span className="muted">Bucket</span>
+                <input type="text" placeholder="my-backups" value={backupBucket} onChange={(e) => setBackupBucket(e.target.value)} />
+              </label>
+              <label className="fm-prompt-field">
+                <span className="muted">Region</span>
+                <input type="text" placeholder="ru-central1" value={backupRegion} onChange={(e) => setBackupRegion(e.target.value)} />
+              </label>
+              <label className="fm-prompt-field">
+                <span className="muted">Prefix</span>
+                <input type="text" placeholder="stardust/" value={backupPrefix} onChange={(e) => setBackupPrefix(e.target.value)} />
+              </label>
+              <label className="fm-prompt-field">
+                <span className="muted">Access key{settings?.backupAccessKeySet ? " (пусто — не менять)" : ""}</span>
+                <input type="password" autoComplete="off" placeholder="••••••••" value={backupAccessKey} onChange={(e) => setBackupAccessKey(e.target.value)} />
+              </label>
+              <label className="fm-prompt-field">
+                <span className="muted">Secret key{settings?.backupSecretKeySet ? " (пусто — не менять)" : ""}</span>
+                <input type="password" autoComplete="new-password" placeholder="••••••••" value={backupSecretKey} onChange={(e) => setBackupSecretKey(e.target.value)} />
+              </label>
+
+              {backupStatus?.error && <p className="muted">Ошибка последнего запуска: {backupStatus.error}</p>}
+              <div className="modal-actions">
+                <Button disabled={savingBackup} onClick={saveBackup}>{savingBackup ? "Сохранение…" : "Сохранить настройки"}</Button>
+                <Button variant="secondary" disabled={runningBackup || backupStatus?.state === "running" || backupStatus?.status === "running"} onClick={runBackup}>{runningBackup ? "Запуск…" : "Запустить бекап"}</Button>
               </div>
             </CardContent>
           )}
