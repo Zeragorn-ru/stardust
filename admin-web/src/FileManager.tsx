@@ -1135,6 +1135,7 @@ function FileRow({
 }) {
   const editable = isEditable(file);
   const toast = useToast();
+  const [actionsOpen, setActionsOpen] = useState(false);
 
   async function copyFileField(value: string, label: string) {
     try {
@@ -1206,37 +1207,47 @@ function FileRow({
           <IconSettings size={15} />
         </button>
         <button
+          className="mobile-more"
           type="button"
-          className="icon-only"
-          title="Скопировать путь"
-          onClick={() => copyFileField(file.path, "Путь")}
+          aria-expanded={actionsOpen}
+          onClick={() => setActionsOpen((open) => !open)}
         >
-          <IconCopy size={15} />
+          Ещё
         </button>
-        <button
-          type="button"
-          className="icon-only"
-          title="Скопировать SHA-1"
-          onClick={() => copyFileField(file.sha1, "SHA-1")}
-        >
-          <IconCopy size={15} />
-        </button>
-        <button
-          type="button"
-          className="icon-only"
-          title="Скопировать ссылку на файл"
-          onClick={() => copyFileField(publicUrl(`/files/${file.sha1}`), "Ссылка на файл")}
-        >
-          <IconCopy size={15} />
-        </button>
-        <a
-          className="icon-only"
-          href={`/files/${file.sha1}`}
-          download={baseName(file.path)}
-          title="Скачать"
-        >
-          <IconDownload size={15} />
-        </a>
+        <span className={`fm-actions-secondary${actionsOpen ? " open" : ""}`}>
+          <button
+            type="button"
+            className="icon-only"
+            title="Скопировать путь"
+            onClick={() => copyFileField(file.path, "Путь")}
+          >
+            <IconCopy size={15} />
+          </button>
+          <button
+            type="button"
+            className="icon-only"
+            title="Скопировать SHA-1"
+            onClick={() => copyFileField(file.sha1, "SHA-1")}
+          >
+            <IconCopy size={15} />
+          </button>
+          <button
+            type="button"
+            className="icon-only"
+            title="Скопировать ссылку на файл"
+            onClick={() => copyFileField(publicUrl(`/files/${file.sha1}`), "Ссылка на файл")}
+          >
+            <IconCopy size={15} />
+          </button>
+          <a
+            className="icon-only"
+            href={`/files/${file.sha1}`}
+            download={baseName(file.path)}
+            title="Скачать"
+          >
+            <IconDownload size={15} />
+          </a>
+        </span>
         <button
           className="danger icon-only"
           title="Удалить файл"

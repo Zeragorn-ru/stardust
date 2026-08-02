@@ -1695,6 +1695,55 @@ button.secondary:hover:not(:disabled) {
     flex: 0 0 44px;
 }
 
+/* Keep the filename row calm: only the three frequent actions are shown.
+   Copy/download actions stay available behind the compact overflow control. */
+.fm-actions-secondary {
+    display: contents;
+}
+
+.mobile-more {
+    display: none;
+}
+
+@media (max-width: 700px) {
+    .m-screen .fm-row.file .fm-actions {
+        align-items: center;
+        gap: 4px;
+        min-height: 46px;
+        padding: 2px 0;
+    }
+
+    .m-screen .fm-row.file .mobile-more {
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        min-height: 36px;
+        padding: 0 10px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 10px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.035);
+        font-size: 12px;
+        font-weight: 750;
+    }
+
+    .m-screen .fm-row.file .fm-actions-secondary {
+        display: none;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .m-screen .fm-row.file .fm-actions-secondary.open {
+        display: inline-flex;
+    }
+
+    .m-screen .fm-row.file .fm-actions-secondary .icon-only,
+    .m-screen .fm-row.file .fm-actions-secondary a.icon-only {
+        flex: 0 0 44px;
+    }
+}
+
 @keyframes mobile-editor-in {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
