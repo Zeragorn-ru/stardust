@@ -31,15 +31,11 @@ final class StardustChatNotifications {
         MinecraftServer server = player.getServer();
         if (server == null) return;
 
-        String name = player.getName().getString();
-        String badge = StardustTabIntegration.resolveBadgeForName(name);
-        String coloredName = StardustTabIntegration.resolveNameForChat(name);
-
         MutableComponent message = Component.empty()
                 .append(Component.literal("[").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal("+").withStyle(ChatFormatting.GREEN))
                 .append(Component.literal("] ").withStyle(ChatFormatting.GRAY))
-                .append(parseFormattedString(badge + coloredName));
+                .append(StardustMod.formatPlayerName(player));
 
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             p.sendSystemMessage(message);
@@ -50,15 +46,11 @@ final class StardustChatNotifications {
         MinecraftServer server = player.getServer();
         if (server == null) return;
 
-        String name = player.getName().getString();
-        String badge = StardustTabIntegration.resolveBadgeForName(name);
-        String coloredName = StardustTabIntegration.resolveNameForChat(name);
-
         MutableComponent message = Component.empty()
                 .append(Component.literal("[").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal("-").withStyle(ChatFormatting.RED))
                 .append(Component.literal("] ").withStyle(ChatFormatting.GRAY))
-                .append(parseFormattedString(badge + coloredName));
+                .append(StardustMod.formatPlayerName(player));
 
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             p.sendSystemMessage(message);

@@ -128,7 +128,7 @@ public final class StardustMod {
         }
     }
 
-    private Component formatPlayerName(ServerPlayer player) {
+    static Component formatPlayerName(ServerPlayer player) {
         String name = player.getGameProfile().getName();
         StardustHttpProvider.Assignment assignment = StardustTabIntegration.resolveAssignmentForName(name);
         ClickEvent click = new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/w " + name + " ");
@@ -148,13 +148,13 @@ public final class StardustMod {
         return result;
     }
 
-    private Component withPlayerActions(Component component, ClickEvent click, Component tooltip) {
+    private static Component withPlayerActions(Component component, ClickEvent click, Component tooltip) {
         return component.copy().withStyle(style -> style
                 .withClickEvent(click)
                 .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, tooltip)));
     }
 
-    private Component badgeHover(StardustHttpProvider.Assignment assignment) {
+    private static Component badgeHover(StardustHttpProvider.Assignment assignment) {
         String badge = assignment == null || assignment.badge() == null ? "✦" : assignment.badge();
         String label = assignment != null && assignment.badgeLabel() != null && !assignment.badgeLabel().isBlank()
                 ? assignment.badgeLabel() : "Бейдж игрока";
@@ -166,7 +166,7 @@ public final class StardustMod {
         return hoverText(StardustChatNotifications.parseFormattedString(coloredBadge), description);
     }
 
-    private Component nameHover(StardustHttpProvider.Assignment assignment) {
+    private static Component nameHover(StardustHttpProvider.Assignment assignment) {
         Component title;
         String description;
         if (assignment != null && assignment.gradientLabel() != null && !assignment.gradientLabel().isBlank()) {
@@ -181,7 +181,7 @@ public final class StardustMod {
         return hoverText(title, description);
     }
 
-    private String colorPrefix(String color) {
+    private static String colorPrefix(String color) {
         if (color == null || color.isBlank()) return "";
         String value = color.trim();
         if (value.startsWith("&#") || (value.startsWith("&") && value.length() == 2)) return value;
@@ -190,12 +190,14 @@ public final class StardustMod {
         return value;
     }
 
-    private Component hoverText(Component title, String description) {
+    private static Component hoverText(Component title, String description) {
         String detail = description == null || description.isBlank() ? "Описание отсутствует" : description;
         return Component.empty()
                 .append(title)
-                .append(Component.literal("\n\n" + detail).withStyle(ChatFormatting.WHITE))
-                .append(Component.literal("\n(Нажмите, чтобы написать в ЛС)").withStyle(ChatFormatting.GRAY));
+                .append(Component.literal("\n").withStyle(ChatFormatting.WHITE))
+                .append(Component.literal(detail).withStyle(ChatFormatting.WHITE))
+                .append(Component.literal("\n").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal("Нажмите, чтобы написать в ЛС").withStyle(ChatFormatting.GRAY));
     }
 
     private MutableComponent formatPrivateMessage(String prefix, Component playerName, String text) {
