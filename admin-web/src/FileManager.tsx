@@ -1188,7 +1188,7 @@ function FileRow({
           )}
         </div>
       </div>
-      <div className="fm-actions">
+      <div className="fm-actions" aria-label={`Действия для ${baseName(file.path)}`}>
         {editable && (
           <button
             className="icon-only"

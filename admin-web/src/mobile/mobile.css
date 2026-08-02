@@ -1515,3 +1515,213 @@ button.secondary:hover:not(:disabled) {
         display: none;
     }
 }
+
+/* --- Mobile file editor ---
+   Editing is a focused task on a phone: keep the document scrollable, while
+   the title and save controls stay reachable at the edges of the viewport. */
+.m-screen .file-editor-backdrop {
+    display: block;
+    padding: 0;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.72);
+}
+
+.m-screen .file-editor {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 0;
+    border: 0;
+    border-radius: 0;
+    background: #080a0e;
+    animation: mobile-editor-in 180ms ease-out;
+}
+
+.m-screen .file-editor .editor-head {
+    flex: none;
+    min-height: 64px;
+    align-items: center;
+    margin: 0;
+    padding: 0 2px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.m-screen .file-editor .editor-title {
+    min-width: 0;
+    gap: 3px;
+}
+
+.m-screen .file-editor .editor-title .eyebrow {
+    margin-bottom: 2px;
+    font-size: 9px;
+}
+
+.m-screen .file-editor .editor-title strong,
+.m-screen .file-editor .editor-title .mono {
+    max-width: min(58vw, 300px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-screen .file-editor .editor-title strong {
+    font-size: 16px;
+}
+
+.m-screen .editor-head-meta {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+}
+
+.m-screen .editor-head-meta > .muted {
+    display: none;
+}
+
+.m-screen .editor-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.m-screen .editor-state--dirty {
+    color: var(--warn);
+}
+
+.m-screen .editor-state-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+}
+
+.m-screen .editor-state--dirty .editor-state-dot {
+    background: var(--warn);
+}
+
+.m-screen .editor-close {
+    min-height: 40px;
+    padding: 0 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.045);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 750;
+}
+
+.m-screen .file-editor .editor-area,
+.m-screen .file-editor .editor-status,
+.m-screen .file-editor > .error {
+    flex: 1;
+    min-height: 0;
+    margin: 12px 0;
+}
+
+.m-screen .file-editor .editor-area {
+    resize: none;
+    padding: 14px;
+    border-radius: 14px;
+    font-size: 16px;
+    line-height: 1.55;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+.m-screen .file-editor .editor-status,
+.m-screen .file-editor > .error {
+    overflow: auto;
+}
+
+.m-screen .file-editor .editor-actions {
+    flex: none;
+    min-height: 68px;
+    margin: 0 -12px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(8, 10, 14, 0.96);
+}
+
+.m-screen .file-editor .editor-hint {
+    max-width: 38%;
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.m-screen .file-editor .editor-actions button {
+    min-height: 46px;
+    padding-inline: 14px;
+}
+
+.m-screen .file-editor .editor-actions .primary {
+    min-width: 112px;
+}
+
+/* Keep file rows readable: actions form a separate, scrollable strip instead
+   of forcing the filename and metadata into the same narrow grid cell. */
+.m-screen .fm-row.file {
+    grid-template-columns: 30px minmax(0, 1fr);
+    align-items: start;
+}
+
+.m-screen .fm-row.file .fm-main {
+    min-width: 0;
+}
+
+.m-screen .fm-row.file .fm-actions {
+    grid-column: 2;
+    width: 100%;
+    overflow-x: auto;
+    padding: 3px 0 2px;
+    scrollbar-width: none;
+}
+
+.m-screen .fm-row.file .fm-actions::-webkit-scrollbar {
+    display: none;
+}
+
+.m-screen .fm-row.file .fm-actions .icon-only,
+.m-screen .fm-row.file .fm-actions a.icon-only {
+    flex: 0 0 44px;
+}
+
+@keyframes mobile-editor-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 390px) {
+    .m-screen .file-editor {
+        padding-inline: 10px;
+    }
+
+    .m-screen .file-editor .editor-title strong,
+    .m-screen .file-editor .editor-title .mono {
+        max-width: 48vw;
+    }
+
+    .m-screen .file-editor .editor-actions {
+        margin-inline: -10px;
+        padding-inline: 10px;
+    }
+
+    .m-screen .file-editor .editor-hint {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .m-screen .file-editor {
+        animation: none;
+    }
+}

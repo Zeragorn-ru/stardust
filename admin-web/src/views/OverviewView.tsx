@@ -78,10 +78,19 @@ export function OverviewView() {
           <p>
             Ключевые статусы платформы, активная сборка и состояние сервера в одном рабочем экране.
           </p>
-          <div className="overview-hero-pills">
-            <span>{activeBuild ? `Активна сборка ${activeBuild.name}` : "Активная сборка не выбрана"}</span>
-            <span>{settings?.telegramTokenSet ? "Telegram подключен" : "Telegram требует настройки"}</span>
-            <span>{settings?.sftpPasswordSet ? "SFTP готов" : "SFTP требует настройки"}</span>
+          <div className="overview-hero-pills" aria-label="Сводка состояния">
+            <span className={activeBuild ? "is-ready" : "is-warning"}>
+              <StatusDot tone={activeBuild ? "ready" : "warning"} />
+              {activeBuild ? `Активна сборка ${activeBuild.name}` : "Активная сборка не выбрана"}
+            </span>
+            <span className={settings?.telegramTokenSet ? "is-ready" : "is-warning"}>
+              <StatusDot tone={settings?.telegramTokenSet ? "ready" : "warning"} />
+              {settings?.telegramTokenSet ? "Telegram подключен" : "Telegram требует настройки"}
+            </span>
+            <span className={settings?.sftpPasswordSet ? "is-ready" : "is-warning"}>
+              <StatusDot tone={settings?.sftpPasswordSet ? "ready" : "warning"} />
+              {settings?.sftpPasswordSet ? "SFTP готов" : "SFTP требует настройки"}
+            </span>
           </div>
         </div>
         <div className="hero-actions hero-actions--overview">
@@ -225,7 +234,12 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
                }} onKeyDown={(e) => {
                  if (e.key === "Enter" || e.key === " ") {
                    e.preventDefault();
-                   setSelected(samples.length - 1);
+                   setSelected(selected ?? samples.length - 1);
+                 } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+                   e.preventDefault();
+                   const current = selected ?? samples.length - 1;
+                   const next = e.key === "ArrowLeft" ? current - 1 : current + 1;
+                   setSelected(Math.max(0, Math.min(samples.length - 1, next)));
                  }
                }}>
                 <defs>
@@ -236,6 +250,23 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
                 </defs>
                 <polyline points={`0,${height} ${points} ${width},${height}`} fill="url(#online-fill)" stroke="none" />
                 <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                {selected !== null && samples[selected] && (
+                  <>
+                    <line
+                      className="telemetry-selected-line"
+                      x1={(selected / Math.max(1, samples.length - 1)) * width}
+                      x2={(selected / Math.max(1, samples.length - 1)) * width}
+                      y1={0}
+                      y2={height}
+                    />
+                    <circle
+                      className="telemetry-selected-point"
+                      cx={(selected / Math.max(1, samples.length - 1)) * width}
+                      cy={height - 20 - (samples[selected].onlineCount / maxOnline) * (height - chartTop - 20)}
+                      r="6"
+                    />
+                  </>
+                )}
               </svg>
               <div className="telemetry-axis"><span>24ч назад</span><span>сейчас</span></div>
             </div>
@@ -320,6 +351,10 @@ function MetricCard({ label, value, hint, tone }: { label: string; value: string
       <small>{hint}</small>
     </div>
   );
+}
+
+function StatusDot({ tone }: { tone: "ready" | "warning" }) {
+  return <span className={`status-dot status-dot--${tone}`} aria-hidden="true" />;
 }
 
 function InfoLine({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {

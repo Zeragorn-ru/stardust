@@ -4731,3 +4731,99 @@ th {
         flex: 1;
     }
 }
+
+/* Dashboard status language and telemetry interaction states. */
+.status-dot--ready {
+    background: var(--ok);
+    box-shadow: 0 0 10px rgba(95, 240, 167, 0.65);
+}
+
+.status-dot--warning {
+    background: var(--warn);
+    box-shadow: 0 0 10px rgba(255, 209, 102, 0.5);
+}
+
+.overview-hero-pills span {
+    gap: 7px;
+}
+
+.overview-hero-pills span.is-ready {
+    border-color: rgba(95, 240, 167, 0.18);
+    background: rgba(95, 240, 167, 0.055);
+}
+
+.overview-hero-pills span.is-warning {
+    border-color: rgba(255, 209, 102, 0.2);
+    background: rgba(255, 209, 102, 0.06);
+}
+
+.telemetry-chart-wrap {
+    position: relative;
+    padding: 12px 12px 10px;
+    border-color: rgba(115, 215, 255, 0.12);
+    background:
+        linear-gradient(180deg, rgba(115, 215, 255, 0.08), transparent 72%),
+        repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.045) 43px, transparent 44px);
+}
+
+.telemetry-chart {
+    outline: none;
+    border-radius: 10px;
+    transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.telemetry-chart:hover,
+.telemetry-chart:focus-visible {
+    background: rgba(115, 215, 255, 0.035);
+}
+
+.telemetry-chart:focus-visible {
+    box-shadow: var(--ring);
+}
+
+.telemetry-selected-line {
+    stroke: rgba(255, 255, 255, 0.45);
+    stroke-width: 1;
+    stroke-dasharray: 4 5;
+    pointer-events: none;
+}
+
+.telemetry-selected-point {
+    fill: var(--accent);
+    stroke: #030406;
+    stroke-width: 3;
+    filter: drop-shadow(0 0 7px rgba(115, 215, 255, 0.8));
+    pointer-events: none;
+}
+
+.telemetry-selected {
+    position: relative;
+    border: 1px solid rgba(115, 215, 255, 0.2);
+    border-left: 3px solid var(--accent);
+}
+
+@media (min-width: 1121px) {
+    .overview-view .overview-columns .sd-card,
+    .overview-view .overview-action-card {
+        transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+    }
+
+    .overview-view .overview-columns .sd-card:hover {
+        border-color: rgba(115, 215, 255, 0.16);
+        box-shadow: var(--shadow-md);
+    }
+
+    .overview-view .hero-actions--overview {
+        align-self: center;
+        min-width: 228px;
+        justify-content: flex-end;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .telemetry-chart,
+    .overview-view .overview-columns .sd-card,
+    .overview-view .overview-action-card {
+        transition: none;
+    }
+}

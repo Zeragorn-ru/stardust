@@ -160,19 +160,30 @@ export function FileEditor({
   }
 
   return (
-    <div className="modal-backdrop" onClick={tryClose}>
+    <div className="modal-backdrop file-editor-backdrop" onClick={tryClose}>
       <div
-        className="modal modal-editor"
+        className="modal modal-editor file-editor"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="file-editor-title"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="editor-head">
           <div className="editor-title">
-            <strong>{baseName(file.path)}</strong>
-            <span className="muted mono">{file.path}</span>
+            <span className="eyebrow">Редактор файла</span>
+            <strong id="file-editor-title" title={file.path}>{baseName(file.path)}</strong>
+            <span className="muted mono" title={file.path}>{file.path}</span>
           </div>
-          <span className="muted">{formatSize(file.sizeBytes)}</span>
+          <div className="editor-head-meta">
+            <span className={`editor-state${dirty ? " editor-state--dirty" : ""}`}>
+              <span className="editor-state-dot" aria-hidden="true" />
+              {dirty ? "Изменено" : "Сохранено"}
+            </span>
+            <span className="muted">{formatSize(file.sizeBytes)}</span>
+            <button className="editor-close" type="button" onClick={tryClose}>
+              Закрыть
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -194,14 +205,15 @@ export function FileEditor({
           />
         )}
 
-        <div className="modal-actions">
+        <div className="modal-actions editor-actions">
           <span className="editor-hint muted">
-            {dirty ? "Изменено • Ctrl+S — сохранить" : "Нет изменений"}
+            {dirty ? "Изменено · Ctrl/Cmd+S — сохранить" : "Нет изменений"}
           </span>
           <div className="spacer" />
-          <button onClick={tryClose}>Закрыть</button>
+          <button type="button" onClick={tryClose}>Закрыть</button>
           <button
             className="primary"
+            type="button"
             onClick={save}
             disabled={saving || loading || !!error || !dirty}
           >
