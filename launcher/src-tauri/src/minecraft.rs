@@ -219,13 +219,7 @@ pub async fn launch(
     args.push(classpath);
     args.push(loader.main_class.clone());
     // Сначала vanilla game-аргументы (--username, --uuid и т.д.), затем FML-аргументы.
-    let vanilla_game_args = game_args(
-        &root,
-        &game_dir,
-        &version,
-        &profile,
-        &access_token,
-    );
+    let vanilla_game_args = game_args(&root, &game_dir, &version, &profile, &access_token);
     let game_args_count = vanilla_game_args.len();
     args.extend(vanilla_game_args);
     args.extend(modloader_game_args(&loader));
@@ -283,7 +277,9 @@ fn scan_external_mods(
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_file()
-            || path.extension().is_none_or(|ext| !ext.eq_ignore_ascii_case("jar"))
+            || path
+                .extension()
+                .is_none_or(|ext| !ext.eq_ignore_ascii_case("jar"))
         {
             continue;
         }
@@ -336,7 +332,9 @@ fn remove_blocked_external_mods(
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_file()
-            || path.extension().is_none_or(|ext| !ext.eq_ignore_ascii_case("jar"))
+            || path
+                .extension()
+                .is_none_or(|ext| !ext.eq_ignore_ascii_case("jar"))
         {
             continue;
         }
@@ -355,15 +353,20 @@ fn remove_blocked_external_mods(
                     let needle = needle.to_ascii_lowercase();
                     !needle.is_empty()
                         && (lower_name.contains(&needle)
-                            || mod_id.as_deref().is_some_and(|value| value.to_ascii_lowercase().contains(&needle))
-                            || display_name.as_deref().is_some_and(|value| value.to_ascii_lowercase().contains(&needle)))
+                            || mod_id
+                                .as_deref()
+                                .is_some_and(|value| value.to_ascii_lowercase().contains(&needle))
+                            || display_name
+                                .as_deref()
+                                .is_some_and(|value| value.to_ascii_lowercase().contains(&needle)))
                 })
         });
         if !blocked {
             continue;
         }
-        fs::remove_file(&path)
-            .map_err(|error| format!("Не удалось удалить заблокированный мод {jar_name}: {error}"))?;
+        fs::remove_file(&path).map_err(|error| {
+            format!("Не удалось удалить заблокированный мод {jar_name}: {error}")
+        })?;
         removed.push(jar_name);
     }
 
@@ -393,9 +396,18 @@ fn read_jar_metadata(path: &Path) -> (Option<String>, Option<String>, Option<Str
                 .and_then(|mods| mods.first())
             {
                 return (
-                    mod_entry.get("modId").and_then(toml::Value::as_str).map(str::to_owned),
-                    mod_entry.get("displayName").and_then(toml::Value::as_str).map(str::to_owned),
-                    mod_entry.get("version").and_then(toml::Value::as_str).map(str::to_owned),
+                    mod_entry
+                        .get("modId")
+                        .and_then(toml::Value::as_str)
+                        .map(str::to_owned),
+                    mod_entry
+                        .get("displayName")
+                        .and_then(toml::Value::as_str)
+                        .map(str::to_owned),
+                    mod_entry
+                        .get("version")
+                        .and_then(toml::Value::as_str)
+                        .map(str::to_owned),
                 );
             }
         }
@@ -412,9 +424,18 @@ fn read_jar_metadata(path: &Path) -> (Option<String>, Option<String>, Option<Str
         return (None, None, None);
     };
     (
-        value.get("id").and_then(serde_json::Value::as_str).map(str::to_owned),
-        value.get("name").and_then(serde_json::Value::as_str).map(str::to_owned),
-        value.get("version").and_then(serde_json::Value::as_str).map(str::to_owned),
+        value
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned),
+        value
+            .get("name")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned),
+        value
+            .get("version")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned),
     )
 }
 
@@ -503,10 +524,7 @@ fn suppress_betterclouds_gpu_warning(game_dir: &Path) {
     if obj.get("gpuIncompatibleMessageEnabled") == Some(&Value::Bool(false)) {
         return;
     }
-    obj.insert(
-        "gpuIncompatibleMessageEnabled".into(),
-        Value::Bool(false),
-    );
+    obj.insert("gpuIncompatibleMessageEnabled".into(), Value::Bool(false));
 
     if let Some(parent) = path.parent() {
         if let Err(e) = fs::create_dir_all(parent) {
@@ -595,9 +613,7 @@ fn disable_asyncparticles_gpu_acceleration(game_dir: &Path) {
             if let Err(e) = fs::write(&path, text) {
                 tracing::warn!("Не удалось записать AsyncParticles config: {e}");
             } else {
-                tracing::info!(
-                    "AsyncParticles: gpuAcceleration=false (macOS OpenGL TF Abort)"
-                );
+                tracing::info!("AsyncParticles: gpuAcceleration=false (macOS OpenGL TF Abort)");
             }
         }
         Err(e) => tracing::warn!("Не удалось сериализовать AsyncParticles config: {e}"),
@@ -2497,10 +2513,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn suppress_betterclouds_gpu_warning_sets_flag_on_existing_config() {
-        let root = std::env::temp_dir().join(format!(
-            "stardust_bc_suppress_{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("stardust_bc_suppress_{}", std::process::id()));
         let config_dir = root.join("config");
         let _ = std::fs::create_dir_all(&config_dir);
         let path = config_dir.join("betterclouds-v1.json");
@@ -2525,10 +2539,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn disable_asyncparticles_gpu_acceleration_sets_flag() {
-        let root = std::env::temp_dir().join(format!(
-            "stardust_ap_gpu_{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("stardust_ap_gpu_{}", std::process::id()));
         let config_dir = root.join("config").join("asyncparticles");
         let _ = std::fs::create_dir_all(&config_dir);
         let path = config_dir.join("asyncparticles.json");

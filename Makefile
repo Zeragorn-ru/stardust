@@ -73,7 +73,7 @@ bootstrap: ## Собрать bootstrap.exe (Windows NSIS updater)
 
 .PHONY: admin-web-deps
 admin-web-deps: ## npm ci в admin-web/
-	cd admin-web && $(NPM) ci
+	cd admin-web && $(NPM) ci --ignore-scripts
 
 .PHONY: build-admin-web
 build-admin-web: admin-web-deps ## Собрать admin-web SPA

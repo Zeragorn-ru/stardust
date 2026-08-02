@@ -41,10 +41,9 @@ use tower_http::cors::CorsLayer;
 
 use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
-    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult,
-    PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
-    PlayerStats, SessionResponse, SkinImportRequest, SkinModel,
-    SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
+    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult, PasswordResetConfirm,
+    PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile, PlayerStats, SessionResponse,
+    SkinImportRequest, SkinModel, SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
 };
 
 use crate::yggdrasil::Keys;
@@ -187,9 +186,9 @@ async fn main() {
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("ошибка сервера");
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .expect("ошибка сервера");
 }
 
 async fn shutdown_signal() {
@@ -319,12 +318,7 @@ async fn login(
     let ip = get_client_ip(&headers, addr);
     rate_limited(&state, ip)?;
     // Единый ответ при NotFound и BadPassword — без enumeration аккаунтов.
-    let invalid = || {
-        ApiError::new(
-            StatusCode::UNAUTHORIZED,
-            "Неверный логин или пароль",
-        )
-    };
+    let invalid = || ApiError::new(StatusCode::UNAUTHORIZED, "Неверный логин или пароль");
     let profile = state
         .store
         .login(creds.username.trim(), &creds.password)
@@ -517,10 +511,9 @@ async fn password_reset_confirm(
                 StatusCode::UNAUTHORIZED,
                 "Запрос не подтверждён, не совпадает IP или истёк, начните заново",
             ),
-            StoreError::BadPassword => ApiError::new(
-                StatusCode::BAD_REQUEST,
-                "Неверный код подтверждения",
-            ),
+            StoreError::BadPassword => {
+                ApiError::new(StatusCode::BAD_REQUEST, "Неверный код подтверждения")
+            }
             other => other.into(),
         })?;
     // set_password уже сбрасывает сессии аккаунта.
@@ -1305,12 +1298,10 @@ async fn stats_get(
     headers: HeaderMap,
 ) -> Result<Json<PlayerStats>, ApiError> {
     let account = current_account(&state, &headers).await?;
-    let (playtime_seconds, last_joined_at) =
-        state.store.get_playtime(&account.uuid).await?;
+    let (playtime_seconds, last_joined_at) = state.store.get_playtime(&account.uuid).await?;
     Ok(Json(PlayerStats {
         playtime_seconds,
-        last_joined_at: last_joined_at
-            .map(|t| t.format(&Rfc3339).unwrap_or_default()),
+        last_joined_at: last_joined_at.map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
 }
 
@@ -1337,7 +1328,8 @@ async fn report_crash(
         None => "Код выхода: неизвестен".to_string(),
     };
 
-    let mut summary = format!("⚠️ Minecraft у игрока «{username}» завершился аварийно\n{exit_code_str}");
+    let mut summary =
+        format!("⚠️ Minecraft у игрока «{username}» завершился аварийно\n{exit_code_str}");
     append_report_summary(&mut summary, "Stardust mod", req.mod_report.as_deref());
     append_report_summary(&mut summary, "crash-report", req.crash_report.as_deref());
     append_report_summary(&mut summary, "latest.log", Some(&req.log));
@@ -1347,19 +1339,22 @@ async fn report_crash(
         .store
         .notify_admins_with_document(&summary, "latest.log", req.log.as_bytes())
         .await?;
-    state.store.record_server_log(
-        "client_crash",
-        Some(&account.username),
-        "Клиент Minecraft завершился аварийно",
-        serde_json::json!({
-            "exitCode": req.exit_code,
-            "crashReport": req.crash_report,
-            "latestLog": req.log,
-            "debugLog": req.debug_log,
-            "launcherLog": req.launcher_log,
-            "modReport": req.mod_report,
-        }),
-    ).await?;
+    state
+        .store
+        .record_server_log(
+            "client_crash",
+            Some(&account.username),
+            "Клиент Minecraft завершился аварийно",
+            serde_json::json!({
+                "exitCode": req.exit_code,
+                "crashReport": req.crash_report,
+                "latestLog": req.log,
+                "debugLog": req.debug_log,
+                "launcherLog": req.launcher_log,
+                "modReport": req.mod_report,
+            }),
+        )
+        .await?;
 
     Ok(StatusCode::OK)
 }
@@ -1383,13 +1378,18 @@ async fn report_server_crash(
         .store
         .get_setting(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN)
         .await?;
-    let supplied = headers.get("authorization").and_then(|value| value.to_str().ok());
+    let supplied = headers
+        .get("authorization")
+        .and_then(|value| value.to_str().ok());
     let authorized = expected
         .as_deref()
         .map(|token| supplied == Some(&format!("Bearer {token}")))
         .unwrap_or(false);
     if !authorized {
-        return Err(ApiError::new(StatusCode::UNAUTHORIZED, "Неверный токен сервера"));
+        return Err(ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "Неверный токен сервера",
+        ));
     }
 
     let mut summary = format!(
@@ -1401,18 +1401,21 @@ async fn report_server_crash(
     );
     append_report_summary(&mut summary, "stack trace", Some(&req.stack_trace));
     state.store.notify_admins(&summary).await?;
-    state.store.record_server_log(
-        "server_crash",
-        None,
-        "Dedicated server завершился аварийно",
-        serde_json::json!({
-            "server": req.server,
-            "thread": req.thread,
-            "errorClass": req.error_class,
-            "message": req.message,
-            "stackTrace": req.stack_trace,
-        }),
-    ).await?;
+    state
+        .store
+        .record_server_log(
+            "server_crash",
+            None,
+            "Dedicated server завершился аварийно",
+            serde_json::json!({
+                "server": req.server,
+                "thread": req.thread,
+                "errorClass": req.error_class,
+                "message": req.message,
+                "stackTrace": req.stack_trace,
+            }),
+        )
+        .await?;
     Ok(StatusCode::OK)
 }
 
@@ -1449,7 +1452,11 @@ async fn report_external_mods(
     let mut unapproved = Vec::new();
     for entry in mods.iter().take(32) {
         let mod_id = entry.mod_id.as_deref().unwrap_or(&entry.jar_name);
-        if !state.store.is_external_mod_allowed(mod_id, &entry.jar_name, &entry.sha256).await? {
+        if !state
+            .store
+            .is_external_mod_allowed(mod_id, &entry.jar_name, &entry.sha256)
+            .await?
+        {
             unapproved.push(entry);
         }
         let jar_name = clean_alert_field(&entry.jar_name);
@@ -1468,17 +1475,26 @@ async fn report_external_mods(
             .as_deref()
             .map(clean_alert_field)
             .unwrap_or_else(|| "неизвестно".to_string());
-        if unapproved.last().is_some_and(|candidate| std::ptr::eq(*candidate, entry)) {
-            summary.push_str(&format!("• {jar_name}\n  {name} | id: {mod_id} | версия: {version}\n  sha256: {}\n", clean_alert_field(&entry.sha256)));
+        if unapproved
+            .last()
+            .is_some_and(|candidate| std::ptr::eq(*candidate, entry))
+        {
+            summary.push_str(&format!(
+                "• {jar_name}\n  {name} | id: {mod_id} | версия: {version}\n  sha256: {}\n",
+                clean_alert_field(&entry.sha256)
+            ));
         }
     }
     if unapproved.is_empty() {
-        state.store.record_server_log(
-            "external_mods_allowed",
-            Some(&account.username),
-            "Запуск только с разрешенными сторонними модами",
-            serde_json::json!({ "mods": mods }),
-        ).await?;
+        state
+            .store
+            .record_server_log(
+                "external_mods_allowed",
+                Some(&account.username),
+                "Запуск только с разрешенными сторонними модами",
+                serde_json::json!({ "mods": mods }),
+            )
+            .await?;
         return Ok(StatusCode::OK);
     }
     summary = summary.chars().take(3900).collect();
@@ -1490,12 +1506,15 @@ async fn report_external_mods(
         .store
         .notify_admins_with_markup(&summary, Some(&reply_markup), None)
         .await?;
-    state.store.record_server_log(
-        "external_mods",
-        Some(&account.username),
-        "Запуск Minecraft со сторонними модами",
-        serde_json::json!({ "mods": mods }),
-    ).await?;
+    state
+        .store
+        .record_server_log(
+            "external_mods",
+            Some(&account.username),
+            "Запуск Minecraft со сторонними модами",
+            serde_json::json!({ "mods": mods }),
+        )
+        .await?;
     Ok(StatusCode::OK)
 }
 
@@ -1518,7 +1537,10 @@ fn append_report_summary(summary: &mut String, name: &str, report: Option<&str>)
         .lines()
         .filter(|line| {
             let lower = line.to_ascii_lowercase();
-            lower.contains("error") || lower.contains("exception") || lower.contains("crash") || lower.contains("caused by")
+            lower.contains("error")
+                || lower.contains("exception")
+                || lower.contains("crash")
+                || lower.contains("caused by")
         })
         .take(3)
         .collect();
@@ -1548,7 +1570,10 @@ async fn me_customization(
 ) -> Result<Json<protocol::PlayerCustomization>, ApiError> {
     let account = current_account(&state, &headers).await?;
     let available_badges = state.store.player_available_badges(&account.uuid).await?;
-    let available_gradients = state.store.player_available_gradients(&account.uuid).await?;
+    let available_gradients = state
+        .store
+        .player_available_gradients(&account.uuid)
+        .await?;
     Ok(Json(protocol::PlayerCustomization {
         available_badges,
         available_gradients,
@@ -1571,7 +1596,10 @@ async fn me_set_active(
     Json(input): Json<ActiveInput>,
 ) -> Result<StatusCode, ApiError> {
     let account = current_account(&state, &headers).await?;
-    state.store.set_active_customization(&account.uuid, input.badge_id, input.gradient_id).await?;
+    state
+        .store
+        .set_active_customization(&account.uuid, input.badge_id, input.gradient_id)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1592,7 +1620,10 @@ async fn update_news_seen(
         return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой seen_at"));
     }
     state.store.set_news_seen(&account.uuid, seen_at).await?;
-    let updated_account = state.store.find_by_uuid(&account.uuid).await
+    let updated_account = state
+        .store
+        .find_by_uuid(&account.uuid)
+        .await
         .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"))?;
     Ok(Json(updated_account.profile()))
 }
@@ -1602,9 +1633,16 @@ async fn update_news_seen(
 async fn server_customization(
     State(state): State<Shared>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
-) -> Result<Json<std::collections::HashMap<String, protocol::ServerPlayerCustomization>>, ApiError> {
-    let names_str = params.get("players").ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "missing 'players' param"))?;
-    let names: Vec<String> = names_str.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+) -> Result<Json<std::collections::HashMap<String, protocol::ServerPlayerCustomization>>, ApiError>
+{
+    let names_str = params
+        .get("players")
+        .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "missing 'players' param"))?;
+    let names: Vec<String> = names_str
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
     if names.is_empty() {
         return Ok(Json(std::collections::HashMap::new()));
     }
@@ -1634,11 +1672,20 @@ async fn server_telemetry(
     headers: HeaderMap,
     Json(heartbeat): Json<store::server_telemetry::TelemetryHeartbeat>,
 ) -> Result<StatusCode, ApiError> {
-    let expected = state.store.get_setting(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN).await?;
+    let expected = state
+        .store
+        .get_setting(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN)
+        .await?;
     let supplied = headers.get("authorization").and_then(|v| v.to_str().ok());
-    let authorized = expected.as_deref().map(|token| supplied == Some(&format!("Bearer {token}"))).unwrap_or(false);
+    let authorized = expected
+        .as_deref()
+        .map(|token| supplied == Some(&format!("Bearer {token}")))
+        .unwrap_or(false);
     if !authorized {
-        return Err(ApiError::new(StatusCode::UNAUTHORIZED, "Неверный токен сервера"));
+        return Err(ApiError::new(
+            StatusCode::UNAUTHORIZED,
+            "Неверный токен сервера",
+        ));
     }
     state.store.record_telemetry(&heartbeat).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -1770,10 +1817,7 @@ async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
     let stats_path = stats_path.trim_end_matches('/');
     for uuid in &uuids {
         let path = format!("{stats_path}/{uuid}.json");
-        let mut file = match sftp
-            .open_with_flags(&path, OpenFlags::READ)
-            .await
-        {
+        let mut file = match sftp.open_with_flags(&path, OpenFlags::READ).await {
             Ok(f) => f,
             Err(_) => continue, // файл не существует — игрок ещё не играл
         };

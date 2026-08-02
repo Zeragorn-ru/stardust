@@ -150,11 +150,14 @@ async fn signed_request(
         .to_string();
     let now = time::OffsetDateTime::now_utc();
     let date = now
-        .format(&time::format_description::parse("[year][month][day]").unwrap())
+        .format(&time::format_description::parse_borrowed::<1>("[year][month][day]").unwrap())
         .unwrap();
     let timestamp = now
         .format(
-            &time::format_description::parse("[year][month][day]T[hour][minute][second]Z").unwrap(),
+            &time::format_description::parse_borrowed::<1>(
+                "[year][month][day]T[hour][minute][second]Z",
+            )
+            .unwrap(),
         )
         .unwrap();
     let payload_hash = hex::encode(Sha256::digest(&body));

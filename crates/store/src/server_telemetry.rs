@@ -35,6 +35,17 @@ pub struct PlayerEvent {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct ServerLogSummary {
+    pub id: i64,
+    #[serde(rename = "recordedAt")]
+    pub recorded_at: String,
+    #[serde(rename = "eventType")]
+    pub event_type: String,
+    pub username: Option<String>,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ServerLogEntry {
     pub id: i64,
     #[serde(rename = "recordedAt")]
@@ -76,20 +87,25 @@ impl Store {
         .await?)
     }
 
-    pub async fn list_external_mod_allowlist(&self) -> Result<Vec<ExternalModAllowlistEntry>, StoreError> {
+    pub async fn list_external_mod_allowlist(
+        &self,
+    ) -> Result<Vec<ExternalModAllowlistEntry>, StoreError> {
         let rows = sqlx::query(
             "SELECT id, mod_id, jar_name, sha256, created_at
              FROM external_mod_allowlist ORDER BY mod_id, jar_name, sha256",
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|row| ExternalModAllowlistEntry {
-            id: row.get("id"),
-            mod_id: row.get("mod_id"),
-            jar_name: row.get("jar_name"),
-            sha256: row.get("sha256"),
-            created_at: format_recorded_at(row.get("created_at")),
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| ExternalModAllowlistEntry {
+                id: row.get("id"),
+                mod_id: row.get("mod_id"),
+                jar_name: row.get("jar_name"),
+                sha256: row.get("sha256"),
+                created_at: format_recorded_at(row.get("created_at")),
+            })
+            .collect())
     }
 
     pub async fn add_external_mod_allowlist(
@@ -118,19 +134,24 @@ impl Store {
         Ok(())
     }
 
-    pub async fn list_external_mod_block_rules(&self) -> Result<Vec<ExternalModBlockRule>, StoreError> {
+    pub async fn list_external_mod_block_rules(
+        &self,
+    ) -> Result<Vec<ExternalModBlockRule>, StoreError> {
         let rows = sqlx::query(
             "SELECT id, sha256, name_substring, created_at
              FROM external_mod_block_rules ORDER BY id",
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|row| ExternalModBlockRule {
-            id: row.get("id"),
-            sha256: row.get("sha256"),
-            name_substring: row.get("name_substring"),
-            created_at: format_recorded_at(row.get("created_at")),
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|row| ExternalModBlockRule {
+                id: row.get("id"),
+                sha256: row.get("sha256"),
+                name_substring: row.get("name_substring"),
+                created_at: format_recorded_at(row.get("created_at")),
+            })
+            .collect())
     }
 
     pub async fn add_external_mod_block_rule(
@@ -211,7 +232,11 @@ impl Store {
         self.record_server_log(
             event,
             Some(username),
-            if event == "join" { "Игрок вошёл на сервер" } else { "Игрок вышел с сервера" },
+            if event == "join" {
+                "Игрок вошёл на сервер"
+            } else {
+                "Игрок вышел с сервера"
+            },
             serde_json::json!({}),
         )
         .await?;
@@ -238,22 +263,46 @@ impl Store {
         Ok(())
     }
 
-    pub async fn server_logs_since(&self, since: OffsetDateTime) -> Result<Vec<ServerLogEntry>, StoreError> {
+    pub async fn server_log_summaries_since(
+        &self,
+        since: OffsetDateTime,
+    ) -> Result<Vec<ServerLogSummary>, StoreError> {
         let rows = sqlx::query(
-            "SELECT id, recorded_at, event_type, username, summary, details
+            "SELECT id, recorded_at, event_type, username, summary
              FROM server_logs WHERE recorded_at >= $1 ORDER BY recorded_at DESC LIMIT 500",
         )
         .bind(since)
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(|row| ServerLogEntry {
+        Ok(rows
+            .into_iter()
+            .map(|row| ServerLogSummary {
+                id: row.get("id"),
+                recorded_at: format_recorded_at(row.get("recorded_at")),
+                event_type: row.get("event_type"),
+                username: row.get("username"),
+                summary: row.get("summary"),
+            })
+            .collect())
+    }
+
+    pub async fn server_log(&self, id: i64) -> Result<ServerLogEntry, StoreError> {
+        let row = sqlx::query(
+            "SELECT id, recorded_at, event_type, username, summary, details
+             FROM server_logs WHERE id = $1",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(StoreError::NotFound)?;
+        Ok(ServerLogEntry {
             id: row.get("id"),
             recorded_at: format_recorded_at(row.get("recorded_at")),
             event_type: row.get("event_type"),
             username: row.get("username"),
             summary: row.get("summary"),
             details: row.get("details"),
-        }).collect())
+        })
     }
 
     pub async fn telemetry_samples_since(

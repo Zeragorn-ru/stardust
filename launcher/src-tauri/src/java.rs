@@ -527,15 +527,9 @@ fn current_platform() -> Platform {
         "x64"
     };
     if cfg!(target_os = "macos") {
-        Platform {
-            os: "macos",
-            arch,
-        }
+        Platform { os: "macos", arch }
     } else if cfg!(target_os = "linux") {
-        Platform {
-            os: "linux",
-            arch,
-        }
+        Platform { os: "linux", arch }
     } else {
         Platform {
             os: "windows",
@@ -627,15 +621,21 @@ fn oracle_url() -> String {
         ("macos", "aarch64") => {
             "https://download.oracle.com/java/21/latest/jdk-21_macos-aarch64_bin.tar.gz"
         }
-        ("macos", "x64") => "https://download.oracle.com/java/21/latest/jdk-21_macos-x64_bin.tar.gz",
+        ("macos", "x64") => {
+            "https://download.oracle.com/java/21/latest/jdk-21_macos-x64_bin.tar.gz"
+        }
         ("linux", "aarch64") => {
             "https://download.oracle.com/java/21/latest/jdk-21_linux-aarch64_bin.tar.gz"
         }
-        ("linux", "x64") => "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz",
+        ("linux", "x64") => {
+            "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz"
+        }
         ("windows", "aarch64") => {
             "https://download.oracle.com/java/21/latest/jdk-21_windows-aarch64_bin.zip"
         }
-        ("windows", "x64") => "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.zip",
+        ("windows", "x64") => {
+            "https://download.oracle.com/java/21/latest/jdk-21_windows-x64_bin.zip"
+        }
         _ => "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz",
     }
     .to_string()

@@ -243,6 +243,7 @@ async fn main() {
         .route("/api/settings/backup", post(run_backup))
         .route("/api/server/telemetry", get(server_telemetry))
         .route("/api/server/logs", get(server_logs))
+        .route("/api/server/logs/:id", get(server_log))
         .route(
             "/api/server/external-mod-allowlist",
             get(list_external_mod_allowlist).post(add_external_mod_allowlist),
@@ -902,8 +903,10 @@ async fn start_backup(state: Shared, manual: bool) -> Result<(), String> {
         let now = OffsetDateTime::now_utc();
         let date = now
             .format(
-                &time::format_description::parse("[year]-[month]-[day]T[hour]-[minute]-[second]Z")
-                    .unwrap(),
+                &time::format_description::parse_borrowed::<1>(
+                    "[year]-[month]-[day]T[hour]-[minute]-[second]Z",
+                )
+                .unwrap(),
             )
             .unwrap();
         let prefix = config.prefix.trim_matches('/');
@@ -2894,20 +2897,25 @@ async fn server_logs(
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&state, &headers).await?;
     let since = OffsetDateTime::now_utc() - time::Duration::days(30);
-    let logs = state
-        .store
-        .server_logs_since(since)
-        .await
-        .map_err(map_store)?;
-    let average_online = state
-        .store
-        .telemetry_average_online()
-        .await
-        .map_err(map_store)?;
+    let (logs, average_online) = tokio::try_join!(
+        state.store.server_log_summaries_since(since),
+        state.store.telemetry_average_online(),
+    )
+    .map_err(map_store)?;
     Ok(Json(serde_json::json!({
         "logs": logs,
         "averageOnline": average_online,
     })))
+}
+
+async fn server_log(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<store::server_telemetry::ServerLogEntry>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let log = state.store.server_log(id).await.map_err(map_store)?;
+    Ok(Json(log))
 }
 
 #[derive(Deserialize)]

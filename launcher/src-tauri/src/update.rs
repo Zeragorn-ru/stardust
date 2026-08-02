@@ -828,9 +828,7 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         let bootstrap_asset = find_bootstrap_asset(&release.assets)
             .ok_or_else(|| "В релизе нет bootstrap.exe".to_string())?;
         let bootstrap_sha_asset = find_sha256_asset(&release.assets, &bootstrap_asset.name)
-            .ok_or_else(|| {
-                "В релизе нет bootstrap.exe.sha256 — обновление прервано".to_string()
-            })?;
+            .ok_or_else(|| "В релизе нет bootstrap.exe.sha256 — обновление прервано".to_string())?;
         let expected_hex =
             fetch_expected_sha256(&http, &bootstrap_sha_asset.browser_download_url).await?;
         let path = std::env::temp_dir().join(sanitize_filename(&bootstrap_asset.name)?);
@@ -1045,7 +1043,11 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                 let _ = std::fs::remove_dir_all(&backup);
                 let _ = std::fs::rename(&install_dir, &backup);
                 let status = std::process::Command::new("cp")
-                    .args(["-R", &new_app.to_string_lossy(), &install_dir.to_string_lossy()])
+                    .args([
+                        "-R",
+                        &new_app.to_string_lossy(),
+                        &install_dir.to_string_lossy(),
+                    ])
                     .status()
                     .map_err(|e| format!("Не удалось скопировать новый .app: {e}"))?;
                 if !status.success() {
@@ -1269,10 +1271,9 @@ mod tests {
                 "/Applications/StarDust.app/Contents/MacOS/.update-pid"
             ))
         );
-        assert!(install_dir_from_exe(std::path::Path::new(
-            "/tmp/target/release/launcher"
-        ))
-        .is_none());
+        assert!(
+            install_dir_from_exe(std::path::Path::new("/tmp/target/release/launcher")).is_none()
+        );
         assert!(install_dir_from_exe(std::path::Path::new(
             "/Applications/StarDust.app/Contents/Resources/helper"
         ))

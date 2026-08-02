@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
-import type { ServerLogEntry } from "../types";
+import type { ServerLogEntry, ServerLogSummary } from "../types";
 import { formatTelemetryTime } from "../format";
 import { useDialogFocus } from "../ui/useDialogFocus";
 
@@ -14,9 +14,11 @@ const labels: Record<string, string> = {
 };
 
 export function LogsView({ mobile = false }: { mobile?: boolean }) {
-  const [logs, setLogs] = useState<ServerLogEntry[]>([]);
+  const [logs, setLogs] = useState<ServerLogSummary[]>([]);
   const [averageOnline, setAverageOnline] = useState<number | null>(null);
   const [selected, setSelected] = useState<ServerLogEntry | null>(null);
+  const [selectedLoading, setSelectedLoading] = useState(false);
+  const [selectedError, setSelectedError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -61,35 +63,41 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
       ) : (
         <section className="logs-list">
           {logs.map((log) => (
-            <button className={`panel panel-flat log-card log-card--${log.eventType}`} key={log.id} type="button" onClick={() => setSelected(log)}>
+            <button
+              className={`panel panel-flat log-card log-card--${log.eventType}`}
+              key={log.id}
+              type="button"
+              onClick={() => {
+                setSelected(null);
+                setSelectedError(null);
+                setSelectedLoading(true);
+                void api.getServerLog(log.id)
+                  .then(setSelected)
+                  .catch((reason) => {
+                    setSelectedError(
+                      reason instanceof ApiError ? reason.message : "Не удалось загрузить детали",
+                    );
+                  })
+                  .finally(() => setSelectedLoading(false));
+              }}
+            >
               <span className="log-card__topline">
                 <span className="log-card__type">{labels[log.eventType] ?? log.eventType}</span>
                 <time>{formatTelemetryTime(log.recordedAt)}</time>
               </span>
               <strong className="log-card__summary">{log.summary}</strong>
               {log.username && <span className="log-card__user">Игрок: {log.username}</span>}
-              {log.eventType === "external_mods" && <ExternalMods details={log.details} />}
-              {log.eventType.endsWith("crash") && <CrashDetails details={log.details} />}
               <span className="log-card__open">Открыть детали →</span>
             </button>
           ))}
         </section>
       )}
 
+      {selectedLoading && <p className="muted"><span className="spinner" /> Загрузка деталей…</p>}
+      {selectedError && <p className="error-text">{selectedError}</p>}
       {selected && <LogDetails log={selected} onClose={() => setSelected(null)} />}
     </div>
   );
-}
-
-function ExternalMods({ details }: { details: Record<string, unknown> }) {
-  const mods = Array.isArray(details.mods) ? details.mods : [];
-  return <div className="log-card__details">Модов в отчёте: {mods.length}</div>;
-}
-
-function CrashDetails({ details }: { details: Record<string, unknown> }) {
-  const error = typeof details.errorClass === "string" ? details.errorClass : null;
-  const message = typeof details.message === "string" ? details.message : null;
-  return error || message ? <div className="log-card__details">{error}{message ? `: ${message}` : ""}</div> : null;
 }
 
 function LogDetails({ log, onClose }: { log: ServerLogEntry; onClose: () => void }) {

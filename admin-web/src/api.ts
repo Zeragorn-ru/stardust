@@ -20,6 +20,7 @@ import type {
   Settings,
   ServerTelemetry,
   ServerLogsResponse,
+  ServerLogEntry,
   ExternalModAllowlistEntry,
   ExternalModBlockRule,
   UploadMeta,
@@ -258,6 +259,9 @@ export const api = {
 
   getServerLogs(): Promise<ServerLogsResponse> {
     return request("GET", "/api/server/logs");
+  },
+  getServerLog(id: number): Promise<ServerLogEntry> {
+    return request("GET", `/api/server/logs/${id}`);
   },
   listExternalModAllowlist(): Promise<{ entries: ExternalModAllowlistEntry[] }> {
     return request("GET", "/api/server/external-mod-allowlist");

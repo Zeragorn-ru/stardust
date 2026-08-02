@@ -7,10 +7,10 @@
 use base64::Engine;
 use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
-    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult, PasswordResetConfirm,
-    PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile, PlayerStats,
-    RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
-    NewsHighlight, NewsPost, TelegramLinkResponse, TwoFactorRequest,
+    ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult, NewsHighlight, NewsPost,
+    PasswordResetConfirm, PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile,
+    PlayerStats, RecordSessionRequest, SessionResponse, SkinImportRequest, SkinUploadRequest,
+    TelegramLinkResponse, TwoFactorRequest,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
@@ -832,7 +832,10 @@ pub async fn mark_news_seen(
         .await
         .map_err(network_error)?;
     if resp.status().is_success() {
-        return resp.json::<PlayerProfile>().await.map_err(|e| format!("ошибка разбора ответа: {e}"));
+        return resp
+            .json::<PlayerProfile>()
+            .await
+            .map_err(|e| format!("ошибка разбора ответа: {e}"));
     }
     match resp.json::<ErrorBody>().await {
         Ok(body) => Err(body.error),

@@ -14,8 +14,8 @@
 
 use std::sync::Arc;
 
-use tracing_subscriber::prelude::*;
 use std::time::Duration;
+use tracing_subscriber::prelude::*;
 
 use store::{
     ChallengeAnswer, Store, CALLBACK_APPROVE, CALLBACK_BAN_HOUR, CALLBACK_DENY,
@@ -107,7 +107,9 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
         };
 
         for msg in messages {
-            let result = if let (Some(doc_name), Some(doc_content)) = (&msg.document_name, &msg.document_content) {
+            let result = if let (Some(doc_name), Some(doc_content)) =
+                (&msg.document_name, &msg.document_content)
+            {
                 send_document(
                     &http,
                     &token,
@@ -132,7 +134,11 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
             match result {
                 Ok(()) => {
                     if let Err(e) = store.mark_message_sent(msg.id).await {
-                        tracing::error!(?e, id = msg.id, "не удалось пометить сообщение отправленным");
+                        tracing::error!(
+                            ?e,
+                            id = msg.id,
+                            "не удалось пометить сообщение отправленным"
+                        );
                     }
                 }
                 Err(e) => {
@@ -159,9 +165,9 @@ async fn send_document(
     doc_content: &[u8],
 ) -> Result<(), String> {
     let url = format!("https://api.telegram.org/bot{token}/sendDocument");
-    let part = reqwest::multipart::Part::bytes(doc_content.to_vec())
-        .file_name(doc_name.to_string());
-    
+    let part =
+        reqwest::multipart::Part::bytes(doc_content.to_vec()).file_name(doc_name.to_string());
+
     let form = reqwest::multipart::Form::new()
         .text("chat_id", chat_id.to_string())
         .text("caption", caption.to_string())
@@ -314,7 +320,12 @@ async fn handle_message(store: &Store, message: Message) {
     let text = text.trim();
 
     // Привязка и 2FA рассчитаны на личные чаты; в группах отказываем явно.
-    if message.chat.chat_type.as_deref().is_some_and(|t| t != "private") {
+    if message
+        .chat
+        .chat_type
+        .as_deref()
+        .is_some_and(|t| t != "private")
+    {
         if text.starts_with("/start") || text.starts_with("/unlink") {
             enqueue(
                 store,
@@ -388,7 +399,12 @@ async fn handle_callback(
     token: &str,
     callback: CallbackQuery,
 ) {
-    let CallbackQuery { id, data, from, message } = callback;
+    let CallbackQuery {
+        id,
+        data,
+        from,
+        message,
+    } = callback;
     // chat_id для проверки владельца берём из чата сообщения с кнопкой; если
     // его нет (редко) — падаем на id пользователя.
     let chat_id = message
@@ -412,7 +428,13 @@ async fn handle_callback(
             }
             Err(e) => {
                 tracing::warn!(?e, "не удалось забанить игрока из Telegram");
-                answer_callback(http, token, &id, Some("Недостаточно прав или игрок уже недоступен")).await;
+                answer_callback(
+                    http,
+                    token,
+                    &id,
+                    Some("Недостаточно прав или игрок уже недоступен"),
+                )
+                .await;
             }
         }
         return;
@@ -432,7 +454,11 @@ async fn handle_callback(
 
     match store.answer_challenge(challenge, &chat_id, approve).await {
         Ok(ChallengeAnswer::Done { approve, username }) => {
-            let toast = if approve { "Подтверждено" } else { "Отклонено" };
+            let toast = if approve {
+                "Подтверждено"
+            } else {
+                "Отклонено"
+            };
             answer_callback(http, token, &id, Some(toast)).await;
             let text = if approve {
                 format!("Вход в аккаунт «{username}» подтверждён. Можно вернуться в приложение.")

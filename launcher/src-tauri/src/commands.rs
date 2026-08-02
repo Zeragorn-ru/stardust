@@ -642,12 +642,7 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
             return;
         }
     };
-    let profile_id = state
-        .profile
-        .lock()
-        .unwrap()
-        .as_ref()
-        .map(|p| p.id.clone());
+    let profile_id = state.profile.lock().unwrap().as_ref().map(|p| p.id.clone());
     let http = state.http().clone();
     let launched_at_str = pending.launched_at.clone();
     tauri::async_runtime::spawn(async move {
@@ -738,21 +733,20 @@ async fn drain_pending_sessions(
     if records.is_empty() {
         return;
     }
-    tracing::info!("[stats] повтор отправки {} сессий из очереди", records.len());
+    tracing::info!(
+        "[stats] повтор отправки {} сессий из очереди",
+        records.len()
+    );
     let mut remaining = Vec::new();
     for record in records {
         match record {
             PendingSessionRecord::Current(s) => {
-                let token = match session_entry(&s.profile_id).and_then(|e| {
-                    e.get_password()
-                        .map_err(|err| format!("keyring: {err}"))
-                }) {
+                let token = match session_entry(&s.profile_id)
+                    .and_then(|e| e.get_password().map_err(|err| format!("keyring: {err}")))
+                {
                     Ok(t) => t,
                     Err(e) => {
-                        tracing::warn!(
-                            "[stats] нет токена в keyring для {}: {e}",
-                            s.profile_id
-                        );
+                        tracing::warn!("[stats] нет токена в keyring для {}: {e}", s.profile_id);
                         remaining.push(s);
                         continue;
                     }
@@ -1258,7 +1252,8 @@ async fn relocate_data_directory(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<DataDirectoryInfo, String> {
-    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app)) {
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
+    {
         return Err("Закройте Minecraft перед переносом папки данных".into());
     }
 
@@ -1268,7 +1263,7 @@ async fn relocate_data_directory(
         relocate_data_directory_on_disk(&app_for_transfer, &destination)
     })
     .await
-        .map_err(|e| format!("перенос папки был прерван: {e}"))??;
+    .map_err(|e| format!("перенос папки был прерван: {e}"))??;
 
     let settings = read_settings(&app);
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
@@ -1280,7 +1275,10 @@ async fn relocate_data_directory(
             active_dir.display()
         ));
     }
-    tracing::info!("[data-dir] перенос завершён, текущая папка: {}", active_dir.display());
+    tracing::info!(
+        "[data-dir] перенос завершён, текущая папка: {}",
+        active_dir.display()
+    );
 
     Ok(get_data_directory_info(app))
 }
@@ -1294,8 +1292,7 @@ async fn reset_data_directory(
     if paths::data_dir(&app) == default_path {
         return Ok(get_data_directory_info(app));
     }
-    if state.game.lock().unwrap().is_some()
-        || crate::game_guard::is_running(&paths::data_dir(&app))
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
     {
         return Err("Закройте Minecraft перед сбросом папки данных".into());
     }
@@ -1350,15 +1347,18 @@ fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Resul
         return Err("Выберите пустую папку, чтобы не перезаписать существующие файлы".into());
     }
 
-    emit_data_directory_progress(app, DataDirectoryProgress {
-        phase: "scanning".into(),
-        label: "Подсчитываем файлы…".into(),
-        fraction: None,
-        copied_bytes: 0,
-        total_bytes: 0,
-        copied_files: 0,
-        total_files: 0,
-    });
+    emit_data_directory_progress(
+        app,
+        DataDirectoryProgress {
+            phase: "scanning".into(),
+            label: "Подсчитываем файлы…".into(),
+            fraction: None,
+            copied_bytes: 0,
+            total_bytes: 0,
+            copied_files: 0,
+            total_files: 0,
+        },
+    );
     let mut totals = TransferTotals::default();
     scan_directory(&source, &mut totals)?;
     tracing::info!(
@@ -1379,30 +1379,35 @@ fn relocate_data_directory_on_disk(app: &AppHandle, destination: &Path) -> Resul
     if staging.exists() {
         return Err("обнаружена незавершённая предыдущая попытка переноса; удалите папку .stardust-transfer-* рядом с выбранной папкой".into());
     }
-    std::fs::create_dir(&staging)
-        .map_err(|e| format!("не удалось подготовить перенос: {e}"))?;
+    std::fs::create_dir(&staging).map_err(|e| format!("не удалось подготовить перенос: {e}"))?;
     tracing::debug!("[data-dir] staging={}", staging.display());
 
     let result = (|| {
         let mut reporter = TransferReporter::new(app, totals);
         copy_directory(&source, &staging, &mut reporter)?;
         reporter.emit(true);
-        emit_data_directory_progress(app, DataDirectoryProgress {
-            phase: "finalizing".into(),
-            label: "Завершаем перенос…".into(),
-            fraction: Some(1.0),
-            copied_bytes: totals.bytes,
-            total_bytes: totals.bytes,
-            copied_files: totals.files,
-            total_files: totals.files,
-        });
+        emit_data_directory_progress(
+            app,
+            DataDirectoryProgress {
+                phase: "finalizing".into(),
+                label: "Завершаем перенос…".into(),
+                fraction: Some(1.0),
+                copied_bytes: totals.bytes,
+                total_bytes: totals.bytes,
+                copied_files: totals.files,
+                total_files: totals.files,
+            },
+        );
         std::fs::remove_dir(&destination)
             .map_err(|e| format!("не удалось подготовить выбранную папку: {e}"))?;
         std::fs::rename(&staging, &destination)
             .map_err(|e| format!("не удалось завершить перенос: {e}"))?;
         paths::set_data_dir(app, &destination)?;
         if let Err(e) = std::fs::remove_dir_all(&source) {
-            tracing::warn!("[data-dir] данные перенесены, но старая папка осталась {}: {e}", source.display());
+            tracing::warn!(
+                "[data-dir] данные перенесены, но старая папка осталась {}: {e}",
+                source.display()
+            );
         }
         Ok(())
     })();
@@ -1420,7 +1425,9 @@ struct TransferTotals {
 }
 
 fn scan_directory(directory: &Path, totals: &mut TransferTotals) -> Result<(), String> {
-    for entry in std::fs::read_dir(directory).map_err(|e| format!("не удалось прочитать {}: {e}", directory.display()))? {
+    for entry in std::fs::read_dir(directory)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", directory.display()))?
+    {
         let entry = entry.map_err(|e| e.to_string())?;
         let file_type = entry.file_type().map_err(|e| e.to_string())?;
         if file_type.is_dir() {
@@ -1428,7 +1435,9 @@ fn scan_directory(directory: &Path, totals: &mut TransferTotals) -> Result<(), S
         } else if file_type.is_file() || file_type.is_symlink() {
             totals.files += 1;
             if file_type.is_file() {
-                totals.bytes = totals.bytes.saturating_add(entry.metadata().map_err(|e| e.to_string())?.len());
+                totals.bytes = totals
+                    .bytes
+                    .saturating_add(entry.metadata().map_err(|e| e.to_string())?.len());
             }
         }
     }
@@ -1477,38 +1486,59 @@ impl<'a> TransferReporter<'a> {
         } else {
             self.copied.files as f64 / self.totals.files.max(1) as f64
         };
-        emit_data_directory_progress(self.app, DataDirectoryProgress {
-            phase: "copying".into(),
-            label: "Переносим файлы…".into(),
-            fraction: Some(fraction),
-            copied_bytes: self.copied.bytes,
-            total_bytes: self.totals.bytes,
-            copied_files: self.copied.files,
-            total_files: self.totals.files,
-        });
+        emit_data_directory_progress(
+            self.app,
+            DataDirectoryProgress {
+                phase: "copying".into(),
+                label: "Переносим файлы…".into(),
+                fraction: Some(fraction),
+                copied_bytes: self.copied.bytes,
+                total_bytes: self.totals.bytes,
+                copied_files: self.copied.files,
+                total_files: self.totals.files,
+            },
+        );
     }
 }
 
-fn copy_directory(source: &Path, destination: &Path, reporter: &mut TransferReporter<'_>) -> Result<(), String> {
-    for entry in std::fs::read_dir(source).map_err(|e| format!("не удалось прочитать {}: {e}", source.display()))? {
+fn copy_directory(
+    source: &Path,
+    destination: &Path,
+    reporter: &mut TransferReporter<'_>,
+) -> Result<(), String> {
+    for entry in std::fs::read_dir(source)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", source.display()))?
+    {
         let entry = entry.map_err(|e| e.to_string())?;
         let target = destination.join(entry.file_name());
         let file_type = entry.file_type().map_err(|e| e.to_string())?;
         if file_type.is_dir() {
-            std::fs::create_dir(&target).map_err(|e| format!("не удалось создать {}: {e}", target.display()))?;
+            std::fs::create_dir(&target)
+                .map_err(|e| format!("не удалось создать {}: {e}", target.display()))?;
             copy_directory(&entry.path(), &target, reporter)?;
         } else if file_type.is_file() {
             let bytes = std::fs::copy(entry.path(), &target)
                 .map_err(|e| format!("не удалось скопировать {}: {e}", entry.path().display()))?;
             reporter.copied_file(bytes);
         } else if file_type.is_symlink() {
-            let link_target = std::fs::read_link(entry.path())
-                .map_err(|e| format!("не удалось прочитать ссылку {}: {e}", entry.path().display()))?;
-            create_symlink(&link_target, &target, entry.path().is_dir())
-                .map_err(|e| format!("не удалось перенести ссылку {}: {e}", entry.path().display()))?;
+            let link_target = std::fs::read_link(entry.path()).map_err(|e| {
+                format!(
+                    "не удалось прочитать ссылку {}: {e}",
+                    entry.path().display()
+                )
+            })?;
+            create_symlink(&link_target, &target, entry.path().is_dir()).map_err(|e| {
+                format!(
+                    "не удалось перенести ссылку {}: {e}",
+                    entry.path().display()
+                )
+            })?;
             reporter.copied_file(0);
         } else {
-            return Err(format!("неподдерживаемый тип файла: {}", entry.path().display()));
+            return Err(format!(
+                "неподдерживаемый тип файла: {}",
+                entry.path().display()
+            ));
         }
     }
     Ok(())
@@ -2206,7 +2236,9 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let report_http = state.http().clone();
         let report_token = token.clone();
         tokio::spawn(async move {
-            if let Err(error) = backend::report_external_mods(&report_http, &report_token, &external_mods).await {
+            if let Err(error) =
+                backend::report_external_mods(&report_http, &report_token, &external_mods).await
+            {
                 tracing::warn!("[security] не удалось отправить отчёт о сторонних модах: {error}");
             }
         });
@@ -2328,8 +2360,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     launcher_log: launcher_content,
                     mod_report: mod_report_content,
                 };
-                if let Err(e) = backend::report_crash(&http, &token, &crash_req).await
-                {
+                if let Err(e) = backend::report_crash(&http, &token, &crash_req).await {
                     tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
                 }
             }
@@ -2354,7 +2385,9 @@ fn launch_failure_label(log_content: &str, exit_code: Option<i32>) -> String {
     let snippet = minecraft_log_snippet(log_content, 8);
     match snippet {
         Some(s) => format!("{base}\n{s}"),
-        None => format!("{base}\nНовый latest.log не создан: процесс завершился до инициализации Minecraft."),
+        None => format!(
+            "{base}\nНовый latest.log не создан: процесс завершился до инициализации Minecraft."
+        ),
     }
 }
 
@@ -2375,7 +2408,10 @@ fn archive_previous_latest_log(data_dir: &std::path::Path) {
             latest.display()
         );
     } else {
-        tracing::debug!("[game] старый latest.log сохранён как {}", archived.display());
+        tracing::debug!(
+            "[game] старый latest.log сохранён как {}",
+            archived.display()
+        );
     }
 }
 
@@ -2477,7 +2513,12 @@ fn mod_crash_marker_matches_pid(content: &str, child_id: u32) -> bool {
 fn mod_crash_marker_status(content: &str) -> Option<String> {
     serde_json::from_str::<serde_json::Value>(content)
         .ok()
-        .and_then(|value| value.get("status").and_then(|status| status.as_str()).map(str::to_ascii_lowercase))
+        .and_then(|value| {
+            value
+                .get("status")
+                .and_then(|status| status.as_str())
+                .map(str::to_ascii_lowercase)
+        })
 }
 
 fn trim_report_text(mut text: String, max_bytes: usize) -> String {
@@ -2696,8 +2737,7 @@ async fn mc_status_ping_once(
     }
     let mut buf = vec![0u8; str_len];
     stream.read_exact(&mut buf).await?;
-    let json: serde_json::Value =
-        serde_json::from_slice(&buf).unwrap_or(serde_json::Value::Null);
+    let json: serde_json::Value = serde_json::from_slice(&buf).unwrap_or(serde_json::Value::Null);
 
     // Vanilla ping → pong RTT (то, что показывает клиент в списке серверов)
     let payload = std::time::SystemTime::now()
@@ -2893,9 +2933,9 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             play_game,
             game_running,
             get_stats,
-             get_news_highlight,
-             get_news,
-             mark_news_seen,
+            get_news_highlight,
+            get_news,
+            mark_news_seen,
             list_optional_mods,
             set_mod_enabled,
             crate::update::check_update,

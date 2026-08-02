@@ -182,6 +182,14 @@ export interface ServerTelemetry {
   averageOnline: number;
 }
 
+export interface ServerLogSummary {
+  id: number;
+  recordedAt: string;
+  eventType: "external_mods" | "join" | "quit" | "client_crash" | "server_crash" | string;
+  username?: string;
+  summary: string;
+}
+
 export interface ServerLogEntry {
   id: number;
   recordedAt: string;
@@ -192,7 +200,7 @@ export interface ServerLogEntry {
 }
 
 export interface ServerLogsResponse {
-  logs: ServerLogEntry[];
+  logs: ServerLogSummary[];
   averageOnline: number;
 }
 

@@ -48,8 +48,6 @@ pub fn ensure_microphone_permission() {
         }
 
         let after = AvAuthorizationStatus::current();
-        tracing::info!(
-            "macOS microphone authorization: before={before:?}, after={after:?}"
-        );
+        tracing::info!("macOS microphone authorization: before={before:?}, after={after:?}");
     }
 }

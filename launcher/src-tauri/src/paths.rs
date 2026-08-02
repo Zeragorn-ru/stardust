@@ -38,8 +38,12 @@ pub fn strip_extended_prefix(path: PathBuf) -> PathBuf {
 
 /// Canonicalize + strip extended-length prefix on Windows.
 pub fn canonical_clean(path: &Path) -> Result<PathBuf, String> {
-    let canonical = std::fs::canonicalize(path)
-        .map_err(|e| format!("Не удалось определить абсолютный путь {}: {e}", path.display()))?;
+    let canonical = std::fs::canonicalize(path).map_err(|e| {
+        format!(
+            "Не удалось определить абсолютный путь {}: {e}",
+            path.display()
+        )
+    })?;
     Ok(strip_extended_prefix(canonical))
 }
 
@@ -159,12 +163,11 @@ pub fn set_data_dir(app: &AppHandle, dir: &Path) -> Result<(), String> {
         .parent()
         .map(Path::to_path_buf)
         .ok_or("не удалось определить папку конфигурации")?;
-    std::fs::create_dir_all(parent).map_err(|e| format!("не удалось создать папку конфигурации: {e}"))?;
+    std::fs::create_dir_all(parent)
+        .map_err(|e| format!("не удалось создать папку конфигурации: {e}"))?;
     let clean = strip_extended_prefix(dir.to_path_buf());
-    let json = serde_json::to_string_pretty(&DataDirectoryLocation {
-        path: clean,
-    })
-    .map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(&DataDirectoryLocation { path: clean })
+        .map_err(|e| e.to_string())?;
     std::fs::write(location_file(app), json)
         .map_err(|e| format!("не удалось сохранить расположение папки данных: {e}"))
 }

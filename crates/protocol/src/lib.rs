@@ -158,7 +158,11 @@ pub struct Manifest {
     pub loader: LoaderInfo,
     pub files: Vec<FileEntry>,
     /// Политика сторонних модов, если сервер её публикует.
-    #[serde(default, rename = "externalModPolicy", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        rename = "externalModPolicy",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub external_mod_policy: Option<ExternalModPolicy>,
 }
 
@@ -381,7 +385,9 @@ pub struct PasswordlessLoginRequest {
 
 #[cfg(test)]
 mod tests {
-    use super::{Badge, BanInfo, Gradient, PlayerCustomization, PlayerProfile, ServerPlayerCustomization};
+    use super::{
+        Badge, BanInfo, Gradient, PlayerCustomization, PlayerProfile, ServerPlayerCustomization,
+    };
 
     #[test]
     fn player_profile_uses_camel_case_for_frontends() {
@@ -493,7 +499,11 @@ pub struct TelegramLinkResponse {
     /// Код для команды `/start <code>` боту.
     pub code: String,
     /// Username бота (`@name` без `@`), если известен.
-    #[serde(rename = "botUsername", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "botUsername",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub bot_username: Option<String>,
     /// Готовая deep-link `https://t.me/<bot>?start=<code>`, если известен бот.
     #[serde(rename = "deepLink", default, skip_serializing_if = "Option::is_none")]
