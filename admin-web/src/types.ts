@@ -59,6 +59,7 @@ export interface Settings {
   backupPrefix?: string;
   backupAccessKeySet: boolean;
   backupSecretKeySet: boolean;
+  achievementCoinReward: number;
 }
 
 export interface BackupStatus {
@@ -158,6 +159,19 @@ export interface NewsPost {
   markdown: string;
   authorName: string;
   pinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Guide {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string;
+  category: string;
+  markdown: string;
+  authorName: string;
+  published: boolean;
   createdAt: string;
   updatedAt: string;
 }

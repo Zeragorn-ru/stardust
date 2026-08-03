@@ -1,71 +1,51 @@
 <!doctype html>
-<html lang="ru" data-server-map-url="https://map.stardust-mc.xyz" data-admin-api-url="/admin" data-auth-api-url="/auth">
+<html lang="ru" data-server-map-url="https://map.stardust-mc.xyz" data-admin-api-url="/admin">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#070b14" />
-  <title>StarDust — мир, в который хочется вернуться</title>
-  <meta name="description" content="Приватный Minecraft-сервер StarDust. Установи лаунчер, исследуй мир и играй с друзьями." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700&display=swap" rel="stylesheet" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f5f3ee" />
+  <title>StarDust — приватный Minecraft-сервер</title>
+  <meta name="description" content="StarDust — приватный Minecraft-сервер с собственным лаунчером, картой и гайдами для игроков." />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" type="image/svg+xml" href="/stardust-logo.svg?v=three-rings" />
-  <link rel="manifest" href="/manifest.json?v=three-rings" />
 </head>
 <body>
-  <a class="skip-link" href="#start">Перейти к скачиванию</a>
-  <div class="page-noise" aria-hidden="true"></div>
-  <nav class="navbar" aria-label="Основная навигация">
-    <div class="container nav-container">
-      <a href="#top" class="logo" aria-label="StarDust — на главную"><img src="/stardust-logo.svg?v=three-rings" alt="" /><span>StarDust</span></a>
-      <div class="nav-links" id="site-nav">
-        <a href="#start">Скачать</a><a href="#launcher">Как работает</a><a href="#world">Почему StarDust</a><a href="#faq">FAQ</a>
-      </div>
-      <div class="nav-actions"><button class="nav-map-link" type="button" data-map-open>Карта <span>↗</span></button><a class="btn btn-primary btn-small" href="#start">Скачать</a></div>
-      <button class="mobile-menu-btn" aria-label="Открыть меню" aria-expanded="false" aria-controls="site-nav"><span></span><span></span></button>
+  <a class="skip-link" href="#start">К скачиванию</a>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="#top" aria-label="StarDust — на главную"><img src="/stardust-logo.svg" alt="" /><span>StarDust</span></a>
+      <nav aria-label="Основная навигация">
+        <a href="#guides">Гайды</a><a href="#leaderboards">Лидерборд</a><a href="#start">Скачать</a>
+      </nav>
+      <a class="header-map" data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Карта <span>↗</span></a>
+      <button class="menu-button" type="button" aria-label="Открыть меню" aria-expanded="false">Меню</button>
     </div>
-  </nav>
+  </header>
 
   <main id="top">
-    <section class="hero">
-      <div class="hero-orbit hero-orbit--one" aria-hidden="true"></div><div class="hero-orbit hero-orbit--two" aria-hidden="true"></div><div id="particles" class="particles" aria-hidden="true"></div>
-      <div class="container hero-grid">
-        <div class="hero-copy reveal">
-          <div class="live-badge" data-health-badge aria-live="polite"><i></i><span data-health-label>подключаемся к серверу</span></div>
-          <p class="hero-kicker"><span data-build-loader>NeoForge</span> · Java 21 · <span data-build-version>активная сборка</span></p>
-          <h1>Скачай лаунчер.<br /><em>Зайди в мир.</em></h1>
-          <p class="hero-lead">StarDust сам скачает модпак, проверит файлы и запустит Minecraft. Без ручной сборки, поиска модов и лишних настроек.</p>
-          <div class="hero-actions"><a class="btn btn-primary btn-large" href="#start" data-primary-download>Скачать лаунчер <span>↓</span></a><button class="btn btn-ghost btn-large" type="button" data-map-open>Открыть карту <span>↗</span></button></div>
-          <div class="hero-meta"><span data-detected-platform>Определяем платформу</span><span>Java 21</span><span>NeoForge</span><b></b><span>Модпак автоматически</span></div>
-        </div>
-        <div class="hero-scene reveal reveal-delay-2" aria-label="Превью вселенной StarDust">
-          <div class="scene-stars" aria-hidden="true"></div>
-          <div class="scene-horizon"></div><div class="scene-mountain scene-mountain--back"></div><div class="scene-mountain scene-mountain--front"></div>
-          <div class="scene-sun"><span></span></div>
-          <div class="scene-card scene-card--status"><i></i><span>Backend</span><strong data-health-status>Проверка</strong></div>
-          <div class="scene-card scene-card--coordinates"><span>Сектор мира</span><strong>−128 · 64 · 320</strong></div>
-          <div class="scene-player"><div class="scene-player-head"></div><div class="scene-player-body"></div><div class="scene-player-arm"></div><div class="scene-player-leg scene-player-leg--one"></div><div class="scene-player-leg scene-player-leg--two"></div></div>
-          <div class="scene-caption"><span>01</span><p>Здесь начинается<br />следующая глава.</p></div>
-        </div>
+    <section class="hero container">
+      <div class="hero-copy">
+        <p class="kicker"><span class="status-dot" data-health-dot></span><span data-health-label>Проверяем сервер</span></p>
+        <h1>Играй в мире,<br /><em>который растёт.</em></h1>
+        <p class="hero-lead">Приватный Minecraft-сервер с собственной сборкой, живым сообществом и простым стартом через лаунчер.</p>
+        <div class="hero-actions"><a class="button button-dark" href="#start" data-primary-download>Скачать лаунчер <span>↓</span></a><a class="button button-light" data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Открыть карту <span>↗</span></a></div>
+        <div class="hero-meta"><span data-build-summary>Актуальная сборка загружается автоматически</span><span>Windows · macOS · Linux</span></div>
       </div>
-      <div class="container hero-strip reveal reveal-delay-3"><span>ПРИВАТНЫЙ МИР</span><i></i><span>СВОЯ СБОРКА</span><i></i><span>ЖИВОЕ СООБЩЕСТВО</span><i></i><span>ТВОЙ ПРОГРЕСС</span></div>
+      <div class="hero-note"><span>01</span><p>Собственная сборка.<br />Никакой лишней настройки.</p><small>StarDust Launcher</small></div>
     </section>
 
-    <section id="world" class="section world-section">
-      <div class="container"><div class="section-heading reveal"><p class="eyebrow">01 / ВСЕЛЕННАЯ</p><h2>Один мир.<br /><em>Тысячи маршрутов.</em></h2><p>Не нужно выбирать между уютным выживанием и большой идеей. В StarDust есть пространство для обоих.</p></div>
-      <div class="world-grid"><article class="world-card world-card--large reveal"><span class="card-index">01</span><div><p>Исследуй</p><h3>Дальше знакомого биома</h3><small>Моды, события и места, которые хочется отыскать самому.</small></div><div class="world-card-art terrain-art"><span class="terrain-sky"></span><span class="terrain-sun"></span><span class="terrain-layer terrain-layer--back"></span><span class="terrain-layer terrain-layer--front"></span><span class="terrain-route"></span><span class="terrain-point terrain-point--one"></span><span class="terrain-point terrain-point--two"></span></div></article><article class="world-card reveal reveal-delay-1"><span class="card-index">02</span><div><p>Создавай</p><h3>Оставь след в мире</h3><small>От первой базы до проекта, который увидят все.</small></div><div class="world-card-art build-art"><span class="build-tower build-tower--one"></span><span class="build-tower build-tower--two"></span><span class="build-tower build-tower--three"></span><span class="build-bridge"></span><span class="build-glow"></span></div></article><article class="world-card reveal reveal-delay-2"><span class="card-index">03</span><div><p>Встречайся</p><h3>Играй вместе</h3><small>Приватное сообщество без случайного шума.</small></div><div class="world-card-art signal-art"><span class="signal-core"></span><span class="signal-ring signal-ring--one"></span><span class="signal-ring signal-ring--two"></span><span class="signal-node signal-node--one"></span><span class="signal-node signal-node--two"></span><span class="signal-node signal-node--three"></span></div></article></div></div>
-    </section>
+    <section class="status-strip"><div class="container status-grid"><div><span>Сервер</span><strong data-server-status>Проверяем</strong></div><div><span>Онлайн</span><strong data-server-players>—</strong></div><div><span>Сборка</span><strong data-build-version>—</strong></div><div><span>Адрес</span><strong>play.stardust-mc.xyz</strong></div></div></section>
 
-    <section id="launcher" class="section launcher-section"><div class="container launcher-layout"><div class="launcher-window launcher-window--real reveal"><div class="launcher-titlebar"><div class="launcher-titlebar__brand"><span></span><b>StarDust Launcher</b></div><div class="launcher-titlebar__actions"><i></i><i></i></div></div><div class="launcher-main"><header class="launcher-main__header"><button class="launcher-account" type="button"><span class="pixel-avatar"></span><span><strong class="minecraft-nick">StardustPlayer</strong><small>7f4a...c21b</small></span></button><div class="launcher-actions"><span>Настройки</span><span>Выйти</span></div></header><section class="launcher-hero"><div class="launcher-skin"><span class="skin-name">StardustPlayer</span><div class="launcher-character"><span class="lc-head"></span><span class="lc-body"></span><span class="lc-arm lc-arm--left"></span><span class="lc-arm lc-arm--right"></span><span class="lc-leg lc-leg--left"></span><span class="lc-leg lc-leg--right"></span></div><button type="button">Кастомизация</button></div><div class="launcher-panel"><div class="launcher-card"><h3>Всё готово к приключению</h3><p>Нажми «Играть» — мы всё подготовим сами и запустим игру под твоим именем.</p></div><div class="launcher-info-row"><div class="launcher-stat"><span>Статистика</span><strong>24ч 18м</strong><small>в игре</small></div><div class="launcher-stat"><span>Сервер</span><strong class="launcher-online" data-launcher-status>Проверка</strong><small data-launcher-players>play.stardust-mc.xyz</small></div></div><button class="launcher-play" type="button"><span>Играть</span><small data-build-summary>Проверяем активную сборку…</small><i><b></b></i></button></div></section></div></div><div class="launcher-copy reveal reveal-delay-1"><p class="eyebrow">02 / ЛАУНЧЕР</p><h2>Зайти в игру —<br /><em>это просто.</em></h2><p>Один лаунчер автоматически устанавливает нужную Java, NeoForge, модпак и последующие обновления. Никаких архивов, папок и инструкций на двадцать шагов.</p><ul><li><b>01</b><span>Скачивает только изменённые файлы</span></li><li><b>02</b><span>Хранит твои настройки между обновлениями</span></li><li><b>03</b><span>Работает на Windows, macOS и Linux</span></li></ul></div></div></section>
+    <section id="guides" class="section container"><div class="section-head"><div><p class="kicker">02 / База знаний</p><h2>Гайды для<br /><em>первого шага.</em></h2></div><p>Короткие инструкции от команды и игроков: от установки лаунчера до первых маршрутов в мире.</p></div><div class="guide-grid" data-guides><p class="muted">Загружаем гайды…</p></div></section>
 
+    <section id="community" class="section section-muted"><div class="container split"><div><p class="kicker">03 / Ритм игры</p><h2>Меньше шума.<br /><em>Больше мира.</em></h2></div><div class="principles"><article><span>01</span><h3>Свой темп</h3><p>Строй, исследуй и возвращайся к своим проектам тогда, когда удобно.</p></article><article><span>02</span><h3>Свои люди</h3><p>Приватное сообщество, где знакомятся по игре, а не по случайному чату.</p></article><article><span>03</span><h3>Один клик</h3><p>Лаунчер сам скачает сборку, проверит файлы и запустит Minecraft.</p></article></div></div></section>
 
-    <section id="start" class="section start-section"><div class="container"><div class="section-heading section-heading--center reveal"><p class="eyebrow">03 / СТАРТ</p><h2>Самый короткий путь<br /><em>к игре.</em></h2><p>Сначала скачай лаунчер под свою систему. Остальное он сделает сам: аккаунт, сборка, проверка файлов и запуск.</p></div><div class="download-panel reveal"><div><p>StarDust Launcher</p><h3 data-download-title>Скачать лаунчер</h3><small data-download-hint>Мы подскажем подходящую платформу, но все варианты доступны рядом.</small><small class="release-status" data-release-status aria-live="polite">Ищем прямые ссылки на последний релиз…</small></div><div class="download-actions"><a class="platform-button platform-button--active" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener" data-platform="windows">Windows <span>.exe</span></a><a class="platform-button" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener" data-platform="macos">macOS <span>.dmg</span></a><a class="platform-button" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener" data-platform="linux">Linux <span>.AppImage / .deb</span></a></div></div><div class="server-status-panel reveal reveal-delay-1" data-server-status-panel aria-live="polite"><div><p class="eyebrow">СТАТУС СЕРВЕРА</p><h3 data-server-status-title>Проверяем доступность</h3><small data-server-status-text>Если backend не ответит, лаунчер всё равно покажет актуальную сборку после запуска.</small></div><div class="server-status-grid"><article><span>Адрес</span><strong data-server-address>play.stardust-mc.xyz</strong><button type="button" data-copy-server>Скопировать</button></article><article><span>Auth</span><strong data-status-auth>Проверка</strong><small>вход и сессии</small></article><article><span>Admin</span><strong data-status-admin>Проверка</strong><small>сборка и файлы</small></article><article><span>Сборка</span><strong data-status-build>Проверка</strong><small data-status-build-meta>fallback готов</small></article></div></div><div class="steps steps-compact"><article class="step reveal"><span>01</span><h3>Установи</h3><p>Открой скачанный файл и запусти StarDust Launcher.</p></article><article class="step reveal reveal-delay-1"><span>02</span><h3>Войди</h3><p>Создай аккаунт, выбери ник и при желании включи Telegram-защиту.</p></article><article class="step reveal reveal-delay-2"><span>03</span><h3>Играй</h3><p>Нажми «Играть» — лаунчер сам подготовит Minecraft.</p></article></div></div></section>
+    <section id="leaderboards" class="section container"><div class="section-head"><div><p class="kicker">04 / Сообщество</p><h2>Игра остаётся<br /><em>в цифрах.</em></h2></div><p>Статистика обновляется из игровых профилей. В рейтинг попадают только активные незаблокированные аккаунты.</p></div><div class="leaderboard-grid"><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Время в игре</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="playtime"><p class="muted">Загружаем результаты…</p></div></div><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Больше смертей</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="deaths"><p class="muted">Загружаем результаты…</p></div></div><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Блоков добыто</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="blocksMined"><p class="muted">Загружаем результаты…</p></div></div><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Дистанция</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="distance"><p class="muted">Загружаем результаты…</p></div></div></div></section>
 
-    <section id="faq" class="section faq-section"><div class="container faq-layout"><div class="section-heading reveal"><p class="eyebrow">04 / FAQ</p><h2>Без лишних<br /><em>вопросов.</em></h2></div><div class="faq-list"><article class="faq-item reveal"><button class="faq-question" aria-expanded="false"><span>Нужно ли устанавливать моды вручную?</span><b>+</b></button><div class="faq-answer"><p>Нет. Лаунчер сам скачивает модпак, NeoForge и зависимости. После обновления он получает только изменённые файлы.</p></div></article><article class="faq-item reveal reveal-delay-1"><button class="faq-question" aria-expanded="false"><span>Какие системные требования?</span><b>+</b></button><div class="faq-answer"><p>Минимально нужно 4 ГБ RAM и 2 ГБ свободного места. Для комфортной игры рекомендуем 8 ГБ RAM и SSD.</p></div></article><article class="faq-item reveal reveal-delay-2"><button class="faq-question" aria-expanded="false"><span>Как открыть карту сервера?</span><b>+</b></button><div class="faq-answer"><p>Нажми «Открыть карту» в шапке или в первом экране. Она ведёт на map.stardust-mc.xyz.</p></div></article></div></div></section>
+    <section id="start" class="section container start-section"><div class="section-head"><div><p class="kicker">04 / Старт</p><h2>Увидимся<br /><em>в игре.</em></h2></div><p data-release-status>Ищем последний релиз лаунчера на GitHub…</p></div><div class="download-card"><div><strong>Последняя версия</strong><h3 data-download-title>Скачать StarDust Launcher</h3><p data-download-hint>Выбери установщик для своей системы. Ссылка обновляется автоматически.</p></div><div class="download-links"><a class="download-link" data-platform="windows" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">Windows <small>.exe</small></a><a class="download-link" data-platform="macos" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">macOS <small>.dmg</small></a><a class="download-link" data-platform="linux" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">Linux <small>.AppImage / .deb</small></a></div></div><div class="steps"><article><span>01</span><h3>Скачай</h3><p>Выбери файл под свою систему.</p></article><article><span>02</span><h3>Войди</h3><p>Создай аккаунт или используй свой.</p></article><article><span>03</span><h3>Играй</h3><p>Остальное лаунчер сделает сам.</p></article></div></section>
   </main>
 
-  <footer class="footer"><div class="container footer-main"><a href="#top" class="logo"><img src="/stardust-logo.svg?v=three-rings" alt="" /><span>StarDust</span></a><p>Мир, который создают игроки.</p><div><a href="#world">Почему StarDust</a><a href="#start">Скачать</a><a href="#faq">FAQ</a></div></div><div class="container footer-bottom"><span>© 2026 StarDust</span><span>Private Minecraft community</span></div></footer>
-  <dialog class="map-dialog" aria-labelledby="map-dialog-title"><button class="map-dialog-close" type="button" aria-label="Закрыть карту">×</button><div class="map-dialog-empty"><p class="eyebrow">КАРТА СЕРВЕРА</p><h2 id="map-dialog-title">Карта ещё<br />не подключена</h2><p>Укажите URL Dynmap или BlueMap в атрибуте <code>data-server-map-url</code> тега <code>&lt;html&gt;</code>. После этого все кнопки карты откроют её автоматически.</p></div><iframe title="Карта сервера StarDust" loading="lazy"></iframe></dialog>
+  <footer><div class="container footer-inner"><a class="brand" href="#top"><img src="/stardust-logo.svg" alt="" /><span>StarDust</span></a><div><a href="#guides">Гайды</a><a href="#leaderboards">Лидерборд</a><a data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Карта</a><a href="#start">Скачать</a></div><small>© 2026 StarDust</small></div></footer>
   <script type="module" src="/src/main.js"></script>
-</body></html>
+</body>
+</html>

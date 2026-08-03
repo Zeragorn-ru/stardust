@@ -32,10 +32,10 @@ pub use build::{
 pub use telegram::{
     ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_BAN_HOUR,
     CALLBACK_DENY, CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET,
-    SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET, SETTING_BACKUP_ENDPOINT,
-    SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION, SETTING_BACKUP_SECRET_KEY, SETTING_SFTP_HOST,
-    SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
-    SETTING_TELEGRAM_USERNAME,
+    SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET,
+    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
+    SETTING_BACKUP_SECRET_KEY, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
+    SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 
 /// Скин игрока, хранимый сервером.
@@ -140,6 +140,29 @@ pub struct NewsPost {
     pub pinned: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// Публичный гайд, созданный администратором.
+#[derive(Debug, Clone)]
+pub struct Guide {
+    pub id: i64,
+    pub slug: String,
+    pub title: String,
+    pub excerpt: String,
+    pub category: String,
+    pub markdown: String,
+    pub author_name: String,
+    pub published: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CoinTransaction {
+    pub id: i64,
+    pub amount: i64,
+    pub reason: String,
+    pub created_at: String,
 }
 
 impl Ban {
@@ -452,6 +475,225 @@ impl Store {
             return Err(StoreError::NotFound);
         }
         Ok(())
+    }
+
+    // ───────────────────────── Лидерборды ─────────────────────────
+
+    pub async fn playtime_leaderboard(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<(i64, String, i64)>, StoreError> {
+        self.stat_leaderboard("playtime_seconds", limit).await
+    }
+
+    pub async fn deaths_leaderboard(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<(i64, String, i64)>, StoreError> {
+        self.stat_leaderboard("deaths", limit).await
+    }
+
+    pub async fn blocks_mined_leaderboard(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<(i64, String, i64)>, StoreError> {
+        self.stat_leaderboard("blocks_mined", limit).await
+    }
+
+    pub async fn distance_leaderboard(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<(i64, String, i64)>, StoreError> {
+        self.stat_leaderboard("distance_cm", limit).await
+    }
+
+    async fn stat_leaderboard(
+        &self,
+        column: &str,
+        limit: i64,
+    ) -> Result<Vec<(i64, String, i64)>, StoreError> {
+        let query = format!(
+            "SELECT username, {column} AS value
+             FROM accounts
+             WHERE banned = FALSE AND {column} > 0
+             ORDER BY {column} DESC, username_lower ASC
+             LIMIT $1"
+        );
+        let rows = sqlx::query(&query)
+            .bind(limit)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| (index as i64 + 1, row.get("username"), row.get("value")))
+            .collect())
+    }
+
+    // ───────────────────────── Гайды ─────────────────────────
+
+    pub async fn list_guides(&self, public_only: bool) -> Result<Vec<Guide>, StoreError> {
+        let query = if public_only {
+            "SELECT id, slug, title, excerpt, category, markdown, author_name, published, created_at, updated_at
+             FROM guides WHERE published ORDER BY updated_at DESC LIMIT 100"
+        } else {
+            "SELECT id, slug, title, excerpt, category, markdown, author_name, published, created_at, updated_at
+             FROM guides ORDER BY updated_at DESC LIMIT 100"
+        };
+        let rows = sqlx::query(query).fetch_all(&self.pool).await?;
+        Ok(rows.iter().map(row_to_guide).collect())
+    }
+
+    pub async fn get_guide_by_slug(&self, slug: &str) -> Result<Guide, StoreError> {
+        let row = sqlx::query(
+            "SELECT id, slug, title, excerpt, category, markdown, author_name, published, created_at, updated_at
+             FROM guides WHERE slug = $1 AND published",
+        )
+        .bind(slug)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(StoreError::NotFound)?;
+        Ok(row_to_guide(&row))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_guide(
+        &self,
+        slug: &str,
+        title: &str,
+        excerpt: &str,
+        category: &str,
+        markdown: &str,
+        author_name: &str,
+        published: bool,
+    ) -> Result<Guide, StoreError> {
+        let row = sqlx::query(
+            "INSERT INTO guides (slug, title, excerpt, category, markdown, author_name, published)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)
+             RETURNING id, slug, title, excerpt, category, markdown, author_name, published, created_at, updated_at",
+        )
+        .bind(slug)
+        .bind(title)
+        .bind(excerpt)
+        .bind(category)
+        .bind(markdown)
+        .bind(author_name)
+        .bind(published)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::Database(database) if database.constraint() == Some("guides_slug_key") => StoreError::NameTaken,
+            other => StoreError::from(other),
+        })?;
+        Ok(row_to_guide(&row))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn update_guide(
+        &self,
+        id: i64,
+        slug: &str,
+        title: &str,
+        excerpt: &str,
+        category: &str,
+        markdown: &str,
+        published: bool,
+    ) -> Result<Guide, StoreError> {
+        let row = sqlx::query(
+            "UPDATE guides SET slug = $2, title = $3, excerpt = $4, category = $5,
+                    markdown = $6, published = $7, updated_at = now()
+             WHERE id = $1
+             RETURNING id, slug, title, excerpt, category, markdown, author_name, published, created_at, updated_at",
+        )
+        .bind(id)
+        .bind(slug)
+        .bind(title)
+        .bind(excerpt)
+        .bind(category)
+        .bind(markdown)
+        .bind(published)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|error| match error {
+            sqlx::Error::Database(database) if database.constraint() == Some("guides_slug_key") => StoreError::NameTaken,
+            other => StoreError::from(other),
+        })?
+        .ok_or(StoreError::NotFound)?;
+        Ok(row_to_guide(&row))
+    }
+
+    pub async fn delete_guide(&self, id: i64) -> Result<(), StoreError> {
+        let result = sqlx::query("DELETE FROM guides WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        if result.rows_affected() == 0 {
+            return Err(StoreError::NotFound);
+        }
+        Ok(())
+    }
+
+    // ───────────────────────── Монеты ─────────────────────────
+
+    pub async fn coin_balance(&self, uuid: &str) -> Result<i64, StoreError> {
+        let balance = sqlx::query_scalar::<_, Option<i64>>(
+            "SELECT COALESCE(SUM(amount), 0)::BIGINT FROM coin_ledger WHERE account_uuid = $1",
+        )
+        .bind(normalize_uuid(uuid))
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(balance.unwrap_or(0))
+    }
+
+    pub async fn coin_history(
+        &self,
+        uuid: &str,
+        limit: i64,
+    ) -> Result<Vec<CoinTransaction>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, amount, reason, created_at
+             FROM coin_ledger WHERE account_uuid = $1
+             ORDER BY created_at DESC, id DESC LIMIT $2",
+        )
+        .bind(normalize_uuid(uuid))
+        .bind(limit.clamp(1, 100))
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|row| CoinTransaction {
+                id: row.get("id"),
+                amount: row.get("amount"),
+                reason: row.get("reason"),
+                created_at: format_timestamp(row.get("created_at")),
+            })
+            .collect())
+    }
+
+    /// Добавляет изменение баланса ровно один раз по ключу операции.
+    pub async fn grant_coins(
+        &self,
+        uuid: &str,
+        amount: i64,
+        reason: &str,
+        idempotency_key: &str,
+    ) -> Result<i64, StoreError> {
+        if amount == 0 || reason.trim().is_empty() || idempotency_key.trim().is_empty() {
+            return Err(StoreError::Backend(
+                "некорректная операция с монетами".into(),
+            ));
+        }
+        sqlx::query(
+            "INSERT INTO coin_ledger (account_uuid, amount, reason, idempotency_key)
+             VALUES ($1, $2, $3, $4) ON CONFLICT (idempotency_key) DO NOTHING",
+        )
+        .bind(normalize_uuid(uuid))
+        .bind(amount)
+        .bind(reason.trim())
+        .bind(idempotency_key.trim())
+        .execute(&self.pool)
+        .await?;
+        self.coin_balance(uuid).await
     }
 
     // ───────────────────────── Аккаунты ─────────────────────────
@@ -963,6 +1205,30 @@ impl Store {
         Ok(())
     }
 
+    /// Устанавливает абсолютные значения статистики Minecraft.
+    pub async fn set_player_stats_absolute(
+        &self,
+        uuid: &str,
+        deaths: i64,
+        blocks_mined: i64,
+        distance_cm: i64,
+    ) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE accounts
+             SET deaths = GREATEST(deaths, $2),
+                 blocks_mined = GREATEST(blocks_mined, $3),
+                 distance_cm = GREATEST(distance_cm, $4)
+             WHERE uuid = $1",
+        )
+        .bind(normalize_uuid(uuid))
+        .bind(deaths)
+        .bind(blocks_mined)
+        .bind(distance_cm)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Отмечает подтверждённый сервером заход игрока (`hasJoined`).
     pub async fn mark_server_joined(&self, uuid: &str) -> Result<(), StoreError> {
         sqlx::query(
@@ -1381,6 +1647,21 @@ fn row_to_news(row: &PgRow) -> NewsPost {
         markdown: row.get("markdown"),
         author_name: row.get("author_name"),
         pinned: row.get("pinned"),
+        created_at: format_timestamp(row.get("created_at")),
+        updated_at: format_timestamp(row.get("updated_at")),
+    }
+}
+
+fn row_to_guide(row: &PgRow) -> Guide {
+    Guide {
+        id: row.get("id"),
+        slug: row.get("slug"),
+        title: row.get("title"),
+        excerpt: row.get("excerpt"),
+        category: row.get("category"),
+        markdown: row.get("markdown"),
+        author_name: row.get("author_name"),
+        published: row.get("published"),
         created_at: format_timestamp(row.get("created_at")),
         updated_at: format_timestamp(row.get("updated_at")),
     }

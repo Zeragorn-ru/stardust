@@ -13,6 +13,7 @@ import { MobileAccounts } from "./MobileAccounts";
 import { MobileSettings } from "./MobileSettings";
 import { MobileCustomization } from "./MobileCustomization";
 import { NewsView } from "../views/NewsView";
+import { GuidesView } from "../views/GuidesView";
 import { LogsView } from "../views/LogsView";
 import { ExternalModsView } from "../views/ExternalModsView";
 import { IconBox, IconChart, IconClose, IconFile, IconLogout, IconSettings, IconStar, IconUsers } from "../ui/icons";
@@ -45,7 +46,7 @@ function Gate() {
   return <Shell />;
 }
 
-type MobileTab = "overview" | "builds" | "accounts" | "customization" | "news" | "logs" | "mods" | "settings";
+type MobileTab = "overview" | "builds" | "accounts" | "customization" | "news" | "guides" | "logs" | "mods" | "settings";
 
 const NAV: Array<{ tab: MobileTab; label: string; eyebrow: string; icon: ReactNode }> = [
   { tab: "overview", label: "Обзор", eyebrow: "Dashboard", icon: <IconChart size={19} /> },
@@ -53,6 +54,7 @@ const NAV: Array<{ tab: MobileTab; label: string; eyebrow: string; icon: ReactNo
   { tab: "accounts", label: "Аккаунты", eyebrow: "Operations", icon: <IconUsers size={20} /> },
   { tab: "customization", label: "Косметика", eyebrow: "Identity", icon: <IconStar size={19} /> },
   { tab: "news", label: "Новости", eyebrow: "Launcher feed", icon: <IconStar size={19} /> },
+  { tab: "guides", label: "Гайды", eyebrow: "Knowledge base", icon: <IconFile size={19} /> },
   { tab: "logs", label: "Логи", eyebrow: "Server activity", icon: <IconFile size={19} /> },
   { tab: "mods", label: "Внешние моды", eyebrow: "Client security", icon: <IconBox size={19} /> },
   { tab: "settings", label: "Система", eyebrow: "Integrations", icon: <IconSettings size={20} /> },
@@ -190,6 +192,7 @@ function Shell() {
         {activeTab === "accounts" && <MobileAccounts />}
         {activeTab === "customization" && <MobileCustomization />}
         {activeTab === "news" && <div className="m-screen"><NewsView mobile /></div>}
+        {activeTab === "guides" && <div className="m-screen"><GuidesView mobile /></div>}
         {activeTab === "logs" && <div className="m-screen"><LogsView mobile /></div>}
         {activeTab === "mods" && <div className="m-screen"><ExternalModsView /></div>}
         {activeTab === "settings" && <MobileSettings />}
@@ -201,7 +204,7 @@ function Shell() {
 function readMobileLocation(): { tab: MobileTab; buildId: number | null } {
   const params = new URLSearchParams(window.location.search);
   const rawTab = params.get("tab");
-  const tab: MobileTab = rawTab === "builds" || rawTab === "accounts" || rawTab === "customization" || rawTab === "news" || rawTab === "logs" || rawTab === "mods" || rawTab === "settings"
+  const tab: MobileTab = rawTab === "builds" || rawTab === "accounts" || rawTab === "customization" || rawTab === "news" || rawTab === "guides" || rawTab === "logs" || rawTab === "mods" || rawTab === "settings"
     ? rawTab
     : "overview";
   const rawBuild = params.get("build");

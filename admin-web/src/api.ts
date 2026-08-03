@@ -14,6 +14,7 @@ import type {
   CreateBuildInput,
   DepsCheckResult,
   Gradient,
+  Guide,
   NewsPost,
   PlayerCustomization,
   PlayerStats,
@@ -152,6 +153,11 @@ export const api = {
   createNews(input: Pick<NewsPost, "title" | "markdown" | "pinned">): Promise<NewsPost> { return request("POST", "/api/news", input); },
   updateNews(id: number, input: Pick<NewsPost, "title" | "markdown" | "pinned">): Promise<NewsPost> { return request("PATCH", `/api/news/${id}`, input); },
   deleteNews(id: number): Promise<void> { return request("DELETE", `/api/news/${id}`); },
+
+  listGuides(): Promise<Guide[]> { return request("GET", "/api/guides"); },
+  createGuide(input: Omit<Guide, "id" | "authorName" | "createdAt" | "updatedAt">): Promise<Guide> { return request("POST", "/api/guides", input); },
+  updateGuide(id: number, input: Omit<Guide, "id" | "authorName" | "createdAt" | "updatedAt">): Promise<Guide> { return request("PATCH", `/api/guides/${id}`, input); },
+  deleteGuide(id: number): Promise<void> { return request("DELETE", `/api/guides/${id}`); },
 
   getBuild(id: number): Promise<BuildDetail> {
     return request("GET", `/api/builds/${id}`);
@@ -359,6 +365,7 @@ export const api = {
     backupPrefix?: string;
     backupAccessKey?: string;
     backupSecretKey?: string;
+    achievementCoinReward?: number;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
   },

@@ -34,11 +34,14 @@ export function SettingsView() {
   const [backupSecretKey, setBackupSecretKey] = useState("");
   const [savingBackup, setSavingBackup] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
+  const [achievementCoinReward, setAchievementCoinReward] = useState(10);
+  const [savingAchievementReward, setSavingAchievementReward] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const s = await api.getSettings();
       setSettings(s);
+      setAchievementCoinReward(s.achievementCoinReward ?? 10);
       setSftpHost(s.sftpHost ?? "");
       setSftpUsername(s.sftpUsername ?? "");
       setSftpStatsPath(s.sftpStatsPath ?? "");
@@ -178,6 +181,25 @@ export function SettingsView() {
       );
     } finally {
       setSavingBackup(false);
+    }
+  }
+
+  async function saveAchievementReward() {
+    const reward = Math.trunc(achievementCoinReward);
+    if (reward < 0 || reward > 1_000_000) {
+      toast.error("Укажите значение от 0 до 1 000 000");
+      return;
+    }
+    setSavingAchievementReward(true);
+    try {
+      const next = await api.saveSettings({ achievementCoinReward: reward });
+      setSettings(next);
+      setAchievementCoinReward(next.achievementCoinReward ?? reward);
+      toast.success("Награда за достижения сохранена");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось сохранить награду");
+    } finally {
+      setSavingAchievementReward(false);
     }
   }
 
@@ -486,6 +508,37 @@ export function SettingsView() {
               </div>
             </CardContent>
           )}
+        </Card>
+
+        <Card className="settings-card">
+          <CardHeader className="settings-card-head">
+            <IconKey />
+            <div>
+              <CardTitle>Монеты за достижения</CardTitle>
+              <CardDescription>
+                Базовая награда, которая будет начисляться игроку за каждое подтверждённое Minecraft-достижение.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <label className="fm-prompt-field">
+              <span className="muted">Монет за достижение</span>
+              <input
+                type="number"
+                min={0}
+                max={1000000}
+                step={1}
+                value={achievementCoinReward}
+                onChange={(event) => setAchievementCoinReward(Number(event.target.value))}
+              />
+            </label>
+            <p className="muted">Изменение настройки не начисляет монеты задним числом.</p>
+            <div className="modal-actions">
+              <Button disabled={savingAchievementReward} onClick={saveAchievementReward}>
+                {savingAchievementReward ? "Сохранение…" : "Сохранить награду"}
+              </Button>
+            </div>
+          </CardContent>
         </Card>
 
         <Card className="settings-card">

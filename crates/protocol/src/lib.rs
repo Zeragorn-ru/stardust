@@ -37,6 +37,57 @@ pub struct NewsHighlight {
     pub latest_updated_at: Option<String>,
 }
 
+/// Публичный гайд и его Markdown-содержимое.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Guide {
+    pub id: i64,
+    pub slug: String,
+    pub title: String,
+    pub excerpt: String,
+    pub category: String,
+    pub markdown: String,
+    pub author_name: String,
+    pub published: bool,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoinTransaction {
+    pub id: i64,
+    pub amount: i64,
+    pub reason: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CoinAccount {
+    pub balance: i64,
+    pub history: Vec<CoinTransaction>,
+}
+
+/// Одна строка публичного лидерборда.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LeaderboardEntry {
+    pub rank: i64,
+    pub username: String,
+    pub value: i64,
+}
+
+/// Публичные лидерборды, ограниченные сервером по размеру.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Leaderboards {
+    pub playtime: Vec<LeaderboardEntry>,
+    pub deaths: Vec<LeaderboardEntry>,
+    pub blocks_mined: Vec<LeaderboardEntry>,
+    pub distance: Vec<LeaderboardEntry>,
+}
+
 /// На какой стороне нужен файл сборки.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

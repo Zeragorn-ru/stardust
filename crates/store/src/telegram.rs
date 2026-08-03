@@ -31,6 +31,8 @@ pub const SETTING_SFTP_USERNAME: &str = "sftp_username";
 pub const SETTING_SFTP_PASSWORD: &str = "sftp_password";
 /// Ключ настройки: путь к папке stats на Minecraft-сервере (например `/world/stats`).
 pub const SETTING_SFTP_STATS_PATH: &str = "sftp_stats_path";
+/// Базовая награда в монетах за одно подтверждённое достижение.
+pub const SETTING_ACHIEVEMENT_COIN_REWARD: &str = "achievement_coin_reward";
 
 /// Время жизни кода привязки Telegram.
 const LINK_TTL: Duration = Duration::minutes(15);

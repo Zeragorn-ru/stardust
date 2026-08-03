@@ -338,7 +338,10 @@ function BadgesTab({
         <span style={{ fontSize: 12, color: "var(--muted)" }}>Превью:</span>
         <span style={{ fontWeight: 600 }}>
           {data.activeBadgeId != null && (
-            <span style={{ color: data.availableBadges.find((b) => b.id === data.activeBadgeId)?.color }}>
+            <span
+              className="pc-check-emoji"
+              style={{ color: data.availableBadges.find((b) => b.id === data.activeBadgeId)?.color }}
+            >
               {data.availableBadges.find((b) => b.id === data.activeBadgeId)?.emoji}{" "}
             </span>
           )}

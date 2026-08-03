@@ -1,3 +1,19 @@
+@font-face {
+    font-family: 'Minecraft';
+    src: url('/fonts/macsMinecraft-Regular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Minecraft';
+    src: url('/fonts/macsMinecraft-Bold.woff2') format('woff2');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
 :root {
     /* Layered surfaces — deepest background up to raised panels. */
     --bg: #0f1115;
@@ -3158,7 +3174,9 @@ td.num {
 }
 
 .pc-check-emoji {
+    font-family: 'Minecraft', 'Courier New', monospace;
     font-size: 16px;
+    font-variant-emoji: text;
     width: 22px;
     text-align: center;
 }
@@ -4451,6 +4469,8 @@ th {
     height: 18px;
     display: inline-grid;
     place-items: center;
+    font-family: 'Minecraft', 'Courier New', monospace;
+    font-variant-emoji: text;
     line-height: 1;
     font-size: 15px;
 }

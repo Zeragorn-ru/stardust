@@ -28,8 +28,8 @@ use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
-    NewBuild, Role, Store, SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET,
-    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
+    NewBuild, Role, Store, SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY,
+    SETTING_BACKUP_BUCKET, SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
     SETTING_BACKUP_SECRET_KEY, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
     SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
@@ -45,6 +45,10 @@ mod backup;
 const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
 const MAX_NEWS_TITLE_CHARS: usize = 120;
 const MAX_NEWS_MARKDOWN_CHARS: usize = 12_000;
+const MAX_GUIDE_TITLE_CHARS: usize = 120;
+const MAX_GUIDE_SLUG_CHARS: usize = 80;
+const MAX_GUIDE_EXCERPT_CHARS: usize = 240;
+const MAX_GUIDE_MARKDOWN_CHARS: usize = 40_000;
 
 /// Метаданные последней сборки authlib-injector у апстрима.
 const AUTHLIB_INJECTOR_LATEST: &str = "https://authlib-injector.yushi.moe/artifact/latest.json";
@@ -215,6 +219,11 @@ async fn main() {
             "/api/news/:id",
             axum::routing::patch(update_news).delete(delete_news),
         )
+        .route("/api/guides", get(list_guides).post(create_guide))
+        .route(
+            "/api/guides/:id",
+            axum::routing::patch(update_guide).delete(delete_guide),
+        )
         .route("/api/builds", get(list_builds).post(create_build))
         .route(
             "/api/builds/:id",
@@ -283,6 +292,7 @@ async fn main() {
             get(account_skin).put(update_account_skin),
         )
         .route("/api/accounts/:uuid/stats", get(account_stats))
+        .route("/api/accounts/:uuid/coins", post(grant_account_coins))
         .route(
             "/api/accounts/:uuid/customization",
             get(get_account_customization),
@@ -305,6 +315,9 @@ async fn main() {
         // --- Публичное для лаунчера ---
         .route("/news", get(news_highlight))
         .route("/news/all", get(public_news))
+        .route("/public/guides", get(public_guides))
+        .route("/public/guides/:slug", get(public_guide))
+        .route("/public/leaderboards", get(public_leaderboards))
         .route("/manifest", get(manifest))
         .route("/authlib-injector.jar", get(authlib_injector))
         .nest_service("/files", ServeDir::new(modpack_dir))
@@ -545,6 +558,8 @@ struct SettingsDto {
     backup_access_key_set: bool,
     #[serde(rename = "backupSecretKeySet")]
     backup_secret_key_set: bool,
+    #[serde(rename = "achievementCoinReward")]
+    achievement_coin_reward: i64,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -562,6 +577,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_BACKUP_PREFIX,
         SETTING_BACKUP_ACCESS_KEY,
         SETTING_BACKUP_SECRET_KEY,
+        SETTING_ACHIEVEMENT_COIN_REWARD,
     ];
     let map = state
         .store
@@ -590,6 +606,10 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         backup_prefix: get(SETTING_BACKUP_PREFIX).filter(|s| !s.trim().is_empty()),
         backup_access_key_set: get(SETTING_BACKUP_ACCESS_KEY).is_some_and(|s| !s.trim().is_empty()),
         backup_secret_key_set: get(SETTING_BACKUP_SECRET_KEY).is_some_and(|s| !s.trim().is_empty()),
+        achievement_coin_reward: get(SETTING_ACHIEVEMENT_COIN_REWARD)
+            .and_then(|value| value.parse::<i64>().ok())
+            .filter(|value| (0..=1_000_000).contains(value))
+            .unwrap_or(10),
     })
 }
 
@@ -641,6 +661,8 @@ struct UpdateSettingsRequest {
     backup_access_key: Option<String>,
     #[serde(rename = "backupSecretKey", default)]
     backup_secret_key: Option<String>,
+    #[serde(rename = "achievementCoinReward", default)]
+    achievement_coin_reward: Option<i64>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -748,6 +770,20 @@ async fn update_settings(
                 .await
                 .map_err(internal)?;
         }
+    }
+
+    if let Some(reward) = req.achievement_coin_reward {
+        if !(0..=1_000_000).contains(&reward) {
+            return Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "награда должна быть от 0 до 1 000 000 монет",
+            ));
+        }
+        state
+            .store
+            .set_setting(SETTING_ACHIEVEMENT_COIN_REWARD, &reward.to_string())
+            .await
+            .map_err(internal)?;
     }
 
     for (value, key) in [
@@ -2726,6 +2762,53 @@ async fn update_account_skin(
     Ok(Json(AccountDto::from(account)))
 }
 
+struct MinecraftStats {
+    playtime_ticks: i64,
+    deaths: i64,
+    blocks_mined: i64,
+    distance_cm: i64,
+}
+
+fn sum_stat_group(value: Option<&serde_json::Value>) -> i64 {
+    value
+        .and_then(serde_json::Value::as_object)
+        .map(|stats| {
+            stats
+                .values()
+                .filter_map(serde_json::Value::as_i64)
+                .fold(0i64, i64::saturating_add)
+        })
+        .unwrap_or(0)
+}
+
+fn parse_minecraft_stats(json: &serde_json::Value) -> MinecraftStats {
+    let custom = json.pointer("/stats/minecraft:custom");
+    let playtime_ticks = custom
+        .and_then(|stats| stats.get("minecraft:play_time"))
+        .or_else(|| custom.and_then(|stats| stats.get("minecraft:play_one_minute")))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let distance_cm = custom
+        .and_then(serde_json::Value::as_object)
+        .map(|stats| {
+            stats
+                .iter()
+                .filter(|(name, _)| name.ends_with("_one_cm"))
+                .filter_map(|(_, value)| value.as_i64())
+                .fold(0i64, i64::saturating_add)
+        })
+        .unwrap_or(0);
+    MinecraftStats {
+        playtime_ticks,
+        deaths: custom
+            .and_then(|stats| stats.get("minecraft:deaths"))
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0),
+        blocks_mined: sum_stat_group(json.pointer("/stats/minecraft:mined")),
+        distance_cm,
+    }
+}
+
 /// Внутренняя логика синхронизации статистики с SFTP.
 /// Возвращает количество обновлённых аккаунтов.
 async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
@@ -2813,15 +2896,18 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
         let Ok(json) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
             continue;
         };
-        let ticks = json
-            .pointer("/stats/minecraft:custom/minecraft:play_time")
-            .or_else(|| json.pointer("/stats/minecraft:custom/minecraft:play_one_minute"))
-            .and_then(|v| v.as_i64())
-            .unwrap_or(0);
-        let seconds = ticks / 20;
+        let stats = parse_minecraft_stats(&json);
         if state
             .store
-            .set_playtime_absolute(uuid, seconds)
+            .set_playtime_absolute(uuid, stats.playtime_ticks / 20)
+            .await
+            .is_err()
+        {
+            continue;
+        }
+        if state
+            .store
+            .set_player_stats_absolute(uuid, stats.deaths, stats.blocks_mined, stats.distance_cm)
             .await
             .is_ok()
         {
@@ -2861,6 +2947,29 @@ async fn account_stats(
         playtime_seconds,
         last_joined_at: last_joined_at.map(|t| t.format(&Rfc3339).unwrap_or_default()),
     }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CoinGrantInput {
+    amount: i64,
+    reason: String,
+    idempotency_key: String,
+}
+
+async fn grant_account_coins(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(uuid): Path<String>,
+    Json(input): Json<CoinGrantInput>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let balance = state
+        .store
+        .grant_coins(&uuid, input.amount, &input.reason, &input.idempotency_key)
+        .await
+        .map_err(map_store)?;
+    Ok(Json(serde_json::json!({ "balance": balance })))
 }
 
 async fn server_telemetry(
@@ -3045,6 +3154,213 @@ async fn remove_external_mod_block_rule(
         .await
         .map_err(map_store)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ───────────────────────── Гайды ─────────────────────────
+
+#[derive(Deserialize)]
+struct GuideInput {
+    slug: String,
+    title: String,
+    excerpt: String,
+    category: String,
+    markdown: String,
+    published: bool,
+}
+
+async fn public_leaderboards(
+    State(state): State<Shared>,
+) -> Result<Json<protocol::Leaderboards>, ApiError> {
+    let to_entries = |rows: Vec<(i64, String, i64)>| {
+        rows.into_iter()
+            .map(|(rank, username, value)| protocol::LeaderboardEntry {
+                rank,
+                username,
+                value,
+            })
+            .collect()
+    };
+    let playtime = to_entries(
+        state
+            .store
+            .playtime_leaderboard(10)
+            .await
+            .map_err(map_store)?,
+    );
+    let deaths = to_entries(
+        state
+            .store
+            .deaths_leaderboard(10)
+            .await
+            .map_err(map_store)?,
+    );
+    let blocks_mined = to_entries(
+        state
+            .store
+            .blocks_mined_leaderboard(10)
+            .await
+            .map_err(map_store)?,
+    );
+    let distance = to_entries(
+        state
+            .store
+            .distance_leaderboard(10)
+            .await
+            .map_err(map_store)?,
+    );
+    Ok(Json(protocol::Leaderboards {
+        playtime,
+        deaths,
+        blocks_mined,
+        distance,
+    }))
+}
+
+async fn public_guides(
+    State(state): State<Shared>,
+) -> Result<Json<Vec<protocol::Guide>>, ApiError> {
+    let guides = state.store.list_guides(true).await.map_err(map_store)?;
+    Ok(Json(guides.into_iter().map(guide_to_dto).collect()))
+}
+
+async fn public_guide(
+    State(state): State<Shared>,
+    Path(slug): Path<String>,
+) -> Result<Json<protocol::Guide>, ApiError> {
+    let guide = state
+        .store
+        .get_guide_by_slug(&slug)
+        .await
+        .map_err(map_store)?;
+    Ok(Json(guide_to_dto(guide)))
+}
+
+async fn list_guides(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<protocol::Guide>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let guides = state.store.list_guides(false).await.map_err(map_store)?;
+    Ok(Json(guides.into_iter().map(guide_to_dto).collect()))
+}
+
+async fn create_guide(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(input): Json<GuideInput>,
+) -> Result<Json<protocol::Guide>, ApiError> {
+    let author = require_admin(&state, &headers).await?;
+    let input = validate_guide_input(&input)?;
+    let guide = state
+        .store
+        .create_guide(
+            &input.slug,
+            &input.title,
+            &input.excerpt,
+            &input.category,
+            &input.markdown,
+            &author.username,
+            input.published,
+        )
+        .await
+        .map_err(map_store)?;
+    Ok(Json(guide_to_dto(guide)))
+}
+
+async fn update_guide(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(input): Json<GuideInput>,
+) -> Result<Json<protocol::Guide>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let input = validate_guide_input(&input)?;
+    let guide = state
+        .store
+        .update_guide(
+            id,
+            &input.slug,
+            &input.title,
+            &input.excerpt,
+            &input.category,
+            &input.markdown,
+            input.published,
+        )
+        .await
+        .map_err(map_store)?;
+    Ok(Json(guide_to_dto(guide)))
+}
+
+async fn delete_guide(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<(), ApiError> {
+    require_admin(&state, &headers).await?;
+    state.store.delete_guide(id).await.map_err(map_store)
+}
+
+fn validate_guide_input(input: &GuideInput) -> Result<GuideInput, ApiError> {
+    let slug = input.slug.trim().to_ascii_lowercase();
+    let title = input.title.trim();
+    let excerpt = input.excerpt.trim();
+    let category = input.category.trim();
+    let markdown = input.markdown.trim();
+    if slug.is_empty() || title.is_empty() || markdown.is_empty() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Заполните slug, заголовок и текст гайда",
+        ));
+    }
+    if !slug
+        .chars()
+        .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-')
+        || slug.starts_with('-')
+        || slug.ends_with('-')
+        || slug.contains("--")
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Slug: только латиница, цифры и одиночные дефисы",
+        ));
+    }
+    if slug.chars().count() > MAX_GUIDE_SLUG_CHARS
+        || title.chars().count() > MAX_GUIDE_TITLE_CHARS
+        || excerpt.chars().count() > MAX_GUIDE_EXCERPT_CHARS
+        || markdown.chars().count() > MAX_GUIDE_MARKDOWN_CHARS
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Гайд превышает допустимый размер",
+        ));
+    }
+    Ok(GuideInput {
+        slug,
+        title: title.to_owned(),
+        excerpt: excerpt.to_owned(),
+        category: if category.is_empty() {
+            "Общее".into()
+        } else {
+            category.to_owned()
+        },
+        markdown: markdown.to_owned(),
+        published: input.published,
+    })
+}
+
+fn guide_to_dto(guide: store::Guide) -> protocol::Guide {
+    protocol::Guide {
+        id: guide.id,
+        slug: guide.slug,
+        title: guide.title,
+        excerpt: guide.excerpt,
+        category: guide.category,
+        markdown: guide.markdown,
+        author_name: guide.author_name,
+        published: guide.published,
+        created_at: guide.created_at,
+        updated_at: guide.updated_at,
+    }
 }
 
 // ───────────────────────── Новости ─────────────────────────
@@ -3888,6 +4204,7 @@ fn internal(e: impl std::fmt::Display) -> ApiError {
 fn map_store(e: store::StoreError) -> ApiError {
     match e {
         store::StoreError::NotFound => ApiError::new(StatusCode::NOT_FOUND, "Не найдено"),
+        store::StoreError::NameTaken => ApiError::new(StatusCode::CONFLICT, "Такой slug уже занят"),
         other => ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
     }
 }

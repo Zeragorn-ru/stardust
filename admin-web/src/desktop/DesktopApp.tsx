@@ -16,6 +16,7 @@ import { AccountsView } from "../views/AccountsView";
 import { SettingsView } from "../views/SettingsView";
 import { CustomizationView } from "../views/CustomizationView";
 import { NewsView } from "../views/NewsView";
+import { GuidesView } from "../views/GuidesView";
 import { LogsView } from "../views/LogsView";
 import { ExternalModsView } from "../views/ExternalModsView";
 import { IconBox, IconChart, IconFile, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
@@ -128,6 +129,9 @@ function Shell() {
           >
             <IconStar /> <span className="nav-label">Новости</span>
           </NavLink>
+          <NavLink to="/guides" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+            <IconFile /> <span className="nav-label">Гайды</span>
+          </NavLink>
           <NavLink to="/logs" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
             <IconFile /> <span className="nav-label">Логи</span>
           </NavLink>
@@ -175,6 +179,7 @@ function Shell() {
             <Route path="/accounts" element={<AccountsView />} />
             <Route path="/customization" element={<CustomizationView />} />
             <Route path="/news" element={<NewsView />} />
+            <Route path="/guides" element={<GuidesView />} />
             <Route path="/logs" element={<LogsView />} />
             <Route path="/mods" element={<ExternalModsView />} />
             <Route path="/settings" element={<SettingsView />} />
@@ -212,6 +217,11 @@ function sectionDetails(section: string): { title: string; description: string }
       return {
         title: "Новости",
         description: "Публикации и закреплённые объявления для лаунчера.",
+      };
+    case "guides":
+      return {
+        title: "Гайды",
+        description: "Публичная база знаний для игроков и новичков.",
       };
     case "logs":
       return {

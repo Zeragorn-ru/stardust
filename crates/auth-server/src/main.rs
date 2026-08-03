@@ -150,6 +150,7 @@ async fn main() {
         .route("/api/skin/:uuid", get(skin))
         .route("/api/cape/:uuid", get(cape))
         .route("/api/stats", get(stats_get))
+        .route("/api/coins", get(coins_get))
         .route("/api/report-crash", post(report_crash))
         .route("/api/server/report-crash", post(report_server_crash))
         .route("/api/news/seen", post(update_news_seen))
@@ -1305,6 +1306,28 @@ async fn stats_get(
     }))
 }
 
+/// `GET /api/coins` — баланс и последние операции текущего аккаунта.
+async fn coins_get(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<protocol::CoinAccount>, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let history = state.store.coin_history(&account.uuid, 50).await?;
+    let balance = state.store.coin_balance(&account.uuid).await?;
+    Ok(Json(protocol::CoinAccount {
+        balance,
+        history: history
+            .into_iter()
+            .map(|entry| protocol::CoinTransaction {
+                id: entry.id,
+                amount: entry.amount,
+                reason: entry.reason,
+                created_at: entry.created_at,
+            })
+            .collect(),
+    }))
+}
+
 #[derive(serde::Deserialize)]
 struct ReportCrashRequest {
     exit_code: Option<i32>,
@@ -1825,21 +1848,73 @@ async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
         if file.read_to_end(&mut buf).await.is_err() {
             continue;
         }
-        let ticks: i64 = match parse_play_time(&buf) {
-            Some(t) => t,
-            None => continue,
+        let Ok(json) = serde_json::from_slice::<serde_json::Value>(&buf) else {
+            continue;
         };
-        let seconds = ticks / 20;
-        if let Err(e) = state.store.set_playtime_absolute(uuid, seconds).await {
-            tracing::warn!("set_playtime_absolute({uuid}): {e:?}");
+        let stats = parse_minecraft_stats(&json);
+        if let Err(e) = state
+            .store
+            .set_playtime_absolute(uuid, stats.playtime_ticks / 20)
+            .await
+        {
+            tracing::warn!("set playtime for {uuid}: {e:?}");
+            continue;
+        }
+        if let Err(e) = state
+            .store
+            .set_player_stats_absolute(uuid, stats.deaths, stats.blocks_mined, stats.distance_cm)
+            .await
+        {
+            tracing::warn!("set Minecraft stats for {uuid}: {e:?}");
         }
     }
     Ok(())
 }
 
-/// Извлекает `stats.minecraft.custom["minecraft:play_time"]` из JSON-файла статистики.
-fn parse_play_time(data: &[u8]) -> Option<i64> {
-    let v: serde_json::Value = serde_json::from_slice(data).ok()?;
-    v.pointer("/stats/minecraft:custom/minecraft:play_time")
-        .and_then(|x| x.as_i64())
+struct MinecraftStats {
+    playtime_ticks: i64,
+    deaths: i64,
+    blocks_mined: i64,
+    distance_cm: i64,
+}
+
+fn sum_stat_group(value: Option<&serde_json::Value>) -> i64 {
+    value
+        .and_then(serde_json::Value::as_object)
+        .map(|stats| {
+            stats
+                .values()
+                .filter_map(serde_json::Value::as_i64)
+                .fold(0i64, i64::saturating_add)
+        })
+        .unwrap_or(0)
+}
+
+/// Извлекает выбранные счётчики из стандартного Minecraft stats JSON.
+fn parse_minecraft_stats(json: &serde_json::Value) -> MinecraftStats {
+    let custom = json.pointer("/stats/minecraft:custom");
+    let playtime_ticks = custom
+        .and_then(|stats| stats.get("minecraft:play_time"))
+        .or_else(|| custom.and_then(|stats| stats.get("minecraft:play_one_minute")))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0);
+    let distance_cm = custom
+        .and_then(serde_json::Value::as_object)
+        .map(|stats| {
+            stats
+                .iter()
+                .filter(|(name, _)| name.ends_with("_one_cm"))
+                .filter_map(|(_, value)| value.as_i64())
+                .fold(0i64, i64::saturating_add)
+        })
+        .unwrap_or(0);
+    MinecraftStats {
+        playtime_ticks,
+        deaths: custom
+            .and_then(|stats| stats.get("minecraft:deaths"))
+            .and_then(serde_json::Value::as_i64)
+            .unwrap_or(0),
+        blocks_mined: sum_stat_group(json.pointer("/stats/minecraft:mined")),
+        distance_cm,
+    }
 }
