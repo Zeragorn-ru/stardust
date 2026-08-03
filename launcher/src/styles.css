@@ -3656,7 +3656,7 @@ button.data-directory-card__path:disabled {
 .minecraft-nick__badge {
     font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
     font-size: calc(var(--minecraft-nick-size, 22px) + 2px);
-    font-variant-emoji: emoji;
+    font-variant-emoji: text;
     flex-shrink: 0;
     text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
 }

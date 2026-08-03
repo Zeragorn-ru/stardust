@@ -3176,7 +3176,7 @@ td.num {
 .pc-check-emoji {
     font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
     font-size: 16px;
-    font-variant-emoji: emoji;
+    font-variant-emoji: text;
     width: 22px;
     text-align: center;
 }
@@ -4470,7 +4470,7 @@ th {
     display: inline-grid;
     place-items: center;
     font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-    font-variant-emoji: emoji;
+    font-variant-emoji: text;
     line-height: 1;
     font-size: 15px;
 }
