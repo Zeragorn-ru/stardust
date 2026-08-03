@@ -416,7 +416,7 @@ export function FileManager({
       onDragLeave={onManagerDragLeave}
       onDrop={onManagerDrop}
     >
-      <div className="fm-toolbar">
+      <div className="fm-toolbar fm-toolbar--mobile-sticky">
         <nav className="breadcrumbs">
           <button
             className={`crumb${dir === "" ? " current" : ""}`}

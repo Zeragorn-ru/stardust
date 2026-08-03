@@ -814,17 +814,42 @@
 }
 
 .m-detail-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
+    display: grid;
     gap: 8px;
     margin-bottom: 14px;
 }
 
-.m-detail-actions button,
-.m-detail-actions .badge {
-    min-height: 36px;
+.m-detail-primary-action,
+.m-detail-secondary-actions {
+    min-width: 0;
 }
+
+.m-detail-primary-action .primary,
+.m-detail-primary-action .badge {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+}
+
+.m-detail-secondary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.m-detail-secondary-actions button {
+    min-width: 0;
+    min-height: 44px;
+    overflow: hidden;
+    justify-content: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.m-detail-secondary-actions .icon-btn {
+    padding-inline: 10px;
+}
+
 
 .m-stats {
     display: grid;
@@ -1308,6 +1333,29 @@ button.secondary:hover:not(:disabled) {
     flex-direction: column;
 }
 
+.m-screen .fm-toolbar--mobile-sticky {
+    position: sticky;
+    top: calc(72px + env(safe-area-inset-top, 0px));
+    z-index: 18;
+    margin: -10px -10px 10px;
+    padding: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(8, 10, 14, 0.94);
+    backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.m-screen .fm-toolbar--mobile-sticky .breadcrumbs {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    white-space: nowrap;
+}
+
+.m-screen .fm-toolbar--mobile-sticky .breadcrumbs::-webkit-scrollbar {
+    display: none;
+}
+
 /* Кнопка-карточка логов не должна наследовать центрирование содержимого. */
 .m-screen .logs-list .log-card {
     align-items: start;
@@ -1418,12 +1466,44 @@ button.secondary:hover:not(:disabled) {
 }
 
 .m-screen .fm-bulk {
-    top: calc(76px + env(safe-area-inset-top, 0px));
+    position: relative;
+    top: auto;
+    display: grid;
+    gap: 10px;
     margin-inline: 0;
+    padding: 10px;
     border-color: rgba(115, 215, 255, 0.28);
     background: rgba(8, 11, 16, 0.96);
     backdrop-filter: blur(18px) saturate(1.12);
-    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.48);
+    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
+}
+
+.m-screen .fm-bulk-count {
+    justify-content: space-between;
+}
+
+.m-screen .fm-bulk-controls {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 10px;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+}
+
+.m-screen .fm-bulk-group {
+    flex: 0 0 auto;
+}
+
+.m-screen .fm-bulk-actions {
+    margin-left: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.m-screen .fm-bulk-actions button {
+    min-height: 44px;
 }
 
 .m-screen .fm-actions {

@@ -278,37 +278,41 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
       />
 
       <div className="m-detail-actions">
-        {detail.isActive ? (
-          <span className="badge active">
-            <IconStar size={12} /> активная
-          </span>
-        ) : (
-          <button className="primary" onClick={activate}>
-            Сделать активной
+        <div className="m-detail-primary-action">
+          {detail.isActive ? (
+            <span className="badge active">
+              <IconStar size={12} /> активная
+            </span>
+          ) : (
+            <button className="primary" onClick={activate}>
+              Сделать активной
+            </button>
+          )}
+        </div>
+        <div className="m-detail-secondary-actions">
+          <button className="secondary" onClick={() => setEditing(true)}>
+            Редактировать
           </button>
-        )}
-        <button className="secondary" onClick={() => setEditing(true)}>
-          Редактировать
-        </button>
-        <button className="secondary icon-btn" onClick={clone}>
-          <IconCopy size={15} /> Клонировать
-        </button>
-        <button
-          className="secondary icon-btn"
-          disabled={syncing}
-          onClick={syncToPanel}
-        >
-          <IconSync size={15} />
-          {syncing ? "Синхр…" : "SFTP"}
-        </button>
-        <button
-          className="secondary icon-btn"
-          disabled={deploying}
-          onClick={deployMod}
-        >
-          <IconDownload size={15} />
-          {deploying ? "Мод…" : "Мод"}
-        </button>
+          <button className="secondary icon-btn" onClick={clone}>
+            <IconCopy size={15} /> Клонировать
+          </button>
+          <button
+            className="secondary icon-btn"
+            disabled={syncing}
+            onClick={syncToPanel}
+          >
+            <IconSync size={15} />
+            {syncing ? "Синхр…" : "SFTP"}
+          </button>
+          <button
+            className="secondary icon-btn"
+            disabled={deploying}
+            onClick={deployMod}
+          >
+            <IconDownload size={15} />
+            {deploying ? "Мод…" : "Мод"}
+          </button>
+        </div>
       </div>
 
       <div className="m-stats">
