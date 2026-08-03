@@ -3174,9 +3174,9 @@ td.num {
 }
 
 .pc-check-emoji {
-    font-family: 'Minecraft', 'Courier New', monospace;
+    font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
     font-size: 16px;
-    font-variant-emoji: text;
+    font-variant-emoji: emoji;
     width: 22px;
     text-align: center;
 }
@@ -4469,8 +4469,8 @@ th {
     height: 18px;
     display: inline-grid;
     place-items: center;
-    font-family: 'Minecraft', 'Courier New', monospace;
-    font-variant-emoji: text;
+    font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    font-variant-emoji: emoji;
     line-height: 1;
     font-size: 15px;
 }
