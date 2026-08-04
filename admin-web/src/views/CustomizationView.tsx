@@ -1,6 +1,7 @@
 // Управление бейджами и градиентами для кастомизации ника.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { normalizeMinecraftText } from "../minecraftText";
 import { api, ApiError } from "../api";
 import type { Badge, Gradient } from "../types";
 import { useToast, useConfirm } from "../ui/feedback";
@@ -51,7 +52,7 @@ export function CustomizationView() {
 
   async function handleDeleteBadge(b: Badge) {
     const ok = await confirm({
-      title: `Удалить бейдж «${b.emoji} ${b.label}»?`,
+      title: `Удалить бейдж «${normalizeMinecraftText(b.emoji)} ${b.label}»?`,
       body: "Будет удалён у всех игроков.",
       confirmText: "Удалить",
       danger: true,
@@ -118,7 +119,7 @@ export function CustomizationView() {
         </div>
         <div className="nickname-preview-row">
           <span className="badge-sample" style={{ "--badge-color": badges[0]?.color ?? "#7dd3fc" } as CSSProperties}>
-            <span className="badge-sample-emoji">{badges[0]?.emoji ?? "✦"}</span>
+            <span className="badge-sample-emoji">{normalizeMinecraftText(badges[0]?.emoji ?? "✦")}</span>
             <span>{badges[0]?.label ?? "VIP"}</span>
           </span>
           <strong
@@ -153,7 +154,7 @@ export function CustomizationView() {
               {badges.map((b) => (
                 <article className="cosmetic-card" key={b.id}>
                   <div className="badge-sample" style={{ "--badge-color": b.color } as CSSProperties}>
-                    <span className="badge-sample-emoji">{b.emoji}</span>
+                    <span className="badge-sample-emoji">{normalizeMinecraftText(b.emoji)}</span>
                     <span>{b.label}</span>
                   </div>
                    <div className="cosmetic-meta">

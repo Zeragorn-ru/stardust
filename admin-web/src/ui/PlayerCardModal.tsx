@@ -8,6 +8,7 @@ import { SkinHead } from "../ui/SkinHead";
 import { useConfirm, useToast } from "./feedback";
 import { PlayerSkinTab } from "./PlayerSkinTab";
 import { formatDateTime } from "../format";
+import { normalizeMinecraftText } from "../minecraftText";
 
 type Tab = "info" | "skin" | "badges" | "actions";
 
@@ -273,7 +274,7 @@ function BadgesTab({
                     checked={owned}
                     onChange={() => toggleBadge(b.id)}
                   />
-                  <span className="pc-check-emoji">{b.emoji}</span>
+                  <span className="pc-check-emoji">{normalizeMinecraftText(b.emoji)}</span>
                   <span className="pc-check-label">{b.label}</span>
                   {owned && (
                     <button
@@ -342,7 +343,7 @@ function BadgesTab({
               className="pc-check-emoji"
               style={{ color: data.availableBadges.find((b) => b.id === data.activeBadgeId)?.color }}
             >
-              {data.availableBadges.find((b) => b.id === data.activeBadgeId)?.emoji}{" "}
+              {normalizeMinecraftText(data.availableBadges.find((b) => b.id === data.activeBadgeId)?.emoji ?? "")}{" "}
             </span>
           )}
           <span
