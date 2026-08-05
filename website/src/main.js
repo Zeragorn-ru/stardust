@@ -5,15 +5,29 @@ const html = document.documentElement;
 const adminBase = (html.getAttribute('data-admin-api-url') || '').replace(/\/$/, '');
 const mapUrl = html.getAttribute('data-server-map-url')?.trim() || '';
 
+/** Иконка из спрайта в index.html: цвет наследуется через currentColor. */
+function icon(id, thin = false) {
+  return `<svg class="icon${thin ? ' icon--thin' : ''}" aria-hidden="true"><use href="#i-${id}" /></svg>`;
+}
+
+/** Заменяет скелетоны готовой разметкой и снимает состояние загрузки. */
+function settle(target, markup) {
+  target.innerHTML = markup;
+  target.removeAttribute('aria-busy');
+}
+
 window.addEventListener('DOMContentLoaded', () => {
   const menu = document.querySelector('.menu-button');
   const nav = document.querySelector('nav');
   menu?.addEventListener('click', () => {
     const open = nav.classList.toggle('open');
     menu.setAttribute('aria-expanded', String(open));
+    menu.setAttribute('aria-label', open ? 'Закрыть меню' : 'Открыть меню');
   });
   document.querySelectorAll('nav a, .site-header a[href^="#"], footer a[href^="#"], .hero a[href^="#"]').forEach((link) => link.addEventListener('click', () => {
-    nav?.classList.remove('open'); menu?.setAttribute('aria-expanded', 'false');
+    nav?.classList.remove('open');
+    menu?.setAttribute('aria-expanded', 'false');
+    menu?.setAttribute('aria-label', 'Открыть меню');
   }));
   document.querySelectorAll('[data-map-link]').forEach((link) => { if (mapUrl) link.href = mapUrl; });
   applyReleaseLinks();
@@ -87,9 +101,9 @@ async function loadGuides() {
   if (!target || !adminBase) return;
   try {
     const guides = await fetchJson(`${adminBase}/public/guides`);
-    if (!guides.length) { target.innerHTML = '<p class="muted">Гайды скоро появятся.</p>'; return; }
-    target.innerHTML = guides.slice(0, 6).map((guide) => `<a class="guide-card" href="/guides/${encodeURIComponent(guide.slug)}"><span>${escapeHtml(guide.category)}</span><h3>${escapeHtml(guide.title)}</h3><p>${escapeHtml(guide.excerpt || '')}</p><small>Читать гайд ↗</small></a>`).join('');
-  } catch { target.innerHTML = '<p class="muted">Не удалось загрузить гайды. Попробуй обновить страницу.</p>'; }
+    if (!guides.length) { settle(target, '<p class="muted">Гайды скоро появятся.</p>'); return; }
+    settle(target, guides.slice(0, 6).map((guide) => `<a class="guide-card" href="/guides/${encodeURIComponent(guide.slug)}"><span>${escapeHtml(guide.category)}</span><h3>${escapeHtml(guide.title)}</h3><p>${escapeHtml(guide.excerpt || '')}</p><small>Читать гайд ${icon('arrow-out')}</small></a>`).join(''));
+  } catch { settle(target, '<p class="muted">Не удалось загрузить гайды. Попробуй обновить страницу.</p>'); }
 }
 
 async function loadLeaderboards() {
@@ -99,10 +113,10 @@ async function loadLeaderboards() {
     const data = await fetchJson(`${adminBase}/public/leaderboards`);
     targets.forEach((target) => {
       const rows = data[target.dataset.leaderboard] || [];
-      if (!rows.length) { target.innerHTML = '<p class="muted">Пока недостаточно данных.</p>'; return; }
-      target.innerHTML = rows.map((entry) => `<div class="leaderboard-row"><span class="leaderboard-rank">${entry.rank}</span><strong>${escapeHtml(entry.username)}</strong><span>${formatLeaderboardValue(target.dataset.leaderboard, entry.value)}</span></div>`).join('');
+      if (!rows.length) { settle(target, '<p class="muted">Пока недостаточно данных.</p>'); return; }
+      settle(target, rows.map((entry) => `<div class="leaderboard-row"><span class="leaderboard-rank">${entry.rank}</span><strong>${escapeHtml(entry.username)}</strong><span>${formatLeaderboardValue(target.dataset.leaderboard, entry.value)}</span></div>`).join(''));
     });
-  } catch { targets.forEach((target) => { target.innerHTML = '<p class="muted">Лидерборд пока недоступен.</p>'; }); }
+  } catch { targets.forEach((target) => { settle(target, '<p class="muted">Лидерборд пока недоступен.</p>'); }); }
 }
 
 function formatLeaderboardValue(category, value) {
@@ -119,9 +133,9 @@ async function renderGuideDetail(slug) {
   try {
     const guide = await fetchJson(`${adminBase}/public/guides/${encodeURIComponent(slug)}`);
     const author = guide.authorName || guide.author_name || 'Команда StarDust';
-    main.innerHTML = `<section class="guide-detail container"><a class="back-link" href="/#guides">← Все гайды</a><p class="kicker">${escapeHtml(guide.category)}</p><h1>${escapeHtml(guide.title)}</h1><p class="guide-detail__excerpt">${escapeHtml(guide.excerpt || '')}</p><div class="guide-meta">${escapeHtml(author)} · обновлено ${formatDate(guide.updatedAt || guide.updated_at)}</div><article class="guide-content">${renderMarkdown(guide.markdown)}</article></section>`;
+    main.innerHTML = `<section class="guide-detail container"><a class="back-link" href="/#guides">${icon('arrow-left', true)} Все гайды</a><p class="kicker">${escapeHtml(guide.category)}</p><h1>${escapeHtml(guide.title)}</h1><p class="guide-detail__excerpt">${escapeHtml(guide.excerpt || '')}</p><div class="guide-meta">${escapeHtml(author)} · обновлено ${formatDate(guide.updatedAt || guide.updated_at)}</div><article class="guide-content">${renderMarkdown(guide.markdown)}</article></section>`;
   } catch {
-    main.innerHTML = '<section class="guide-detail container"><a class="back-link" href="/#guides">← Все гайды</a><h1>Гайд не найден</h1><p class="muted">Проверь ссылку или вернись к списку гайдов.</p></section>';
+    main.innerHTML = `<section class="guide-detail container"><a class="back-link" href="/#guides">${icon('arrow-left', true)} Все гайды</a><h1>Гайд не найден</h1><p class="muted">Проверь ссылку или вернись к списку гайдов.</p></section>`;
   }
 }
 
