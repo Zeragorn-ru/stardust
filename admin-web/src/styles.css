@@ -3088,6 +3088,18 @@ td.num {
     margin-top: 6px;
 }
 
+.pc-skin-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.pc-skin-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .pc-skin-model {
     justify-content: center;
     padding: 8px;

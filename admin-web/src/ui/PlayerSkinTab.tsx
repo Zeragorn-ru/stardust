@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, SkinModel } from "../types";
 import { invalidateSkinCache } from "./SkinHead";
+import { IconDownload } from "./icons";
 import { useToast } from "./feedback";
 
 const PlayerSkinViewer3D = lazy(() => import("./PlayerSkinViewer3D"));
@@ -89,6 +90,18 @@ export function PlayerSkinTab({ account, onUpdated }: Props) {
 
   const preview = pending ? { url: pending.url, model } : skin;
 
+  async function download() {
+    try {
+      const filename = `${safeFilename(account.username)}-skin.png`;
+      const downloaded = await api.downloadAccountSkin(account.uuid, filename);
+      if (!downloaded) {
+        toast.error("У игрока пока нет скина");
+      }
+    } catch {
+      toast.error("Не удалось скачать скин игрока");
+    }
+  }
+
   return (
     <div className="pc-skin-tab">
       <div className="pc-skin-stage">
@@ -120,9 +133,17 @@ export function PlayerSkinTab({ account, onUpdated }: Props) {
             ))}
           </div>
         </div>
-        <button type="button" className="secondary" onClick={() => fileRef.current?.click()} disabled={saving}>
-          Выбрать PNG
-        </button>
+        <div className="pc-skin-actions">
+          <button type="button" className="secondary" onClick={() => fileRef.current?.click()} disabled={saving}>
+            Выбрать PNG
+          </button>
+          {skin && (
+            <button type="button" className="secondary" onClick={() => void download()} disabled={saving}>
+              <IconDownload size={15} />
+              Скачать PNG
+            </button>
+          )}
+        </div>
         <input
           ref={fileRef}
           type="file"
@@ -143,6 +164,11 @@ export function PlayerSkinTab({ account, onUpdated }: Props) {
       </div>
     </div>
   );
+}
+
+function safeFilename(username: string): string {
+  const normalized = username.trim().replace(/[^a-zA-Z0-9а-яА-ЯёЁ._-]+/g, "-").replace(/^-+|-+$/g, "");
+  return normalized || "player";
 }
 
 function validateSkin(file: File): Promise<void> {

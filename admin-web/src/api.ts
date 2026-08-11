@@ -428,6 +428,16 @@ export const api = {
     return (await this.getAccountSkin(uuid))?.url ?? null;
   },
 
+  async downloadAccountSkin(uuid: string, filename: string): Promise<boolean> {
+    const skin = await this.getAccountSkin(uuid);
+    if (!skin) return false;
+    const anchor = document.createElement("a");
+    anchor.href = skin.url;
+    anchor.download = filename;
+    anchor.click();
+    return true;
+  },
+
   invalidateAccountSkin(uuid: string): void {
     const cached = accountSkinCache.get(uuid);
     if (cached && !(cached instanceof Promise)) URL.revokeObjectURL(cached.url);
