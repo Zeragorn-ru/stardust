@@ -4,14 +4,21 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -33,6 +40,7 @@ public final class StardustHttpProvider {
 
     private static final Gson GSON = new Gson();
     private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
+    private static final String CACHE_FILE_NAME = "stardust-customization-cache.json";
 
     /** Данные кастомизации для одного игрока. */
     public record Assignment(String badge, String badgeColor, String nameColor,
@@ -49,6 +57,8 @@ public final class StardustHttpProvider {
     private final ScheduledExecutorService scheduler;
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
     private final Set<String> knownNames = ConcurrentHashMap.newKeySet();
+    private final Path cacheFile;
+    private final Object cachePersistenceLock = new Object();
     private volatile Supplier<Collection<String>> onlinePlayersProvider;
     private volatile Runnable afterRefresh;
     private volatile boolean running = false;
@@ -57,7 +67,10 @@ public final class StardustHttpProvider {
         this.authUrl = authUrl.endsWith("/") ? authUrl.substring(0, authUrl.length() - 1) : authUrl;
         this.refreshIntervalSeconds = Math.max(3, refreshIntervalSeconds);
         this.debug = debug;
-        this.serverToken = StardustServerConfig.load(net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get()).serverToken();
+        Path configDir = net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get();
+        this.cacheFile = configDir.resolve(CACHE_FILE_NAME);
+        loadCache();
+        this.serverToken = StardustServerConfig.load(configDir).serverToken();
         if (serverToken.isBlank()) {
             StardustMod.LOGGER.warn("Stardust telemetry token: НЕ ЗАДАН — телеметрия не будет отправляться");
         } else {
@@ -72,6 +85,59 @@ public final class StardustHttpProvider {
             t.setDaemon(true);
             return t;
         });
+    }
+
+    private void loadCache() {
+        if (Files.notExists(cacheFile)) return;
+
+        Map<String, Assignment> persisted;
+        try (Reader reader = Files.newBufferedReader(cacheFile, StandardCharsets.UTF_8)) {
+            persisted = GSON.fromJson(reader, new TypeToken<Map<String, Assignment>>() {}.getType());
+        } catch (Exception e) {
+            StardustMod.LOGGER.warn("Stardust cache: не удалось прочитать {} ({})", cacheFile, e.toString());
+            return;
+        }
+
+        if (persisted == null) return;
+        int loaded = 0;
+        for (Map.Entry<String, Assignment> entry : persisted.entrySet()) {
+            String name = entry.getKey();
+            Assignment assignment = entry.getValue();
+            if (name == null || name.isBlank() || assignment == null) continue;
+            cache.put(name.trim().toLowerCase(Locale.ROOT), assignment);
+            loaded++;
+        }
+        StardustMod.LOGGER.info("Stardust cache: загружено {} записей из {}", loaded, cacheFile);
+    }
+
+    private void persistCache() {
+        synchronized (cachePersistenceLock) {
+            Path temporaryFile = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
+            try {
+                Files.createDirectories(cacheFile.getParent());
+                Map<String, Assignment> snapshot = new HashMap<>(cache);
+                try (Writer writer = Files.newBufferedWriter(temporaryFile, StandardCharsets.UTF_8)) {
+                    GSON.toJson(snapshot, writer);
+                }
+                try {
+                    Files.move(temporaryFile, cacheFile,
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException | UnsupportedOperationException e) {
+                    Files.move(temporaryFile, cacheFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+                if (debug) {
+                    StardustMod.LOGGER.info("Stardust cache: сохранено {} записей в {}", snapshot.size(), cacheFile);
+                }
+            } catch (Exception e) {
+                StardustMod.LOGGER.warn("Stardust cache: не удалось сохранить {} ({})", cacheFile, e.toString());
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException ignored) {
+                    // The next save will reuse the temporary path.
+                }
+            }
+        }
     }
 
     public void sendTelemetry(Collection<String> players, double tps, double mspt) {
@@ -196,13 +262,15 @@ public final class StardustHttpProvider {
                     new TypeToken<Map<String, ServerResponse>>() {}.getType()
             );
 
+            Map<String, Assignment> updates = new HashMap<>();
             if (raw != null) {
                 for (Map.Entry<String, ServerResponse> entry : raw.entrySet()) {
                     String name = entry.getKey();
                     ServerResponse sr = entry.getValue();
+                    if (name == null || name.isBlank() || sr == null) continue;
                     if (debug) StardustMod.LOGGER.info("Stardust HTTP: {} → badge={}, color={}, gradient={}→{}",
                             name, sr.badge, sr.name_color, sr.gradient_start, sr.gradient_end);
-                    cache.put(name.toLowerCase(Locale.ROOT), new Assignment(
+                    updates.put(name.trim().toLowerCase(Locale.ROOT), new Assignment(
                             sr.badge,
                             sr.badge_color,
                             sr.name_color,
@@ -214,6 +282,10 @@ public final class StardustHttpProvider {
                             sr.gradient_description
                     ));
                 }
+            }
+            synchronized (cachePersistenceLock) {
+                cache.putAll(updates);
+                persistCache();
             }
             if (debug) StardustMod.LOGGER.info("Stardust HTTP: обновлено {}, кеш={}", names.size(), cache.size());
             return true;
