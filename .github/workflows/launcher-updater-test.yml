@@ -73,6 +73,7 @@ jobs:
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
               --title "Launcher signed updater test $VERSION" \
+              --target "$GITHUB_SHA" \
               --prerelease \
               --notes "Manual signed updater test channel. Not used by stable launchers."
           fi
