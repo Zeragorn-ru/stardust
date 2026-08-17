@@ -2,6 +2,9 @@
 name: launcher-updater-test
 
 on:
+  push:
+    branches:
+      - feat/tauri-signed-updater
   workflow_dispatch:
     inputs:
       version:
@@ -21,6 +24,8 @@ jobs:
     environment: launcher-release
     env:
       CI: true
+      TEST_VERSION: ${{ inputs.version || '0.1.1' }}
+      TEST_RELEASE_TAG: ${{ inputs.release_tag || 'updater-test-v0.1.1' }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -60,13 +65,13 @@ jobs:
 
       - name: Set test version
         shell: bash
-        run: bash scripts/ci/set-launcher-version.sh "${{ inputs.version }}"
+        run: bash scripts/ci/set-launcher-version.sh "${{ env.TEST_VERSION }}"
 
       - name: Ensure updater prerelease exists
         shell: bash
         env:
-          RELEASE_TAG: ${{ inputs.release_tag }}
-          VERSION: ${{ inputs.version }}
+          RELEASE_TAG: ${{ env.TEST_RELEASE_TAG }}
+          VERSION: ${{ env.TEST_VERSION }}
         run: |
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
@@ -84,7 +89,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: launcher
-          tagName: ${{ inputs.release_tag }}
+          tagName: ${{ env.TEST_RELEASE_TAG }}
           releaseDraft: false
           prerelease: true
           uploadUpdaterJson: true
@@ -94,7 +99,7 @@ jobs:
       - name: Publish test-channel metadata alias
         shell: bash
         env:
-          SOURCE_TAG: ${{ inputs.release_tag }}
+          SOURCE_TAG: ${{ env.TEST_RELEASE_TAG }}
         run: |
           gh release download "$SOURCE_TAG" --pattern latest.json --dir "$RUNNER_TEMP/updater-metadata" --clobber
           if ! gh release view updater-test >/dev/null 2>&1; then
