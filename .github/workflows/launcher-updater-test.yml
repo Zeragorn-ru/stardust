@@ -1,0 +1,106 @@
+# Manual signed Tauri updater channel. This never changes stable releases.
+name: launcher-updater-test
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Test version (for example 0.1.1)"
+        required: true
+        type: string
+      release_tag:
+        description: "Private prerelease tag for this build"
+        required: true
+        type: string
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    environment: launcher-release
+    env:
+      CI: true
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      STARDUST_UPDATER_PUBLIC_KEY: ${{ secrets.STARDUST_UPDATER_PUBLIC_KEY }}
+      VITE_LAUNCHER_UPDATE_CHANNEL: tauri-test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust and Node toolchains
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: launcher/package-lock.json
+
+      - name: Install dependencies
+        working-directory: launcher
+        run: npm ci --ignore-scripts
+
+      - name: Prepare test updater config
+        shell: bash
+        run: |
+          test -n "$STARDUST_UPDATER_PUBLIC_KEY"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          p = Path("launcher/src-tauri/tauri.updater-test.conf.json")
+          s = p.read_text()
+          p.write_text(s.replace("__STARDUST_UPDATER_PUBLIC_KEY__", os.environ["STARDUST_UPDATER_PUBLIC_KEY"]))
+          PY
+
+      - name: Set test version
+        shell: bash
+        run: bash scripts/ci/set-launcher-version.sh "${{ inputs.version }}"
+
+      - name: Ensure updater prerelease exists
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --title "Launcher signed updater test $VERSION" \
+              --prerelease \
+              --notes "Manual signed updater test channel. Not used by stable launchers."
+          fi
+
+      - name: Build and upload signed updater artifacts
+        uses: tauri-apps/tauri-action@v0.6
+        env:
+          CI: true
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: launcher
+          tagName: ${{ inputs.release_tag }}
+          releaseDraft: false
+          prerelease: true
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
+          args: --config src-tauri/tauri.updater-test.conf.json --bundles nsis
+
+      - name: Publish test-channel metadata alias
+        shell: bash
+        env:
+          SOURCE_TAG: ${{ inputs.release_tag }}
+        run: |
+          gh release download "$SOURCE_TAG" --pattern latest.json --dir "$RUNNER_TEMP/updater-metadata" --clobber
+          if ! gh release view updater-test >/dev/null 2>&1; then
+            gh release create updater-test \
+              --title "StarDust signed updater test channel" \
+              --prerelease \
+              --notes "Private updater metadata channel; not a player release."
+          fi
+          gh release upload updater-test "$RUNNER_TEMP/updater-metadata/latest.json" --clobber

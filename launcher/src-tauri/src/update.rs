@@ -1,11 +1,10 @@
 // Самообновление лаунчера через GitHub Releases.
 //
-// Вместо встроенного tauri-plugin-updater (который требует подписывать
-// артефакты приватным ключом) лаунчер сам опрашивает GitHub Releases API,
-// сравнивает версию и при наличии новой скачивает установщик NSIS
-// (`*-setup.exe`) и запускает его. Транспортная безопасность обеспечивается
-// HTTPS GitHub. Целостность установщика проверяется через SHA-256 (файл
-// `*.sha256` рядом с установщиком в релизе).
+// Это legacy-совместимый путь для уже установленных стабильных сборок.
+// Тестовый канал использует tauri-plugin-updater с подписанными артефактами;
+// legacy-путь сохраняется до завершения миграции, чтобы старые клиенты могли
+// получать обновления. Он опрашивает GitHub Releases API, скачивает установщик
+// NSIS (`*-setup.exe`) и проверяет его SHA-256 перед запуском.
 //
 // URL релизного API можно переопределить переменной `LAUNCHER_UPDATE_URL`
 // (как `LAUNCHER_AUTH_URL` для auth-сервера). Она должна указывать на JSON
@@ -74,6 +73,8 @@ pub struct UpdateInfo {
 #[derive(Debug, Deserialize)]
 struct GhRelease {
     tag_name: String,
+    #[serde(default)]
+    prerelease: bool,
     #[serde(default)]
     body: Option<String>,
     #[serde(default)]
@@ -153,6 +154,10 @@ async fn fetch_releases(app: &AppHandle) -> Result<Vec<GhRelease>, String> {
 }
 
 /// Проверяет, есть ли в релизе установщик и bootstrap.exe (обновлятор).
+fn is_stable_release(release: &GhRelease) -> bool {
+    !release.prerelease
+}
+
 fn is_release_ready(release: &GhRelease) -> bool {
     let has_installer = pick_asset(&release.assets).is_some();
     #[cfg(target_os = "windows")]
@@ -173,6 +178,11 @@ async fn find_update_release(
 ) -> Result<Option<GhRelease>, String> {
     let releases = fetch_releases(app).await?;
     for release in releases {
+        // Stable clients must never consume manually published prereleases,
+        // including the signed Tauri updater test channel.
+        if !is_stable_release(&release) {
+            continue;
+        }
         let tag = normalize(&release.tag_name);
         if is_newer(tag, current_version) && is_release_ready(&release) {
             return Ok(Some(release));
@@ -1221,6 +1231,28 @@ mod tests {
             "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn prereleases_are_not_stable_updates() {
+        let release = GhRelease {
+            tag_name: "updater-test".into(),
+            prerelease: true,
+            body: None,
+            assets: Vec::new(),
+        };
+        assert!(!is_stable_release(&release));
+    }
+
+    #[test]
+    fn stable_releases_are_eligible_for_legacy_updates() {
+        let release = GhRelease {
+            tag_name: "v1.0.0".into(),
+            prerelease: false,
+            body: None,
+            assets: Vec::new(),
+        };
+        assert!(is_stable_release(&release));
     }
 
     #[test]
