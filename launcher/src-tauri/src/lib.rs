@@ -55,6 +55,9 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        // The signed updater is enabled only by the test-channel config. Stable
+        // builds keep the legacy updater until the channel has been validated.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             commands::bootstrap(app.handle())?;
 

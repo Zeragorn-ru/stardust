@@ -632,8 +632,34 @@ export async function setModEnabled(
   await invoke<void>("set_mod_enabled", { modId, enabled });
 }
 
+/** Signed updater is opt-in for the manually published test channel only. */
+const SIGNED_UPDATER_TEST_CHANNEL =
+  import.meta.env.VITE_LAUNCHER_UPDATE_CHANNEL === "tauri-test";
+
+export const usesSignedUpdaterTestChannel = SIGNED_UPDATER_TEST_CHANNEL;
+
 /** Проверить наличие обновления лаунчера. */
 export async function checkUpdate(): Promise<UpdateInfo> {
+  if (SIGNED_UPDATER_TEST_CHANNEL) {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const update = await check();
+    if (!update) {
+      const appInfo = await getAppInfo();
+      return {
+        available: false,
+        currentVersion: appInfo.version,
+        version: null,
+        notes: null,
+      };
+    }
+    return {
+      available: true,
+      currentVersion: update.currentVersion,
+      version: update.version,
+      notes: update.body ?? null,
+    };
+  }
+
   const invoke = await getInvoke();
   if (!invoke) {
     await delay(400);
@@ -649,6 +675,56 @@ export async function checkUpdate(): Promise<UpdateInfo> {
 
 /** Скачать и установить обновление, затем перезапустить лаунчер. */
 export async function installUpdate(): Promise<void> {
+  if (SIGNED_UPDATER_TEST_CHANNEL) {
+    const { check } = await import("@tauri-apps/plugin-updater");
+    const update = await check();
+    if (!update) throw new Error("Обновление больше недоступно");
+
+    let downloaded = 0;
+    await update.downloadAndInstall((event) => {
+      if (event.event === "Started") {
+        downloaded = 0;
+        window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
+          detail: {
+            phase: "downloading_installer",
+            label: "Скачивание подписанного обновления",
+            fraction: 0,
+            downloadedBytes: 0,
+            totalBytes: event.data.contentLength ?? null,
+            speedBytesPerSec: null,
+            etaSeconds: null,
+          },
+        }));
+      } else if (event.event === "Progress") {
+        downloaded += event.data.chunkLength;
+        window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
+          detail: {
+            phase: "downloading_installer",
+            label: "Скачивание подписанного обновления",
+            fraction: null,
+            downloadedBytes: downloaded,
+            totalBytes: null,
+            speedBytesPerSec: null,
+            etaSeconds: null,
+          },
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
+          detail: {
+            phase: "launching",
+            label: "Установка подписанного обновления",
+            fraction: 1,
+            downloadedBytes: downloaded,
+            totalBytes: downloaded,
+            speedBytesPerSec: null,
+            etaSeconds: null,
+          },
+        }));
+      }
+    });
+    return;
+  }
+
   const invoke = await getInvoke();
   if (!invoke) return;
   await invoke<void>("install_update");
@@ -658,6 +734,14 @@ export async function installUpdate(): Promise<void> {
 export async function onUpdateProgress(
   handler: (progress: UpdateProgress) => void,
 ): Promise<() => void> {
+  if (SIGNED_UPDATER_TEST_CHANNEL) {
+    const listener = (event: Event) => {
+      handler((event as CustomEvent<UpdateProgress>).detail);
+    };
+    window.addEventListener("launcher://update-progress", listener);
+    return () => window.removeEventListener("launcher://update-progress", listener);
+  }
+
   try {
     const mod = await import("@tauri-apps/api/event");
     return mod.listen<UpdateProgress>("launcher://update-progress", (event) => {

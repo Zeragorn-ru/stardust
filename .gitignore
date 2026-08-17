@@ -18,6 +18,8 @@ deploy/logs/
 
 # Tauri updater: приватный ключ подписи апдейтов
 **/.tauri-signing.key
+**/.tauri-signing.key.password
+**/.tauri-signing.key.pub
 
 # OS / редакторы
 .DS_Store
