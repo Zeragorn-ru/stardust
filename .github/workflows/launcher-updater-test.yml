@@ -2,9 +2,6 @@
 name: launcher-updater-test
 
 on:
-  push:
-    branches:
-      - feat/tauri-signed-updater
   workflow_dispatch:
     inputs:
       version:
@@ -90,6 +87,7 @@ jobs:
         with:
           projectPath: launcher
           tagName: ${{ env.TEST_RELEASE_TAG }}
+          releaseCommitish: ${{ github.sha }}
           releaseDraft: false
           prerelease: true
           uploadUpdaterJson: true
