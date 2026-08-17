@@ -1075,25 +1075,18 @@ export default function SettingsScreen({
                             <span className="muted"> · {install.version}</span>
                           </span>
                           <span className="muted java-list__source">{install.source}</span>
-                           <span className="java-list__path">{install.path}</span>
-                           <button
-                             type="button"
-                             className="java-list__open"
-                             onClick={(event) => {
-                               event.stopPropagation();
-                               void openJavaPath(install.path);
-                             }}
-                             onKeyDown={(event) => {
-                               if (event.key === "Enter" || event.key === " ") {
-                                 event.preventDefault();
-                                 event.stopPropagation();
-                                 void openJavaPath(install.path);
-                               }
-                             }}
-                             aria-label={`Открыть папку Java: ${install.path}`}
-                           >
-                             Открыть
-                           </button>
+                          <button
+                            type="button"
+                            className="java-list__path"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void openJavaPath(install.path);
+                            }}
+                            aria-label={`Открыть папку Java: ${install.path}`}
+                            title={`Открыть папку: ${install.path}`}
+                          >
+                            {install.path}
+                          </button>
                          </div>
                       );
                     })}

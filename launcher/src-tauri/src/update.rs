@@ -134,39 +134,70 @@ fn http_client(app: &AppHandle) -> Result<reqwest::Client, String> {
         .map_err(|e| format!("не удалось создать HTTP-клиент: {e}"))
 }
 
-/// Загружает список релизов (новые первые, до 50 штук).
+/// Загружает все страницы списка релизов (новые первые).
+///
+/// Старые лаунчеры (в частности, ветка 0.8.x) используют тот же список
+/// GitHub Releases и ожидают обычные стабильные релизы с legacy-ассетами.
+/// Не ограничиваемся первой страницей: иначе после большого числа тестовых
+/// или стабильных релизов старый клиент может больше не увидеть подходящее
+/// обновление.
 async fn fetch_releases(app: &AppHandle) -> Result<Vec<GhRelease>, String> {
-    let resp = http_client(app)?
-        .get(api_url())
-        .header("Accept", "application/vnd.github+json")
-        .query(&[("per_page", "50")])
-        .send()
-        .await
-        .map_err(|e| format!("Не удалось получить список релизов: {e}"))?;
+    let http = http_client(app)?;
+    let url = api_url();
+    let mut all_releases = Vec::new();
+    let mut page = 1u32;
 
-    if !resp.status().is_success() {
-        return Err(format!("GitHub API ответил статусом {}", resp.status()));
+    loop {
+        let resp = http
+            .get(&url)
+            .header("Accept", "application/vnd.github+json")
+            .query(&[("per_page", 100u32), ("page", page)])
+            .send()
+            .await
+            .map_err(|e| format!("Не удалось получить список релизов: {e}"))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("GitHub API ответил статусом {}", resp.status()));
+        }
+
+        let releases = resp
+            .json::<Vec<GhRelease>>()
+            .await
+            .map_err(|e| format!("Не удалось разобрать список релизов: {e}"))?;
+        let page_is_full = releases.len() == 100;
+        all_releases.extend(releases);
+
+        if !page_is_full {
+            break;
+        }
+        page += 1;
     }
 
-    resp.json::<Vec<GhRelease>>()
-        .await
-        .map_err(|e| format!("Не удалось разобрать список релизов: {e}"))
+    Ok(all_releases)
 }
 
-/// Проверяет, есть ли в релизе установщик и bootstrap.exe (обновлятор).
+/// Проверяет, что стабильный релиз содержит legacy-ассеты для Windows.
+///
+/// Это часть обратной совместимости: старые клиенты 0.8.x не понимают
+/// `latest.json` Tauri updater и обновляются через установщик + bootstrap.exe.
+#[cfg(target_os = "windows")]
+fn has_legacy_windows_assets(assets: &[GhAsset]) -> bool {
+    pick_asset(assets).is_some() && find_bootstrap_asset(assets).is_some()
+}
+
+/// Проверяет, является ли релиз стабильным.
 fn is_stable_release(release: &GhRelease) -> bool {
     !release.prerelease
 }
 
 fn is_release_ready(release: &GhRelease) -> bool {
-    let has_installer = pick_asset(&release.assets).is_some();
     #[cfg(target_os = "windows")]
     {
-        has_installer && find_bootstrap_asset(&release.assets).is_some()
+        has_legacy_windows_assets(&release.assets)
     }
     #[cfg(not(target_os = "windows"))]
     {
-        has_installer
+        pick_asset(&release.assets).is_some()
     }
 }
 
@@ -1154,6 +1185,8 @@ mod tests {
         assert!(is_newer("1.2.0", "1.1.0"));
         assert!(is_newer("2.0.0", "1.9.9"));
         assert!(is_newer("1.0.1", "1.0.0"));
+        assert!(is_newer("0.10.0", "0.8.28"));
+        assert!(is_newer("1.0.0", "0.8.28"));
         assert!(!is_newer("1.0.0", "1.0.0"));
         assert!(!is_newer("1.0.0", "1.1.0"));
         assert!(!is_newer("1.1.0", "1.2.0"));
