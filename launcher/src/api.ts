@@ -632,15 +632,21 @@ export async function setModEnabled(
   await invoke<void>("set_mod_enabled", { modId, enabled });
 }
 
-/** Signed updater is opt-in for the manually published test channel only. */
-const SIGNED_UPDATER_TEST_CHANNEL =
-  import.meta.env.VITE_LAUNCHER_UPDATE_CHANNEL === "tauri-test";
+/**
+ * Stable builds use Tauri's signed updater. The private test channel uses the
+ * same implementation; `legacy` is retained only for emergency rollback and
+ * local compatibility testing.
+ */
+const LAUNCHER_UPDATE_CHANNEL =
+  import.meta.env.VITE_LAUNCHER_UPDATE_CHANNEL || "stable";
+const SIGNED_UPDATER_ENABLED =
+  LAUNCHER_UPDATE_CHANNEL === "stable" || LAUNCHER_UPDATE_CHANNEL === "tauri-test";
 
-export const usesSignedUpdaterTestChannel = SIGNED_UPDATER_TEST_CHANNEL;
+export const usesSignedUpdaterTestChannel = LAUNCHER_UPDATE_CHANNEL === "tauri-test";
 
 /** Проверить наличие обновления лаунчера. */
 export async function checkUpdate(): Promise<UpdateInfo> {
-  if (SIGNED_UPDATER_TEST_CHANNEL) {
+  if (SIGNED_UPDATER_ENABLED) {
     const { check } = await import("@tauri-apps/plugin-updater");
     const update = await check();
     if (!update) {
@@ -675,7 +681,7 @@ export async function checkUpdate(): Promise<UpdateInfo> {
 
 /** Скачать и установить обновление, затем перезапустить лаунчер. */
 export async function installUpdate(): Promise<void> {
-  if (SIGNED_UPDATER_TEST_CHANNEL) {
+  if (SIGNED_UPDATER_ENABLED) {
     const { check } = await import("@tauri-apps/plugin-updater");
     const update = await check();
     if (!update) throw new Error("Обновление больше недоступно");
@@ -734,7 +740,7 @@ export async function installUpdate(): Promise<void> {
 export async function onUpdateProgress(
   handler: (progress: UpdateProgress) => void,
 ): Promise<() => void> {
-  if (SIGNED_UPDATER_TEST_CHANNEL) {
+  if (SIGNED_UPDATER_ENABLED) {
     const listener = (event: Event) => {
       handler((event as CustomEvent<UpdateProgress>).detail);
     };

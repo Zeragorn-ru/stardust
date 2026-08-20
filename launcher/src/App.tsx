@@ -41,6 +41,7 @@ export default function App() {
   const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null);
   const { reload: reloadSkin } = useSkin();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [autoInstallUpdate, setAutoInstallUpdate] = useState(false);
   const updateModal = useDelayedUnmount(update != null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
@@ -197,7 +198,10 @@ export default function App() {
       checking = true;
       try {
         const info = await checkUpdate();
-        if (!cancelled && info.available) setUpdate(info);
+        if (!cancelled && info.available) {
+          setAutoInstallUpdate(true);
+          setUpdate(info);
+        }
       } catch { /* ignore */ } finally { checking = false; }
     }
     runCheck();
@@ -295,7 +299,11 @@ export default function App() {
       {updateModal.shouldRender && update && (
         <UpdateModal
           update={update}
-          onDismiss={() => setUpdate(null)}
+          autoInstall={autoInstallUpdate}
+          onDismiss={() => {
+            setUpdate(null);
+            setAutoInstallUpdate(false);
+          }}
           closing={!updateModal.visible}
         />
       )}

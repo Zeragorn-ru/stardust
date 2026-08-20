@@ -42,12 +42,16 @@ jobs:
             runner: macos-latest
             tauri-args: "--target universal-apple-darwin"
     runs-on: ${{ matrix.runner }}
-    # Пустая строка = без deployment environment (только macOS использует launcher-release).
-    environment: ${{ matrix.id == 'macos' && 'launcher-release' || '' }}
+    # Tauri updater signing keys are stored in this protected environment for
+    # every platform, not only macOS.
+    environment: launcher-release
     env:
       CI: true
       GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      VITE_LAUNCHER_UPDATE_CHANNEL: stable
     steps:
       - uses: actions/checkout@v4
         with:
@@ -82,6 +86,17 @@ jobs:
         with:
           version: ${{ github.ref_name }}
 
+      - name: "⑦ Create stable release"
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" \
+              --target "$GITHUB_SHA" \
+              --title "Launcher $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
+
       - name: "⑦ Wait for token"
         if: startsWith(github.ref, 'refs/tags/')
         uses: ./.github/actions/launcher-wait-token
@@ -115,6 +130,8 @@ jobs:
         with:
           tauri-args: ${{ matrix.tauri-args }}
           signing: "false"
+          release-tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          upload-updater: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
 
       - name: "⑧ Tauri build (signed)"
         if: matrix.id == 'macos' && steps.signing.outputs.available == 'true'
@@ -122,6 +139,8 @@ jobs:
         with:
           tauri-args: ${{ matrix.tauri-args }}
           signing: "true"
+          release-tag: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          upload-updater: ${{ startsWith(github.ref, 'refs/tags/') && 'true' || 'false' }}
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}

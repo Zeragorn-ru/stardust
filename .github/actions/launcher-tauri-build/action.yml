@@ -20,6 +20,14 @@ inputs:
     description: "Включить Apple code signing (true/false)"
     required: false
     default: "true"
+  release-tag:
+    description: "Stable GitHub release tag for signed updater metadata"
+    required: false
+    default: ""
+  upload-updater:
+    description: "Upload signed Tauri updater metadata and signatures"
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -30,10 +38,15 @@ runs:
       env:
         CI: true
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       with:
         projectPath: launcher
+        tagName: ${{ inputs.release-tag }}
+        releaseCommitish: ${{ github.sha }}
         releaseDraft: ${{ inputs.release-draft }}
         prerelease: ${{ inputs.prerelease }}
+        includeUpdaterJson: ${{ inputs.upload-updater }}
         args: ${{ inputs.tauri-args }} -- --profile launcher-release
 
     - name: Tauri build (signed)
@@ -42,6 +55,8 @@ runs:
       env:
         CI: true
         GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
+        TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
         APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
         APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
@@ -54,6 +69,9 @@ runs:
         APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
       with:
         projectPath: launcher
+        tagName: ${{ inputs.release-tag }}
+        releaseCommitish: ${{ github.sha }}
         releaseDraft: ${{ inputs.release-draft }}
         prerelease: ${{ inputs.prerelease }}
+        includeUpdaterJson: ${{ inputs.upload-updater }}
         args: ${{ inputs.tauri-args }} -- --profile launcher-release

@@ -55,8 +55,9 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
-        // The signed updater is enabled only by the test-channel config. Stable
-        // builds keep the legacy updater until the channel has been validated.
+        // The plugin is registered in every build. Stable and test channels use
+        // signed Tauri updates; the legacy Rust updater remains available as an
+        // emergency rollback and migration path for old installed clients.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             commands::bootstrap(app.handle())?;

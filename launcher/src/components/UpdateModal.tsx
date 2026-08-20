@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UpdateInfo, UpdateProgress } from "../types";
 import { installUpdate, onUpdateProgress } from "../api";
 
@@ -6,6 +6,7 @@ interface Props {
   update: UpdateInfo;
   onDismiss: () => void;
   closing?: boolean;
+  autoInstall?: boolean;
 }
 
 function formatSize(bytes: number): string {
@@ -70,10 +71,13 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-export default function UpdateModal({ update, onDismiss, closing }: Props) {
-  const [status, setStatus] = useState<"idle" | "installing" | "error">("idle");
+export default function UpdateModal({ update, onDismiss, closing, autoInstall = false }: Props) {
+  const [status, setStatus] = useState<"idle" | "installing" | "error">(
+    autoInstall ? "installing" : "idle",
+  );
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
+  const installStarted = useRef(false);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -87,12 +91,15 @@ export default function UpdateModal({ update, onDismiss, closing }: Props) {
   }, [onDismiss, status]);
 
   async function handleInstall() {
+    if (installStarted.current) return;
+    installStarted.current = true;
     setStatus("installing");
     setError(null);
     setProgress(null);
     const unlisten = await onUpdateProgress((p) => {
       setProgress(p);
       if (p.phase === "error") {
+        installStarted.current = false;
         setError(p.label);
         setStatus("error");
       }
@@ -100,12 +107,17 @@ export default function UpdateModal({ update, onDismiss, closing }: Props) {
     try {
       await installUpdate();
     } catch (e) {
+      installStarted.current = false;
       setError(e instanceof Error ? e.message : String(e));
       setStatus("error");
     } finally {
       unlisten();
     }
   }
+
+  useEffect(() => {
+    if (autoInstall) void handleInstall();
+  }, [autoInstall, update.version]);
 
   const installing = status === "installing";
   const fraction = progress?.fraction ?? null;
