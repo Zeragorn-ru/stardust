@@ -209,3 +209,34 @@ jobs:
         uses: ./.github/actions/launcher-upload-release
         with:
           tag: ${{ github.ref_name }}
+
+  # Keep updater metadata on a dedicated release. The GitHub `latest` release
+  # is also used by other artifacts (for example authlib-injector), so it is
+  # not a stable updater endpoint.
+  publish-updater-alias:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: release
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Publish launcher-stable metadata
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/launcher-meta"
+          gh release download "$GITHUB_REF_NAME" \
+            --pattern latest.json \
+            --dir "$RUNNER_TEMP/launcher-meta" \
+            --clobber
+          if ! gh release view launcher-stable >/dev/null 2>&1; then
+            gh release create launcher-stable \
+              --title "StarDust Launcher (stable updater)" \
+              --notes "Stable updater metadata alias for launcher releases."
+          fi
+          gh release upload launcher-stable \
+            "$RUNNER_TEMP/launcher-meta/latest.json" --clobber
