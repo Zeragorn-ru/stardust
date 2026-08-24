@@ -38,10 +38,12 @@ jobs:
         with:
           fetch-depth: 1
 
+      # The pinned upstream Gradle 8.0.2 cannot run on Java 21
+      # (Groovy rejects class-file major version 65); use 17 to build it.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 17
 
       - name: Resolve version and release tag
         id: release
