@@ -50,10 +50,13 @@ const MAX_GUIDE_SLUG_CHARS: usize = 80;
 const MAX_GUIDE_EXCERPT_CHARS: usize = 240;
 const MAX_GUIDE_MARKDOWN_CHARS: usize = 40_000;
 
-/// Метаданные последней сборки authlib-injector у апстрима.
-const AUTHLIB_INJECTOR_LATEST: &str = "https://authlib-injector.yushi.moe/artifact/latest.json";
+/// URL совместимого алиаса последней StarDust-сборки authlib-injector.
+const DEFAULT_AUTHLIB_INJECTOR_URL: &str =
+    "https://github.com/Zeragorn-ru/stardust/releases/download/authlib-injector-stable/authlib-injector.jar";
+const DEFAULT_AUTHLIB_INJECTOR_METADATA_URL: &str =
+    "https://github.com/Zeragorn-ru/stardust/releases/download/authlib-injector-stable/authlib-injector.json";
 
-/// Как часто перепроверять апстрим на новую версию инжектора.
+/// Как часто перепроверять последнюю версию injector.
 const INJECTOR_TTL: Duration = Duration::from_secs(6 * 60 * 60); // 6 часов
 
 type Shared = Arc<AppState>;
@@ -65,8 +68,15 @@ struct AppState {
     /// Публичный префикс, под которым лаунчер качает файлы (напр.
     /// `https://host/files`). Подставляется в URL манифеста.
     files_base_url: String,
-    /// HTTP-клиент к апстриму authlib-injector.
+    /// HTTP-клиент для скачивания закреплённого authlib-injector.
     http: reqwest::Client,
+    /// URL jar-файла последней StarDust-сборки.
+    injector_url: String,
+    /// URL JSON-метаданных последней версии.
+    injector_metadata_url: String,
+    /// Резервные значения для старого deployment без metadata JSON.
+    injector_version: String,
+    injector_sha256: Option<String>,
     /// Кэш jar-файла authlib-injector (см. `INJECTOR_TTL`).
     injector: Mutex<Option<InjectorCache>>,
     /// Защита от параллельных SFTP-синхронизаций одной панели.
@@ -85,7 +95,18 @@ struct AppState {
 /// Закэшированный authlib-injector.jar с временем загрузки.
 struct InjectorCache {
     bytes: Vec<u8>,
+    version: String,
+    sha256: Option<String>,
     fetched: Instant,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct InjectorMetadata {
+    version: String,
+    #[serde(default)]
+    sha256: Option<String>,
+    #[serde(rename = "downloadUrl", default)]
+    download_url: Option<String>,
 }
 
 #[tokio::main]
@@ -130,6 +151,26 @@ async fn main() {
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "http://127.0.0.1:8081/files".to_string());
 
+    let injector_url = std::env::var("AUTHLIB_INJECTOR_URL")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| DEFAULT_AUTHLIB_INJECTOR_URL.to_string());
+    let injector_metadata_url = std::env::var("AUTHLIB_INJECTOR_METADATA_URL")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| DEFAULT_AUTHLIB_INJECTOR_METADATA_URL.to_string());
+    let injector_version = std::env::var("AUTHLIB_INJECTOR_VERSION")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "stable".to_string());
+    let injector_sha256 = std::env::var("AUTHLIB_INJECTOR_SHA256")
+        .ok()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty());
+
     let state = Arc::new(AppState {
         store,
         modpack_dir: modpack_dir.clone(),
@@ -138,6 +179,10 @@ async fn main() {
             .user_agent(concat!("admin-server/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("не удалось собрать HTTP-клиент"),
+        injector_url,
+        injector_metadata_url,
+        injector_version,
+        injector_sha256,
         injector: Mutex::new(None),
         sync_to_panel_running: Mutex::new(None),
         sync_to_panel_status: Mutex::new(SyncStatus::default()),
@@ -319,6 +364,10 @@ async fn main() {
         .route("/public/guides/:slug", get(public_guide))
         .route("/public/leaderboards", get(public_leaderboards))
         .route("/manifest", get(manifest))
+        .route(
+            "/authlib-injector/latest.json",
+            get(authlib_injector_metadata),
+        )
         .route("/authlib-injector.jar", get(authlib_injector))
         .nest_service("/files", ServeDir::new(modpack_dir))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
@@ -4008,29 +4057,77 @@ async fn deps_check(
 
 // ───────────────────── authlib-injector ─────────────────────
 
-/// `GET /authlib-injector.jar` — отдаёт актуальный authlib-injector.jar.
+/// Возвращает метаданные последней опубликованной StarDust-сборки.
 ///
-/// Публичный (без авторизации): лаунчер тянет инжектор отсюда, чтобы не
-/// зависеть от доступности апстрима у каждого клиента. Сервер кэширует
-/// jar в памяти (см. `INJECTOR_TTL`) и проверяет sha256 из `latest.json`.
+/// Если старый deployment ещё не публикует JSON, используются значения из
+/// переменных окружения, поэтому существующий `/authlib-injector.jar` остаётся
+/// совместимым.
+async fn resolve_injector_metadata(state: &AppState) -> Result<InjectorMetadata, String> {
+    let fallback = || InjectorMetadata {
+        version: state.injector_version.clone(),
+        sha256: state.injector_sha256.clone(),
+        download_url: None,
+    };
+    let remote = match state.http.get(&state.injector_metadata_url).send().await {
+        Ok(response) if response.status().is_success() => response,
+        Ok(_) | Err(_) => return Ok(fallback()),
+    };
+    let mut metadata = match remote.json::<InjectorMetadata>().await {
+        Ok(metadata) => metadata,
+        Err(_) => return Ok(fallback()),
+    };
+    if metadata.version.trim().is_empty() {
+        return Ok(fallback());
+    }
+    metadata.sha256 = metadata
+        .sha256
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    metadata.download_url = None;
+    Ok(metadata)
+}
+
+/// `GET /authlib-injector/latest.json` — версия и checksum последнего injector.
+async fn authlib_injector_metadata(
+    State(state): State<Shared>,
+) -> Result<Json<InjectorMetadata>, ApiError> {
+    let mut metadata = resolve_injector_metadata(&state)
+        .await
+        .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, e))?;
+    metadata.download_url = Some("/authlib-injector.jar".into());
+    Ok(Json(metadata))
+}
+
+/// `GET /authlib-injector.jar` — отдаёт последнюю StarDust-сборку.
+///
+/// Публичный endpoint сохраняется для старых лаунчеров и админки. Кэш
+/// инвалидируется при смене версии или checksum в release metadata.
 async fn authlib_injector(State(state): State<Shared>) -> Result<Response, ApiError> {
+    let metadata = resolve_injector_metadata(&state)
+        .await
+        .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, e))?;
     let mut guard = state.injector.lock().await;
 
     let fresh = guard
         .as_ref()
-        .map(|c| c.fetched.elapsed() < INJECTOR_TTL)
+        .map(|c| {
+            c.fetched.elapsed() < INJECTOR_TTL
+                && c.version == metadata.version
+                && c.sha256 == metadata.sha256
+        })
         .unwrap_or(false);
 
     if !fresh {
-        match fetch_injector(&state.http).await {
+        match fetch_injector(&state.http, &state.injector_url, metadata.sha256.as_deref()).await {
             Ok(bytes) => {
                 *guard = Some(InjectorCache {
                     bytes,
+                    version: metadata.version.clone(),
+                    sha256: metadata.sha256.clone(),
                     fetched: Instant::now(),
                 });
             }
             Err(e) => {
-                // Апстрим недоступен — отдаём устаревший кэш, если он есть.
                 if guard.is_none() {
                     return Err(ApiError::new(
                         StatusCode::BAD_GATEWAY,
@@ -4042,17 +4139,19 @@ async fn authlib_injector(State(state): State<Shared>) -> Result<Response, ApiEr
         }
     }
 
-    let bytes = guard
-        .as_ref()
-        .expect("кэш инжектора должен быть заполнен")
-        .bytes
-        .clone();
+    let cached = guard.as_ref().expect("кэш инжектора должен быть заполнен");
+    let bytes = cached.bytes.clone();
+    let version = cached.version.clone();
 
     Ok((
         StatusCode::OK,
         [
             (header::CONTENT_TYPE, "application/java-archive"),
             (header::CACHE_CONTROL, "public, max-age=3600"),
+            (
+                header::HeaderName::from_static("x-authlib-injector-version"),
+                version.as_str(),
+            ),
             (
                 header::CONTENT_DISPOSITION,
                 "attachment; filename=\"authlib-injector.jar\"",
@@ -4063,48 +4162,30 @@ async fn authlib_injector(State(state): State<Shared>) -> Result<Response, ApiEr
         .into_response())
 }
 
-/// Метаданные `latest.json` authlib-injector (нужны URL и sha256).
-#[derive(Deserialize)]
-struct InjectorMeta {
-    download_url: String,
-    checksums: Option<InjectorChecksums>,
-}
-
-#[derive(Deserialize)]
-struct InjectorChecksums {
-    sha256: Option<String>,
-}
-
-/// Скачивает актуальный authlib-injector.jar с апстрима и сверяет sha256.
-async fn fetch_injector(http: &reqwest::Client) -> Result<Vec<u8>, String> {
-    let meta: InjectorMeta = http
-        .get(AUTHLIB_INJECTOR_LATEST)
-        .send()
-        .await
-        .map_err(|e| format!("запрос latest.json: {e}"))?
-        .error_for_status()
-        .map_err(|e| format!("latest.json: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("разбор latest.json: {e}"))?;
-
+/// Скачивает StarDust authlib-injector и сверяет SHA-256. Апстрим намеренно
+/// не используется: его `ProfileKeyFilter` возвращает фиктивную подпись `AA==`.
+async fn fetch_injector(
+    http: &reqwest::Client,
+    url: &str,
+    expected_sha256: Option<&str>,
+) -> Result<Vec<u8>, String> {
     let bytes = http
-        .get(&meta.download_url)
+        .get(url)
         .send()
         .await
-        .map_err(|e| format!("загрузка jar: {e}"))?
+        .map_err(|e| format!("загрузка StarDust authlib-injector: {e}"))?
         .error_for_status()
-        .map_err(|e| format!("загрузка jar: {e}"))?
+        .map_err(|e| format!("StarDust authlib-injector: {e}"))?
         .bytes()
         .await
-        .map_err(|e| format!("чтение jar: {e}"))?
+        .map_err(|e| format!("чтение authlib-injector: {e}"))?
         .to_vec();
 
-    if let Some(expected) = meta.checksums.and_then(|c| c.sha256) {
+    if let Some(expected) = expected_sha256 {
         let actual = sha256_hex(&bytes);
-        if !actual.eq_ignore_ascii_case(expected.trim()) {
+        if actual != expected.trim().to_ascii_lowercase() {
             return Err(format!(
-                "sha256 не совпадает (ожидали {expected}, получили {actual})"
+                "sha256 authlib-injector не совпадает (ожидали {expected}, получили {actual})"
             ));
         }
     }

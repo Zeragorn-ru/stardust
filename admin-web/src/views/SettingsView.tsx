@@ -547,8 +547,9 @@ export function SettingsView() {
             <div>
               <CardTitle>authlib-injector</CardTitle>
               <CardDescription>
-                Агент для подмены сервиса авторизации в Minecraft. Скачайте и
-                добавьте в JVM-аргументы лаунчера.
+                Последняя StarDust-сборка Java-agent для авторизации Minecraft.
+                Injector автоматически обновляется в лаунчере; для сервера скачайте
+                этот файл и добавьте его в JVM-аргументы.
               </CardDescription>
             </div>
           </CardHeader>

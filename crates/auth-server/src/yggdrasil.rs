@@ -11,6 +11,8 @@
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use time::{format_description::well_known::Rfc3339, Duration, OffsetDateTime};
+
 use base64::Engine;
 use rsa::pkcs1v15::SigningKey;
 use rsa::pkcs8::{DecodePrivateKey, EncodePrivateKey, EncodePublicKey, LineEnding};
@@ -96,6 +98,80 @@ impl Keys {
     }
 }
 
+fn pem_block(label: &str, der: &[u8]) -> String {
+    let encoded = base64::engine::general_purpose::STANDARD.encode(der);
+    let body = encoded
+        .as_bytes()
+        .chunks(76)
+        .map(|line| std::str::from_utf8(line).expect("base64 is ASCII"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("-----BEGIN {label}-----\n{body}\n-----END {label}-----\n")
+}
+
+/// Ответ Minecraft на `/minecraftservices/player/certificates`.
+///
+/// Authlib-injector получает этот ответ локально и передаёт ключевую пару
+/// клиенту. Подписи делаются тем же RSA-ключом, который опубликован в
+/// `signaturePublickey` метаданных Yggdrasil. Поэтому клиент и Paper видят
+/// полноценную 2048-битную подпись вместо фиктивного `AA==` от upstream
+/// authlib-injector.
+pub fn profile_key_response(keys: &Keys, profile_id: &str) -> Option<serde_json::Value> {
+    let compact_id = profile_id.replace('-', "");
+    let canonical_id = if compact_id.len() == 32 {
+        format!(
+            "{}-{}-{}-{}-{}",
+            &compact_id[0..8],
+            &compact_id[8..12],
+            &compact_id[12..16],
+            &compact_id[16..20],
+            &compact_id[20..32]
+        )
+    } else {
+        profile_id.to_string()
+    };
+    let profile_id = uuid::Uuid::parse_str(&canonical_id).ok()?;
+    let mut rng = rand::thread_rng();
+    let private_key = RsaPrivateKey::new(&mut rng, KEY_BITS).ok()?;
+    let public_key = private_key.to_public_key();
+    let private_der = private_key.to_pkcs8_der().ok()?;
+    let public_der = public_key.to_public_key_der().ok()?;
+    // Minecraft's certificate parser accepts PKCS#8/PKIX DER with the
+    // historical RSA PEM labels used by the Mojang endpoint.
+    let private_pem = pem_block("RSA PRIVATE KEY", private_der.as_bytes());
+    let public_pem = pem_block("RSA PUBLIC KEY", public_der.as_bytes());
+
+    let now = OffsetDateTime::now_utc();
+    let expires_at = now + Duration::hours(48);
+    let refreshed_after = now + Duration::hours(36);
+    let expires_ms = expires_at.unix_timestamp_nanos() / 1_000_000;
+    let expires_ms = i64::try_from(expires_ms).ok()?;
+
+    // Legacy certificate signature: decimal expiry followed by the PEM key.
+    let legacy_payload = format!("{expires_ms}{public_pem}");
+    let legacy_signature = keys.sign(legacy_payload.as_bytes());
+
+    // Modern certificate signature: fixed-width UUID + expiry (big-endian)
+    // + DER key. Minecraft's ProfilePublicKey.Data writes both UUID longs,
+    // including leading zero bytes.
+    let mut v2_payload = Vec::with_capacity(16 + 8 + public_der.as_bytes().len());
+    v2_payload.extend_from_slice(profile_id.as_bytes());
+    v2_payload.extend_from_slice(&expires_ms.to_be_bytes());
+    v2_payload.extend_from_slice(public_der.as_bytes());
+    let v2_signature = keys.sign(&v2_payload);
+
+    Some(serde_json::json!({
+        "keyPair": {
+            "privateKey": private_pem,
+            "publicKey": public_pem,
+        },
+        "publicKeySignature": legacy_signature,
+        "publicKeySignatureV2": v2_signature,
+        "expiresAt": expires_at.format(&Rfc3339).ok()?,
+        "refreshedAfter": refreshed_after.format(&Rfc3339).ok()?,
+    }))
+}
+
 /// Свойство профиля `textures`: возвращает (значение base64, подпись base64).
 ///
 /// `skin_url` / `cape_url` — абсолютные URL вида `<public>/textures/<sha256>`.
@@ -165,4 +241,76 @@ pub fn profile_json(
         "name": profile.name,
         "properties": [property],
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rsa::pkcs1v15::{Signature, VerifyingKey};
+    use rsa::signature::Verifier;
+
+    fn verify(label: &str, verifier: &VerifyingKey<Sha1>, encoded: &str, payload: &[u8]) {
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .expect("signature is base64");
+        assert_eq!(bytes.len(), KEY_BITS / 8);
+        verifier
+            .verify(
+                payload,
+                &Signature::try_from(bytes.as_slice()).expect("RSA signature"),
+            )
+            .unwrap_or_else(|_| panic!("{label} signature must verify"));
+    }
+
+    #[test]
+    fn profile_key_response_contains_verifiable_rsa_signatures() {
+        let private = Keys::generate_private();
+        let public = private.to_public_key();
+        let verifier = VerifyingKey::<Sha1>::new(public.clone());
+        let keys = Keys::from_private(private);
+        let response = profile_key_response(&keys, "00112233445566778899aabbccddeeff")
+            .expect("valid UUID should produce a certificate");
+
+        let expires_at = response["expiresAt"].as_str().expect("expiry is a string");
+        let expires_at = OffsetDateTime::parse(expires_at, &Rfc3339).expect("valid expiry");
+        let expires_ms = expires_at.unix_timestamp_nanos() / 1_000_000;
+        let expires_ms = i64::try_from(expires_ms).expect("expiry fits i64");
+        let public_pem = response["keyPair"]["publicKey"]
+            .as_str()
+            .expect("public key is a string");
+        let public_b64 = public_pem
+            .lines()
+            .filter(|line| !line.starts_with("-----"))
+            .collect::<String>();
+        let public_der = base64::engine::general_purpose::STANDARD
+            .decode(public_b64)
+            .expect("certificate public DER");
+
+        let legacy_payload = format!("{expires_ms}{public_pem}");
+        verify(
+            "legacy",
+            &verifier,
+            response["publicKeySignature"]
+                .as_str()
+                .expect("legacy signature"),
+            legacy_payload.as_bytes(),
+        );
+
+        let mut v2_payload = Vec::with_capacity(24 + public_der.len());
+        v2_payload.extend_from_slice(
+            &uuid::Uuid::parse_str("00112233-4455-6677-8899-aabbccddeeff")
+                .expect("UUID")
+                .as_bytes()[..],
+        );
+        v2_payload.extend_from_slice(&expires_ms.to_be_bytes());
+        v2_payload.extend_from_slice(&public_der);
+        verify(
+            "v2",
+            &verifier,
+            response["publicKeySignatureV2"]
+                .as_str()
+                .expect("v2 signature"),
+            &v2_payload,
+        );
+    }
 }

@@ -56,6 +56,9 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
       # Публичный URL, под которым сервер виден игре (текстуры, skinDomains).
       AUTH_PUBLIC_URL: ${AUTH_PUBLIC_URL:-http://127.0.0.1:8080}
+      # StarDust authlib-injector поддерживает собственные profile-key подписи.
+      # Отключить можно только как аварийный rollback: AUTH_ENABLE_PROFILE_KEY=false.
+      AUTH_ENABLE_PROFILE_KEY: ${AUTH_ENABLE_PROFILE_KEY:-true}
       # Ключ подписи Yggdrasil лежит в volume — иначе при пересоздании
       # контейнера он сгенерируется заново и все выданные подписи протухнут.
       AUTH_KEY_PATH: /data/yggdrasil_key.pem
@@ -90,6 +93,12 @@ services:
       # Публичный URL раздачи файлов — попадает в манифест, который качает
       # лаунчер. Должен указывать на публичный admin-web (/files).
       FILES_BASE_URL: ${FILES_BASE_URL:-http://127.0.0.1:8082/files}
+      # Последний versioned StarDust injector; upstream с dummy-подписью не используем.
+      # metadata JSON обновляется workflow вместе с алиасом stable.
+      AUTHLIB_INJECTOR_URL: ${AUTHLIB_INJECTOR_URL:-https://github.com/Zeragorn-ru/stardust/releases/download/authlib-injector-stable/authlib-injector.jar}
+      AUTHLIB_INJECTOR_METADATA_URL: ${AUTHLIB_INJECTOR_METADATA_URL:-https://github.com/Zeragorn-ru/stardust/releases/download/authlib-injector-stable/authlib-injector.json}
+      AUTHLIB_INJECTOR_VERSION: ${AUTHLIB_INJECTOR_VERSION:-stable}
+      AUTHLIB_INJECTOR_SHA256: ${AUTHLIB_INJECTOR_SHA256:-}
       # Логины (через запятую), которым при старте выдаётся роль admin.
       # Нужно для самого первого админа: регистрация всегда создаёт user.
       # Идемпотентно — можно оставить переменную навсегда.

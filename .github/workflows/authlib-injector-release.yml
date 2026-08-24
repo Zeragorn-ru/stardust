@@ -1,0 +1,117 @@
+name: authlib-injector-release
+
+on:
+  push:
+    tags:
+      - "authlib-injector-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия injector без префикса authlib-injector-v"
+        type: string
+        default: "0.1.0"
+      upload_release:
+        description: "Создать/обновить GitHub Release"
+        type: boolean
+        default: true
+      release_tag:
+        description: "Тег релиза, если upload_release=true"
+        type: string
+        default: ""
+      update_stable:
+        description: "Обновить совместимый алиас authlib-injector-stable"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    environment: launcher-release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Resolve version and release tag
+        id: release
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/authlib-injector-v* ]]; then
+            version="${GITHUB_REF_NAME#authlib-injector-v}"
+            tag="$GITHUB_REF_NAME"
+          else
+            version="${{ inputs.version }}"
+            tag="${{ inputs.release_tag }}"
+            if [[ -z "$tag" && "${{ inputs.upload_release }}" == true ]]; then
+              tag="authlib-injector-v${version}"
+            fi
+          fi
+          test -n "$version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Building authlib-injector version $version (tag: ${tag:-none})"
+
+      - name: Build StarDust injector
+        run: bash scripts/ci/build-authlib-injector.sh "$RUNNER_TEMP/authlib-injector.jar" "${{ steps.release.outputs.version }}"
+
+      - name: Calculate checksum and metadata
+        id: artifact
+        shell: bash
+        run: |
+          sha256=$(sha256sum "$RUNNER_TEMP/authlib-injector.jar" | cut -d ' ' -f1)
+          printf '%s  authlib-injector.jar\n' "$sha256" > "$RUNNER_TEMP/authlib-injector.jar.sha256"
+          printf '{"version":"%s","sha256":"%s"}\n' '${{ steps.release.outputs.version }}' "$sha256" > "$RUNNER_TEMP/authlib-injector.json"
+          echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload CI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: authlib-injector-${{ steps.release.outputs.version }}
+          path: |
+            ${{ runner.temp }}/authlib-injector.jar
+            ${{ runner.temp }}/authlib-injector.jar.sha256
+            ${{ runner.temp }}/authlib-injector.json
+          retention-days: 14
+
+      - name: Create versioned release
+        if: steps.release.outputs.tag != '' && (startsWith(github.ref, 'refs/tags/') || inputs.upload_release == true)
+        shell: bash
+        run: |
+          tag="${{ steps.release.outputs.tag }}"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" \
+              --title "StarDust authlib-injector ${{ steps.release.outputs.version }}" \
+              --generate-notes
+          fi
+          gh release upload "$tag" \
+            "$RUNNER_TEMP/authlib-injector.jar" \
+            "$RUNNER_TEMP/authlib-injector.jar.sha256" \
+            "$RUNNER_TEMP/authlib-injector.json" --clobber
+
+      - name: Update stable compatibility alias
+        if: >-
+          (startsWith(github.ref, 'refs/tags/') || inputs.update_stable == true) &&
+          (steps.release.outputs.tag != '')
+        shell: bash
+        run: |
+          stable="authlib-injector-stable"
+          if ! gh release view "$stable" >/dev/null 2>&1; then
+            gh release create "$stable" \
+              --title "StarDust authlib-injector (stable)" \
+              --notes "Compatibility alias for the latest versioned StarDust injector."
+          fi
+          gh release upload "$stable" \
+            "$RUNNER_TEMP/authlib-injector.jar" \
+            "$RUNNER_TEMP/authlib-injector.jar.sha256" \
+            "$RUNNER_TEMP/authlib-injector.json" --clobber

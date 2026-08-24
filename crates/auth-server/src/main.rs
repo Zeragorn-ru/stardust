@@ -15,6 +15,8 @@
 //! - `GET  /` — метаданные API (skinDomains, signaturePublickey).
 //! - `POST /authserver/{authenticate,refresh,validate,invalidate}` — токены.
 //! - `POST /sessionserver/session/minecraft/join` — регистрация входа.
+//! - `POST /minecraftservices/player/certificates` — ключи профиля для
+//!   подписанного чата (опционально, `AUTH_ENABLE_PROFILE_KEY=true`).
 //! - `GET  /sessionserver/session/minecraft/hasJoined` — проверка сервером.
 //! - `GET  /sessionserver/session/minecraft/profile/:uuid` — профиль с текстурами.
 //! - `POST /api/profiles/minecraft` — пакетный поиск профилей по имени.
@@ -62,6 +64,8 @@ struct AppState {
     /// Публичный базовый URL (без завершающего слэша), под которым
     /// сервер виден игре. Из него строятся URL текстур и skinDomains.
     public_url: String,
+    /// Разрешить выдачу ключей для подписанного чата.
+    profile_key_enabled: bool,
 }
 
 type Shared = Arc<AppState>;
@@ -95,6 +99,14 @@ async fn main() {
         .map(|s| s.trim().trim_end_matches('/').to_string())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
+    let profile_key_enabled = std::env::var("AUTH_ENABLE_PROFILE_KEY")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
+        .unwrap_or(false);
 
     // Ключ подписи профилей персистится, чтобы не меняться между перезапусками.
     let key_path = std::env::var("AUTH_KEY_PATH").unwrap_or_else(|_| "yggdrasil_key.pem".into());
@@ -113,6 +125,7 @@ async fn main() {
         http,
         keys,
         public_url,
+        profile_key_enabled,
     });
 
     // Фоновое обновление скинов, импортированных с лицензии.
@@ -162,6 +175,10 @@ async fn main() {
         .route("/authserver/validate", post(ygg_validate))
         .route("/authserver/invalidate", post(ygg_invalidate))
         .route("/sessionserver/session/minecraft/join", post(ygg_join))
+        .route(
+            "/minecraftservices/player/certificates",
+            post(ygg_profile_key),
+        )
         .route(
             "/sessionserver/session/minecraft/hasJoined",
             get(ygg_has_joined),
@@ -967,6 +984,7 @@ async fn ygg_meta(State(state): State<Shared>) -> Response {
             "implementationName": "launcher-auth-server",
             "implementationVersion": env!("CARGO_PKG_VERSION"),
             "feature.non_email_login": true,
+            "feature.enable_profile_key": state.profile_key_enabled,
         },
         "skinDomains": skin_domains,
         "signaturePublickey": state.keys.public_pem(),
@@ -1133,6 +1151,30 @@ struct JoinReq {
     access_token: String,
     selected_profile: String,
     server_id: String,
+}
+
+/// `POST /minecraftservices/player/certificates` — выдаёт ключевую пару
+/// профиля для подписанного чата. Endpoint выключен по умолчанию: включайте его
+/// только вместе с поддержкой `enforce-secure-profile` на Paper/Proxy.
+async fn ygg_profile_key(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if !state.profile_key_enabled {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "Поддержка ключей профиля отключена",
+        ));
+    }
+    let account = current_account(&state, &headers).await?;
+    let response =
+        yggdrasil::profile_key_response(&state.keys, &account.uuid).ok_or_else(|| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Не удалось создать ключ профиля",
+            )
+        })?;
+    Ok(Json(response))
 }
 
 /// `POST /sessionserver/session/minecraft/join` — клиент входит на сервер.

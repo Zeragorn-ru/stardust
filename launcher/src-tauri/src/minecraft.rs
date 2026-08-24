@@ -213,8 +213,20 @@ pub async fn launch(
     match ensure_authlib_injector(&progress, http, &data_dir).await {
         Ok(jar) => {
             args.push(format!("-javaagent:{}={}", jar.to_string_lossy(), auth_url));
-            if let Some(meta) = prefetch_yggdrasil_meta(http, auth_url).await {
+            if let Some((meta, profile_keys_enabled)) =
+                prefetch_yggdrasil_meta(http, auth_url).await
+            {
                 args.push(format!("-Dauthlibinjector.yggdrasil.prefetched={meta}"));
+                args.push(format!(
+                    "-Dauthlibinjector.profileKey={}",
+                    if profile_keys_enabled {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                ));
+            } else {
+                return Err("Не удалось получить метаданные auth-server для profile key".into());
             }
         }
         Err(e) => tracing::warn!("authlib-injector недоступен, запуск без кастомных скинов: {e}"),
@@ -1597,121 +1609,145 @@ async fn latest_neoforge_21_1(http: &reqwest::Client) -> Result<String, String> 
         .ok_or_else(|| "Не удалось найти NeoForge для Minecraft 1.21.1".to_string())
 }
 
-/// API с метаданными последней сборки authlib-injector (апстрим, fallback).
-const AUTHLIB_INJECTOR_LATEST: &str = "https://authlib-injector.yushi.moe/artifact/latest.json";
+/// Маркер версии локального StarDust authlib-injector.
+const AUTHLIB_INJECTOR_MARKER: &str = "stardust-profile-key-v2";
 
-/// Минимальная структура метаданных `latest.json` authlib-injector.
-#[derive(Deserialize)]
-struct InjectorMeta {
-    download_url: String,
-    #[serde(default)]
-    checksums: Option<InjectorChecksums>,
-}
-
-#[derive(Deserialize)]
-struct InjectorChecksums {
+#[derive(Debug, Deserialize)]
+struct AuthlibInjectorMetadata {
+    version: String,
     #[serde(default)]
     sha256: Option<String>,
 }
 
-/// Скачивает (и кэширует) authlib-injector.jar в папку данных лаунчера.
+fn parse_authlib_injector_marker(value: &str) -> Option<(String, Option<String>)> {
+    let mut lines = value.lines();
+    if lines.next()?.trim() != AUTHLIB_INJECTOR_MARKER {
+        return None;
+    }
+    let version = lines
+        .find_map(|line| line.strip_prefix("version=").map(str::trim))?
+        .to_string();
+    let sha256 = lines
+        .find_map(|line| line.strip_prefix("sha256=").map(str::trim))
+        .filter(|hash| !hash.is_empty())
+        .map(str::to_ascii_lowercase);
+    Some((version, sha256))
+}
+
+/// Скачивает и кэширует именно StarDust-сборку authlib-injector.
 ///
-/// Источник по умолчанию — наш admin-server (`/authlib-injector.jar`): он
-/// проксирует и кэширует апстрим, поэтому клиенту не нужен прямой доступ к
-/// `yushi.moe`. Если admin-server недоступен — падаем на апстрим напрямую
-/// с обязательной проверкой SHA-256 хеша из `latest.json`.
+/// Метаданные проверяются при каждом запуске, поэтому новый versioned release
+/// автоматически устанавливается без выпуска отдельного лаунчера.
 async fn ensure_authlib_injector(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
 ) -> Result<PathBuf, String> {
     let jar = data_dir.join("authlib-injector.jar");
-    if jar.exists() {
+    let marker = data_dir.join("authlib-injector.marker");
+    let metadata_url = format!(
+        "{}/authlib-injector/latest.json",
+        crate::backend::admin_base_url()
+    );
+    let metadata = match http.get(&metadata_url).send().await {
+        Ok(response) if response.status().is_success() => response
+            .json::<AuthlibInjectorMetadata>()
+            .await
+            .map_err(|e| format!("не удалось разобрать metadata authlib-injector: {e}"))?,
+        // Старый admin-server не знает metadata endpoint, но его совместимый
+        // `/authlib-injector.jar` всё ещё можно использовать без автообновления.
+        Ok(_) | Err(_) => AuthlibInjectorMetadata {
+            version: "legacy".into(),
+            sha256: None,
+        },
+    };
+    let version = metadata.version.trim();
+    if version.is_empty() {
+        return Err("metadata authlib-injector не содержит version".into());
+    }
+    let expected_sha256 = metadata
+        .sha256
+        .as_deref()
+        .map(str::trim)
+        .filter(|hash| !hash.is_empty())
+        .map(str::to_ascii_lowercase);
+
+    let installed = std::fs::read_to_string(&marker)
+        .ok()
+        .and_then(|value| parse_authlib_injector_marker(&value));
+    if jar.exists()
+        && installed
+            .as_ref()
+            .is_some_and(|(installed_version, installed_sha256)| {
+                installed_version == version
+                    && installed_sha256.as_deref() == expected_sha256.as_deref()
+            })
+    {
         return Ok(jar);
     }
-    progress.set_label("checking", "Загружаем authlib-injector…");
 
-    // Путь 1: admin-server (наш сервер, доверяем ему).
+    progress.set_label("checking", "Загружаем StarDust authlib-injector…");
     let admin_url = format!("{}/authlib-injector.jar", crate::backend::admin_base_url());
-    if let Err(e) = download_to(
+    let temporary = data_dir.join("authlib-injector.jar.download");
+    let _ = std::fs::remove_file(&temporary);
+    download_to(
         progress,
         http,
         &admin_url,
-        &jar,
-        "authlib-injector",
+        &temporary,
+        "StarDust authlib-injector",
         None,
         None,
     )
     .await
-    {
-        tracing::warn!("admin-server не отдал authlib-injector ({e}), пробую апстрим");
-        // Путь 2: прямой апстрим с проверкой SHA-256 из latest.json.
-        let meta = fetch_injector_meta(http).await?;
-        download_to(
-            progress,
-            http,
-            &meta.download_url,
-            &jar,
-            "authlib-injector",
-            None,
-            None,
-        )
-        .await?;
-        // Верификация SHA-256 после скачивания.
-        if let Some(expected) = &meta.sha256 {
-            tauri::async_runtime::spawn_blocking({
-                let jar = jar.clone();
-                let expected = expected.trim().to_lowercase();
-                move || -> Result<(), String> {
-                    let actual = compute_sha256_file(&jar)?;
-                    if actual != expected {
-                        let _ = std::fs::remove_file(&jar);
-                        return Err(format!(
-                            "SHA-256 authlib-injector не совпал: получен {actual}, ожидался {expected}"
-                        ));
-                    }
-                    Ok(())
-                }
-            })
-            .await
-            .map_err(|e| format!("Ошибка потока SHA-256: {e}"))??;
+    .map_err(|e| format!("Не удалось получить StarDust authlib-injector: {e}"))?;
+    if let Some(expected) = expected_sha256.as_deref() {
+        let actual = crate::sha256::compute_sha256_file(&temporary)?;
+        if actual != expected {
+            let _ = std::fs::remove_file(&temporary);
+            return Err(format!(
+                "sha256 authlib-injector не совпадает (ожидали {expected}, получили {actual})"
+            ));
         }
     }
+    if let Err(rename_error) = std::fs::rename(&temporary, &jar) {
+        // Windows не разрешает rename поверх существующего файла.
+        if jar.exists() {
+            std::fs::remove_file(&jar)
+                .and_then(|_| std::fs::rename(&temporary, &jar))
+                .map_err(|e| format!("Не удалось заменить authlib-injector: {e}"))?;
+        } else {
+            return Err(format!(
+                "Не удалось заменить authlib-injector: {rename_error}"
+            ));
+        }
+    }
+    let sha_marker = expected_sha256.as_deref().unwrap_or("");
+    std::fs::write(
+        &marker,
+        format!("{AUTHLIB_INJECTOR_MARKER}\nversion={version}\nsha256={sha_marker}\n"),
+    )
+    .map_err(|e| format!("Не удалось сохранить маркер authlib-injector: {e}"))?;
     Ok(jar)
 }
 
-/// Метаданные апстрима authlib-injector: URL скачивания и хеш.
-struct InjectorMetaInfo {
-    download_url: String,
-    sha256: Option<String>,
+#[derive(Deserialize)]
+struct YggdrasilMeta {
+    #[serde(default)]
+    meta: YggdrasilMetaFeatures,
 }
 
-/// Получает метаданные свежего authlib-injector из `latest.json` апстрима.
-async fn fetch_injector_meta(http: &reqwest::Client) -> Result<InjectorMetaInfo, String> {
-    let meta: InjectorMeta = http
-        .get(AUTHLIB_INJECTOR_LATEST)
-        .send()
-        .await
-        .map_err(network_error)?
-        .error_for_status()
-        .map_err(|e| format!("Не удалось получить метаданные authlib-injector: {e}"))?
-        .json()
-        .await
-        .map_err(network_error)?;
-    Ok(InjectorMetaInfo {
-        download_url: meta.download_url,
-        sha256: meta.checksums.and_then(|c| c.sha256),
-    })
-}
-
-/// Вычисляет SHA-256 файла и возвращает hex-строку (lowercase).
-fn compute_sha256_file(path: &Path) -> Result<String, String> {
-    crate::sha256::compute_sha256_file(path)
+#[derive(Default, Deserialize)]
+struct YggdrasilMetaFeatures {
+    #[serde(rename = "feature.enable_profile_key", default)]
+    enable_profile_key: bool,
 }
 
 /// Префетч метаданных Yggdrasil-API (base64), чтобы authlib-injector не ходил
-/// за ними сам при старте игры. Ошибки не критичны — вернём `None`.
-async fn prefetch_yggdrasil_meta(http: &reqwest::Client, auth_url: &str) -> Option<String> {
+/// за ними сам при старте игры. Одновременно возвращаем флаг profile-key,
+/// чтобы собственный injector включал сертификаты только по явному сигналу
+/// auth-server.
+async fn prefetch_yggdrasil_meta(http: &reqwest::Client, auth_url: &str) -> Option<(String, bool)> {
     use base64::Engine;
     let bytes = http
         .get(format!("{auth_url}/"))
@@ -1723,7 +1759,11 @@ async fn prefetch_yggdrasil_meta(http: &reqwest::Client, auth_url: &str) -> Opti
         .bytes()
         .await
         .ok()?;
-    Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
+    let meta = serde_json::from_slice::<YggdrasilMeta>(&bytes).ok()?;
+    Some((
+        base64::engine::general_purpose::STANDARD.encode(&bytes),
+        meta.meta.enable_profile_key,
+    ))
 }
 
 /// Скачивает один файл, занимающий весь текущий этап: прогресс этапа двигается
@@ -2264,6 +2304,21 @@ fn current_os_name() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn authlib_injector_marker_tracks_version_and_checksum() {
+        let parsed = parse_authlib_injector_marker(
+            "stardust-profile-key-v2\nversion=0.1.0\nsha256=ABC123\n",
+        )
+        .unwrap();
+        assert_eq!(parsed.0, "0.1.0");
+        assert_eq!(parsed.1.as_deref(), Some("abc123"));
+    }
+
+    #[test]
+    fn old_authlib_injector_marker_is_not_reused() {
+        assert!(parse_authlib_injector_marker("stardust-profile-key-v1\n").is_none());
+    }
 
     #[test]
     fn substitute_tokens_basic() {
