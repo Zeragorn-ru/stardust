@@ -52,6 +52,7 @@ pub struct LaunchOptions {
     pub download_concurrency: usize,
     pub java_provider: crate::java::JavaProvider,
     pub java_custom_path: Option<String>,
+    pub disable_all_mods: bool,
     pub profile: PlayerProfile,
     pub access_token: String,
 }
@@ -67,6 +68,7 @@ pub async fn launch(
         download_concurrency,
         java_provider,
         java_custom_path,
+        disable_all_mods,
         profile,
         access_token,
     } = options;
@@ -157,6 +159,10 @@ pub async fn launch(
         manifest.as_ref(),
     )
     .await?;
+    if disable_all_mods {
+        let disabled = crate::modpack::disable_all_mods(&game_dir)?;
+        tracing::warn!("[mods] админский режим: отключено модов перед запуском: {disabled}");
+    }
 
     let removed_blocked = remove_blocked_external_mods(&game_dir, manifest.as_ref())?;
     if !removed_blocked.is_empty() {

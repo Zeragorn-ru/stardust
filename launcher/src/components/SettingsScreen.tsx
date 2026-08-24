@@ -218,7 +218,8 @@ export default function SettingsScreen({
       settings.proxyType !== initialSettings.proxyType ||
       (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) !==
         (initialSettings.javaProvider ?? DEFAULT_JAVA_PROVIDER) ||
-      (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? ""));
+      (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? "") ||
+      settings.disableAllMods !== initialSettings.disableAllMods);
 
   useEffect(() => {
     if (!settings || !initialSettings || !isDirty) return;

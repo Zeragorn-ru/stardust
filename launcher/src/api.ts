@@ -55,6 +55,7 @@ const FALLBACK_SETTINGS: Settings = {
   proxyType: "builtin",
   javaProvider: "temurin",
   javaCustomPath: null,
+  disableAllMods: false,
 };
 
 // Ключи для dev-фолбэка в браузере.

@@ -56,6 +56,9 @@ pub struct Settings {
     /// Путь к `java`/`javaw`, если `javaProvider` = custom.
     #[serde(rename = "javaCustomPath", default)]
     pub java_custom_path: Option<String>,
+    /// Админский диагностический режим: запускать NeoForge без модов.
+    #[serde(rename = "disableAllMods", default)]
+    pub disable_all_mods: bool,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -130,6 +133,7 @@ impl Default for Settings {
             proxy_type: ProxyType::default(),
             java_provider: JavaProvider::default(),
             java_custom_path: None,
+            disable_all_mods: false,
         }
     }
 }
@@ -2214,6 +2218,14 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .clone()
         .ok_or_else(|| "Сессия не найдена, войдите снова".to_string())?;
     let settings = get_settings_cached(&state, &app);
+    if settings.disable_all_mods {
+        let account = backend::account_info(&state.http(), &token)
+            .await
+            .map_err(|e| format!("Не удалось проверить права администратора: {e}"))?;
+        if !account.is_admin {
+            return Err("Режим запуска без модов доступен только администраторам".into());
+        }
+    }
 
     archive_previous_latest_log(&data_dir);
 
@@ -2226,6 +2238,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
             download_concurrency: settings.download_concurrency as usize,
             java_provider: settings.java_provider,
             java_custom_path: settings.java_custom_path.clone(),
+            disable_all_mods: settings.disable_all_mods,
             profile,
             access_token: token.clone(),
         },

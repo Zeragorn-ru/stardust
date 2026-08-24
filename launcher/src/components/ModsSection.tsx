@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { OptionalMod } from "../types";
-import { listOptionalMods, setModEnabled } from "../api";
+import type { AccountInfo, OptionalMod, Settings } from "../types";
+import {
+  accountInfo,
+  getSettings,
+  listOptionalMods,
+  saveSettings,
+  setModEnabled,
+} from "../api";
 import { formatBytes } from "../format";
 
 function normalizeId(id: string): string {
@@ -12,6 +18,10 @@ export default function ModsSection() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [adminModeError, setAdminModeError] = useState<string | null>(null);
+  const [adminModeSaving, setAdminModeSaving] = useState(false);
   // modId-ы, по которым идёт переключение (блокируем повторные клики).
   const [pending, setPending] = useState<Set<string>>(new Set());
 
@@ -31,7 +41,50 @@ export default function ModsSection() {
 
   useEffect(() => {
     void loadMods();
+    getSettings().then(setSettings).catch(() => undefined);
+    accountInfo().then(setAccount).catch(() => undefined);
   }, [loadMods]);
+
+  async function toggleAdminMode() {
+    if (!settings || !account?.isAdmin || adminModeSaving) return;
+    const next = { ...settings, disableAllMods: !settings.disableAllMods };
+    setAdminModeSaving(true);
+    setAdminModeError(null);
+    try {
+      await saveSettings(next);
+      setSettings(next);
+    } catch (e) {
+      setAdminModeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAdminModeSaving(false);
+    }
+  }
+
+  const adminControls = account?.isAdmin && settings ? (
+    <div className="mods-section__admin stagger-item">
+      <div className="toggle-row__text">
+        <span className="toggle-row__title">Запуск без модов</span>
+        <span className="muted toggle-row__desc">
+          Диагностический режим: запускает чистый NeoForge с authinjector, без
+          обязательных, скрытых и пользовательских модов.
+        </span>
+        {adminModeError && (
+          <span className="form-msg form-msg--error">{adminModeError}</span>
+        )}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-label="Запускать игру без модов"
+        aria-checked={settings.disableAllMods}
+        disabled={adminModeSaving}
+        className={"switch" + (settings.disableAllMods ? " switch--on" : "")}
+        onClick={() => void toggleAdminMode()}
+      >
+        <span className="switch__knob" />
+      </button>
+    </div>
+  ) : null;
 
   const byId = useMemo(() => {
     const map = new Map<string, OptionalMod>();
@@ -82,6 +135,7 @@ export default function ModsSection() {
   if (loadError) {
     return (
       <div className="mods-section">
+        {adminControls}
         <p className="muted">Не удалось загрузить список модов: {loadError}</p>
         <button type="button" className="btn btn--ghost" onClick={() => void loadMods()}>
           Повторить
@@ -93,6 +147,7 @@ export default function ModsSection() {
   if (loading || !mods) {
     return (
       <div className="mods-section">
+        {adminControls}
         <div className="settings__loading">
           <div className="spinner" />
           <span className="muted">Загрузка списка модов…</span>
@@ -104,6 +159,7 @@ export default function ModsSection() {
   if (mods.length === 0) {
     return (
       <div className="mods-section">
+        {adminControls}
         <p className="muted">
           В активной сборке нет дополнительных модов для настройки.
         </p>
@@ -125,6 +181,7 @@ export default function ModsSection() {
 
   return (
     <div className="mods-section stagger">
+      {adminControls}
       <p className="muted mods-section__hint stagger-item">
         Дополнительные моды устанавливаются вместе со сборкой. Выключенные не
         загружаются игрой — включение применится при следующем запуске.

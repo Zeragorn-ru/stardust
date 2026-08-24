@@ -2174,6 +2174,21 @@ button,
     gap: 14px;
 }
 
+.mods-section__admin {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 14px 16px;
+    border: 1px solid rgba(224, 96, 96, 0.35);
+    border-radius: var(--radius-sm);
+    background: rgba(224, 96, 96, 0.08);
+}
+
+.mods-section__admin .toggle-row__text {
+    min-width: 0;
+}
+
 .mods-section__hint {
     font-size: 12px;
     line-height: 1.5;
