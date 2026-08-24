@@ -127,8 +127,8 @@ export interface Settings {
   javaProvider?: JavaProvider;
   /** Путь к java, если javaProvider = custom. */
   javaCustomPath?: string | null;
-  /** Админский диагностический режим: запускать NeoForge без модов. */
-  disableAllMods: boolean;
+  /** Админский режим: не синхронизировать локальную сборку перед запуском. */
+  skipBuildCheck: boolean;
 }
 
 /** Режим запуска лаунчера. */

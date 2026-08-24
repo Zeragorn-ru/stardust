@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import type { AppInfo, DataDirectoryInfo, DataDirectoryProgress, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
+import type { AccountInfo, AppInfo, DataDirectoryInfo, DataDirectoryProgress, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
   chooseDataDirectory,
   getDataDirectoryInfo,
   downloadJava,
   getAppInfo,
+  accountInfo,
   getLogPaths,
   getMemoryLimits,
   getSettings,
@@ -27,9 +28,10 @@ import {
 import { useMotion } from "../motion";
 import AccountSection from "./AccountSection";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
+import AdminSettingsSection from "./AdminSettingsSection";
 import ModsSection from "./ModsSection";
 
-type Section = "game" | "interface" | "account" | "mods" | "logs" | "about";
+type Section = "game" | "interface" | "account" | "mods" | "admin" | "logs" | "about";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -93,6 +95,7 @@ export default function SettingsScreen({
   const [section, setSection] = useState<Section>(initialSection);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [initialSettings, setInitialSettings] = useState<Settings | null>(null);
+  const [account, setAccount] = useState<AccountInfo | null>(null);
   const [memoryLimits, setMemoryLimits] = useState<MemoryLimits | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null);
@@ -132,6 +135,7 @@ export default function SettingsScreen({
       setSettings(s);
       setInitialSettings(s);
     });
+    accountInfo().then(setAccount).catch(() => undefined);
     getAppInfo().then(setInfo);
     getDataDirectoryInfo().then(setDataDirectory);
     getMemoryLimits().then(setMemoryLimits);
@@ -219,7 +223,7 @@ export default function SettingsScreen({
       (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) !==
         (initialSettings.javaProvider ?? DEFAULT_JAVA_PROVIDER) ||
       (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? "") ||
-      settings.disableAllMods !== initialSettings.disableAllMods);
+      settings.skipBuildCheck !== initialSettings.skipBuildCheck);
 
   useEffect(() => {
     if (!settings || !initialSettings || !isDirty) return;
@@ -394,7 +398,7 @@ export default function SettingsScreen({
           ← Назад
         </button>
         <h2>Настройки</h2>
-        {["game", "interface"].includes(section) && (
+        {["game", "interface", "admin"].includes(section) && (
           <span className="settings__save-state">
             {saveError ? `Не сохранено: ${saveError}` : saving ? "Сохраняем…" : isDirty ? "Ожидает сохранения" : "Сохранено"}
           </span>
@@ -443,6 +447,18 @@ export default function SettingsScreen({
           >
             Сборка
           </button>
+          {account?.isAdmin && (
+            <button
+              type="button"
+              className={
+                "settings__nav-item" +
+                (section === "admin" ? " settings__nav-item--active" : "")
+              }
+              onClick={() => setSection("admin")}
+            >
+              Администрирование
+            </button>
+          )}
           <button
             type="button"
             className={
@@ -477,6 +493,8 @@ export default function SettingsScreen({
           <div className="settings__body stagger" key="mods">
             <ModsSection />
           </div>
+        ) : section === "admin" && account?.isAdmin && settings ? (
+          <AdminSettingsSection settings={settings} onChange={setSettings} />
         ) : section === "logs" ? (
           <div className="settings__body stagger" key="logs">
             <div className="logs-card stagger-item">

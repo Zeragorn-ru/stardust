@@ -16,7 +16,7 @@ import TitleBar from "./components/TitleBar";
 import UpdateModal from "./components/UpdateModal";
 
 type View = "onboarding" | "login" | "main" | "news" | "settings";
-type SettingsSection = "game" | "account" | "logs";
+type SettingsSection = "game" | "account" | "admin" | "logs";
 
 const VIEW_ORDER: View[] = ["onboarding", "login", "main", "news", "settings"];
 const TRANSITION_MS = 380;

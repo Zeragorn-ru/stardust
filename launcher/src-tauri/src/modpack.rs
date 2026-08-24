@@ -299,34 +299,6 @@ pub async fn sync(
     Ok(())
 }
 
-/// Выключает все активные JAR в каталоге `mods`, включая обязательные и
-/// сторонние моды. Файлы остаются на месте с суффиксом `.dis`, поэтому обычная
-/// синхронизация сможет вернуть управляемые моды при следующем запуске.
-pub fn disable_all_mods(game_dir: &Path) -> Result<usize, String> {
-    let mods_dir = game_dir.join("mods");
-    let Ok(entries) = std::fs::read_dir(&mods_dir) else {
-        return Ok(0);
-    };
-
-    let mut disabled = 0;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file()
-            || path
-                .extension()
-                .is_none_or(|ext| !ext.eq_ignore_ascii_case("jar"))
-        {
-            continue;
-        }
-        let target = disabled_variant(&path);
-        remove_if_exists(&target);
-        std::fs::rename(&path, &target)
-            .map_err(|e| format!("Не удалось отключить мод {}: {e}", path.display()))?;
-        disabled += 1;
-    }
-    Ok(disabled)
-}
-
 /// Список опциональных клиентских модов активной сборки с текущим состоянием
 /// (вкл/выкл) для экрана управления. Если активной сборки нет — пустой список.
 pub async fn list_optional_mods(

@@ -52,7 +52,7 @@ pub struct LaunchOptions {
     pub download_concurrency: usize,
     pub java_provider: crate::java::JavaProvider,
     pub java_custom_path: Option<String>,
-    pub disable_all_mods: bool,
+    pub skip_build_check: bool,
     pub profile: PlayerProfile,
     pub access_token: String,
 }
@@ -68,7 +68,7 @@ pub async fn launch(
         download_concurrency,
         java_provider,
         java_custom_path,
-        disable_all_mods,
+        skip_build_check,
         profile,
         access_token,
     } = options;
@@ -111,7 +111,19 @@ pub async fn launch(
     ensure_client(&progress, http, &root, &version).await?;
     ensure_libraries(&progress, http, &root, &version, concurrency).await?;
     ensure_assets(&progress, http, &root, &version, concurrency).await?;
-    let manifest = crate::backend::fetch_manifest(http, &data_dir).await?;
+    let manifest = if skip_build_check {
+        match crate::backend::fetch_manifest(http, &data_dir).await {
+            Ok(manifest) => manifest,
+            Err(error) => {
+                tracing::warn!(
+                    "[modpack] админский режим: манифест недоступен, продолжаем с локальной сборкой: {error}"
+                );
+                None
+            }
+        }
+    } else {
+        crate::backend::fetch_manifest(http, &data_dir).await?
+    };
     let pinned_neoforge = manifest.as_ref().and_then(|m| {
         use protocol::LoaderKind;
         if m.loader.kind == LoaderKind::NeoForge && !m.loader.version.is_empty() {
@@ -146,30 +158,34 @@ pub async fn launch(
     fs::create_dir_all(&game_dir).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
     tracing::info!("[game] game_dir={}", game_dir.display());
 
-    // Синхронизируем активную сборку (моды/конфиги) в игровой каталог.
-    // Если активной сборки нет — функция тихо вернётся, запустим без модпака.
-    progress.begin(Stage::Modpack, "checking", "Проверяем сборку…");
-    crate::modpack::sync(
-        &progress,
-        http,
-        &data_dir,
-        &crate::paths::mod_choices_file(&app),
-        &game_dir,
-        concurrency,
-        manifest.as_ref(),
-    )
-    .await?;
-    if disable_all_mods {
-        let disabled = crate::modpack::disable_all_mods(&game_dir)?;
-        tracing::warn!("[mods] админский режим: отключено модов перед запуском: {disabled}");
+    if skip_build_check {
+        tracing::warn!(
+            "[modpack] админский режим: проверка и синхронизация сборки пропущены; локальные моды сохранены"
+        );
+    } else {
+        // Синхронизируем активную сборку (моды/конфиги) в игровой каталог.
+        // Если активной сборки нет — функция тихо вернётся, запустим без модпака.
+        progress.begin(Stage::Modpack, "checking", "Проверяем сборку…");
+        crate::modpack::sync(
+            &progress,
+            http,
+            &data_dir,
+            &crate::paths::mod_choices_file(&app),
+            &game_dir,
+            concurrency,
+            manifest.as_ref(),
+        )
+        .await?;
     }
 
-    let removed_blocked = remove_blocked_external_mods(&game_dir, manifest.as_ref())?;
-    if !removed_blocked.is_empty() {
-        tracing::warn!(
-            "[mods] перед запуском удалены заблокированные внешние моды: {}",
-            removed_blocked.join(", ")
-        );
+    if !skip_build_check {
+        let removed_blocked = remove_blocked_external_mods(&game_dir, manifest.as_ref())?;
+        if !removed_blocked.is_empty() {
+            tracing::warn!(
+                "[mods] перед запуском удалены заблокированные внешние моды: {}",
+                removed_blocked.join(", ")
+            );
+        }
     }
 
     let classpath = build_modloader_classpath(&root, &version, &loader);

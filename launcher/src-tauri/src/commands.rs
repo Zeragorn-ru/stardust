@@ -56,9 +56,9 @@ pub struct Settings {
     /// Путь к `java`/`javaw`, если `javaProvider` = custom.
     #[serde(rename = "javaCustomPath", default)]
     pub java_custom_path: Option<String>,
-    /// Админский диагностический режим: запускать NeoForge без модов.
-    #[serde(rename = "disableAllMods", default)]
-    pub disable_all_mods: bool,
+    /// Админский режим: не синхронизировать и не проверять локальную сборку.
+    #[serde(rename = "skipBuildCheck", alias = "disableAllMods", default)]
+    pub skip_build_check: bool,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -133,7 +133,7 @@ impl Default for Settings {
             proxy_type: ProxyType::default(),
             java_provider: JavaProvider::default(),
             java_custom_path: None,
-            disable_all_mods: false,
+            skip_build_check: false,
         }
     }
 }
@@ -399,6 +399,20 @@ mod settings_tests {
                 _ => unreachable!(),
             }
         }
+    }
+
+    #[test]
+    fn migrates_legacy_disable_all_mods_to_build_check_mode() {
+        let settings = parse(json!({
+            "memoryMb": 8192,
+            "proxyType": "builtin",
+            "disableAllMods": true,
+        }));
+
+        assert!(settings.skip_build_check);
+        let serialized = serde_json::to_value(settings).expect("settings must serialize");
+        assert_eq!(serialized["skipBuildCheck"], true);
+        assert!(serialized.get("disableAllMods").is_none());
     }
 
     #[test]
@@ -2218,7 +2232,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .clone()
         .ok_or_else(|| "Сессия не найдена, войдите снова".to_string())?;
     let settings = get_settings_cached(&state, &app);
-    if settings.disable_all_mods {
+    if settings.skip_build_check {
         let account = backend::account_info(&state.http(), &token)
             .await
             .map_err(|e| format!("Не удалось проверить права администратора: {e}"))?;
@@ -2238,7 +2252,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
             download_concurrency: settings.download_concurrency as usize,
             java_provider: settings.java_provider,
             java_custom_path: settings.java_custom_path.clone(),
-            disable_all_mods: settings.disable_all_mods,
+            skip_build_check: settings.skip_build_check,
             profile,
             access_token: token.clone(),
         },
