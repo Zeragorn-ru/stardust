@@ -75,7 +75,8 @@ text = text.replace(
 )
 callback = r'''
 
-	/** Verify Minecraft 1.21 ProfilePublicKey.Data with the Yggdrasil key. */
+	@CallbackMethod
+		/** Verify Minecraft 1.21 ProfilePublicKey.Data with the Yggdrasil key. */
 	public static boolean verifyProfileKey(Object data, java.util.UUID profileId) {
 		try {
 			Instant expiresAt = (Instant) accessor(data, "expiresAt", "b");
@@ -136,7 +137,8 @@ branch = r'''
 						MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
 						mv.visitCode();
 						mv.visitVarInsn(ALOAD, 0);
-						mv.visitVarInsn(ALOAD, 2);
+						// validateSignature(UUID) has `this` at slot 0 and its only argument at slot 1.
+							mv.visitVarInsn(ALOAD, 1);
 						ctx.invokeCallback(mv, YggdrasilKeyTransformUnit.class, "verifyProfileKey");
 						mv.visitInsn(IRETURN);
 						mv.visitMaxs(-1, -1);
