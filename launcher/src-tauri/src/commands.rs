@@ -22,24 +22,17 @@ use crate::java::{self, JavaInstallation, JavaProvider};
 use crate::minecraft;
 use crate::paths;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[cfg_attr(not(target_os = "macos"), derive(Default))]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ProxyType {
     System,
     #[cfg_attr(not(target_os = "macos"), default)]
     Builtin,
     BuiltinSocks,
+    // На macOS встроенный proxy не нужен для обычной сети и может ломать доступ
+    // к сервисам. Уже сохранённые настройки не затрагиваются.
+    #[cfg_attr(target_os = "macos", default)]
     None,
-}
-
-// На macOS встроенный proxy не нужен для обычной сети и может ломать доступ к
-// сервисам. Уже сохранённые настройки не затрагиваются.
-#[cfg(target_os = "macos")]
-impl Default for ProxyType {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 /// Настройки лаунчера, сохраняемые между запусками.
