@@ -22,14 +22,24 @@ use crate::java::{self, JavaInstallation, JavaProvider};
 use crate::minecraft;
 use crate::paths;
 
-#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(not(target_os = "macos"), derive(Default))]
 #[serde(rename_all = "camelCase")]
 pub enum ProxyType {
     System,
-    #[default]
+    #[cfg_attr(not(target_os = "macos"), default)]
     Builtin,
     BuiltinSocks,
     None,
+}
+
+// На macOS встроенный proxy не нужен для обычной сети и может ломать доступ к
+// сервисам. Уже сохранённые настройки не затрагиваются.
+#[cfg(target_os = "macos")]
+impl Default for ProxyType {
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 /// Настройки лаунчера, сохраняемые между запусками.
@@ -374,6 +384,14 @@ mod settings_tests {
 
     fn parse(json: serde_json::Value) -> Settings {
         normalized_settings(serde_json::from_value(json).expect("settings json must deserialize"))
+    }
+
+    #[test]
+    fn default_proxy_matches_platform() {
+        #[cfg(target_os = "macos")]
+        assert_eq!(ProxyType::default(), ProxyType::None);
+        #[cfg(not(target_os = "macos"))]
+        assert_eq!(ProxyType::default(), ProxyType::Builtin);
     }
 
     #[test]
@@ -2868,6 +2886,14 @@ async fn get_customization(app: tauri::AppHandle) -> Result<protocol::PlayerCust
     resp.json().await.map_err(|e| format!("Ошибка ответа: {e}"))
 }
 
+/// Перезапускает приложение только после успешной установки signed обновления.
+/// Tauri updater заменяет `.app` на macOS, но сам не завершает текущий процесс.
+#[tauri::command]
+fn restart_after_update(app: AppHandle) {
+    tracing::info!("[update] signed update installed, restart requested");
+    app.request_restart();
+}
+
 #[tauri::command]
 async fn set_active_customization(
     app: tauri::AppHandle,
@@ -2968,6 +2994,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             set_mod_enabled,
             crate::update::check_update,
             crate::update::install_update,
+            restart_after_update,
             ping_minecraft_server,
             get_customization,
             set_active_customization,

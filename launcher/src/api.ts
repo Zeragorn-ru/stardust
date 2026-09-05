@@ -719,7 +719,7 @@ export async function installUpdate(): Promise<void> {
         window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
           detail: {
             phase: "launching",
-            label: "Установка подписанного обновления",
+            label: "Обновление загружено, устанавливаем…",
             fraction: 1,
             downloadedBytes: downloaded,
             totalBytes: downloaded,
@@ -729,6 +729,21 @@ export async function installUpdate(): Promise<void> {
         }));
       }
     });
+
+    window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
+      detail: {
+        phase: "launching",
+        label: "Обновление установлено. Перезапускаем лаунчер…",
+        fraction: 1,
+        downloadedBytes: downloaded,
+        totalBytes: downloaded,
+        speedBytesPerSec: null,
+        etaSeconds: null,
+      },
+    }));
+    const invoke = await getInvoke();
+    if (!invoke) throw new Error("Не удалось перезапустить лаунчер после обновления");
+    await invoke<void>("restart_after_update");
     return;
   }
 
