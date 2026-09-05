@@ -2252,6 +2252,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
             download_concurrency: settings.download_concurrency as usize,
             java_provider: settings.java_provider,
             java_custom_path: settings.java_custom_path.clone(),
+            proxy_type: settings.proxy_type,
             skip_build_check: settings.skip_build_check,
             profile,
             access_token: token.clone(),

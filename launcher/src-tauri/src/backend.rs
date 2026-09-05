@@ -223,10 +223,12 @@ async fn parse_login_result(resp: reqwest::Response) -> Result<LoginResult, Stri
 
 /// Превращает сетевую ошибку reqwest в понятное пользователю сообщение.
 fn network_error(e: reqwest::Error) -> String {
-    if e.is_connect() {
-        "Не удалось подключиться к серверу авторизации".to_string()
-    } else if e.is_timeout() {
+    let e = e.without_url();
+    tracing::warn!(error = ?e, "Ошибка запроса к серверу авторизации");
+    if e.is_timeout() {
         "Сервер авторизации не отвечает".to_string()
+    } else if e.is_connect() {
+        "Не удалось подключиться к серверу авторизации".to_string()
     } else {
         format!("Сетевая ошибка: {e}")
     }

@@ -52,6 +52,7 @@ pub struct LaunchOptions {
     pub download_concurrency: usize,
     pub java_provider: crate::java::JavaProvider,
     pub java_custom_path: Option<String>,
+    pub proxy_type: crate::commands::ProxyType,
     pub skip_build_check: bool,
     pub profile: PlayerProfile,
     pub access_token: String,
@@ -68,6 +69,7 @@ pub async fn launch(
         download_concurrency,
         java_provider,
         java_custom_path,
+        proxy_type,
         skip_build_check,
         profile,
         access_token,
@@ -221,32 +223,22 @@ pub async fn launch(
     // плейсхолдеров. Без них BootstrapLauncher не стартует.
     args.extend(modloader_jvm_args(&root, &version, &loader));
 
-    // authlib-injector: перенаправляет аутентификацию и текстуры на наш
-    // auth-сервер, чтобы в игре отображался кастомный скин. Javaagent должен
-    // идти среди JVM-аргументов (до main-класса). Если инжектор недоступен —
-    // не валим запуск целиком: одиночная игра останется рабочей.
+    // Инжектор необходим не только для скинов, но и для аутентификации.
+    // Не запускаем игру с токеном StarDust без маршрутизации на наш auth-server.
+    args.extend(jvm_proxy_args(&proxy_type));
     let auth_url = crate::backend::base_url();
-    match ensure_authlib_injector(&progress, http, &data_dir).await {
-        Ok(jar) => {
-            args.push(format!("-javaagent:{}={}", jar.to_string_lossy(), auth_url));
-            if let Some((meta, profile_keys_enabled)) =
-                prefetch_yggdrasil_meta(http, auth_url).await
-            {
-                args.push(format!("-Dauthlibinjector.yggdrasil.prefetched={meta}"));
-                args.push(format!(
-                    "-Dauthlibinjector.profileKey={}",
-                    if profile_keys_enabled {
-                        "enabled"
-                    } else {
-                        "disabled"
-                    }
-                ));
-            } else {
-                return Err("Не удалось получить метаданные auth-server для profile key".into());
-            }
+    let jar = ensure_authlib_injector(&progress, http, &data_dir).await?;
+    args.push(format!("-javaagent:{}={}", jar.to_string_lossy(), auth_url));
+    let (meta, profile_keys_enabled) = prefetch_yggdrasil_meta(http, auth_url).await?;
+    args.push(format!("-Dauthlibinjector.yggdrasil.prefetched={meta}"));
+    args.push(format!(
+        "-Dauthlibinjector.profileKey={}",
+        if profile_keys_enabled {
+            "enabled"
+        } else {
+            "disabled"
         }
-        Err(e) => tracing::warn!("authlib-injector недоступен, запуск без кастомных скинов: {e}"),
-    }
+    ));
 
     args.push("-cp".into());
     let classpath_length = classpath.len();
@@ -479,6 +471,41 @@ fn hide_console(command: &mut Command) {
     {
         command.creation_flags(CREATE_NO_WINDOW);
     }
+}
+
+/// Настройки для исходящих HTTP-запросов инжектора через URL.openConnection().
+/// Не маршрутизируют весь игровой трафик; Java SOCKS не гарантирует DNS-поведение
+/// socks5h клиента Rust. Для встроенных прокси исключаем loopback; системный
+/// ProxySelector также зависит от исключений, настроенных в ОС.
+fn jvm_proxy_args(proxy_type: &crate::commands::ProxyType) -> Vec<String> {
+    use crate::commands::ProxyType;
+    let mut args = vec![
+        format!(
+            "-Djava.net.useSystemProxies={}",
+            matches!(proxy_type, ProxyType::System)
+        ),
+        "-Dhttp.nonProxyHosts=localhost|127.*|[::1]".into(),
+        "-DsocksNonProxyHosts=localhost|127.*|[::1]".into(),
+    ];
+    match proxy_type {
+        ProxyType::Builtin => {
+            args.extend([
+                "-Dhttp.proxyHost=assets.zeragorn.xyz".into(),
+                "-Dhttp.proxyPort=3128".into(),
+                "-Dhttps.proxyHost=assets.zeragorn.xyz".into(),
+                "-Dhttps.proxyPort=3128".into(),
+            ]);
+        }
+        ProxyType::BuiltinSocks => {
+            args.extend([
+                "-DsocksProxyHost=assets.zeragorn.xyz".into(),
+                "-DsocksProxyPort=1080".into(),
+                "-DsocksProxyVersion=5".into(),
+            ]);
+        }
+        ProxyType::System | ProxyType::None => {}
+    }
+    args
 }
 
 fn jvm_tuning_args(provider: JavaProvider) -> Vec<String> {
@@ -1650,6 +1677,56 @@ fn parse_authlib_injector_marker(value: &str) -> Option<(String, Option<String>)
     Some((version, sha256))
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum AuthlibMetadataStatus {
+    Current,
+    Legacy,
+    Transient,
+    Fatal,
+}
+
+fn classify_authlib_metadata_status(status: reqwest::StatusCode) -> AuthlibMetadataStatus {
+    if status.is_success() {
+        AuthlibMetadataStatus::Current
+    } else if matches!(status.as_u16(), 404 | 410) {
+        AuthlibMetadataStatus::Legacy
+    } else if status.is_server_error() {
+        AuthlibMetadataStatus::Transient
+    } else {
+        AuthlibMetadataStatus::Fatal
+    }
+}
+
+/// Кэш пригоден только с совместимым маркером и совпадающим SHA256 файла JAR.
+fn validated_authlib_cache(jar: &Path, marker: &Path) -> Option<(String, String)> {
+    let value = fs::read_to_string(marker).ok()?;
+    let (version, checksum) = parse_authlib_injector_marker(&value)?;
+    let checksum = checksum?;
+    if version.is_empty()
+        || checksum.len() != 64
+        || !checksum.bytes().all(|b| b.is_ascii_hexdigit())
+        || crate::sha256::compute_sha256_file(jar).ok()? != checksum
+    {
+        return None;
+    }
+    Some((version, checksum))
+}
+
+fn authlib_cache_after_metadata_failure(
+    jar: &Path,
+    marker: &Path,
+    error: String,
+) -> Result<PathBuf, String> {
+    if validated_authlib_cache(jar, marker).is_some() {
+        tracing::warn!("{error}; используем проверенный кэш authlib-injector");
+        Ok(jar.to_path_buf())
+    } else {
+        Err(format!(
+            "{error}; совместимый проверенный кэш authlib-injector отсутствует"
+        ))
+    }
+}
+
 /// Скачивает и кэширует именно StarDust-сборку authlib-injector.
 ///
 /// Метаданные проверяются при каждом запуске, поэтому новый versioned release
@@ -1665,17 +1742,55 @@ async fn ensure_authlib_injector(
         "{}/authlib-injector/latest.json",
         crate::backend::admin_base_url()
     );
-    let metadata = match http.get(&metadata_url).send().await {
-        Ok(response) if response.status().is_success() => response
-            .json::<AuthlibInjectorMetadata>()
-            .await
-            .map_err(|e| format!("не удалось разобрать metadata authlib-injector: {e}"))?,
-        // Старый admin-server не знает metadata endpoint, но его совместимый
-        // `/authlib-injector.jar` всё ещё можно использовать без автообновления.
-        Ok(_) | Err(_) => AuthlibInjectorMetadata {
+    let response = match http.get(&metadata_url).send().await {
+        Ok(response) => response,
+        Err(error) => {
+            return authlib_cache_after_metadata_failure(
+                &jar,
+                &marker,
+                format!(
+                    "Не удалось получить metadata authlib-injector ({metadata_url}): {error:?}"
+                ),
+            );
+        }
+    };
+    let metadata = match classify_authlib_metadata_status(response.status()) {
+        AuthlibMetadataStatus::Current => {
+            let bytes = match response.bytes().await {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return authlib_cache_after_metadata_failure(
+                        &jar,
+                        &marker,
+                        format!("Не удалось прочитать metadata authlib-injector ({metadata_url}): {error:?}"),
+                    );
+                }
+            };
+            serde_json::from_slice::<AuthlibInjectorMetadata>(&bytes).map_err(|e| {
+                format!("Не удалось разобрать metadata authlib-injector ({metadata_url}): {e}")
+            })?
+        }
+        // Только отсутствие endpoint означает старую версию admin-server.
+        AuthlibMetadataStatus::Legacy => AuthlibInjectorMetadata {
             version: "legacy".into(),
             sha256: None,
         },
+        AuthlibMetadataStatus::Transient => {
+            return authlib_cache_after_metadata_failure(
+                &jar,
+                &marker,
+                format!(
+                    "Metadata authlib-injector ({metadata_url}): HTTP {}",
+                    response.status()
+                ),
+            );
+        }
+        AuthlibMetadataStatus::Fatal => {
+            return Err(format!(
+                "Metadata authlib-injector ({metadata_url}): HTTP {}",
+                response.status()
+            ));
+        }
     };
     let version = metadata.version.trim();
     if version.is_empty() {
@@ -1688,17 +1803,14 @@ async fn ensure_authlib_injector(
         .filter(|hash| !hash.is_empty())
         .map(str::to_ascii_lowercase);
 
-    let installed = std::fs::read_to_string(&marker)
-        .ok()
-        .and_then(|value| parse_authlib_injector_marker(&value));
-    if jar.exists()
-        && installed
-            .as_ref()
-            .is_some_and(|(installed_version, installed_sha256)| {
-                installed_version == version
-                    && installed_sha256.as_deref() == expected_sha256.as_deref()
-            })
-    {
+    if validated_authlib_cache(&jar, &marker).is_some_and(
+        |(installed_version, installed_sha256)| {
+            installed_version == version
+                && expected_sha256
+                    .as_ref()
+                    .is_none_or(|expected| expected == &installed_sha256)
+        },
+    ) {
         return Ok(jar);
     }
 
@@ -1717,8 +1829,8 @@ async fn ensure_authlib_injector(
     )
     .await
     .map_err(|e| format!("Не удалось получить StarDust authlib-injector: {e}"))?;
+    let actual = crate::sha256::compute_sha256_file(&temporary)?;
     if let Some(expected) = expected_sha256.as_deref() {
-        let actual = crate::sha256::compute_sha256_file(&temporary)?;
         if actual != expected {
             let _ = std::fs::remove_file(&temporary);
             return Err(format!(
@@ -1738,7 +1850,7 @@ async fn ensure_authlib_injector(
             ));
         }
     }
-    let sha_marker = expected_sha256.as_deref().unwrap_or("");
+    let sha_marker = actual;
     std::fs::write(
         &marker,
         format!("{AUTHLIB_INJECTOR_MARKER}\nversion={version}\nsha256={sha_marker}\n"),
@@ -1763,21 +1875,30 @@ struct YggdrasilMetaFeatures {
 /// за ними сам при старте игры. Одновременно возвращаем флаг profile-key,
 /// чтобы собственный injector включал сертификаты только по явному сигналу
 /// auth-server.
-async fn prefetch_yggdrasil_meta(http: &reqwest::Client, auth_url: &str) -> Option<(String, bool)> {
-    use base64::Engine;
+async fn prefetch_yggdrasil_meta(
+    http: &reqwest::Client,
+    auth_url: &str,
+) -> Result<(String, bool), String> {
+    let url = format!("{auth_url}/");
     let bytes = http
-        .get(format!("{auth_url}/"))
+        .get(&url)
         .send()
         .await
-        .ok()?
+        .map_err(|e| format!("Не удалось получить метаданные auth-server ({url}): {e:?}"))?
         .error_for_status()
-        .ok()?
+        .map_err(|e| format!("Ошибка HTTP метаданных auth-server ({url}): {e:?}"))?
         .bytes()
         .await
-        .ok()?;
-    let meta = serde_json::from_slice::<YggdrasilMeta>(&bytes).ok()?;
-    Some((
-        base64::engine::general_purpose::STANDARD.encode(&bytes),
+        .map_err(|e| format!("Не удалось прочитать метаданные auth-server ({url}): {e:?}"))?;
+    parse_yggdrasil_meta(&bytes)
+        .map_err(|e| format!("Некорректные метаданные auth-server ({url}): {e}"))
+}
+
+fn parse_yggdrasil_meta(bytes: &[u8]) -> Result<(String, bool), serde_json::Error> {
+    use base64::Engine;
+    let meta = serde_json::from_slice::<YggdrasilMeta>(bytes)?;
+    Ok((
+        base64::engine::general_purpose::STANDARD.encode(bytes),
         meta.meta.enable_profile_key,
     ))
 }
@@ -2334,6 +2455,184 @@ mod tests {
     #[test]
     fn old_authlib_injector_marker_is_not_reused() {
         assert!(parse_authlib_injector_marker("stardust-profile-key-v1\n").is_none());
+    }
+
+    #[test]
+    fn jvm_proxy_args_cover_all_modes_and_preserve_injector_loopback() {
+        use crate::commands::ProxyType;
+        for (mode, system, hosts) in [
+            (ProxyType::System, true, vec![]),
+            (ProxyType::None, false, vec![]),
+            (
+                ProxyType::Builtin,
+                false,
+                vec![
+                    "-Dhttp.proxyHost=assets.zeragorn.xyz",
+                    "-Dhttp.proxyPort=3128",
+                    "-Dhttps.proxyHost=assets.zeragorn.xyz",
+                    "-Dhttps.proxyPort=3128",
+                ],
+            ),
+            (
+                ProxyType::BuiltinSocks,
+                false,
+                vec![
+                    "-DsocksProxyHost=assets.zeragorn.xyz",
+                    "-DsocksProxyPort=1080",
+                    "-DsocksProxyVersion=5",
+                ],
+            ),
+        ] {
+            let mut expected = vec![
+                format!("-Djava.net.useSystemProxies={system}"),
+                "-Dhttp.nonProxyHosts=localhost|127.*|[::1]".into(),
+                "-DsocksNonProxyHosts=localhost|127.*|[::1]".into(),
+            ];
+            expected.extend(hosts.into_iter().map(str::to_string));
+            assert_eq!(jvm_proxy_args(&mode), expected, "{mode:?}");
+        }
+    }
+
+    #[test]
+    fn authlib_metadata_classifies_only_missing_endpoints_as_legacy() {
+        for (code, expected) in [
+            (200, AuthlibMetadataStatus::Current),
+            (404, AuthlibMetadataStatus::Legacy),
+            (410, AuthlibMetadataStatus::Legacy),
+            (500, AuthlibMetadataStatus::Transient),
+            (503, AuthlibMetadataStatus::Transient),
+            (401, AuthlibMetadataStatus::Fatal),
+            (403, AuthlibMetadataStatus::Fatal),
+            (429, AuthlibMetadataStatus::Fatal),
+            (302, AuthlibMetadataStatus::Fatal),
+        ] {
+            assert_eq!(
+                classify_authlib_metadata_status(reqwest::StatusCode::from_u16(code).unwrap()),
+                expected,
+                "HTTP {code}"
+            );
+        }
+    }
+
+    #[test]
+    fn authlib_cache_requires_compatible_marker_and_matching_disk_checksum() {
+        let dir = std::env::temp_dir().join(format!(
+            "stardust_authlib_cache_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let jar = dir.join("authlib-injector.jar");
+        let marker = dir.join("authlib-injector.marker");
+        fs::write(&jar, b"cached injector").unwrap();
+        let checksum = crate::sha256::compute_sha256_file(&jar).unwrap();
+        let valid_marker = format!("{AUTHLIB_INJECTOR_MARKER}\nversion=0.1.0\nsha256={checksum}\n");
+        for invalid in [
+            format!("stardust-profile-key-v1\nversion=0.1.0\nsha256={checksum}\n"),
+            format!("{AUTHLIB_INJECTOR_MARKER}\nversion=0.1.0\n"),
+            format!("{AUTHLIB_INJECTOR_MARKER}\nversion=\nsha256={checksum}\n"),
+            format!("{AUTHLIB_INJECTOR_MARKER}\nversion=0.1.0\nsha256=ABC123\n"),
+        ] {
+            fs::write(&marker, invalid).unwrap();
+            assert!(validated_authlib_cache(&jar, &marker).is_none());
+        }
+        fs::write(&marker, &valid_marker).unwrap();
+        assert_eq!(
+            validated_authlib_cache(&jar, &marker),
+            Some(("0.1.0".into(), checksum))
+        );
+        assert_eq!(
+            authlib_cache_after_metadata_failure(&jar, &marker, "HTTP 503".into()).unwrap(),
+            jar
+        );
+        fs::write(&jar, b"corrupted injector").unwrap();
+        assert!(validated_authlib_cache(&jar, &marker).is_none());
+        let error =
+            authlib_cache_after_metadata_failure(&jar, &marker, "connection timed out".into())
+                .unwrap_err();
+        assert!(error.contains("connection timed out"));
+        assert!(error.contains("кэш authlib-injector отсутствует"));
+        fs::remove_file(&jar).unwrap();
+        assert!(validated_authlib_cache(&jar, &marker).is_none());
+        fs::remove_file(&marker).unwrap();
+        assert!(
+            authlib_cache_after_metadata_failure(&jar, &marker, "HTTP 503".into())
+                .unwrap_err()
+                .contains("HTTP 503")
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn yggdrasil_meta_preserves_payload_and_reports_parse_errors() {
+        use base64::Engine;
+        let bytes = br#"{"meta":{"feature.enable_profile_key":true}}"#;
+        let (encoded, enabled) = parse_yggdrasil_meta(bytes).unwrap();
+        assert!(enabled);
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .unwrap(),
+            bytes
+        );
+        assert!(!parse_yggdrasil_meta(b"{}").unwrap().1);
+        assert!(parse_yggdrasil_meta(b"not json")
+            .unwrap_err()
+            .to_string()
+            .contains("line 1"));
+    }
+
+    #[test]
+    fn yggdrasil_prefetch_preserves_http_and_json_error_context() {
+        use std::io::{Read, Write};
+        use std::time::Duration;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let http = reqwest::Client::builder()
+            .no_proxy()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .unwrap();
+        for (status, body, expected) in [
+            ("503 Service Unavailable", "unavailable", "503"),
+            ("200 OK", "not json", "line 1"),
+        ] {
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(5)))
+                    .unwrap();
+                let mut buf = [0; 4096];
+                stream.read(&mut buf).unwrap();
+                write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                )
+                .unwrap();
+            });
+            let error = runtime
+                .block_on(prefetch_yggdrasil_meta(&http, &url))
+                .unwrap_err();
+            server.join().unwrap();
+            assert!(error.contains(&url), "{error}");
+            assert!(error.contains(expected), "{error}");
+        }
+        let error = runtime
+            .block_on(prefetch_yggdrasil_meta(&http, "invalid url"))
+            .unwrap_err();
+        assert!(error.contains("invalid url"));
+        assert!(
+            error.contains("source:"),
+            "request error must retain source: {error}"
+        );
     }
 
     #[test]
