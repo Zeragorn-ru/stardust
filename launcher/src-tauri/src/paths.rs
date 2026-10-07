@@ -189,6 +189,15 @@ pub fn session_file(app: &AppHandle) -> PathBuf {
     data_dir(app).join("session.json")
 }
 
+/// Файл с Bearer-токеном сессии (JSON `{"token": ...}`).
+///
+/// Храним на диске, а не в системном keyring: на macOS связка ключей для
+/// неподписанного приложения запрашивает доступ при каждом запуске, что
+/// ломает автологин. Файл создаётся с правами 0600.
+pub fn session_token_file(app: &AppHandle) -> PathBuf {
+    data_dir(app).join("session-token.json")
+}
+
 /// Папка кеша скинов (по UUID).
 pub fn skin_cache_dir(app: &AppHandle) -> PathBuf {
     let dir = data_dir(app).join("skin-cache");
