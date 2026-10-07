@@ -291,7 +291,10 @@ export default function App() {
       {!mac && <TitleBar />}
       {mac && (
         <div className="titlebar titlebar--macos-drag" data-tauri-drag-region aria-hidden>
-          <span className="titlebar__brand">StarDust</span>
+          <div className="titlebar__brand titlebar__brand--macos" data-tauri-drag-region>
+            <span className="titlebar__mark" />
+            <span>StarDust</span>
+          </div>
         </div>
       )}
       <ErrorBoundary>
