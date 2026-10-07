@@ -203,26 +203,37 @@ button,
     -webkit-app-region: drag;
 }
 
-/* Прозрачная drag-зона под нативные traffic lights. Название — по центру,
-   как у нативных macOS-приложений; слева место под close/minimize/zoom. */
+/* Прозрачная drag-зона под нативные traffic lights. Название — по центру
+   с бренд-маркером, в фирменном градиенте, как на экране входа; слева
+   оставлено место под close/minimize/zoom. */
 .titlebar--macos-drag {
     justify-content: center;
     padding: 0;
-    border-bottom: none;
-    background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    border-bottom: 1px solid var(--glass-border);
+    background: linear-gradient(
+        180deg,
+        rgba(8, 9, 16, 0.72),
+        rgba(8, 9, 16, 0.38)
+    );
 }
 
 .titlebar--macos-drag .titlebar__brand {
-    color: var(--muted);
+    gap: 8px;
     font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    opacity: 0.7;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    background: var(--accent-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
     /* Центрируем визуально: компенсируем traffic lights слева (78px). */
     transform: translateX(-39px);
     pointer-events: none;
+}
+
+.titlebar--macos-drag .titlebar__mark {
+    width: 7px;
+    height: 7px;
 }
 
 .titlebar__brand {
