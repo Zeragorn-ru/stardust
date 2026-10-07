@@ -185,12 +185,11 @@ button,
     box-shadow: none;
 }
 
-/* macOS Overlay titlebar: экраны с position:absolute; inset:0 игнорируют
-   padding родителя, поэтому отступ под traffic lights — через margin,
-   как у обычного titlebar (не через padding-top). */
+/* На macOS traffic lights опущены в шапку контента (как в Telegram):
+   контент идёт от самого верха окна, отдельной полосы под кнопки нет. */
 .app--macos .app__content {
-    height: calc(100% - 38px);
-    margin-top: 38px;
+    height: 100%;
+    margin-top: 0;
 }
 
 .titlebar {
@@ -209,34 +208,11 @@ button,
     -webkit-app-region: drag;
 }
 
-/* Прозрачная drag-зона под нативные traffic lights. Название — по центру
-   с бренд-маркером, в фирменном градиенте, как на экране входа; слева
-   оставлено место под close/minimize/zoom. Фон прозрачный, чтобы нативное
-   скругление углов окна macOS читалось (сплошная полоса обрезала бы его). */
+/* На macOS отдельная drag-зона не нужна: окно с нативной рамкой
+   перетаскивается за свой тайтлбар, а шапки экранов кликабельны
+   (drag-оверлей перекрыл бы кнопки «Настройки»/«Выйти»). */
 .titlebar--macos-drag {
-    justify-content: center;
-    padding: 0;
-    border-bottom: none;
-    background: transparent;
-}
-
-.titlebar--macos-drag .titlebar__brand {
-    gap: 8px;
-    font-size: 12px;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    background: var(--accent-grad);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    /* Центрируем визуально: компенсируем traffic lights слева (78px). */
-    transform: translateX(-39px);
-    pointer-events: none;
-}
-
-.titlebar--macos-drag .titlebar__mark {
-    width: 7px;
-    height: 7px;
+    display: none;
 }
 
 .titlebar__brand {
