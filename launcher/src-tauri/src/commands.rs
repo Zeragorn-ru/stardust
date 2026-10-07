@@ -206,15 +206,87 @@ struct SavedSession {
     token: String,
 }
 
+// Хранилище токена сессии.
+//
+// Раньше использовали системный keyring, но на macOS связка ключей для
+// неподписанного приложения просит доступ при каждом запуске — автологин
+// превращался в диалог. Поэтому токен лежит в `session-token.json` рядом с
+// остальными данными лаунчера (права 0600), а для уже сохранённых сессий
+// выполняется одноразовая миграция из keyring с последующей очисткой.
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SessionTokenFile {
+    token: String,
+}
+
+fn token_file_path(app: &AppHandle) -> PathBuf {
+    paths::session_token_file(app)
+}
+
+/// Пишет токен на диск; на Unix выставляет файлу права 0600.
+fn write_token_file(app: &AppHandle, token: &str) -> Result<(), String> {
+    let path = token_file_path(app);
+    let json = serde_json::to_string_pretty(&SessionTokenFile {
+        token: token.to_string(),
+    })
+    .map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| format!("не удалось сохранить токен: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
+
+fn read_token_file(app: &AppHandle) -> Option<String> {
+    let raw = std::fs::read_to_string(token_file_path(app)).ok()?;
+    let file: SessionTokenFile = serde_json::from_str(&raw).ok()?;
+    Some(file.token)
+}
+
+fn remove_token_file(app: &AppHandle) {
+    let _ = std::fs::remove_file(token_file_path(app));
+}
+
+/// Legacy-хранилище (системный keyring): используется только для чтения
+/// при миграции и для очистки старых записей.
 fn session_entry(profile_id: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new("com.stardust.launcher", profile_id)
         .map_err(|e| format!("не удалось открыть keyring: {e}"))
 }
 
+/// Токен текущей сессии: сначала файл, затем миграция из keyring.
+fn load_session_token(app: &AppHandle, profile_id: &str) -> Option<String> {
+    if let Some(token) = read_token_file(app) {
+        return Some(token);
+    }
+    let token = session_entry(profile_id).ok()?.get_password().ok()?;
+    match write_token_file(app, &token) {
+        Ok(()) => {
+            if let Ok(entry) = session_entry(profile_id) {
+                let _ = entry.delete_password();
+            }
+        }
+        Err(e) => {
+            tracing::warn!("[session] не удалось мигрировать токен из keyring в файл: {e}");
+        }
+    }
+    Some(token)
+}
+
+/// Удаляет токен и из файла, и из legacy-keyring.
+fn clear_session_token(app: &AppHandle, profile_id: &str) {
+    remove_token_file(app);
+    if let Ok(entry) = session_entry(profile_id) {
+        let _ = entry.delete_password();
+    }
+}
+
 /// Результат входа, отдаваемый фронтенду.
 ///
 /// Зеркалит `protocol::LoginResult`, но `Ok`-ветка несёт уже сам профиль
-/// (токен оседает в runtime и в keyring, наружу не выходит). При
+/// (токен оседает в runtime и в файле сессии, наружу не выходит). При
 /// `twoFactorRequired` UI показывает поле ввода кода и затем зовёт `login_2fa`
 /// с тем же `challenge`.
 #[derive(Debug, Clone, Serialize)]
@@ -289,8 +361,9 @@ pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
 /// Состояние приложения, разделяемое между командами.
 pub struct AppState {
     pub profile: Mutex<Option<PlayerProfile>>,
-    /// Bearer-токен текущей API-сессии. Для автологина хранится в keyring,
-    /// а на диске в `session.json` остаётся только публичный профиль.
+    /// Bearer-токен текущей API-сессии. Для автологина хранится в
+    /// `session-token.json` (права 0600), а в `session.json` остаётся
+    /// только публичный профиль.
     pub token: Mutex<Option<String>>,
     /// HTTP-клиент к auth-серверу (переиспользуется между запросами).
     pub http: Mutex<reqwest::Client>,
@@ -505,14 +578,13 @@ fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
     // отрабатывала, старый формат нужно проверять первым.
     if let Ok(legacy) = serde_json::from_str::<SavedSession>(&s) {
         if let Err(e) = write_saved_session(app, &legacy) {
-            tracing::warn!("[session] не удалось мигрировать session.json в keyring: {e}");
+            tracing::warn!("[session] не удалось мигрировать legacy session.json: {e}");
         }
         return Some(legacy);
     }
 
     let disk: DiskSession = serde_json::from_str(&s).ok()?;
-    let entry = session_entry(&disk.profile.id).ok()?;
-    let token = entry.get_password().ok()?;
+    let token = load_session_token(app, &disk.profile.id)?;
     Some(SavedSession {
         profile: disk.profile,
         token,
@@ -520,10 +592,7 @@ fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
 }
 
 fn write_saved_session(app: &AppHandle, session: &SavedSession) -> Result<(), String> {
-    let entry = session_entry(&session.profile.id)?;
-    entry
-        .set_password(&session.token)
-        .map_err(|e| format!("не удалось сохранить токен в keyring: {e}"))?;
+    write_token_file(app, &session.token)?;
 
     let path = paths::session_file(app);
     let json = serde_json::to_string_pretty(&DiskSession {
@@ -536,19 +605,14 @@ fn write_saved_session(app: &AppHandle, session: &SavedSession) -> Result<(), St
 fn remove_saved_session(app: &AppHandle) {
     if let Ok(s) = std::fs::read_to_string(paths::session_file(app)) {
         if let Ok(disk) = serde_json::from_str::<DiskSession>(&s) {
-            if let Ok(entry) = session_entry(&disk.profile.id) {
-                let _ = entry.delete_password();
-            }
+            clear_session_token(app, &disk.profile.id);
         } else if let Ok(saved) = serde_json::from_str::<SavedSession>(&s) {
-            if let Ok(entry) = session_entry(&saved.profile.id) {
-                let _ = entry.delete_password();
-            }
+            clear_session_token(app, &saved.profile.id);
         }
     } else if let Some(saved) = read_saved_session(app) {
-        if let Ok(entry) = session_entry(&saved.profile.id) {
-            let _ = entry.delete_password();
-        }
+        clear_session_token(app, &saved.profile.id);
     }
+    remove_token_file(app);
     let _ = std::fs::remove_file(paths::session_file(app));
 }
 
@@ -562,7 +626,7 @@ fn clear_runtime_session(state: &State<AppState>) {
     *state.profile.lock().unwrap() = None;
 }
 
-/// Сохраняет сессию в keyring, профиль на диск и обновляет runtime-состояние.
+/// Сохраняет сессию (токен + профиль) на диск и обновляет runtime-состояние.
 fn persist_session(
     state: &State<AppState>,
     app: &AppHandle,
@@ -673,6 +737,7 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
     };
     let profile_id = state.profile.lock().unwrap().as_ref().map(|p| p.id.clone());
     let http = state.http().clone();
+    let app = app.clone();
     let launched_at_str = pending.launched_at.clone();
     tauri::async_runtime::spawn(async move {
         let duration = time::OffsetDateTime::parse(
@@ -692,7 +757,7 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
             }
         }
         // Повторяем ранее failed сессии.
-        drain_pending_sessions(&http, &data_dir, &token).await;
+        drain_pending_sessions(&http, &app, &data_dir, &token).await;
     });
 }
 
@@ -700,7 +765,8 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct PendingSession {
-    /// ID профиля — токен берётся из keyring при drain, на диск не пишется.
+    /// ID профиля — токен берётся из хранилища сессии при drain,
+    /// в саму очередь не пишется.
     profile_id: String,
     duration: i64,
     launched_at: String,
@@ -747,10 +813,12 @@ fn save_pending_session(
 }
 
 /// Пытается отправить все сессии из очереди. Успешные удаляются.
-/// Токен читается из keyring по `profile_id`; legacy-записи с токеном
-/// отправляются один раз и не перезаписываются на диск.
+/// Токен читается из хранилища сессии (`session-token.json` с миграцией
+/// из keyring); legacy-записи с токеном отправляются один раз и не
+/// перезаписываются на диск.
 async fn drain_pending_sessions(
     http: &reqwest::Client,
+    app: &AppHandle,
     data_dir: &std::path::Path,
     _current_token: &str,
 ) {
@@ -770,12 +838,13 @@ async fn drain_pending_sessions(
     for record in records {
         match record {
             PendingSessionRecord::Current(s) => {
-                let token = match session_entry(&s.profile_id)
-                    .and_then(|e| e.get_password().map_err(|err| format!("keyring: {err}")))
-                {
-                    Ok(t) => t,
-                    Err(e) => {
-                        tracing::warn!("[stats] нет токена в keyring для {}: {e}", s.profile_id);
+                let token = match load_session_token(app, &s.profile_id) {
+                    Some(t) => t,
+                    None => {
+                        tracing::warn!(
+                            "[stats] нет сохранённого токена для {}",
+                            s.profile_id
+                        );
                         remaining.push(s);
                         continue;
                     }
