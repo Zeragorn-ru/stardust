@@ -65,7 +65,7 @@ function Shell() {
           </span>
           <div className="brand-copy">
             <strong>StarDust</strong>
-            <small>Control room</small>
+            <small>Панель управления</small>
           </div>
           <button
             className="sidebar-toggle"
@@ -149,7 +149,7 @@ function Shell() {
             </div>
           )}
           <a className="nav-item" href={switchViewHref("mobile")}>
-            <IconSmartphone /> <span className="nav-label">Телефонная версия</span>
+            <IconSmartphone /> <span className="nav-label">Мобильная версия</span>
           </a>
           <button className="nav-item" onClick={logout}>
             <IconLogout /> <span className="nav-label">Выйти</span>
@@ -159,16 +159,17 @@ function Shell() {
       <div className="workspace">
         <header className="topbar">
           <div className="topbar-copy">
-            <span className="topbar-eyebrow">/{section}</span>
             <strong>{sectionMeta.title}</strong>
             <small className="topbar-description">{sectionMeta.description}</small>
           </div>
           <div className="topbar-actions">
-            <a className="topbar-view-link" href={switchViewHref("mobile")}>Открыть mobile web-app</a>
-            <div className="topbar-status" aria-label="Статус админ-панели">
-              <span className="status-dot status-dot--online" />
-              Сессия активна
-            </div>
+            <a className="topbar-view-link" href={switchViewHref("mobile")}>Открыть мобильную версию</a>
+            {username && (
+              <div className="topbar-status" aria-label="Текущий пользователь">
+                <span className="status-dot status-dot--online" />
+                {username}
+              </div>
+            )}
           </div>
         </header>
         <main className="content">

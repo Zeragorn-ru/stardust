@@ -80,10 +80,10 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
   }
 
   return (
-    <div className="m-screen">
+    <div className="m-screen m-screen--fab">
       <header className="m-head">
         <div>
-          <span className="m-eyebrow">Deployment</span>
+          <span className="m-eyebrow">Деплой</span>
           <h1>Сборки</h1>
         </div>
       </header>

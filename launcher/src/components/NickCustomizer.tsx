@@ -34,6 +34,7 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
   const [selectedGradient, setSelectedGradient] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -56,13 +57,14 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
   async function handleSave() {
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
     try {
       await setActiveCustomization(selectedBadge, selectedGradient);
       setSaved(true);
       onSaved?.();
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      // ignore
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -94,18 +96,22 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
         <span className="nick-section__title">Бейдж</span>
         <div className="nick-badges">
           <button
+            type="button"
             className={"nick-option-btn" + (selectedBadge === null ? " selected" : "")}
             onClick={() => setSelectedBadge(null)}
             title="Без бейджа"
+            aria-pressed={selectedBadge === null}
           >
             <MinecraftNickname name={playerName} gradient={activeGradient} />
           </button>
           {data.availableBadges.map((b) => (
             <button
               key={b.id}
+              type="button"
               className={"nick-option-btn" + (selectedBadge === b.id ? " selected" : "")}
               onClick={() => setSelectedBadge(b.id)}
               title={b.label}
+              aria-pressed={selectedBadge === b.id}
               style={{ borderColor: selectedBadge === b.id ? b.color : undefined }}
             >
               <MinecraftNickname name={playerName} badge={b} gradient={activeGradient} />
@@ -120,8 +126,10 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
         <span className="nick-section__title">Градиент</span>
         <div className="nick-gradients">
           <button
+            type="button"
             className={"nick-option-btn" + (selectedGradient === null ? " selected" : "")}
             onClick={() => setSelectedGradient(null)}
+            aria-pressed={selectedGradient === null}
           >
             <MinecraftNickname name={playerName} badge={activeBadge} />
             <span className="nick-option-label">Без градиента</span>
@@ -129,8 +137,10 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
           {data.availableGradients.map((g) => (
             <button
               key={g.id}
+              type="button"
               className={"nick-option-btn" + (selectedGradient === g.id ? " selected" : "")}
               onClick={() => setSelectedGradient(g.id)}
+              aria-pressed={selectedGradient === g.id}
             >
               <span
                 className="nick-gradient-swatch"
@@ -149,6 +159,7 @@ export default function NickCustomizer({ playerName, onSaved }: Props) {
           {saving ? "Сохранение…" : saved ? "✓ Сохранено" : "Сохранить"}
         </button>
       </div>
+      {saveError && <div className="alert alert--error nick-save-error">{saveError}</div>}
     </div>
   );
 }

@@ -27,16 +27,45 @@ function EditBuildModal({
   onClose: () => void;
 }) {
   useBodyScrollLock();
+  const confirm = useConfirm();
   const [form, setForm] = useState(initial);
   const [busy, setBusy] = useState(false);
 
+  // Dirty и busy в ref: обработчики Escape/клика по подложке видят
+  // актуальное значение без пересоздания подписок.
+  const dirty =
+    form.name !== initial.name ||
+    form.version !== initial.version ||
+    form.loaderKind !== initial.loaderKind ||
+    form.mcVersion !== initial.mcVersion ||
+    form.loaderVersion !== initial.loaderVersion;
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+
+  async function tryClose() {
+    if (busyRef.current) return;
+    if (dirtyRef.current) {
+      const ok = await confirm({
+        title: "Есть несохранённые изменения",
+        body: "Закрыть без сохранения?",
+        confirmText: "Закрыть",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    onClose();
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") void tryClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function set<K extends keyof CreateBuildInput>(k: K, v: CreateBuildInput[K]) {
     setForm((f) => ({ ...f, [k]: v }));
@@ -56,7 +85,7 @@ function EditBuildModal({
     form.name.trim() && form.version.trim() && form.mcVersion.trim();
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={() => void tryClose()}>
       <form
         className="modal modal-wide"
         onSubmit={submit}
@@ -114,7 +143,7 @@ function EditBuildModal({
           </div>
         </div>
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={() => void tryClose()} disabled={busy}>
             Отмена
           </button>
           <button className="primary" type="submit" disabled={busy || !valid}>
@@ -138,19 +167,29 @@ export function BuildDetail({
   const navigate = useNavigate();
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyClone, setBusyClone] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
     try {
       setDetail(await api.getBuild(buildId));
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось загрузить сборку",
+      // 404 — сборки нет, прочие ошибки — повторимая сетевая проблема.
+      const notFound = err instanceof ApiError && err.status === 404;
+      setDetail(null);
+      setLoadError(
+        notFound
+          ? null
+          : err instanceof ApiError
+            ? err.message
+            : "Не удалось загрузить сборку",
       );
     } finally {
       setLoading(false);
     }
-  }, [buildId, toast]);
+  }, [buildId]);
 
   useEffect(() => {
     setLoading(true);
@@ -168,6 +207,19 @@ export function BuildDetail({
     version: string | null;
     error: string | null;
   } | null>(null);
+  // Опрос статуса деплоя мода: живёт в ref, чтобы пережить unmount и
+  // не превращаться в утечку, если уйти со страницы до терминального статуса.
+  const deployPollRef = useRef<number | null>(null);
+  const deployPollErrors = useRef(0);
+
+  function stopDeployPoll() {
+    if (deployPollRef.current != null) {
+      window.clearInterval(deployPollRef.current);
+      deployPollRef.current = null;
+    }
+  }
+
+  useEffect(() => stopDeployPoll, []);
 
   const loadSyncStatus = useCallback(async () => {
     const status = await api.syncToPanelStatus(buildId);
@@ -284,6 +336,13 @@ export function BuildDetail({
   }
 
   async function activate() {
+    if (!detail) return;
+    const ok = await confirm({
+      title: `Сделать сборку «${detail.name}» активной?`,
+      body: `Все игроки при следующем запуске скачают именно её (v${detail.version}, ${detail.files.length} файлов).`,
+      confirmText: "Сделать активной",
+    });
+    if (!ok) return;
     try {
       await api.activateBuild(buildId);
       toast.success("Сборка активирована");
@@ -323,21 +382,24 @@ export function BuildDetail({
   async function deployMod() {
     const ok = await confirm({
       title: "Добавить мод в сборку?",
-      body: "Будет скачан последний релиз mod-v* из GitHub и добавлен в эту сборку. При следующей синхронизации мод попадёт на сервер.",
+      body: "Будет скачан последний релиз stardust-mod из GitHub и добавлен в эту сборку. При следующей синхронизации мод попадёт на сервер.",
       confirmText: "Добавить",
     });
     if (!ok) return;
 
     setDeploying(true);
     setDeployStatus(null);
+    deployPollErrors.current = 0;
     try {
       await api.deployMod();
-      const poll = setInterval(async () => {
+      stopDeployPoll();
+      deployPollRef.current = window.setInterval(async () => {
         try {
           const s = await api.getDeployModStatus();
+          deployPollErrors.current = 0;
           setDeployStatus(s);
           if (s.state === "success" || s.state === "error") {
-            clearInterval(poll);
+            stopDeployPoll();
             setDeploying(false);
             if (s.state === "success") {
               toast.success(`Мод ${s.version ?? "?"} добавлен в сборку. Синхронизируйте сервер.`);
@@ -348,8 +410,13 @@ export function BuildDetail({
             }
           }
         } catch {
-          clearInterval(poll);
-          setDeploying(false);
+          // Одиночный сетевой сбой не должен убивать опрос: даём 5 попыток.
+          deployPollErrors.current += 1;
+          if (deployPollErrors.current >= 5) {
+            stopDeployPoll();
+            setDeploying(false);
+            toast.error("Не удалось получить статус загрузки мода");
+          }
         }
       }, 2000);
     } catch (err) {
@@ -377,7 +444,19 @@ export function BuildDetail({
         Загрузка…
       </div>
     );
-  if (!detail) return null;
+  if (!detail) {
+    if (loadError) {
+      return (
+        <div className="panel">
+          <p className="muted">{loadError}</p>
+          <button className="secondary" onClick={() => void load()}>
+            Повторить
+          </button>
+        </div>
+      );
+    }
+    return null;
+  }
 
   return (
     <div className="detail">
@@ -424,7 +503,7 @@ export function BuildDetail({
               title="Скачать мод из GitHub и добавить в сборку"
             >
               <IconDownload size={14} />
-              {deploying ? "Загрузка мода…" : "Загрузить мод"}
+              {deploying ? "Загрузка мода…" : "Обновить stardust-mod"}
             </button>
             <button
               className="secondary compact"

@@ -27,6 +27,7 @@ import {
 } from "../api";
 import { useMotion } from "../motion";
 import AccountSection from "./AccountSection";
+import ConfirmDialog, { type ConfirmRequest } from "./ConfirmDialog";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
 import AdminSettingsSection from "./AdminSettingsSection";
 import ModsSection from "./ModsSection";
@@ -130,6 +131,17 @@ export default function SettingsScreen({
     initialTabId?: string;
   } | null>(null);
 
+  // window.confirm не работает в WKWebView (macOS) — используем свой диалог.
+  const [confirmReq, setConfirmReq] = useState<
+    (ConfirmRequest & { resolve: (ok: boolean) => void }) | null
+  >(null);
+
+  function askConfirm(req: ConfirmRequest): Promise<boolean> {
+    return new Promise((resolve) => {
+      setConfirmReq({ ...req, resolve });
+    });
+  }
+
   useEffect(() => {
     getSettings().then((s) => {
       setSettings(s);
@@ -146,9 +158,12 @@ export default function SettingsScreen({
   async function handleRelocateDataDirectory() {
     const path = await chooseDataDirectory();
     if (!path) return;
-    if (!window.confirm(`Перенести все данные лаунчера в\n${path}\n\nВыбранная папка должна быть пустой. Во время переноса не закрывайте лаунчер.`)) {
-      return;
-    }
+    const ok = await askConfirm({
+      title: "Перенести данные лаунчера?",
+      body: `Все данные лаунчера будут перенесены в\n${path}\n\nВыбранная папка должна быть пустой. Во время переноса не закрывайте лаунчер.`,
+      confirmText: "Перенести",
+    });
+    if (!ok) return;
     setRelocating(true);
     setRelocationError(null);
     setRelocationProgress(null);
@@ -167,9 +182,12 @@ export default function SettingsScreen({
 
   async function handleResetDataDirectory() {
     if (!dataDirectory || dataDirectory.path === dataDirectory.defaultPath) return;
-    if (!window.confirm(`Вернуть данные в стандартную папку?\n\n${dataDirectory.defaultPath}\n\nТекущая папка будет перенесена обратно.`)) {
-      return;
-    }
+    const ok = await askConfirm({
+      title: "Вернуть данные в стандартную папку?",
+      body: `${dataDirectory.defaultPath}\n\nТекущая папка будет перенесена обратно.`,
+      confirmText: "Вернуть",
+    });
+    if (!ok) return;
     setRelocating(true);
     setRelocationError(null);
     setRelocationProgress(null);
@@ -250,17 +268,32 @@ export default function SettingsScreen({
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      if (logViewer) return; // LogViewerModal сам закроется
+      if (logViewer || confirmReq) return; // модалки сами закроются
       if (document.querySelector(".modal-overlay, [aria-modal='true']")) return;
       e.preventDefault();
-      if (isDirty && !window.confirm("Есть несохранённые изменения. Покинуть настройки?")) {
+      if (!isDirty && !javaDownloading && updateStatus !== "installing" && !relocating) {
+        onClose();
         return;
       }
-      onClose();
+      void askConfirm({
+        title: "Покинуть настройки?",
+        body:
+          javaDownloading
+            ? "Загрузка Java продолжится в фоне, но индикатор пропадёт. Покинуть настройки?"
+            : updateStatus === "installing"
+              ? "Обновление лаунчера продолжится в фоне. Покинуть настройки?"
+              : relocating
+                ? "Перенос папки данных продолжается. Не закрывайте лаунчер. Покинуть настройки?"
+                : "Есть несохранённые изменения. Покинуть настройки?",
+        confirmText: "Покинуть",
+        danger: true,
+      }).then((ok) => {
+        if (ok) onClose();
+      });
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isDirty, logViewer, onClose]);
+  }, [isDirty, logViewer, confirmReq, javaDownloading, updateStatus, relocating, onClose]);
 
   async function handleCheckUpdate() {
     setUpdateStatus("checking");
@@ -297,13 +330,12 @@ export default function SettingsScreen({
   }
 
   async function handleDeepJavaSearch() {
-    if (
-      !window.confirm(
-        "Глубокий поиск может занять некоторое время. Продолжить?",
-      )
-    ) {
-      return;
-    }
+    const ok = await askConfirm({
+      title: "Глубокий поиск Java",
+      body: "Поиск по всем дискам может занять несколько минут. Продолжить?",
+      confirmText: "Начать поиск",
+    });
+    if (!ok) return;
     await refreshJavaList(true);
   }
 
@@ -362,9 +394,13 @@ export default function SettingsScreen({
   }
 
   async function handleResetSettings() {
-    if (!window.confirm("Сбросить настройки лаунчера до значений по умолчанию?")) {
-      return;
-    }
+    const ok = await askConfirm({
+      title: "Сбросить настройки?",
+      body: "Настройки лаунчера вернутся к значениям по умолчанию.",
+      confirmText: "Сбросить",
+      danger: true,
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       const defaults = await resetSettings();
@@ -748,7 +784,7 @@ export default function SettingsScreen({
                 Память для Minecraft: <strong>{settings.memoryMb} МБ</strong>
               </span>
               <span className="muted toggle-row__desc">
-                От 6 ГиБ до 75% физической памяти этого компьютера
+                От 6144 МБ до 75% физической памяти этого компьютера
                 {memoryLimits?.totalMb ? ` (${memoryLimits.totalMb} МБ всего)` : ""}.
               </span>
               <div className="range-row">
@@ -1147,6 +1183,20 @@ export default function SettingsScreen({
           tabs={logViewer.tabs}
           initialTabId={logViewer.initialTabId}
           onClose={() => setLogViewer(null)}
+        />
+      )}
+
+      {confirmReq && (
+        <ConfirmDialog
+          title={confirmReq.title}
+          body={confirmReq.body}
+          danger={confirmReq.danger}
+          confirmText={confirmReq.confirmText}
+          cancelText={confirmReq.cancelText}
+          onResolve={(ok) => {
+            setConfirmReq(null);
+            confirmReq.resolve(ok);
+          }}
         />
       )}
     </div>

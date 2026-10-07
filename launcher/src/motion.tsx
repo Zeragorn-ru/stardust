@@ -1,11 +1,16 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { getAnimations, setAnimations as persist } from "./preferences";
+import {
+  getAnimations,
+  setAnimations as persist,
+  watchSystemMotion,
+} from "./preferences";
 
 interface MotionContextValue {
   /** Включены ли анимации. */
@@ -22,6 +27,14 @@ const MotionContext = createContext<MotionContextValue>({
 /** Провайдер состояния анимаций; держит выбор в синхроне с localStorage и DOM. */
 export function MotionProvider({ children }: { children: ReactNode }) {
   const [animations, setState] = useState(getAnimations());
+
+  // Пока пользователь не сделал свой выбор — следуем системной настройке
+  // «уменьшить анимации», в том числе при её смене на лету. Синхронизируем
+  // и DOM, и состояние провайдера, чтобы тумблер не врал.
+  useEffect(
+    () => watchSystemMotion((enabled) => setState(enabled)),
+    [],
+  );
 
   function setAnimations(on: boolean) {
     persist(on); // пишет в localStorage + ставит data-motion

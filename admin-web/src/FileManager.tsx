@@ -474,61 +474,61 @@ export function FileManager({
           {filters.kind !== "all" && (
             <span className="fm-chip">
               Тип: {filters.kind}
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, kind: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label={`Убрать фильтр: тип ${filters.kind}`} onClick={() => setFilters((f) => ({ ...f, kind: "all" }))}>×</button>
             </span>
           )}
           {filters.side !== "all" && (
             <span className="fm-chip">
               {sideLabel(filters.side)}
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, side: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label={`Убрать фильтр: ${sideLabel(filters.side)}`} onClick={() => setFilters((f) => ({ ...f, side: "all" }))}>×</button>
             </span>
           )}
           {filters.optional === "yes" && (
             <span className="fm-chip">
               Опциональные
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, optional: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: опциональные" onClick={() => setFilters((f) => ({ ...f, optional: "all" }))}>×</button>
             </span>
           )}
           {filters.optional === "no" && (
             <span className="fm-chip">
               Обязательные
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, optional: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: обязательные" onClick={() => setFilters((f) => ({ ...f, optional: "all" }))}>×</button>
             </span>
           )}
           {filters.disabled === "yes" && (
             <span className="fm-chip">
               Отключённые
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, disabled: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: отключённые" onClick={() => setFilters((f) => ({ ...f, disabled: "all" }))}>×</button>
             </span>
           )}
           {filters.disabled === "no" && (
             <span className="fm-chip">
               Включённые
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, disabled: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: включённые" onClick={() => setFilters((f) => ({ ...f, disabled: "all" }))}>×</button>
             </span>
           )}
           {filters.enabledByDefault === "yes" && (
             <span className="fm-chip">
               Вкл. по умолч.
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, enabledByDefault: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: включённые по умолчанию" onClick={() => setFilters((f) => ({ ...f, enabledByDefault: "all" }))}>×</button>
             </span>
           )}
           {filters.enabledByDefault === "no" && (
             <span className="fm-chip">
               Выкл. по умолч.
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, enabledByDefault: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: выключенные по умолчанию" onClick={() => setFilters((f) => ({ ...f, enabledByDefault: "all" }))}>×</button>
             </span>
           )}
           {filters.overwrite === "yes" && (
             <span className="fm-chip">
               Перезапись
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, overwrite: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: перезапись" onClick={() => setFilters((f) => ({ ...f, overwrite: "all" }))}>×</button>
             </span>
           )}
           {filters.overwrite === "no" && (
             <span className="fm-chip">
               Без перезаписи
-              <button className="fm-chip-x" onClick={() => setFilters((f) => ({ ...f, overwrite: "all" }))}>×</button>
+              <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: без перезаписи" onClick={() => setFilters((f) => ({ ...f, overwrite: "all" }))}>×</button>
             </span>
           )}
           <button className="fm-chip fm-chip-reset" onClick={() => setFilters(EMPTY_FILTERS)}>
@@ -1043,9 +1043,10 @@ function PromptDialog({
   confirmText: string;
   hint?: string;
   onCancel: () => void;
-  onSubmit: (value: string) => void;
+  onSubmit: (value: string) => void | Promise<void>;
 }) {
   const [value, setValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useBodyScrollLock();
 
@@ -1058,8 +1059,17 @@ function PromptDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onCancel]);
 
-  function submit() {
-    if (value.trim()) onSubmit(value.trim());
+  // Асинхронный submit с busy-состоянием: быстрый двойной Enter/клик
+  // не должен запустить второй запрос на создание.
+  async function submit() {
+    const v = value.trim();
+    if (!v || submitting) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(v);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -1079,15 +1089,21 @@ function PromptDialog({
             placeholder={placeholder}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") submit();
+              if (e.key === "Enter") void submit();
             }}
           />
         </label>
         {hint && <p className="muted fm-prompt-hint">{hint}</p>}
         <div className="modal-actions">
-          <button onClick={onCancel}>Отмена</button>
-          <button className="primary" onClick={submit} disabled={!value.trim()}>
-            {confirmText}
+          <button onClick={onCancel} disabled={submitting}>
+            Отмена
+          </button>
+          <button
+            className="primary"
+            onClick={() => void submit()}
+            disabled={!value.trim() || submitting}
+          >
+            {submitting ? "…" : confirmText}
           </button>
         </div>
       </div>
@@ -1165,9 +1181,17 @@ function FileRow({
           <div className="fm-file-subline">
             <span className={`tag kind-${file.kind}`}>{file.kind}</span>
             <span className="fm-meta muted">{sideLabel(file.side)}</span>
-            {file.optional && <span className="tag">опц.{file.enabledByDefault ? "✓" : "✗"}</span>}
+            {file.optional && (
+              <span className="tag" title={file.enabledByDefault ? "Опциональный, включён по умолчанию" : "Опциональный, по умолчанию выключен"}>
+                {file.enabledByDefault ? "опц. ✓" : "опц. ✗"}
+              </span>
+            )}
             {file.disabled && <span className="tag tag--disabled">откл.</span>}
-            {!file.overwrite && <span className="tag">no-ow</span>}
+            {!file.overwrite && (
+              <span className="tag" title="Не перезаписывать при обновлении (пропускается, если файл уже существует)">
+                без перезаписи
+              </span>
+            )}
             {onOpenDir && parentDir(file.path) && (
               <button
                 className="fm-path-link muted"
@@ -1286,6 +1310,7 @@ function FileSettingsDrawer({
   const [saving, setSaving] = useState(false);
 
   useBodyScrollLock();
+  const confirm = useConfirm();
 
   // При выборе другого файла подставляем его значения.
   useEffect(() => {
@@ -1300,13 +1325,45 @@ function FileSettingsDrawer({
     setDescription(file.description ?? "");
   }, [file]);
 
+  // Dirty относительно исходного файла (в форме — нормализованные значения,
+  // как в save()). В ref — чтобы Escape/клик по подложке видели актуальное.
+  const dirty =
+    side !== file.side ||
+    kind !== file.kind ||
+    optional !== file.optional ||
+    enabledByDefault !== file.enabledByDefault ||
+    overwrite !== file.overwrite ||
+    disabled !== file.disabled ||
+    (optional ? modId.trim() || null : null) !== (file.modId ?? null) ||
+    (displayName.trim() || null) !== (file.displayName ?? null) ||
+    (description.trim() || null) !== (file.description ?? null);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const savingRef = useRef(saving);
+  savingRef.current = saving;
+
+  async function tryClose() {
+    if (savingRef.current) return;
+    if (dirtyRef.current) {
+      const ok = await confirm({
+        title: "Есть несохранённые изменения",
+        body: "Закрыть свойства файла без сохранения?",
+        confirmText: "Закрыть",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    onClose();
+  }
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") void tryClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function save() {
     setSaving(true);
@@ -1333,7 +1390,7 @@ function FileSettingsDrawer({
   }
 
   return (
-    <div className="fm-drawer-backdrop" onClick={onClose}>
+    <div className="fm-drawer-backdrop" onClick={() => void tryClose()}>
       <aside
         className="fm-drawer fm-properties-sheet"
         role="dialog"
@@ -1350,7 +1407,7 @@ function FileSettingsDrawer({
               <span className="fm-drawer-hero-meta muted">{formatSize(file.sizeBytes)} · {shortSha(file.sha1)}</span>
             </div>
           </div>
-          <button className="icon-only" title="Закрыть" onClick={onClose}>
+          <button className="icon-only" title="Закрыть" onClick={() => void tryClose()}>
             <IconClose size={16} />
           </button>
         </header>
@@ -1501,7 +1558,7 @@ function FileSettingsDrawer({
         </div>
 
         <footer className="fm-drawer-foot">
-          <button className="ghost" onClick={onClose}>
+          <button className="ghost" onClick={() => void tryClose()} disabled={saving}>
             Отмена
           </button>
           <button className="primary" onClick={save} disabled={saving}>

@@ -439,6 +439,12 @@
     padding: 16px 12px 8px;
 }
 
+/* Экран с плавающей кнопкой: запас снизу, чтобы FAB не перекрывал
+   последнюю карточку. */
+.m-screen.m-screen--fab {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+}
+
 .m-head {
     display: flex;
     align-items: center;
@@ -1776,14 +1782,9 @@ button.secondary:hover:not(:disabled) {
 }
 
 /* Keep the filename row calm: only the three frequent actions are shown.
-   Copy/download actions stay available behind the compact overflow control. */
-.fm-actions-secondary {
-    display: contents;
-}
-
-.mobile-more {
-    display: none;
-}
+   Copy/download actions stay available behind the compact overflow control.
+   Базовые правила (.fm-actions-secondary / .mobile-more) живут в styles.css,
+   здесь — только мобильное переключение (media-блок ниже). */
 
 @media (max-width: 700px) {
     .m-screen .fm-row.file .fm-actions {

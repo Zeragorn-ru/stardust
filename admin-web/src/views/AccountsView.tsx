@@ -4,20 +4,11 @@ import type { Account, PlayerStats } from "../types";
 import { useToast } from "../ui/feedback";
 import { IconCopy, IconSearch, IconSync } from "../ui/icons";
 import { PlayerCardModal } from "../ui/PlayerCardModal";
-import { formatDateTime } from "../format";
+import { formatDateTime, formatPlaytime } from "../format";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
 
 function normalizeUuid(uuid: string): string {
   return uuid.replace(/-/g, "").toLowerCase();
-}
-
-function formatPlaytime(seconds?: number): string {
-  if (seconds == null) return "—";
-  if (seconds < 60) return String(seconds) + "с";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h === 0) return String(m) + "м";
-  return String(h) + "ч " + String(m) + "м";
 }
 
 function formatLastJoin(iso?: string): string {
@@ -109,6 +100,9 @@ export function AccountsView() {
     try {
       const res = await api.syncStats();
       toast.success(`Статистика обновлена: ${res.updated} игроков`);
+      // Подтягиваем свежие значения, иначе таблица останется устаревшей
+      // до перезахода на экран.
+      await load();
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Ошибка синхронизации",
@@ -223,7 +217,7 @@ export function AccountsView() {
     <div className="view accounts-view">
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Player directory</span>
+          <span className="eyebrow">Каталог игроков</span>
           <h1>Аккаунты</h1>
           <p className="muted">
             {accounts.length} всего · {adminCount} админ(ов) · {bannedCount} в бане
@@ -375,7 +369,7 @@ export function AccountsView() {
                             variant="destructive"
                             title={a.banReason || undefined}
                           >
-                            бан
+                            бан{a.banReason ? `: ${a.banReason}` : ""}
                           </Badge>
                         )}
                       </div>
@@ -422,6 +416,7 @@ export function AccountsView() {
       {selectedAccount && (
         <PlayerCardModal
           account={selectedAccount}
+          isSelf={selfUuid !== null && selfUuid === normalizeUuid(selectedAccount.uuid)}
           onClose={() => setSelectedAccount(null)}
           onUpdated={(updated) => {
             setAccounts((prev) => prev.map((a) => (a.uuid === updated.uuid ? updated : a)));

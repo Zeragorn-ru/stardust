@@ -34,7 +34,7 @@ export function GuidesView({ mobile = false }: { mobile?: boolean }) {
 
   return <div className={`view guides-view${mobile ? " guides-view--mobile" : ""}`}>
     <header className="view-head page-head">
-      <div><span className="eyebrow">Public knowledge base</span><h1>Гайды</h1><p className="muted">Инструкции для игроков, которые появляются на сайте после публикации.</p></div>
+      <div><span className="eyebrow">База знаний</span><h1>Гайды</h1><p className="muted">Инструкции для игроков, которые появляются на сайте после публикации.</p></div>
       <button className="primary" type="button" onClick={() => setEditing("new")}>Создать гайд</button>
     </header>
     {!mobile && <p className="muted">Markdown: заголовки, списки, <code>**жирный**</code>, <code>*курсив*</code>, <code>`код`</code> и HTTPS-ссылки.</p>}
@@ -62,7 +62,7 @@ function GuideEditor({ initial, mobile, onClose, onSaved }: { initial?: Guide; m
     finally { setBusy(false); }
   }
   return <div className={`modal-backdrop news-editor-backdrop${mobile ? " news-editor-backdrop--mobile" : ""}`} onClick={onClose}><form ref={dialogRef} className="modal news-editor" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
-    <header className="news-editor__head"><div><span className="eyebrow">Public knowledge base</span><h3>{initial ? "Редактировать гайд" : "Новый гайд"}</h3></div>{mobile && <button className="news-editor__close" type="button" onClick={onClose}>Закрыть</button>}</header>
+    <header className="news-editor__head"><div><span className="eyebrow">База знаний</span><h3>{initial ? "Редактировать гайд" : "Новый гайд"}</h3></div>{mobile && <button className="news-editor__close" type="button" onClick={onClose}>Закрыть</button>}</header>
     <div className="field"><label htmlFor="guide-slug">Slug <span>{form.slug.length}/80</span></label><input id="guide-slug" value={form.slug} maxLength={80} placeholder="how-to-start" onChange={(event) => set("slug", event.target.value)} required /></div>
     <div className="field"><label htmlFor="guide-title">Заголовок <span>{form.title.length}/120</span></label><input id="guide-title" value={form.title} maxLength={120} onChange={(event) => set("title", event.target.value)} autoFocus required /></div>
     <div className="field"><label htmlFor="guide-category">Категория</label><input id="guide-category" value={form.category} maxLength={60} onChange={(event) => set("category", event.target.value)} /></div>

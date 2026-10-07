@@ -171,6 +171,7 @@ export default function ModsSection() {
               type="button"
               role="switch"
               aria-checked={mod.enabled}
+              aria-label={`${mod.enabled ? "Выключить" : "Включить"} мод: ${mod.name}`}
               disabled={busy}
               className={"switch" + (mod.enabled ? " switch--on" : "")}
               onClick={() => toggle(mod)}

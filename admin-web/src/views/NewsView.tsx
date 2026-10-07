@@ -45,7 +45,7 @@ export function NewsView({ mobile = false }: { mobile?: boolean }) {
     <div className={`view news-view${mobile ? " news-view--mobile" : ""}`}>
       <header className="view-head page-head news-view__head">
         <div>
-          <span className="eyebrow">Launcher feed</span>
+          <span className="eyebrow">Лента лаунчера</span>
           <h1>Новости</h1>
           <p className="muted">Объявления для игроков в лаунчере.</p>
         </div>
@@ -142,7 +142,7 @@ function NewsEditor({ initial, mobile, onClose, onSaved }: {
        <form ref={dialogRef} className="modal news-editor" role="dialog" aria-modal="true" aria-labelledby="news-editor-title" tabIndex={-1} onClick={(event) => event.stopPropagation()} onSubmit={submit}>
         <header className="news-editor__head">
           <div>
-            <span className="eyebrow">Launcher feed</span>
+            <span className="eyebrow">Лента лаунчера</span>
            <h3 id="news-editor-title">{initial ? "Редактировать новость" : "Новая новость"}</h3>
           </div>
           {mobile && <button className="news-editor__close" type="button" aria-label="Закрыть" onClick={onClose}>Закрыть</button>}

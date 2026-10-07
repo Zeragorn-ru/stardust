@@ -282,7 +282,24 @@ export function SettingsView() {
             <div className="settings-status"><Badge variant={settings?.serverTelemetryTokenSet ? "secondary" : "outline"}>{settings?.serverTelemetryTokenSet ? "токен задан" : "не настроен"}</Badge></div>
             <p className="muted">Сгенерируйте токен, вставьте его на Minecraft-сервер в <code>config/stardust-server.properties</code>, затем выполните <code>/stardust reload</code>.</p>
             <div className="modal-actions"><Button disabled={generatingTelemetryToken} onClick={generateTelemetryToken}>{generatingTelemetryToken ? "Генерация…" : "Сгенерировать токен"}</Button></div>
-            {telemetryToken && <textarea className="telemetry-token-output" readOnly value={`stardust.server-token=${telemetryToken}`} onFocus={(event) => event.currentTarget.select()} />}
+            {telemetryToken && (
+              <div className="telemetry-token-row">
+                <textarea className="telemetry-token-output" readOnly value={`stardust.server-token=${telemetryToken}`} onFocus={(event) => event.currentTarget.select()} />
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(`stardust.server-token=${telemetryToken}`);
+                      toast.success("Токен скопирован");
+                    } catch {
+                      toast.error("Не удалось скопировать токен");
+                    }
+                  }}
+                >
+                  Копировать
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
         <Card className="settings-card">

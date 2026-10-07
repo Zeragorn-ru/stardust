@@ -93,7 +93,7 @@ function BuildsHub({ builds, onCreate }: { builds: BuildHeader[]; onCreate: () =
     <div className="builds-hub">
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Modpack pipeline</span>
+          <span className="eyebrow">Сборки модов</span>
           <h1>Сборки</h1>
           <p className="muted">
             {builds.length} сборок · {active ? `активна «${active.name}»` : "активная сборка не выбрана"}

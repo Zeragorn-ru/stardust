@@ -127,11 +127,16 @@ export const FileUpload = forwardRef<
       out.push(file);
     } else if (entry.isDirectory) {
       const reader = (entry as FileSystemDirectoryEntry).createReader();
-      const entries = await new Promise<FileSystemEntry[]>((resolve, reject) =>
-        reader.readEntries(resolve, reject),
-      );
-      for (const child of entries) {
-        await collectEntry(child, prefix + entry.name + "/", out);
+      // readEntries отдаёт максимум 100 записей за вызов: читаем циклом,
+      // пока не придёт пустой массив, иначе большие папки теряют хвост.
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((resolve, reject) =>
+          reader.readEntries(resolve, reject),
+        );
+        if (batch.length === 0) break;
+        for (const child of batch) {
+          await collectEntry(child, prefix + entry.name + "/", out);
+        }
       }
     }
   }
@@ -244,6 +249,15 @@ export const FileUpload = forwardRef<
 
       <div
         className={`dropzone${dragging ? " over" : ""}`}
+        role="button"
+        tabIndex={0}
+        aria-label="Загрузить файлы: перетащите или выберите на диске"
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           e.stopPropagation();

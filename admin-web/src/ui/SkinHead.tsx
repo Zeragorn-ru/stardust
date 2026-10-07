@@ -43,11 +43,18 @@ export function SkinHead({ uuid, username, size = 32 }: Props) {
     let active = true;
     setLoaded(false);
     setDataUrl(null);
-    api.getAccountSkinUrl(uuid).then((url) => {
-      if (!active) return;
-      setDataUrl(url);
-      setLoaded(true);
-    });
+    api
+      .getAccountSkinUrl(uuid)
+      .then((url) => {
+        if (!active) return;
+        setDataUrl(url);
+        setLoaded(true);
+      })
+      .catch(() => {
+        // Ошибка загрузки скина не должна оставлять вечный shimmer —
+        // показываем буквенный плейсхолдер.
+        if (active) setLoaded(true);
+      });
     return () => {
       active = false;
     };

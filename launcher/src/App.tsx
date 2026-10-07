@@ -42,6 +42,9 @@ export default function App() {
   const { reload: reloadSkin } = useSkin();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [autoInstallUpdate, setAutoInstallUpdate] = useState(false);
+  // Версия, обновление до которой пользователь уже отклонил: не навязываем
+  // её повторно при следующем плановом опросе.
+  const dismissedUpdateVersion = useRef<string | null>(null);
   const updateModal = useDelayedUnmount(update != null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
@@ -160,6 +163,13 @@ export default function App() {
         return;
       }
 
+      // На экране новостей Escape возвращает на главный, а не закрывает окно.
+      if (viewRef.current === "news") {
+        e.preventDefault();
+        navigateRef.current?.("main");
+        return;
+      }
+
       // На macOS Escape не закрывает окно — только Cmd+W / меню «Закрыть».
       if (mac) return;
 
@@ -198,7 +208,7 @@ export default function App() {
       checking = true;
       try {
         const info = await checkUpdate();
-        if (!cancelled && info.available) {
+        if (!cancelled && info.available && info.version !== dismissedUpdateVersion.current) {
           setAutoInstallUpdate(true);
           setUpdate(info);
         }
@@ -301,6 +311,7 @@ export default function App() {
           update={update}
           autoInstall={autoInstallUpdate}
           onDismiss={() => {
+            if (update) dismissedUpdateVersion.current = update.version;
             setUpdate(null);
             setAutoInstallUpdate(false);
           }}
