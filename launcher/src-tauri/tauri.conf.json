@@ -20,7 +20,18 @@
         "resizable": false,
         "maximizable": false,
         "decorations": false,
-        "center": true
+        "center": true,
+        "platformConfig": {
+          "macos": {
+            "decorations": true,
+            "hiddenTitle": true,
+            "titleBarStyle": "Overlay",
+            "trafficLightPosition": {
+              "x": 14,
+              "y": 12
+            }
+          }
+        }
       }
     ],
     "security": {
