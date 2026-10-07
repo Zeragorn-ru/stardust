@@ -22,8 +22,12 @@ export default function OnboardingScreen({ dataDirectory, onDone }: Props) {
   }
 
   async function chooseFolder() {
-    const path = await chooseDataDirectory();
-    if (path) setDataPath(path);
+    try {
+      const path = await chooseDataDirectory();
+      if (path) setDataPath(path);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   async function finish() {

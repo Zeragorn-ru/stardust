@@ -7,10 +7,12 @@ type Tab = "skin" | "nick";
 interface Props {
   playerName: string;
   onClose: () => void;
+  /** Профиль обновился (бейдж/градиент сохранены) — можно подтянуть свежие данные. */
+  onNickSaved?: () => void;
   closing?: boolean;
 }
 
-export default function CustomizeModal({ playerName, onClose, closing }: Props) {
+export default function CustomizeModal({ playerName, onClose, onNickSaved, closing }: Props) {
   const [tab, setTab] = useState<Tab>("skin");
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -73,7 +75,7 @@ export default function CustomizeModal({ playerName, onClose, closing }: Props) 
           </div>
         ) : (
           <div className="customize-modal__body">
-            <NickCustomizer playerName={playerName} />
+            <NickCustomizer playerName={playerName} onSaved={onNickSaved} />
           </div>
         )}
       </div>

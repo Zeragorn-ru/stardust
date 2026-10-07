@@ -87,9 +87,21 @@ export default function LogViewerModal({
       }, [])
     : [];
 
+  // Новый запрос сбрасывает позицию на первое совпадение; авто-refresh
+  // (lines меняется сам) не должен сбрасывать выбранное совпадение.
+  const prevQueryRef = useRef(normalizedQuery);
   useEffect(() => {
-    setMatchCursor(matchIndexes.length > 0 ? 0 : -1);
-  }, [normalizedQuery, lines]);
+    if (prevQueryRef.current !== normalizedQuery) {
+      prevQueryRef.current = normalizedQuery;
+      setMatchCursor(matchIndexes.length > 0 ? 0 : -1);
+    }
+  }, [normalizedQuery, matchIndexes.length]);
+  // Строки могли смениться так, что курсор вышел за пределы списка.
+  useEffect(() => {
+    setMatchCursor((current) =>
+      current >= matchIndexes.length ? (matchIndexes.length > 0 ? 0 : -1) : current,
+    );
+  }, [matchIndexes.length]);
 
   useEffect(() => {
     if (matchCursor < 0) return;

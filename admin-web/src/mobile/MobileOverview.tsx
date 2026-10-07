@@ -220,7 +220,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
       <section className="m-section-card">
         <div className="m-section-head">
           <div>
-            <span className="m-eyebrow">iPhone / iPad web-app</span>
+            <span className="m-eyebrow">Веб-приложение для iOS</span>
             <h2>Частые сценарии</h2>
           </div>
         </div>

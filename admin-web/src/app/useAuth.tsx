@@ -57,13 +57,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Сервер отозвал токен (401 из любого запроса) — уходим на экран входа.
+  useEffect(() => {
+    function onExpired() {
+      setUsername(null);
+      setAuthed(false);
+    }
+    window.addEventListener("auth-expired", onExpired);
+    return () => window.removeEventListener("auth-expired", onExpired);
+  }, []);
+
   const onLoggedIn = useCallback((name: string) => {
     setUsername(name);
     setAuthed(true);
   }, []);
 
   const logout = useCallback(async () => {
-    await api.logout();
+    // Даже если сервер недоступен — локально выходим всегда, иначе админ
+    // останется заперт в «вошедшем» интерфейсе с мёртвым токеном.
+    try {
+      await api.logout();
+    } catch {
+      /* токен уже сброшен в api.logout() */
+    }
     setUsername(null);
     setAuthed(false);
   }, []);

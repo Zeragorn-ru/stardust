@@ -37,6 +37,18 @@ export function formatDateTime(value: string, options: Intl.DateTimeFormatOption
   });
 }
 
+/// Время в игре: 45 с / 5 мин / 1 ч 5 мин. Одна реализация для таблицы
+/// аккаунтов и карточки игрока — раньше они расходились («45с» vs «45 с»).
+export function formatPlaytime(seconds?: number): string {
+  if (seconds == null) return "—";
+  if (seconds < 60) return `${seconds} с`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m} мин`;
+  const h = Math.floor(m / 60);
+  const rem = m % 60;
+  return rem > 0 ? `${h} ч ${rem} мин` : `${h} ч`;
+}
+
 
 /// Короткий sha1 для отображения (первые 10 символов).
 export function shortSha(sha1: string): string {

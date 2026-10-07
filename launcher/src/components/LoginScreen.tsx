@@ -219,6 +219,7 @@ export default function LoginScreen({ onAuthenticated }: Props) {
     if (!approval) return;
     let cancelled = false;
     let inFlight = false;
+    let consecutiveErrors = 0;
 
     async function poll() {
       if (inFlight || cancelled) return;
@@ -230,10 +231,16 @@ export default function LoginScreen({ onAuthenticated }: Props) {
         outcome = active.kind === "login2fa"
           ? await login2faStatus(active.challenge)
           : await passwordlessStatus(active.challenge);
+        consecutiveErrors = 0;
       } catch (err) {
+        // Один сетевой сбой не должен убивать ожидание: код в Telegram
+        // пользователь мог уже нажать. Пробуем ещё (до 5 подряд ошибок).
+        consecutiveErrors += 1;
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : String(err));
-        setApproval(null);
+        if (consecutiveErrors >= 5) {
+          setError(err instanceof Error ? err.message : String(err));
+          setApproval(null);
+        }
         return;
       } finally {
         inFlight = false;
@@ -325,7 +332,9 @@ export default function LoginScreen({ onAuthenticated }: Props) {
       <div className="login">
         <div className="login__brand">
           <h1>StarDust</h1>
-          <p className="muted">Задайте новый пароль</p>
+          <p className="muted">
+            Мы отправили код подтверждения в Telegram. Задайте новый пароль.
+          </p>
         </div>
 
         <form className="login__form" onSubmit={handleResetConfirm}>

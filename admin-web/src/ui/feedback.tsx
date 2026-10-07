@@ -116,7 +116,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
               key={t.id}
               className={`toast toast-${t.kind}`}
               onClick={() => dismiss(t.id)}
-              role="status"
+              role={t.kind === "error" ? "alert" : "status"}
             >
               <span className="toast-icon" aria-hidden="true">
                 {t.kind === "success" ? (
@@ -165,7 +165,15 @@ function ConfirmDialog({
       if (e.key === "Escape") onClose(false);
       // Enter подтверждает только безопасные действия. Для опасных (удаление,
       // снятие прав) требуем явного клика, чтобы случайный Enter не сработал.
-      if (e.key === "Enter" && !state.danger) onClose(true);
+      // Кнопки (в т.ч. автофокусная «Отмена») обрабатывают Enter нативно —
+      // глобальный Enter не должен дублировать их действие.
+      if (
+        e.key === "Enter" &&
+        !state.danger &&
+        !(e.target instanceof HTMLButtonElement)
+      ) {
+        onClose(true);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

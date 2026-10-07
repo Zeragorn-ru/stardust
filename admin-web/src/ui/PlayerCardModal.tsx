@@ -7,19 +7,21 @@ import { useDialogFocus } from "../ui/useDialogFocus";
 import { SkinHead } from "../ui/SkinHead";
 import { useConfirm, useToast } from "./feedback";
 import { PlayerSkinTab } from "./PlayerSkinTab";
-import { formatDateTime } from "../format";
+import { formatDateTime, formatPlaytime } from "../format";
 import { normalizeMinecraftText } from "../minecraftText";
 
 type Tab = "info" | "skin" | "badges" | "actions";
 
 interface Props {
   account: Account;
+  /** true, если карточка открыта на самом себе — блокируем снятие прав. */
+  isSelf?: boolean;
   onClose: () => void;
   onUpdated: (account: Account) => void;
   onDeleted: (uuid: string) => void;
 }
 
-export function PlayerCardModal({ account, onClose, onUpdated, onDeleted }: Props) {
+export function PlayerCardModal({ account, isSelf = false, onClose, onUpdated, onDeleted }: Props) {
   const [tab, setTab] = useState<Tab>("info");
   const onCloseRef = useRef(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -84,6 +86,7 @@ export function PlayerCardModal({ account, onClose, onUpdated, onDeleted }: Prop
           {tab === "actions" && (
             <ActionsTab
               account={account}
+              isSelf={isSelf}
               onClose={onClose}
               onUpdated={onUpdated}
               onDeleted={onDeleted}
@@ -103,15 +106,6 @@ function InfoTab({ account }: { account: Account }) {
   useEffect(() => {
     api.getAccountStats(account.uuid).then(setStats).catch(() => {});
   }, [account.uuid]);
-
-  function formatPlaytime(seconds: number): string {
-    if (seconds < 60) return `${seconds} с`;
-    const m = Math.floor(seconds / 60);
-    if (m < 60) return `${m} мин`;
-    const h = Math.floor(m / 60);
-    const rem = m % 60;
-    return rem > 0 ? `${h} ч ${rem} мин` : `${h} ч`;
-  }
 
   return (
     <div className="pc-info">
@@ -149,6 +143,14 @@ function InfoTab({ account }: { account: Account }) {
               )}
             </td>
           </tr>
+          {account.banned && (
+            <tr>
+              <td className="muted">Причина бана</td>
+              <td>
+                {account.banReason ?? <span className="muted">не указана</span>}
+              </td>
+            </tr>
+          )}
           {stats && (
             <>
               <tr>
@@ -188,9 +190,12 @@ function BadgesTab({
     activeGradientId: number | null;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
       const c = await api.getAccountCustomization(account.uuid);
       setData({
@@ -201,8 +206,8 @@ function BadgesTab({
         activeBadgeId: c.activeBadgeId,
         activeGradientId: c.activeGradientId,
       });
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Не удалось загрузить кастомизацию");
     } finally {
       setLoading(false);
     }
@@ -252,6 +257,16 @@ function BadgesTab({
   }
 
   if (loading || !data) {
+    if (error) {
+      return (
+        <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <p className="muted" style={{ margin: 0 }}>{error}</p>
+          <button className="secondary" onClick={() => void load()} style={{ alignSelf: "flex-start" }}>
+            Повторить
+          </button>
+        </div>
+      );
+    }
     return <div className="muted" style={{ padding: 16 }}><span className="spinner" /> Загрузка…</div>;
   }
 
@@ -373,11 +388,13 @@ function BadgesTab({
 
 function ActionsTab({
   account,
+  isSelf = false,
   onClose,
   onUpdated,
   onDeleted,
 }: {
   account: Account;
+  isSelf?: boolean;
   onClose: () => void;
   onUpdated: (a: Account) => void;
   onDeleted: (uuid: string) => void;
@@ -536,7 +553,8 @@ function ActionsTab({
         <div style={{ flex: 1 }}>
           <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Сбросить пароль</label>
           <input
-            type="text"
+            type="password"
+            autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Новый пароль (от 6 символов)"
@@ -551,7 +569,13 @@ function ActionsTab({
 
       {/* Управление правами и банами */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-        <button className="secondary" disabled={busy} onClick={doSetRole} style={{ flex: 1, minWidth: 140, justifyContent: "center" }}>
+        <button
+          className="secondary"
+          disabled={busy || (isSelf && account.isAdmin)}
+          onClick={doSetRole}
+          title={isSelf && account.isAdmin ? "Нельзя снять права администратора с самого себя" : undefined}
+          style={{ flex: 1, minWidth: 140, justifyContent: "center" }}
+        >
           {account.isAdmin ? "Снять права админа" : "Сделать админом"}
         </button>
 

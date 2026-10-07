@@ -138,7 +138,7 @@ function Shell() {
           <strong>{selectedBuildId ? "Детали сборки" : activeItem.label}</strong>
         </div>
         <div className="m-shell-actions">
-          <a className="m-shell-link" href={switchViewHref("desktop")}>ПК</a>
+          <a className="m-shell-link" href={switchViewHref("desktop")}>ПК-версия</a>
         </div>
       </header>
 
@@ -154,7 +154,7 @@ function Shell() {
           <span className="m-brand-mark"><span /></span>
           <div>
             <strong>StarDust</strong>
-            <small>Control room</small>
+            <small>Панель управления</small>
           </div>
           <button className="icon-only m-drawer-close" type="button" aria-label="Закрыть меню" onClick={() => setDrawerOpen(false)}>
             <IconClose size={18} />

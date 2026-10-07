@@ -28,7 +28,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (username: string) => void }
           <span className="brand-dot" />
           <span>Вход в админку</span>
         </div>
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
         <div className="field">
           <label htmlFor="u">Логин</label>
           <input

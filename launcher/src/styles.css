@@ -734,6 +734,29 @@ button,
         transform var(--t-fast);
 }
 
+/* Клавиатурная навигация: явный фокус-индикатор для всех интерактивных
+   элементов (кнопки, вкладки, свитчи), не только полей ввода. */
+.btn:focus-visible,
+.settings__nav-item:focus-visible,
+.tabs__tab:focus-visible,
+.skin-tab:focus-visible,
+.segmented__opt:focus-visible,
+.java-provider:focus-visible,
+.java-list__item:focus-visible,
+.java-list__path:focus-visible,
+.java-vendors__item:focus-visible,
+.nick-option-btn:focus-visible,
+.data-directory-card__path:focus-visible,
+.window-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+[role="switch"]:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 .btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.1);
 }
@@ -2491,6 +2514,22 @@ button,
     border-top: 1px solid var(--glass-border);
 }
 
+/* Диалог подтверждения (замена window.confirm на macOS/WKWebView). */
+
+.confirm-modal {
+    max-width: 480px;
+}
+
+.confirm-modal__body {
+    margin: 0;
+    padding: 16px 20px;
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-line;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
 /* ============ Update card ============ */
 
 .update-overlay {
@@ -3811,6 +3850,10 @@ button.data-directory-card__path:disabled {
     display: flex;
     justify-content: flex-end;
     padding-top: 8px;
+}
+
+.nick-save-error {
+    margin-top: 8px;
 }
 
 /* --- Nick display on main screen --- */

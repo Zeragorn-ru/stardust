@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getNews, openExternal } from "../api";
 import type { NewsPost } from "../types";
 
@@ -6,9 +6,14 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
   const [posts, setPosts] = useState<NewsPost[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
+    setError(null);
     getNews().then(setPosts).catch(() => setError("Не удалось загрузить новости. Проверьте подключение и попробуйте позже."));
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return <main className="news-screen stagger">
     <header className="news-screen__header settings__header">
@@ -18,7 +23,7 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
     <div className="news-screen__body">
       <div className="news-screen__feed">
       {posts === null && !error && <div className="settings__loading"><div className="spinner" /><span className="muted">Загружаем новости…</span></div>}
-      {error && <div className="news-screen__empty"><strong>Новости временно недоступны</strong><span>{error}</span></div>}
+      {error && <div className="news-screen__empty"><strong>Новости временно недоступны</strong><span>{error}</span><button type="button" className="btn btn--ghost" onClick={load}>Повторить</button></div>}
       {posts?.length === 0 && <div className="news-screen__empty"><strong>Новостей пока нет</strong><span>Когда появится что-то важное, оно будет здесь.</span></div>}
       {posts?.map((post) => <article className="news-post stagger-item" key={post.id}>
         <div className="news-post__topline"><div className="news-post__meta">{post.pinned && <span className="news-post__pin">Закреплено</span>}<span>{post.authorName}</span></div><time dateTime={post.updatedAt}>{formatDate(post.updatedAt)}</time></div>

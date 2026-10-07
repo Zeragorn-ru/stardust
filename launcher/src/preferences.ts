@@ -21,6 +21,22 @@ export function getAnimations(): boolean {
   return raw === "1";
 }
 
+/** Следит за системной настройкой «уменьшить анимации», пока пользователь
+ *  не сделал свой выбор. Смена преференции применяется и в DOM, и в
+ *  React-состоянии (через onChange), чтобы тумблер не рассинхронизировался. */
+export function watchSystemMotion(onChange?: (enabled: boolean) => void): () => void {
+  const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  if (!mq) return () => {};
+  const listener = () => {
+    if (localStorage.getItem(ANIM_KEY) !== null) return; // есть свой выбор
+    const enabled = !mq.matches;
+    applyMotion(enabled);
+    onChange?.(enabled);
+  };
+  mq.addEventListener("change", listener);
+  return () => mq.removeEventListener("change", listener);
+}
+
 /** Сохранить выбор и сразу применить его к документу. */
 export function setAnimations(on: boolean): void {
   localStorage.setItem(ANIM_KEY, on ? "1" : "0");

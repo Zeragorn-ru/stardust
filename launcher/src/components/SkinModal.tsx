@@ -59,6 +59,8 @@ export default function SkinModal({ onClose, embedded = false }: Props) {
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     const file = e.target.files?.[0];
+    // Сбрасываем value: иначе повторный выбор того же файла не вызовет onChange.
+    e.target.value = "";
     if (!file) return;
     if (file.type !== "image/png") {
       setError("Скин должен быть в формате PNG");

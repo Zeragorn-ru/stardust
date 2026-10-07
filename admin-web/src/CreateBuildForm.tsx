@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { CreateBuildInput } from "./types";
-import { useToast } from "./ui/feedback";
+import { useToast, useConfirm } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import { useDialogFocus } from "./ui/useDialogFocus";
 
@@ -15,9 +15,9 @@ export function CreateBuildForm({
   onClose: () => void;
 }) {
   const toast = useToast();
+  const confirm = useConfirm();
   const dialogRef = useRef<HTMLFormElement>(null);
   useBodyScrollLock();
-  useDialogFocus(dialogRef, onClose);
   const [form, setForm] = useState<CreateBuildInput>({
     name: "",
     version: "",
@@ -26,6 +26,31 @@ export function CreateBuildForm({
     loaderVersion: "",
   });
   const [busy, setBusy] = useState(false);
+
+  // Dirty в ref: закрытие по подложке/Escape проверяет актуальное значение.
+  const dirty =
+    Boolean(form.name.trim() || form.version.trim() || form.mcVersion.trim() || form.loaderVersion.trim()) ||
+    form.loaderKind !== "neoforge";
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+
+  async function tryClose() {
+    if (busyRef.current) return;
+    if (dirtyRef.current) {
+      const ok = await confirm({
+        title: "Есть несохранённые изменения",
+        body: "Закрыть форму без создания сборки?",
+        confirmText: "Закрыть",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    onClose();
+  }
+
+  useDialogFocus(dialogRef, () => void tryClose());
 
   function set<K extends keyof CreateBuildInput>(
     key: K,
@@ -60,7 +85,7 @@ export function CreateBuildForm({
     form.name.trim() && form.version.trim() && form.mcVersion.trim();
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={() => void tryClose()}>
       <form
         ref={dialogRef}
         className="modal modal-wide"
@@ -123,7 +148,7 @@ export function CreateBuildForm({
           </div>
         </div>
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={() => void tryClose()} disabled={busy}>
             Отмена
           </button>
           <button className="primary" type="submit" disabled={busy || !valid}>

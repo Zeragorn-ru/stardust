@@ -79,6 +79,9 @@ const SkinViewer3D = memo(function SkinViewer3D({
   const lastSkinRef = useRef<string>("");
   const lastModelRef = useRef<SkinModel>("classic");
   const lastCapeRef = useRef<string | null>(null);
+  // Очередь загрузок скина: быстрый повторный выбор не должен дать стейл
+  // (медленному) промису перезаписать уже применённый новый скин.
+  const skinChainRef = useRef<Promise<void>>(Promise.resolve());
 
   /** Отрисовать один кадр без постоянного requestAnimationFrame. */
   function renderOnce() {
@@ -128,13 +131,29 @@ const SkinViewer3D = memo(function SkinViewer3D({
       lastSkinRef.current = src;
       lastModelRef.current = model;
       viewer.setSlim(model === "slim");
-      void normalizeSkinForViewer(src)
-        .then((normalized) => viewer.setSkin(normalized))
-        .then(renderOnce)
-        .catch(() => {
-          viewer.setSkin(src).catch(() => {
-            if (src !== DEFAULT_SKIN) viewer.setSkin(DEFAULT_SKIN);
-          }).finally(renderOnce);
+      const wanted = src;
+      const wantedModel = model;
+      skinChainRef.current = skinChainRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          // Пока грузилось — скин уже сменился: устаревшую задачу пропускаем.
+          if (lastSkinRef.current !== wanted || lastModelRef.current !== wantedModel) return;
+          try {
+            const normalized = await normalizeSkinForViewer(wanted);
+            if (lastSkinRef.current !== wanted) return;
+            await viewer.setSkin(normalized);
+          } catch {
+            if (lastSkinRef.current !== wanted) return;
+            try {
+              await viewer.setSkin(wanted);
+            } catch {
+              if (wanted !== DEFAULT_SKIN && lastSkinRef.current === wanted) {
+                await viewer.setSkin(DEFAULT_SKIN).catch(() => undefined);
+              }
+            }
+          } finally {
+            renderOnce();
+          }
         });
     }
     if (capeUrl !== lastCapeRef.current) {

@@ -99,7 +99,7 @@ export function ExternalModsView() {
       <section className="panel panel-flat">
         <div className="section-head">
           <div>
-            <span className="eyebrow">Block rules</span>
+            <span className="eyebrow">Правила блокировки</span>
             <h2>Заблокировать мод</h2>
           </div>
         </div>
@@ -121,7 +121,7 @@ export function ExternalModsView() {
       <div className="external-mods-columns">
         <section className="panel panel-flat">
           <div className="section-head">
-            <div><span className="eyebrow">Allowlist</span><h2>Разрешённые моды</h2></div>
+            <div><span className="eyebrow">Разрешённые</span><h2>Разрешённые моды</h2></div>
             <span className="badge">{allowlist.length}</span>
           </div>
           {loading ? <p className="muted">Загрузка…</p> : allowlist.length === 0 ? <p className="muted">Разрешённых модов пока нет.</p> : (
@@ -145,7 +145,7 @@ export function ExternalModsView() {
 
         <section className="panel panel-flat">
           <div className="section-head">
-            <div><span className="eyebrow">Deny rules</span><h2>Правила блокировки</h2></div>
+            <div><span className="eyebrow">Запреты</span><h2>Правила блокировки</h2></div>
             <span className="badge">{rules.length}</span>
           </div>
           {loading ? <p className="muted">Загрузка…</p> : rules.length === 0 ? <p className="muted">Правил блокировки пока нет.</p> : (

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen } from "../api";
+import { accountInfo, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen } from "../api";
 import { formatBytes } from "../format";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -328,7 +328,7 @@ export default function MainScreen({
                 {serverOnline === null ? (
                   <div className="hero__stat">
                     <span className="hero__stat-value hero__stat-value--muted">—</span>
-                    <span className="hero__stat-label">недоступен</span>
+                    <span className="hero__stat-label">проверяем…</span>
                   </div>
                 ) : serverOnline ? (
                   <>
@@ -377,7 +377,7 @@ export default function MainScreen({
             <span className="play-button__top">
               <span>
                 {ban
-                  ? "Сервер недоступен"
+                  ? "Доступ к серверу ограничен"
                   : running
                     ? "Игра запущена"
                     : busy
@@ -485,14 +485,28 @@ export default function MainScreen({
               </div>
             ) : (
               <div className="players-modal__empty">
-                Сервер показывает онлайн, но не отдаёт список игроков в status sample.
+                Сервер показывает онлайн, но пока не отдаёт список игроков.
               </div>
             )}
           </div>
         </div>
       )}
 
-      {skinOpen && <CustomizeModal playerName={profile.name} onClose={() => setSkinOpen(false)} />}
+      {skinOpen && (
+        <CustomizeModal
+          playerName={profile.name}
+          onClose={() => setSkinOpen(false)}
+          onNickSaved={() => {
+            // Бейдж/градиент мог смениться — подтягиваем свежий профиль,
+            // чтобы ник на главном экране сразу отразил выбор.
+            currentProfile()
+              .then((p) => {
+                if (p) onProfileChange?.(p);
+              })
+              .catch(() => undefined);
+          }}
+        />
+      )}
     </div>
   );
 }

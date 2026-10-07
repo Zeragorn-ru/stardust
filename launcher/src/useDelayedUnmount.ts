@@ -10,17 +10,25 @@ export function useDelayedUnmount(open: boolean, delay = 200) {
   const [shouldRender, setShouldRender] = useState(open);
   const [visible, setVisible] = useState(open);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
 
     if (open) {
       setShouldRender(true);
       // Даём один кадр, чтобы React примонтировал DOM, и только потом ставим visible
-      requestAnimationFrame(() => setVisible(true));
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        setVisible(true);
+      });
     } else {
       setVisible(false);
       timerRef.current = setTimeout(() => {
@@ -33,6 +41,10 @@ export function useDelayedUnmount(open: boolean, delay = 200) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
+      }
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
       }
     };
   }, [open, delay]);

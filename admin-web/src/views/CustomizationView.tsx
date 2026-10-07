@@ -9,6 +9,11 @@ import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { useDialogFocus } from "../ui/useDialogFocus";
 import { IconPlus, IconTrash, IconPencil } from "../ui/icons";
 
+/** Валидный hex-цвет: #rgb или #rrggbb. */
+function isHexColor(value: string): boolean {
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
+}
+
 export function CustomizationView() {
   const toast = useToast();
   const confirm = useConfirm();
@@ -106,7 +111,7 @@ export function CustomizationView() {
     <div className="view customization-view">
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Cosmetics studio</span>
+          <span className="eyebrow">Студия кастомизации</span>
           <h1>Кастомизация ника</h1>
           <p className="muted">Бейджи и градиенты, которые увидят игроки в TAB и лаунчере.</p>
         </div>
@@ -114,7 +119,7 @@ export function CustomizationView() {
 
       <section className="cosmetics-preview panel panel-flat">
         <div>
-          <span className="eyebrow">Preview</span>
+          <span className="eyebrow">Предпросмотр</span>
           <h2>Как это выглядит</h2>
         </div>
         <div className="nickname-preview-row">
@@ -138,7 +143,7 @@ export function CustomizationView() {
         <section className="panel panel-flat cosmetics-section">
           <div className="section-head">
             <div>
-              <span className="eyebrow">Badges</span>
+              <span className="eyebrow">Бейджи</span>
               <h2>Бейджи</h2>
             </div>
             <button className="primary" onClick={() => setBadgeModal({ mode: "create" })}>
@@ -179,7 +184,7 @@ export function CustomizationView() {
         <section className="panel panel-flat cosmetics-section">
           <div className="section-head">
             <div>
-              <span className="eyebrow">Gradients</span>
+              <span className="eyebrow">Градиенты</span>
               <h2>Градиенты</h2>
             </div>
             <button className="primary" onClick={() => setGradientModal({ mode: "create" })}>
@@ -315,7 +320,7 @@ function BadgeModal({
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="primary" type="submit" disabled={busy || !emoji.trim() || !label.trim() || !description.trim() || !color.trim()}>
+          <button className="primary" type="submit" disabled={busy || !emoji.trim() || !label.trim() || !description.trim() || !isHexColor(color)}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
@@ -396,7 +401,7 @@ function GradientModal({
           <button type="button" onClick={onClose}>
             Отмена
           </button>
-          <button className="primary" type="submit" disabled={busy || !label.trim() || !description.trim() || !colorStart.trim() || !colorEnd.trim()}>
+          <button className="primary" type="submit" disabled={busy || !label.trim() || !description.trim() || !isHexColor(colorStart) || !isHexColor(colorEnd)}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
         </div>

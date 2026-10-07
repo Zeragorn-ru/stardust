@@ -42,6 +42,13 @@ export function setToken(token: string | null): void {
   }
 }
 
+// Токен отозван сервером (401): сбрасываем локально и оповещаем провайдера
+// сессии, чтобы интерфейс ушёл на экран входа, а не продолжал сыпать ошибками.
+function onAuthRejected(): void {
+  setToken(null);
+  window.dispatchEvent(new Event("auth-expired"));
+}
+
 /// Ошибка с человекочитаемым сообщением от сервера.
 export class ApiError extends Error {
   status: number;
@@ -82,6 +89,11 @@ async function request<T>(
 
   const resp = await fetch(path, { method, headers, body: payload });
   if (resp.status === 204) return undefined as T;
+
+  // Протухший/отозванный токен: выходим сразу, дальнейшие запросы бессмысленны.
+  if (resp.status === 401 && token && path !== "/api/login") {
+    onAuthRejected();
+  }
 
   const text = await resp.text();
   const data = text ? safeJson(text) : undefined;
@@ -207,6 +219,7 @@ export const api = {
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(data as BuildFile);
         } else {
+          if (xhr.status === 401 && token) onAuthRejected();
           const message =
             data && typeof data === "object" && "error" in data
               ? String((data as { error: unknown }).error)
@@ -247,6 +260,7 @@ export const api = {
     const token = getToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(`/files/${sha1}`, { headers });
+    if (resp.status === 401 && token) onAuthRejected();
     if (!resp.ok) throw new ApiError(resp.status, `Ошибка ${resp.status}`);
     return resp.text();
   },
@@ -408,6 +422,7 @@ export const api = {
     if (token) headers["Authorization"] = `Bearer ${token}`;
     const resp = await fetch(`/api/accounts/${uuid}/skin`, { headers });
     if (resp.status === 404) return null;
+    if (resp.status === 401 && token) onAuthRejected();
     if (!resp.ok) throw new ApiError(resp.status, `Ошибка ${resp.status}`);
     const blob = await resp.blob();
       const model = resp.headers.get("X-Skin-Model") === "slim" ? "slim" : "classic";

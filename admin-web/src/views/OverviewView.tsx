@@ -73,7 +73,7 @@ export function OverviewView() {
     <div className="view overview-view">
       <section className="hero-panel hero-panel--overview">
         <div className="hero-copy">
-          <span className="eyebrow">Stardust operations</span>
+          <span className="eyebrow">Операции Stardust</span>
           <h1>Панель сервера</h1>
           <p>
             Ключевые статусы платформы, активная сборка и состояние сервера в одном рабочем экране.
@@ -104,8 +104,8 @@ export function OverviewView() {
       <section className="ops-grid">
         <MetricCard label="Сборки" value={loading ? "..." : builds.length} hint={activeBuild ? `Активна: ${activeBuild.name}` : "Активная сборка не выбрана"} tone="blue" />
         <MetricCard label="Аккаунты" value={loading ? "..." : accounts.length} hint={`${totals.admins} админ(ов), ${totals.banned} в бане`} tone="green" />
-        <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "online" : "offline"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
-        <MetricCard label="SFTP" value={settings?.sftpPasswordSet ? "ready" : "setup"} hint={settings?.sftpHost || "Подключение не настроено"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+        <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "подключен" : "отключен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
+        <MetricCard label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "не настроен"} hint={settings?.sftpHost || "Подключение не настроено"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
       </section>
 
       <TelemetryPanel telemetry={telemetry} />
@@ -128,7 +128,7 @@ export function OverviewView() {
                   <strong>{build.name}</strong>
                   <small>{build.loaderKind} · MC {build.mcVersion} · v{build.version}</small>
                 </span>
-                {build.isActive && <span className="badge active">active</span>}
+                {build.isActive && <span className="badge active">активная</span>}
               </Link>
             ))}
             {!loading && builds.length === 0 && <p className="muted">Сборок пока нет.</p>}

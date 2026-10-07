@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { ServerLogEntry, ServerLogSummary } from "../types";
 import { formatTelemetryTime } from "../format";
+import { useToast } from "../ui/feedback";
 import { useDialogFocus } from "../ui/useDialogFocus";
 
 const labels: Record<string, string> = {
@@ -41,7 +42,7 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
     <div className={`view logs-view${mobile ? " logs-view--mobile" : ""}`}>
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Server activity</span>
+          <span className="eyebrow">Активность сервера</span>
           <h1>Логи</h1>
           <p className="muted">Нажмите на событие, чтобы открыть полные данные и связанные файлы.</p>
         </div>
@@ -50,7 +51,7 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
 
       {averageOnline !== null && (
         <section className="panel panel-flat logs-average-card">
-          <span className="eyebrow">All-time server metric</span>
+          <span className="eyebrow">Статистика за всё время</span>
           <strong>{averageOnline.toFixed(1)}</strong>
           <small>средний онлайн за всё время</small>
         </section>
@@ -142,11 +143,20 @@ function ExternalModRow({ mod }: { mod: unknown }) {
   const sha256 = typeof value.sha256 === "string" ? value.sha256 : "";
   const [allowed, setAllowed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const toast = useToast();
 
   async function allow() {
     if (!sha256) return;
     setBusy(true);
-    try { await api.allowExternalMod({ modId, jarName, sha256 }); setAllowed(true); } finally { setBusy(false); }
+    try {
+      await api.allowExternalMod({ modId, jarName, sha256 });
+      setAllowed(true);
+      toast.success(`${jarName} разрешён`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось разрешить мод");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <div className="log-mod-row"><div><strong>{jarName}</strong><small>{modId} · <code>{sha256 || "hash отсутствует"}</code></small></div>{sha256 && <button className="secondary" type="button" disabled={busy || allowed} onClick={() => void allow()}>{allowed ? "Разрешен" : "Разрешить hash"}</button>}</div>;
