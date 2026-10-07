@@ -33,6 +33,8 @@ const DEFAULT_SKIN =
 /** Через сколько мс бездействия ставить рендер на паузу. */
 const HERO_IDLE_TIMEOUT_MS = 900;
 const INTERACTIVE_IDLE_TIMEOUT_MS = 3_000;
+/** Скорость авто-вращения hero-модели (градусы/сек; ~20 c на оборот). */
+const HERO_ROTATE_SPEED = 18;
 
 function isWebGLAvailable(): boolean {
   try {
@@ -68,6 +70,8 @@ const SkinViewer3D = memo(function SkinViewer3D({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<SkinViewer | null>(null);
   const { animations } = useMotion();
+  const animationsRef = useRef(animations);
+  animationsRef.current = animations;
   const [webglFailed, setWebglFailed] = useState(false);
 
   const visibleRef = useRef(visible);
@@ -93,11 +97,12 @@ const SkinViewer3D = memo(function SkinViewer3D({
   /** Запустить встроенный цикл рендера (если не на паузе и visible). */
   function startLoop() {
     const v = viewerRef.current;
-    if (!interactive) {
+    if (!v || idleRef.current || !visibleRef.current || !focusedRef.current || document.hidden) return;
+    // Hero (не-интерактив) крутим только при включённых анимациях; иначе один кадр.
+    if (!interactive && !animationsRef.current) {
       renderOnce();
       return;
     }
-    if (!v || idleRef.current || !visibleRef.current || !focusedRef.current || document.hidden) return;
     v.startRenderLoop();
   }
 
@@ -108,14 +113,15 @@ const SkinViewer3D = memo(function SkinViewer3D({
 
   /** Сбросить таймер бездействия. */
   function resetIdleTimer() {
-    if (!interactive) {
-      renderOnce();
-      return;
-    }
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     if (idleRef.current) {
       idleRef.current = false;
       startLoop();
+    }
+    // Для hero без анимаций loop не запущен — достаточно одного кадра.
+    if (!interactive && !animationsRef.current) {
+      renderOnce();
+      return;
     }
     idleTimerRef.current = setTimeout(() => {
       idleRef.current = true;
@@ -214,8 +220,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
       const v = viewerRef.current;
       if (v && visibleRef.current) {
         v.resize(width, height);
-        if (interactive) startLoop();
-        else renderOnce();
+        startLoop();
       }
     }
 
@@ -242,7 +247,13 @@ const SkinViewer3D = memo(function SkinViewer3D({
         viewer.resize(width, height);
         viewerRef.current = viewer;
         loadCurrent();
-        if (animations && interactive) viewer.playAnimation("float");
+        if (interactive) {
+          if (animations) viewer.playAnimation("float");
+        } else if (animations) {
+          // Hero: мягкое авто-вращение вместо позы.
+          viewer.setAutoRotate(true);
+          viewer.setAutoRotateSpeed(HERO_ROTATE_SPEED);
+        }
         if (visibleRef.current) startLoop();
         resetIdleTimer();
       })
@@ -294,8 +305,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
       const v = viewerRef.current;
       if (v) {
         v.resize(width, height);
-        if (interactive) startLoop();
-        else renderOnce();
+        startLoop();
       }
       resetIdleTimer();
     } else {
@@ -345,12 +355,18 @@ const SkinViewer3D = memo(function SkinViewer3D({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
-    if (animations && interactive) {
-      viewer.playAnimation("float");
+    if (interactive) {
+      if (animations) viewer.playAnimation("float");
+      else viewer.stopAnimation();
     } else {
-      viewer.stopAnimation();
+      viewer.setAutoRotate(animations);
+      if (animations) startLoop();
+      else {
+        stopLoop();
+        renderOnce();
+      }
     }
-  }, [animations]);
+  }, [animations, interactive]);
 
   if (webglFailed) {
     return (
