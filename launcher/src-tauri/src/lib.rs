@@ -62,10 +62,13 @@ pub fn run() {
         .setup(|app| {
             commands::bootstrap(app.handle())?;
 
-            // macOS: нативная полоса с traffic lights задаётся в tauri.conf.json
-            // (titleBarStyle: Overlay + hiddenTitle). Дополнительно — стандартное
-            // меню приложения, чтобы Cmd+Q / About работали как у остальных
-            // Mac-приложений.
+            // macOS: шапка с traffic lights. В конфиге decorations:false ради
+            // кастомной шапки на Windows/Linux; per-OS через platformConfig
+            // нельзя — его не понимает tauri-build при прямом cargo-вызове
+            // (clippy в CI падал). Поэтому нативную рамку на macOS возвращаем
+            // в рантайме; Overlay/hiddenTitle уже заданы в tauri.conf.json.
+            // Дополнительно — стандартное меню приложения, чтобы Cmd+Q / About
+            // работали как у остальных Mac-приложений.
             #[cfg(target_os = "macos")]
             {
                 std::thread::spawn(|| {
@@ -73,6 +76,10 @@ pub fn run() {
                 });
 
                 use tauri::menu::{MenuBuilder, SubmenuBuilder};
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(true);
+                    let _ = window.set_title_bar_style(tauri::TitleBarStyle::Overlay);
+                }
                 if let Ok(app_menu) = SubmenuBuilder::new(app, "StarDust")
                     .about(None)
                     .separator()

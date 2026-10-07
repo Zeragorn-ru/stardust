@@ -179,6 +179,12 @@ button,
     overflow: hidden;
 }
 
+/* На macOS окно с нативной рамкой (traffic lights) само задаёт скругление
+   и тень; CSS-тень и обводка .app рисовались бы поверх и ломали углы. */
+.app--macos {
+    box-shadow: none;
+}
+
 /* macOS Overlay titlebar: экраны с position:absolute; inset:0 игнорируют
    padding родителя, поэтому отступ под traffic lights — через margin,
    как у обычного titlebar (не через padding-top). */
@@ -205,16 +211,13 @@ button,
 
 /* Прозрачная drag-зона под нативные traffic lights. Название — по центру
    с бренд-маркером, в фирменном градиенте, как на экране входа; слева
-   оставлено место под close/minimize/zoom. */
+   оставлено место под close/minimize/zoom. Фон прозрачный, чтобы нативное
+   скругление углов окна macOS читалось (сплошная полоса обрезала бы его). */
 .titlebar--macos-drag {
     justify-content: center;
     padding: 0;
-    border-bottom: 1px solid var(--glass-border);
-    background: linear-gradient(
-        180deg,
-        rgba(8, 9, 16, 0.72),
-        rgba(8, 9, 16, 0.38)
-    );
+    border-bottom: none;
+    background: transparent;
 }
 
 .titlebar--macos-drag .titlebar__brand {
@@ -344,6 +347,13 @@ button,
 
 .app {
     background: radial-gradient(120% 120% at 50% -10%, #141833 0%, var(--bg) 45%, var(--bg-deep) 100%);
+}
+
+/* На macOS фон окна задаёт нативный backgroundColor из конфига, чтобы
+   нативное скругление углов читалось. CSS-градиент рисовался бы поверх и
+   обрезал углы, поэтому здесь он отключён. */
+.app--macos.app {
+    background: var(--bg-deep);
 }
 
 .news-screen { display: flex; flex-direction: column; height: 100%; min-height: 0; }
