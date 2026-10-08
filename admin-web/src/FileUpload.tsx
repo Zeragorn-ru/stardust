@@ -1,4 +1,10 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { api, ApiError } from "./api";
 import type { UploadMeta } from "./types";
 import { formatSize, baseName, slugifyModId } from "./format";
@@ -99,8 +105,15 @@ export const FileUpload = forwardRef<
     onUploaded: () => void;
     baseDir?: string;
     modProfiles?: { key: string; name: string; description: string | null }[];
+    /** Пути файлов, уже существующих в сборке — для предупреждения
+     *  о перезаписи (повторная загрузка по тому же пути сбрасывает
+     *  все свойства файла на сервере, включая optional/modId/профили). */
+    existingPaths?: string[];
   }
->(function FileUpload({ buildId, onUploaded, baseDir = "", modProfiles = [] }, ref) {
+>(function FileUpload(
+  { buildId, onUploaded, baseDir = "", modProfiles = [], existingPaths = [] },
+  ref,
+) {
   const toast = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -109,6 +122,28 @@ export const FileUpload = forwardRef<
   const dirInputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const stopRequested = useRef(false);
+
+  // Существующие пути сборки в нижнем регистре: сравнение путей при
+  // обнаружении перезаписи — регистронезависимое.
+  const existingSet = useMemo(
+    () => new Set(existingPaths.map((p) => p.trim().toLowerCase())),
+    [existingPaths],
+  );
+
+  // Повторная загрузка по существующему пути сбрасывает все свойства файла
+  // на сервере (optional, modId, профили, отображаемое имя) — такие строки
+  // очереди помечаем предупреждением. Готовые/загружаемые строки не считаем:
+  // для них «перезапишет» уже не будущее действие.
+  function overwritesExisting(path: string): boolean {
+    return existingSet.has(path.trim().toLowerCase());
+  }
+
+  function warnsOverwrite(it: { path: string; status: Status }): boolean {
+    return (
+      (it.status === "queued" || it.status === "error") &&
+      overwritesExisting(it.path)
+    );
+  }
 
   function addFiles(files: FileList | File[]) {
     const arr = Array.from(files).map((f) => makeItem(f, baseDir));
@@ -271,6 +306,8 @@ export const FileUpload = forwardRef<
   const doneCount = items.filter((it) => it.status === "done").length;
   const errorCount = items.filter((it) => it.status === "error").length;
   const pending = items.filter((it) => it.status !== "done").length;
+  // Сколько строк очереди лягут поверх уже существующих путей сборки.
+  const overwriteCount = items.filter(warnsOverwrite).length;
   const target = baseDir ? `.minecraft/${baseDir.replace(/\/+$/, "")}/` : "";
 
   return (
@@ -304,15 +341,20 @@ export const FileUpload = forwardRef<
         <p>
           Перетащите файлы сюда или <span className="link">выберите файлы</span>
           {" • "}
-          <span
+          {/* Настоящая кнопка (а не span с onClick): до неё можно добраться
+              с клавиатуры. Keydown не всплывает к дропзоне, иначе её
+              обработчик Enter/Space открыл бы диалог выбора файлов. */}
+          <button
+            type="button"
             className="link"
             onClick={(e) => {
               e.stopPropagation();
               dirInputRef.current?.click();
             }}
+            onKeyDown={(e) => e.stopPropagation()}
           >
             загрузить папку
-          </span>
+          </button>
         </p>
         <input
           ref={inputRef}
@@ -346,6 +388,11 @@ export const FileUpload = forwardRef<
             {uploadingCount > 0 && <span>загружается: {uploadingCount}</span>}
             {doneCount > 0 && <span>готово: {doneCount}</span>}
             {errorCount > 0 && <span className="queue-summary-error">ошибки: {errorCount}</span>}
+            {overwriteCount > 0 && (
+              <span className="queue-summary-warn">
+                перезапишут: {overwriteCount}
+              </span>
+            )}
           </div>
 
           {/* Быстрая настройка всей очереди: тип/сторона/опциональность
@@ -437,6 +484,7 @@ export const FileUpload = forwardRef<
                 disabled={busy}
                 baseDir={baseDir}
                 modProfiles={modProfiles}
+                overwrite={warnsOverwrite(it)}
                 onPatch={(p) => patch(it.id, p)}
                 onRemove={() => remove(it.id)}
               />
@@ -499,6 +547,7 @@ function QueueRow({
   disabled,
   baseDir,
   modProfiles,
+  overwrite,
   onPatch,
   onRemove,
 }: {
@@ -506,6 +555,8 @@ function QueueRow({
   disabled: boolean;
   baseDir: string;
   modProfiles: { key: string; name: string; description: string | null }[];
+  /** Файл ляжет поверх существующего пути сборки. */
+  overwrite: boolean;
   onPatch: (p: Partial<QueueItem>) => void;
   onRemove: () => void;
 }) {
@@ -528,6 +579,14 @@ function QueueRow({
         <div className="q-name">
           <strong>{item.file.name}</strong>
           <span className="muted">{formatSize(item.file.size)}</span>
+          {overwrite && (
+            <span
+              className="tag tag--yellow q-overwrite"
+              title="Файл по этому пути уже есть в сборке: после загрузки его свойства (опциональность, mod id, профили, имя) сбросятся на значения из этой строки"
+            >
+              перезапишет существующий
+            </span>
+          )}
         </div>
         <div className="q-right">
           {item.status === "error" && (
@@ -539,6 +598,7 @@ function QueueRow({
           <button
             type="button"
             className="link-btn"
+            aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
             disabled={disabled}
           >
@@ -547,12 +607,23 @@ function QueueRow({
           <button
             type="button"
             className="danger icon-only"
+            aria-label="Убрать из очереди"
+            title="Убрать из очереди"
             onClick={onRemove}
             disabled={disabled}
           >
             ✕
           </button>
         </div>
+      </div>
+
+      {/* Путь и тип видны всегда — это главные метаданные строки,
+          не стоит прятать их за «настроить». */}
+      <div className="q-path">
+        <span className={`tag kind-${item.kind}`}>{item.kind}</span>
+        <span className="q-path-target" title={item.path}>
+          {item.path}
+        </span>
       </div>
 
       {(item.status === "uploading" || item.status === "done") && (
