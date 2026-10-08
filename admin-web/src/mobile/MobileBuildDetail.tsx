@@ -408,7 +408,12 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
       )}
 
       <div className="panel m-fm-panel">
-        <FileManager buildId={buildId} files={files} onChanged={load} />
+        <FileManager
+          buildId={buildId}
+          files={files}
+          modProfiles={detail?.modProfiles ?? []}
+          onChanged={load}
+        />
       </div>
 
       {deployStatus && (

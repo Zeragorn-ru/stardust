@@ -15,6 +15,7 @@ import type {
   DepsCheckResult,
   Gradient,
   Guide,
+  ModProfile,
   NewsPost,
   PlayerCustomization,
   PlayerStats,
@@ -252,6 +253,22 @@ export const api = {
 
   updateFile(fileId: number, patch: Partial<UploadMeta>): Promise<BuildFile> {
     return request("PATCH", `/api/builds/files/${fileId}`, patch);
+  },
+
+  // Профили опциональных модов сборки (пресеты «Производительность»/«Качество»).
+  listModProfiles(buildId: number): Promise<ModProfile[]> {
+    return request("GET", `/api/builds/${buildId}/mod-profiles`);
+  },
+
+  upsertModProfile(
+    buildId: number,
+    input: { key: string; name: string; description?: string; sortOrder?: number },
+  ): Promise<ModProfile> {
+    return request("POST", `/api/builds/${buildId}/mod-profiles`, input);
+  },
+
+  deleteModProfile(buildId: number, key: string): Promise<void> {
+    return request("DELETE", `/api/builds/${buildId}/mod-profiles/${key}`);
   },
 
   // Содержимое файла читаем напрямую из контент-адресного хранилища по sha1.

@@ -21,7 +21,7 @@ use axum::{
     extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use futures_util::TryStreamExt;
@@ -277,6 +277,14 @@ async fn main() {
         .route("/api/builds/:id/activate", post(activate_build))
         .route("/api/builds/:id/clone", post(clone_build))
         .route("/api/builds/:id/files", post(upload_file))
+        .route(
+            "/api/builds/:id/mod-profiles",
+            get(list_mod_profiles).post(upsert_mod_profile),
+        )
+        .route(
+            "/api/builds/:id/mod-profiles/:key",
+            delete(delete_mod_profile),
+        )
         .route(
             "/api/builds/files/:file_id",
             axum::routing::patch(update_file).delete(delete_file),
@@ -1085,6 +1093,9 @@ struct BuildFileDto {
     #[serde(rename = "displayName")]
     display_name: Option<String>,
     description: Option<String>,
+    /// Профили, в которых состоит файл; пусто = «общий».
+    #[serde(default)]
+    profiles: Vec<String>,
 }
 
 impl From<store::BuildFileRow> for BuildFileDto {
@@ -1103,6 +1114,7 @@ impl From<store::BuildFileRow> for BuildFileDto {
             mod_id: f.mod_id,
             display_name: f.display_name,
             description: f.description,
+            profiles: f.profile_keys,
         }
     }
 }
@@ -1112,6 +1124,29 @@ struct BuildDetailDto {
     #[serde(flatten)]
     header: BuildHeaderDto,
     files: Vec<BuildFileDto>,
+    /// Профили опциональных модов сборки (пресеты для лаунчера).
+    #[serde(rename = "modProfiles")]
+    mod_profiles: Vec<ModProfileDto>,
+}
+
+#[derive(Serialize, Clone)]
+struct ModProfileDto {
+    key: String,
+    name: String,
+    description: Option<String>,
+    #[serde(rename = "sortOrder")]
+    sort_order: i32,
+}
+
+impl From<store::ModProfileRow> for ModProfileDto {
+    fn from(p: store::ModProfileRow) -> Self {
+        Self {
+            key: p.key,
+            name: p.name,
+            description: p.description,
+            sort_order: p.sort_order,
+        }
+    }
 }
 
 async fn list_builds(
@@ -1185,6 +1220,7 @@ async fn get_build(
     Ok(Json(BuildDetailDto {
         header: record.header.into(),
         files: record.files.into_iter().map(Into::into).collect(),
+        mod_profiles: record.mod_profiles.into_iter().map(Into::into).collect(),
     }))
 }
 
@@ -1432,6 +1468,7 @@ async fn upload_file(
         display_name: meta.display_name,
         description: meta.description,
         storage_key: sha1,
+        profile_keys: meta.profiles.unwrap_or_default(),
     };
 
     let id = state
@@ -1454,6 +1491,7 @@ async fn upload_file(
         mod_id: file.mod_id,
         display_name: file.display_name,
         description: file.description,
+        profiles: file.profile_keys,
     }))
 }
 
@@ -1472,6 +1510,8 @@ struct UploadMeta {
     #[serde(rename = "displayName")]
     display_name: Option<String>,
     description: Option<String>,
+    /// Профили модов, в которых состоит файл (ключи); пусто/не задано — общий.
+    profiles: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -1489,6 +1529,9 @@ struct UpdateFileMeta {
     #[serde(rename = "displayName")]
     display_name: Option<Option<String>>,
     description: Option<Option<String>>,
+    /// Профили, в которых состоит файл. `None` = не менять, `Some(v)` =
+    /// заменить список целиком (пустой = «общий» для всех профилей).
+    profiles: Option<Vec<String>>,
 }
 
 /// Частичное обновление метаданных файла (сторона, опциональность и т.д.).
@@ -1526,6 +1569,8 @@ async fn update_file(
             .description
             .unwrap_or(current.description)
             .filter(|s| !s.trim().is_empty()),
+        // None = не менять список; Some(v) = заменить целиком.
+        profile_keys: patch.profiles.unwrap_or(current.profile_keys),
     };
 
     let row = state
@@ -1535,6 +1580,81 @@ async fn update_file(
         .map_err(map_store)?;
 
     Ok(Json(BuildFileDto::from(row)))
+}
+
+#[derive(Deserialize)]
+struct UpsertModProfileRequest {
+    key: String,
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(rename = "sortOrder", default)]
+    sort_order: i32,
+}
+
+/// Профили опциональных модов сборки (пресеты «Производительность»/«Качество»).
+async fn list_mod_profiles(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<ModProfileDto>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let profiles = state.store.mod_profiles(id).await.map_err(map_store)?;
+    Ok(Json(profiles.into_iter().map(Into::into).collect()))
+}
+
+/// Добавляет/обновляет профиль по ключу.
+async fn upsert_mod_profile(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(req): Json<UpsertModProfileRequest>,
+) -> Result<Json<ModProfileDto>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let key = req.key.trim().to_lowercase();
+    if key.is_empty() || req.name.trim().is_empty() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Ключ и имя профиля обязательны",
+        ));
+    }
+    let profile = state
+        .store
+        .upsert_mod_profile(
+            id,
+            store::ModProfileInput {
+                key,
+                name: req.name.trim().to_string(),
+                description: req
+                    .description
+                    .map(|d| d.trim().to_string())
+                    .filter(|d| !d.is_empty()),
+                sort_order: req.sort_order,
+            },
+        )
+        .await
+        .map_err(map_store)?;
+    Ok(Json(ModProfileDto::from(profile)))
+}
+
+/// Удаляет профиль и вычищает ссылки на него из файлов сборки.
+async fn delete_mod_profile(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path((id, key)): Path<(i64, String)>,
+) -> Result<StatusCode, ApiError> {
+    require_admin(&state, &headers).await?;
+    state
+        .store
+        .delete_mod_profile(id, &key)
+        .await
+        .map_err(map_store)?;
+    state
+        .store
+        .strip_profile_key(id, &key)
+        .await
+        .map_err(internal)?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Deserialize)]
@@ -2414,6 +2534,7 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
         display_name: Some("Stardust Mod".to_string()),
         description: Some(format!("Stardust server mod {version}")),
         storage_key: sha1.clone(),
+        profile_keys: Vec::new(),
     };
 
     state

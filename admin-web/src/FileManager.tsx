@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
-import type { BuildFile } from "./types";
+import type { BuildFile, ModProfile } from "./types";
 import { FileUpload, type FileUploadHandle } from "./FileUpload";
 import { FileEditor, isEditable } from "./FileEditor";
 import {
@@ -29,6 +29,7 @@ import {
   IconFilter,
   IconFolder,
   IconHome,
+  IconLayers,
   IconPencil,
   IconPlus,
   IconSearch,
@@ -122,14 +123,18 @@ function publicUrl(path: string): string {
 export function FileManager({
   buildId,
   files,
+  modProfiles,
   onChanged,
 }: {
   buildId: number;
   files: BuildFile[];
+  modProfiles: ModProfile[];
   onChanged: () => void;
 }) {
   const toast = useToast();
   const confirm = useConfirm();
+  // Диалог управления профилями модов сборки.
+  const [profilesOpen, setProfilesOpen] = useState(false);
   const [dir, setDir] = useState("");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FileFilters>(EMPTY_FILTERS);
@@ -286,6 +291,7 @@ export function FileManager({
       modId: patch.modId ?? undefined,
       displayName: patch.displayName ?? undefined,
       description: patch.description ?? undefined,
+      profiles: patch.profiles,
     });
     toast.success("Файл обновлён");
     onChanged();
@@ -443,6 +449,14 @@ export function FileManager({
           onFolder={() => setCreating("folder")}
           onFile={() => setCreating("file")}
         />
+        <button
+          type="button"
+          className="icon-only"
+          title="Профили модов (пресеты для лаунчера)"
+          onClick={() => setProfilesOpen(true)}
+        >
+          <IconLayers size={15} />
+        </button>
         <button
           type="button"
           className="icon-only"
@@ -774,10 +788,21 @@ export function FileManager({
       {editingProps && (
         <FileSettingsDrawer
           file={editingProps}
+          profiles={modProfiles}
           onClose={() => setEditingProps(null)}
           onSave={async (patch) => {
             await saveFile(editingProps, patch);
           }}
+        />
+      )}
+
+      {profilesOpen && (
+        <ModProfilesDialog
+          buildId={buildId}
+          profiles={modProfiles}
+          files={files}
+          onClose={() => setProfilesOpen(false)}
+          onChanged={onChanged}
         />
       )}
 
@@ -1284,14 +1309,180 @@ function FileRow({
   );
 }
 
+// Диалог управления профилями модов сборки: пресеты вроде
+// «Производительность»/«Качество», которые игрок переключает в лаунчере.
+// Профили не создают вторых подсборок — файлы одной сборки помечаются
+// принадлежностью, а пустой список = «общий» (есть во всех).
+function ModProfilesDialog({
+  buildId,
+  profiles,
+  files,
+  onClose,
+  onChanged,
+}: {
+  buildId: number;
+  profiles: ModProfile[];
+  files: BuildFile[];
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const toast = useToast();
+  const confirm = useConfirm();
+  useBodyScrollLock();
+
+  const [key, setKey] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  /** Сколько файлов помечено профилем. */
+  const members = (k: string): number =>
+    files.filter((f) => f.profiles.includes(k)).length;
+
+  const freeKey = key.trim().toLowerCase();
+  const keyTaken = profiles.some((p) => p.key === freeKey);
+  const canCreate =
+    !busy && freeKey.length > 0 && /^[a-z0-9-]+$/.test(freeKey) && name.trim().length > 0 && !keyTaken;
+
+  async function create() {
+    if (!canCreate) return;
+    setBusy(true);
+    try {
+      await api.upsertModProfile(buildId, {
+        key: freeKey,
+        name: name.trim(),
+        description: description.trim() || undefined,
+        sortOrder: profiles.length,
+      });
+      setKey("");
+      setName("");
+      setDescription("");
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось создать профиль");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(p: ModProfile) {
+    const ok = await confirm({
+      title: `Удалить профиль «${p.name}»?`,
+      body: `Файлы не удалятся — они станут «общими» (${members(p.key)} шт.). Игроки увидят их во всех наборах.`,
+      confirmText: "Удалить",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await api.deleteModProfile(buildId, p.key);
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось удалить профиль");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={() => onClose()}>
+      <div
+        className="modal modal-wide fm-profiles-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Профили модов"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3>Профили модов</h3>
+        <p className="muted fm-profiles-sub">
+          Наборы опциональных модов, которые игрок переключает в лаунчере
+        </p>
+        <div className="fm-profiles-list">
+          {profiles.length === 0 && (
+            <p className="muted fm-profiles-empty">
+              Профилей пока нет. Создайте, например, «performance» — и помечайте
+              лёгкие моды; «quality» — для графических.
+            </p>
+          )}
+
+          {profiles.map((p) => (
+            <div className="fm-profile-row" key={p.key}>
+              <div className="fm-profile-row__text">
+                <strong>{p.name}</strong>
+                <span className="muted">
+                  {p.key} · {members(p.key)}{" "}
+                  {members(p.key) === 1 ? "файл" : members(p.key) < 5 ? "файла" : "файлов"}
+                </span>
+                {p.description && <span className="muted">{p.description}</span>}
+              </div>
+              <button
+                className="danger icon-only"
+                title={`Удалить профиль ${p.name}`}
+                disabled={busy}
+                onClick={() => void remove(p)}
+              >
+                <IconTrash size={15} />
+              </button>
+            </div>
+          ))}
+
+          <div className="fm-profile-new">
+            <strong>Новый профиль</strong>
+            <input
+              className="fm-edit-input"
+              placeholder="ключ (латиницей), напр. performance"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+            />
+            <input
+              className="fm-edit-input"
+              placeholder="Название, напр. Производительность"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              className="fm-edit-input"
+              placeholder="Описание (необязательно)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+            {keyTaken && (
+              <span className="fm-profile-new__error">
+                Профиль с ключом «{freeKey}» уже существует
+              </span>
+            )}
+            <button
+              className="primary"
+              disabled={!canCreate}
+              onClick={() => void create()}
+            >
+              <IconPlus size={14} /> Добавить профиль
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Модальное окно свойств файла: новый дизайн с крупным заголовком и
 // чётко разделёнными секциями.
 function FileSettingsDrawer({
   file,
+  profiles,
   onClose,
   onSave,
 }: {
   file: BuildFile;
+  profiles: ModProfile[];
   onClose: () => void;
   onSave: (patch: Partial<BuildFile>) => Promise<void>;
 }) {
@@ -1307,6 +1498,8 @@ function FileSettingsDrawer({
   const [modId, setModId] = useState(file.modId ?? "");
   const [displayName, setDisplayName] = useState(file.displayName ?? "");
   const [description, setDescription] = useState(file.description ?? "");
+  // Выбранные профили файла (только существующие ключи).
+  const [profileKeys, setProfileKeys] = useState<string[]>(file.profiles);
   const [saving, setSaving] = useState(false);
 
   useBodyScrollLock();
@@ -1323,7 +1516,12 @@ function FileSettingsDrawer({
     setModId(file.modId ?? "");
     setDisplayName(file.displayName ?? "");
     setDescription(file.description ?? "");
+    setProfileKeys(file.profiles);
   }, [file]);
+
+  // Сортированные копии для честного сравнения списков профилей.
+  const profilesDiffers =
+    [...profileKeys].sort().join("\u0000") !== [...file.profiles].sort().join("\u0000");
 
   // Dirty относительно исходного файла (в форме — нормализованные значения,
   // как в save()). В ref — чтобы Escape/клик по подложке видели актуальное.
@@ -1336,7 +1534,8 @@ function FileSettingsDrawer({
     disabled !== file.disabled ||
     (optional ? modId.trim() || null : null) !== (file.modId ?? null) ||
     (displayName.trim() || null) !== (file.displayName ?? null) ||
-    (description.trim() || null) !== (file.description ?? null);
+    (description.trim() || null) !== (file.description ?? null) ||
+    profilesDiffers;
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
   const savingRef = useRef(saving);
@@ -1378,6 +1577,7 @@ function FileSettingsDrawer({
         modId: optional ? modId.trim() || null : null,
         displayName: displayName.trim() || null,
         description: description.trim() || null,
+        profiles: profileKeys,
       });
       onClose();
     } catch (err) {
@@ -1506,6 +1706,38 @@ function FileSettingsDrawer({
                     Идентификатор для сохранения выбора игрока. Автозаполняется из имени файла.
                   </span>
                 </div>
+
+                {profiles.length > 0 && (
+                  <div className="fm-drawer-field">
+                    <span className="fm-edit-label muted">Профили</span>
+                    <div className="fm-profile-chips">
+                      {profiles.map((p) => {
+                        const on = profileKeys.includes(p.key);
+                        return (
+                          <button
+                            type="button"
+                            key={p.key}
+                            className={`fm-profile-chip${on ? " on" : ""}`}
+                            aria-pressed={on}
+                            title={p.description ?? undefined}
+                            onClick={() =>
+                              setProfileKeys((prev) =>
+                                prev.includes(p.key)
+                                  ? prev.filter((k) => k !== p.key)
+                                  : [...prev, p.key],
+                              )
+                            }
+                          >
+                            {p.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="fm-edit-hint muted">
+                      Мод включается вместе с профилем. Пусто = общий, есть во всех профилях.
+                    </span>
+                  </div>
+                )}
               </>
             )}
           </section>

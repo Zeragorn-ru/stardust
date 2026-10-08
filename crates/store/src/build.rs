@@ -53,6 +53,9 @@ pub struct BuildFileMeta {
     pub mod_id: Option<String>,
     pub display_name: Option<String>,
     pub description: Option<String>,
+    /// Профили, в которых состоит файл (ключи build_mod_profiles.key).
+    /// Пусто = «общий», есть во всех профилях.
+    pub profile_keys: Vec<String>,
 }
 
 /// Файл сборки для вставки/обновления (метаданные; байты уже на диске).
@@ -71,13 +74,16 @@ pub struct BuildFileInput {
     pub display_name: Option<String>,
     pub description: Option<String>,
     pub storage_key: String,
+    /// Профили, в которых состоит файл; пусто = «общий».
+    pub profile_keys: Vec<String>,
 }
 
-/// Полная сборка: заголовок + файлы.
+/// Полная сборка: заголовок + файлы + профили модов.
 #[derive(Debug, Clone)]
 pub struct BuildRecord {
     pub header: BuildHeader,
     pub files: Vec<BuildFileRow>,
+    pub mod_profiles: Vec<ModProfileRow>,
 }
 
 /// Строка файла сборки, как она лежит в БД.
@@ -97,12 +103,14 @@ pub struct BuildFileRow {
     pub display_name: Option<String>,
     pub description: Option<String>,
     pub storage_key: String,
+    /// Профили, в которых состоит файл; пусто = «общий» (есть во всех).
+    pub profile_keys: Vec<String>,
 }
 
 const BUILD_COLUMNS: &str = "id, name, version, loader_kind, mc_version, loader_version, is_active";
 
 const FILE_COLUMNS: &str = "id, path, sha1, size_bytes, side, kind, overwrite, optional, \
-     enabled_by_default, disabled, mod_id, display_name, description, storage_key";
+     enabled_by_default, disabled, mod_id, display_name, description, storage_key, profile_keys";
 
 impl Store {
     /// Создаёт новую сборку. Не делает её активной автоматически.
@@ -151,10 +159,24 @@ impl Store {
         sqlx::query(
             "INSERT INTO build_files
                 (build_id, path, sha1, size_bytes, side, kind, overwrite, optional,
-                 enabled_by_default, disabled, mod_id, display_name, description, storage_key)
+                 enabled_by_default, disabled, mod_id, display_name, description,
+                 storage_key, profile_keys)
              SELECT $2, path, sha1, size_bytes, side, kind, overwrite, optional,
-                 enabled_by_default, disabled, mod_id, display_name, description, storage_key
+                 enabled_by_default, disabled, mod_id, display_name, description,
+                 storage_key, profile_keys
              FROM build_files WHERE build_id = $1",
+        )
+        .bind(src_id)
+        .bind(new_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // Копируем и профили модов сборки.
+        sqlx::query(
+            "INSERT INTO build_mod_profiles
+                (build_id, key, name, description, sort_order)
+             SELECT $2, key, name, description, sort_order
+             FROM build_mod_profiles WHERE build_id = $1",
         )
         .bind(src_id)
         .bind(new_id)
@@ -182,7 +204,12 @@ impl Store {
         };
         let header = row_to_header(&header_row);
         let files = self.build_files(header.id).await?;
-        Ok(Some(BuildRecord { header, files }))
+        let mod_profiles = self.mod_profiles(header.id).await?;
+        Ok(Some(BuildRecord {
+            header,
+            files,
+            mod_profiles,
+        }))
     }
 
     /// Возвращает сборку по id с файлами.
@@ -197,7 +224,12 @@ impl Store {
         };
         let header = row_to_header(&header_row);
         let files = self.build_files(header.id).await?;
-        Ok(Some(BuildRecord { header, files }))
+        let mod_profiles = self.mod_profiles(header.id).await?;
+        Ok(Some(BuildRecord {
+            header,
+            files,
+            mod_profiles,
+        }))
     }
 
     /// Делает сборку активной (а остальные — неактивными).
@@ -284,15 +316,16 @@ impl Store {
         let id: i64 = sqlx::query_scalar(
             "INSERT INTO build_files
                 (build_id, path, sha1, size_bytes, side, kind, overwrite, optional,
-                 enabled_by_default, disabled, mod_id, display_name, description, storage_key)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+                 enabled_by_default, disabled, mod_id, display_name, description,
+                 storage_key, profile_keys)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
              ON CONFLICT (build_id, path) DO UPDATE SET
                 sha1 = EXCLUDED.sha1, size_bytes = EXCLUDED.size_bytes, side = EXCLUDED.side,
                 kind = EXCLUDED.kind, overwrite = EXCLUDED.overwrite, optional = EXCLUDED.optional,
                 enabled_by_default = EXCLUDED.enabled_by_default, disabled = EXCLUDED.disabled,
                 mod_id = EXCLUDED.mod_id,
                 display_name = EXCLUDED.display_name, description = EXCLUDED.description,
-                storage_key = EXCLUDED.storage_key
+                storage_key = EXCLUDED.storage_key, profile_keys = EXCLUDED.profile_keys
              RETURNING id",
         )
         .bind(build_id)
@@ -309,6 +342,7 @@ impl Store {
         .bind(&file.display_name)
         .bind(&file.description)
         .bind(&file.storage_key)
+        .bind(&file.profile_keys)
         .fetch_one(self.pool())
         .await?;
         // Сборка изменилась — обновим отметку.
@@ -330,7 +364,7 @@ impl Store {
             "UPDATE build_files SET
                 side = $2, kind = $3, overwrite = $4, optional = $5,
                 enabled_by_default = $6, disabled = $7,
-                mod_id = $8, display_name = $9, description = $10
+                mod_id = $8, display_name = $9, description = $10, profile_keys = $11
              WHERE id = $1
              RETURNING {FILE_COLUMNS}"
         );
@@ -345,6 +379,7 @@ impl Store {
             .bind(&meta.mod_id)
             .bind(&meta.display_name)
             .bind(&meta.description)
+            .bind(&meta.profile_keys)
             .fetch_optional(self.pool())
             .await?
             .ok_or(StoreError::NotFound)?;
@@ -414,6 +449,116 @@ impl Store {
     }
 }
 
+/// Описание профиля опциональных модов сборки (пресет «Производительность»
+/// и т.п.). Профили не создают отдельных подсборок: один и тот же файл может
+/// состоять в нескольких профилях, а пустой список — «общий» для всех.
+#[derive(Debug, Clone)]
+pub struct ModProfileRow {
+    pub id: i64,
+    pub build_id: i64,
+    pub key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub sort_order: i32,
+}
+
+/// Вход для создания/обновления профиля модов сборки.
+#[derive(Debug, Clone)]
+pub struct ModProfileInput {
+    pub key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub sort_order: i32,
+}
+
+impl Store {
+    /// Профили модов сборки, упорядоченные по sort_order.
+    pub async fn mod_profiles(&self, build_id: i64) -> Result<Vec<ModProfileRow>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, build_id, key, name, description, sort_order
+             FROM build_mod_profiles WHERE build_id = $1
+             ORDER BY sort_order, id",
+        )
+        .bind(build_id)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows
+            .iter()
+            .map(|r| ModProfileRow {
+                id: r.get("id"),
+                build_id: r.get("build_id"),
+                key: r.get("key"),
+                name: r.get("name"),
+                description: r.get("description"),
+                sort_order: r.get("sort_order"),
+            })
+            .collect())
+    }
+
+    /// Добавляет или обновляет профиль модов по ключу (upsert по (build_id, key)).
+    pub async fn upsert_mod_profile(
+        &self,
+        build_id: i64,
+        input: ModProfileInput,
+    ) -> Result<ModProfileRow, StoreError> {
+        let row = sqlx::query(
+            "INSERT INTO build_mod_profiles (build_id, key, name, description, sort_order)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (build_id, key) DO UPDATE SET
+                name = EXCLUDED.name, description = EXCLUDED.description,
+                sort_order = EXCLUDED.sort_order
+             RETURNING id, build_id, key, name, description, sort_order",
+        )
+        .bind(build_id)
+        .bind(&input.key)
+        .bind(&input.name)
+        .bind(&input.description)
+        .bind(input.sort_order)
+        .fetch_one(self.pool())
+        .await?;
+        let profile = ModProfileRow {
+            id: row.get("id"),
+            build_id: row.get("build_id"),
+            key: row.get("key"),
+            name: row.get("name"),
+            description: row.get("description"),
+            sort_order: row.get("sort_order"),
+        };
+        sqlx::query("UPDATE builds SET updated_at = now() WHERE id = $1")
+            .bind(build_id)
+            .execute(self.pool())
+            .await?;
+        Ok(profile)
+    }
+
+    /// Удаляет профиль по ключу. Ссылки на него в `build_files.profile_keys`
+    /// вычищаются автоматически (сторона вызывает `strip_profile_key`).
+    pub async fn delete_mod_profile(&self, build_id: i64, key: &str) -> Result<(), StoreError> {
+        let changed =
+            sqlx::query("DELETE FROM build_mod_profiles WHERE build_id = $1 AND key = $2")
+                .bind(build_id)
+                .bind(key)
+                .execute(self.pool())
+                .await?
+                .rows_affected();
+        if changed == 0 {
+            return Err(StoreError::NotFound);
+        }
+        Ok(())
+    }
+
+    /// Убирает ключ профиля из `profile_keys` всех файлов сборки.
+    /// Вызывается после удаления профиля, чтобы не осталось битых ссылок.
+    pub async fn strip_profile_key(&self, build_id: i64, key: &str) -> Result<(), StoreError> {
+        sqlx::query("UPDATE build_files SET profile_keys = array_remove(profile_keys, $2) WHERE build_id = $1")
+            .bind(build_id)
+            .bind(key)
+            .execute(self.pool())
+            .await?;
+        Ok(())
+    }
+}
+
 impl BuildRecord {
     /// Строит клиентский манифест. `base_url` — префикс, под которым лаунчер
     /// качает содержимое файлов (напр. `https://host/files`); итоговый URL =
@@ -426,6 +571,15 @@ impl BuildRecord {
             .filter(|f| !f.disabled && side_from_str(&f.side).on_client())
             .map(|f| f.to_entry(base))
             .collect();
+        let mod_profiles = self
+            .mod_profiles
+            .iter()
+            .map(|p| protocol::ModProfile {
+                key: p.key.clone(),
+                name: p.name.clone(),
+                description: p.description.clone(),
+            })
+            .collect();
         Manifest {
             name: self.header.name.clone(),
             version: self.header.version.clone(),
@@ -436,6 +590,7 @@ impl BuildRecord {
             },
             files,
             external_mod_policy: None,
+            mod_profiles,
         }
     }
 }
@@ -458,6 +613,7 @@ impl BuildFileRow {
             // Пока не хранится в БД — конфликты задаются вручную в JSON или
             // статическими правилами лаунчера (см. modpack::KNOWN_CONFLICTS).
             conflicts_with: Vec::new(),
+            profiles: self.profile_keys.clone(),
         }
     }
 }
@@ -490,6 +646,9 @@ fn row_to_file(row: &sqlx::postgres::PgRow) -> BuildFileRow {
         display_name: row.get("display_name"),
         description: row.get("description"),
         storage_key: row.get("storage_key"),
+        profile_keys: row
+            .try_get::<Vec<String>, _>("profile_keys")
+            .unwrap_or_default(),
     }
 }
 

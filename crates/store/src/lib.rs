@@ -27,7 +27,8 @@ mod build;
 pub mod server_telemetry;
 mod telegram;
 pub use build::{
-    BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, NewBuild, UpdateBuild,
+    BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, ModProfileInput,
+    ModProfileRow, NewBuild, UpdateBuild,
 };
 pub use telegram::{
     ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_BAN_HOUR,

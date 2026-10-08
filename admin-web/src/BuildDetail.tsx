@@ -620,7 +620,12 @@ export function BuildDetail({
       )}
 
       <div className="panel">
-        <FileManager buildId={buildId} files={files} onChanged={load} />
+        <FileManager
+          buildId={buildId}
+          files={files}
+          modProfiles={detail?.modProfiles ?? []}
+          onChanged={load}
+        />
       </div>
 
       {editing && (
