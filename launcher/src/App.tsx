@@ -290,7 +290,12 @@ export default function App() {
       {/* На macOS — нативные traffic lights (Overlay), кастомный бар не нужен. */}
       {!mac && <TitleBar />}
       {mac && (
-        <div className="titlebar titlebar--macos-drag" data-tauri-drag-region aria-hidden />
+        <div className="titlebar titlebar--macos-drag" data-tauri-drag-region aria-hidden>
+          <div className="titlebar__brand titlebar__brand--macos">
+            <span className="titlebar__mark" />
+            <span>StarDust</span>
+          </div>
+        </div>
       )}
       <ErrorBoundary>
         <div className="app__content">
