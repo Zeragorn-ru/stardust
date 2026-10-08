@@ -208,11 +208,35 @@ button,
     -webkit-app-region: drag;
 }
 
-/* На macOS отдельная drag-зона не нужна: окно с нативной рамкой
-   перетаскивается за свой тайтлбар, а шапки экранов кликабельны
-   (drag-оверлей перекрыл бы кнопки «Настройки»/«Выйти»). */
+/* Drag-зона по центру шапки с брендом StarDust на уровне traffic lights.
+   Слева/справа оставлены поля, чтобы не перекрывать нативные кнопки и
+   кнопки шапок экранов; сама полоса — только для перетаскивания окна. */
 .titlebar--macos-drag {
-    display: none;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 96px; /* место под traffic lights слева и кнопки шапки справа */
+    border-bottom: none;
+    background: transparent;
+    height: 44px;
+}
+
+.titlebar--macos-drag .titlebar__brand {
+    gap: 8px;
+    margin-top: 20px; /* на одной линии с traffic lights (y=22) */
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    background: var(--accent-grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    pointer-events: none;
+}
+
+.titlebar--macos-drag .titlebar__mark {
+    width: 7px;
+    height: 7px;
 }
 
 .titlebar__brand {
