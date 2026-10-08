@@ -114,14 +114,17 @@ const SkinViewer3D = memo(function SkinViewer3D({
   /** Сбросить таймер бездействия. */
   function resetIdleTimer() {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-    if (idleRef.current) {
-      idleRef.current = false;
-      startLoop();
-    }
     // Для hero без анимаций loop не запущен — достаточно одного кадра.
     if (!interactive && !animationsRef.current) {
       renderOnce();
       return;
+    }
+    if (idleRef.current) {
+      idleRef.current = false;
+      startLoop();
+    } else if (!interactive) {
+      // Hero: активность (drag) будит loop, чтобы поворот применялся плавно.
+      startLoop();
     }
     idleTimerRef.current = setTimeout(() => {
       idleRef.current = true;
@@ -235,7 +238,9 @@ const SkinViewer3D = memo(function SkinViewer3D({
         ? Math.min(window.devicePixelRatio || 1, interactive ? 1.5 : 1)
         : 1,
       fov: 55,
-      enableRotate: interactive,
+      // Вращение мышью доступно и на главном экране: авто-вращение само
+      // приостанавливается на время перетаскивания (isDragging) в движке.
+      enableRotate: true,
       enableZoom: false,
       autoRotate: false,
     })
@@ -319,15 +324,16 @@ const SkinViewer3D = memo(function SkinViewer3D({
   }, [visible]);
 
   // Отслеживаем активность на canvas для idle-timeout (throttled).
+  // Работает и на hero: перетаскивание модели будит render loop, чтобы
+  // поворот применялся, а после отпускания loop снова засыпает по idle.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (!interactive) return;
 
     let lastMove = 0;
     function onActivity() {
       const now = Date.now();
-      if (now - lastMove < 500) return; // throttle to 2Hz
+      if (now - lastMove < 120) return; // throttle
       lastMove = now;
       resetIdleTimer();
     }
