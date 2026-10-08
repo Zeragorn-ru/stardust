@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FeedbackProvider } from "../ui/feedback";
+import { ContextMenuProvider } from "../ui/ContextMenu";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { MobileLogin } from "./MobileLogin";
 import { MobileOverview } from "./MobileOverview";
@@ -22,9 +23,11 @@ import { switchViewHref } from "../app/viewMode";
 export function MobileApp() {
   return (
     <FeedbackProvider>
-      <AuthProvider>
-        <Gate />
-      </AuthProvider>
+      <ContextMenuProvider>
+        <AuthProvider>
+          <Gate />
+        </AuthProvider>
+      </ContextMenuProvider>
     </FeedbackProvider>
   );
 }
@@ -187,7 +190,12 @@ function Shell() {
         {activeTab === "overview" && <MobileOverview onOpenTab={openTab} onOpenBuild={openBuild} />}
         {activeTab === "builds" && selectedBuildId == null && <MobileBuilds onOpenBuild={openBuild} />}
         {activeTab === "builds" && selectedBuildId != null && (
-          <MobileBuildDetail buildId={selectedBuildId} onBack={closeBuild} onOpenBuild={openBuild} />
+          <MobileBuildDetail
+            key={selectedBuildId}
+            buildId={selectedBuildId}
+            onBack={closeBuild}
+            onOpenBuild={openBuild}
+          />
         )}
         {activeTab === "accounts" && <MobileAccounts />}
         {activeTab === "customization" && <MobileCustomization />}

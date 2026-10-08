@@ -41,6 +41,8 @@ interface QueueItem {
   modId: string;
   displayName: string;
   description: string;
+  /** Профили модов, в которые попадает файл (ключи). */
+  profiles: string[];
   status: Status;
   progress: number;
   error?: string;
@@ -77,6 +79,7 @@ function makeItem(file: File, baseDir: string): QueueItem {
     modId: "",
     displayName: "",
     description: "",
+    profiles: [],
     status: "queued",
     progress: 0,
   };
@@ -85,6 +88,8 @@ function makeItem(file: File, baseDir: string): QueueItem {
 export interface FileUploadHandle {
   // Принимает содержимое drop'а из любого места файлового менеджера.
   addFromDataTransfer: (dt: DataTransfer) => void;
+  // Прокручивает страницу к очереди загрузки (после дропа на менеджер).
+  scrollIntoQueue: () => void;
 }
 
 export const FileUpload = forwardRef<
@@ -93,19 +98,25 @@ export const FileUpload = forwardRef<
     buildId: number;
     onUploaded: () => void;
     baseDir?: string;
+    modProfiles?: { key: string; name: string; description: string | null }[];
   }
->(function FileUpload({ buildId, onUploaded, baseDir = "" }, ref) {
+>(function FileUpload({ buildId, onUploaded, baseDir = "", modProfiles = [] }, ref) {
   const toast = useToast();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dirInputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const stopRequested = useRef(false);
 
   function addFiles(files: FileList | File[]) {
     const arr = Array.from(files).map((f) => makeItem(f, baseDir));
-    if (arr.length) setItems((cur) => [...cur, ...arr]);
+    if (arr.length) {
+      setItems((cur) => [...cur, ...arr]);
+      // Дроп на менеджер далеко от очереди: подтверждаем, что файлы приняты.
+      toast.info(`Добавлено в очередь: ${arr.length}`);
+    }
   }
 
   // Рекурсивный обход перетащенной папки через webkitGetAsEntry: собираем
@@ -145,6 +156,24 @@ export const FileUpload = forwardRef<
     setItems((cur) => cur.map((it) => (it.id === id ? { ...it, ...p } : it)));
   }
 
+  /** Применить метаданные ко всем ещё не загруженным файлам очереди. */
+  function applyToAll(p: Partial<QueueItem>) {
+    setItems((cur) =>
+      cur.map((it) => (it.status === "queued" || it.status === "error" ? { ...it, ...p } : it)),
+    );
+  }
+
+  /** Переключить профиль у всех незагруженных (для чипов). */
+  function toggleProfileAll(key: string) {
+    setItems((cur) =>
+      cur.map((it) => {
+        if (it.status === "done" || it.status === "uploading") return it;
+        const has = it.profiles.includes(key);
+        return { ...it, profiles: has ? it.profiles.filter((k) => k !== key) : [...it.profiles, key] };
+      }),
+    );
+  }
+
   function remove(id: number) {
     setItems((cur) => cur.filter((it) => it.id !== id));
   }
@@ -169,7 +198,10 @@ export const FileUpload = forwardRef<
     }
   }
 
-  useImperativeHandle(ref, () => ({ addFromDataTransfer }));
+  useImperativeHandle(ref, () => ({
+    addFromDataTransfer,
+    scrollIntoQueue: () => rootRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }),
+  }));
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -208,6 +240,7 @@ export const FileUpload = forwardRef<
         modId: it.optional && it.modId.trim() ? it.modId.trim() : undefined,
         displayName: it.displayName.trim() || undefined,
         description: it.description.trim() || undefined,
+        profiles: it.profiles,
       };
       try {
         await api.uploadFileProgress(buildId, it.file, meta, (frac) =>
@@ -241,7 +274,7 @@ export const FileUpload = forwardRef<
   const target = baseDir ? `.minecraft/${baseDir.replace(/\/+$/, "")}/` : "";
 
   return (
-    <div className="fm-upload">
+    <div className="fm-upload" ref={rootRef}>
       <h2>
         Загрузка файлов
         {target && <span className="fm-upload-target muted"> → {target}</span>}
@@ -314,6 +347,88 @@ export const FileUpload = forwardRef<
             {doneCount > 0 && <span>готово: {doneCount}</span>}
             {errorCount > 0 && <span className="queue-summary-error">ошибки: {errorCount}</span>}
           </div>
+
+          {/* Быстрая настройка всей очереди: тип/сторона/опциональность
+              и профили — вместо поштучного «настроить» у 30 файлов. */}
+          <details className="queue-batch">
+            <summary>Применить ко всем ({pending})</summary>
+            <div className="queue-batch-body">
+              <div className="row">
+                <div className="field">
+                  <label>Тип</label>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) applyToAll({ kind: e.target.value });
+                      e.target.value = "";
+                    }}
+                  >
+                    <option value="">— выбрать —</option>
+                    {KINDS.map((k) => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Сторона</label>
+                  <select
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) applyToAll({ side: e.target.value });
+                      e.target.value = "";
+                    }}
+                  >
+                    <option value="">— выбрать —</option>
+                    {SIDES.map((sd) => (
+                      <option key={sd} value={sd}>{sd}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="row">
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    onChange={(e) => applyToAll({ optional: e.target.checked })}
+                  />
+                  Опциональные
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    onChange={(e) => applyToAll({ overwrite: e.target.checked })}
+                  />
+                  Перезаписывать
+                </label>
+              </div>
+              {modProfiles.length > 0 && (
+                <div className="field">
+                  <label>Профили модов</label>
+                  <div className="fm-profile-chips">
+                    {modProfiles.map((p) => {
+                      const on = items
+                        .filter((it) => it.status === "queued" || it.status === "error")
+                        .every((it) => it.profiles.includes(p.key));
+                      return (
+                        <button
+                          key={p.key}
+                          type="button"
+                          className={`fm-profile-chip${on ? " on" : ""}`}
+                          disabled={busy}
+                          aria-pressed={on}
+                          title={p.description ?? undefined}
+                          onClick={() => toggleProfileAll(p.key)}
+                        >
+                          {p.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </details>
+
           <div className="queue">
             {items.map((it) => (
               <QueueRow
@@ -321,13 +436,24 @@ export const FileUpload = forwardRef<
                 item={it}
                 disabled={busy}
                 baseDir={baseDir}
+                modProfiles={modProfiles}
                 onPatch={(p) => patch(it.id, p)}
                 onRemove={() => remove(it.id)}
               />
             ))}
           </div>
           <div className="queue-actions">
-            <button type="button" onClick={() => setItems([])} disabled={busy}>
+            <button
+              type="button"
+              onClick={() => {
+                const dirty = items.some(
+                  (it) => it.status !== "done" && (it.optional || it.modId.trim() || it.displayName.trim() || it.profiles.length > 0),
+                );
+                if (dirty && !window.confirm("Убрать все файлы очереди вместе с введёнными настройками?")) return;
+                setItems([]);
+              }}
+              disabled={busy}
+            >
               Очистить
             </button>
             {doneCount > 0 && (
@@ -372,12 +498,14 @@ function QueueRow({
   item,
   disabled,
   baseDir,
+  modProfiles,
   onPatch,
   onRemove,
 }: {
   item: QueueItem;
   disabled: boolean;
   baseDir: string;
+  modProfiles: { key: string; name: string; description: string | null }[];
   onPatch: (p: Partial<QueueItem>) => void;
   onRemove: () => void;
 }) {
@@ -532,6 +660,35 @@ function QueueRow({
               </div>
             )}
           </div>
+          {modProfiles.length > 0 && (
+            <div className="field">
+              <label>Профили модов</label>
+              <div className="fm-profile-chips">
+                {modProfiles.map((p) => {
+                  const on = item.profiles.includes(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      className={`fm-profile-chip${on ? " on" : ""}`}
+                      disabled={disabled}
+                      aria-pressed={on}
+                      title={p.description ?? undefined}
+                      onClick={() =>
+                        onPatch({
+                          profiles: on
+                            ? item.profiles.filter((k) => k !== p.key)
+                            : [...item.profiles, p.key],
+                        })
+                      }
+                    >
+                      {p.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="field">
             <label>Описание</label>
             <input

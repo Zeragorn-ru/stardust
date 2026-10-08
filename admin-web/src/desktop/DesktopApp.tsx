@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { FeedbackProvider } from "../ui/feedback";
+import { ContextMenuProvider } from "../ui/ContextMenu";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { Login } from "../Login";
 import { BuildsPage } from "./BuildsPage";
@@ -25,9 +26,11 @@ import { switchViewHref } from "../app/viewMode";
 export function DesktopApp() {
   return (
     <FeedbackProvider>
-      <AuthProvider>
-        <Gate />
-      </AuthProvider>
+      <ContextMenuProvider>
+        <AuthProvider>
+          <Gate />
+        </AuthProvider>
+      </ContextMenuProvider>
     </FeedbackProvider>
   );
 }
