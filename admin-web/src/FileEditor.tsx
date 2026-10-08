@@ -63,7 +63,13 @@ export function FileEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ошибка последнего сохранения: тост гаснет сам и не предлагает действия,
+  // поэтому неудачу показываем ещё и панелью с «Повторить» у кнопок.
+  const [saveError, setSaveError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Ручной перезапуск загрузки после ошибки: увеличиваем ключ — эффект
+  // перечитывает содержимое.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const dirty = text !== original;
   const dirtyRef = useRef(dirty);
@@ -73,6 +79,7 @@ export function FileEditor({
     let alive = true;
     setLoading(true);
     setError(null);
+    setSaveError(null);
     api
       .getFileContent(file.sha1)
       .then((content) => {
@@ -92,10 +99,11 @@ export function FileEditor({
     return () => {
       alive = false;
     };
-  }, [file.sha1]);
+  }, [file.sha1, reloadKey]);
 
   async function save() {
     setSaving(true);
+    setSaveError(null);
     try {
       await api.updateFileContent(file.id, text);
       toast.success("Файл сохранён");
@@ -103,9 +111,13 @@ export function FileEditor({
       onSaved();
       onClose();
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось сохранить",
-      );
+      const message = err instanceof ApiError
+        ? err.message
+        : "Не удалось сохранить";
+      toast.error(message);
+      // Не только тост: панель с «Повторить» у кнопок — тост гаснет через 6 с
+      // и не даёт действия, а редактор остаётся открытым с несохранённым текстом.
+      setSaveError(message);
     } finally {
       setSaving(false);
     }
@@ -140,6 +152,16 @@ export function FileEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Ctrl/Cmd+S сохраняет из любой точки редактора — фокус может стоять на
+  // кнопках, а не в тексте, поэтому слушаем ключи на самом диалоге.
+  // Проверяем e.code (физическая клавиша): в русской раскладке e.key === "ы".
+  function onDialogKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if ((e.ctrlKey || e.metaKey) && e.code === "KeyS") {
+      e.preventDefault();
+      if (!saving && !loading && !error && dirty) void save();
+    }
+  }
+
   // Tab вставляет отступ, а не уводит фокус.
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Tab") {
@@ -153,10 +175,6 @@ export function FileEditor({
         ta.selectionStart = ta.selectionEnd = start + 2;
       });
     }
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-      e.preventDefault();
-      if (!saving && dirty) save();
-    }
   }
 
   return (
@@ -167,6 +185,7 @@ export function FileEditor({
         aria-modal="true"
         aria-labelledby="file-editor-title"
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={onDialogKeyDown}
       >
         <div className="editor-head">
           <div className="editor-title">
@@ -192,7 +211,20 @@ export function FileEditor({
             Загрузка…
           </div>
         ) : error ? (
-          <div className="error">{error}</div>
+          <div
+            className="error"
+            role="alert"
+            style={{ display: "flex", alignItems: "center", gap: "10px" }}
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>{error}</span>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setReloadKey((k) => k + 1)}
+            >
+              Повторить
+            </button>
+          </div>
         ) : (
           <textarea
             ref={taRef}
@@ -205,6 +237,29 @@ export function FileEditor({
           />
         )}
 
+        {saveError && !loading && !error && (
+          <div
+            className="error"
+            role="alert"
+            style={{
+              margin: "12px 0 0",
+              flex: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>{saveError}</span>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void save()}
+              disabled={saving}
+            >
+              Повторить
+            </button>
+          </div>
+        )}
         <div className="modal-actions editor-actions">
           <span className="editor-hint muted">
             {dirty ? "Изменено · Ctrl/Cmd+S — сохранить" : "Нет изменений"}

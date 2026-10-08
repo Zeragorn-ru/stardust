@@ -26,6 +26,14 @@ export function CreateBuildForm({
     loaderVersion: "",
   });
   const [busy, setBusy] = useState(false);
+  // Мягкая валидация: помечаем обязательные поля, из которых «выходили»
+  // (blur), — подсказка об обязательности появляется только после этого,
+  // а не сразу при открытии формы.
+  const [touched, setTouched] = useState({
+    name: false,
+    version: false,
+    mcVersion: false,
+  });
 
   // Dirty в ref: закрытие по подложке/Escape проверяет актуальное значение.
   const dirty =
@@ -103,17 +111,27 @@ export function CreateBuildForm({
             <input
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, name: true }))}
               autoFocus
               placeholder="Моя сборка"
+              aria-invalid={touched.name && !form.name.trim() || undefined}
             />
+            {touched.name && !form.name.trim() && (
+              <p className="input-error">Заполните название</p>
+            )}
           </div>
           <div className="field">
             <label>Версия сборки</label>
             <input
               value={form.version}
               onChange={(e) => set("version", e.target.value)}
-              placeholder="1.0.0"
+              onBlur={() => setTouched((t) => ({ ...t, version: true }))}
+              placeholder="напр. 1.0.0"
+              aria-invalid={touched.version && !form.version.trim() || undefined}
             />
+            {touched.version && !form.version.trim() && (
+              <p className="input-error">Заполните версию сборки</p>
+            )}
           </div>
         </div>
         <div className="row">
@@ -135,8 +153,15 @@ export function CreateBuildForm({
             <input
               value={form.mcVersion}
               onChange={(e) => set("mcVersion", e.target.value)}
-              placeholder="1.21.1"
+              onBlur={() => setTouched((t) => ({ ...t, mcVersion: true }))}
+              placeholder="напр. 1.21.1"
+              aria-invalid={
+                touched.mcVersion && !form.mcVersion.trim() || undefined
+              }
             />
+            {touched.mcVersion && !form.mcVersion.trim() && (
+              <p className="input-error">Заполните версию Minecraft</p>
+            )}
           </div>
           <div className="field">
             <label>Версия загрузчика</label>

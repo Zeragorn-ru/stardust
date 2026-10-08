@@ -157,7 +157,16 @@
 .log-mod-row small { color: var(--muted); overflow-wrap: anywhere; }
 .log-mod-row code { font-size: 11px; }
 .log-json { max-height: 300px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--muted); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
-.logs-empty { display: grid; gap: 10px; justify-items: start; }
+.logs-empty { display: grid; gap: 10px; justify-items: start; padding: 24px; }
+.logs-empty p { margin: 0; }
+.logs-empty button { width: fit-content; }
+/* Фоновое обновление не удалось, но список ещё на экране: мягкая плашка,
+   а не полная замена списка на ошибку. */
+.logs-stale { display: grid; gap: 8px; justify-items: start; margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--danger); border-left-width: 3px; border-radius: var(--radius-sm); background: var(--danger-soft); }
+.logs-stale button { width: fit-content; }
+/* Состояния внутри диалога деталей: спиннер или ошибка с повтором. */
+.log-details-state { display: grid; gap: 10px; justify-items: start; margin-top: 20px; }
+.log-details-state button { width: fit-content; }
 .logs-average-card { display: grid; gap: 4px; margin-bottom: 16px; }
 .logs-average-card strong { color: var(--accent); font-size: 30px; line-height: 1; }
 .logs-average-card small { color: var(--muted); }
@@ -1304,6 +1313,22 @@ td.num {
     text-decoration: underline;
 }
 
+/* «загрузить папку» — кнопка (доступна с клавиатуры), но выглядит как
+   соседняя текстовая ссылка, а не серый чип от глобального button. */
+.dropzone button.link {
+    font-size: inherit;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+    color: var(--accent);
+}
+
+.dropzone button.link:hover:not(:disabled) {
+    background: transparent;
+    border-color: transparent;
+    text-decoration: underline;
+}
+
 .queue-summary {
     display: flex;
     align-items: center;
@@ -1382,6 +1407,41 @@ td.num {
 .q-ok {
     color: var(--ok);
     font-size: 12px;
+}
+
+/* Предупреждение о перезаписи существующего файла в свёрнутой строке. */
+.q-name .q-overwrite {
+    flex: 0 0 auto;
+}
+
+/* Путь и тип файла видны в свёрнутой строке очереди — не спрятаны
+   за «настроить». Путь — важнейший метаданный: показываем его моноширинным
+   и приглушённым, длинные обрезаем с многоточием (полный — в title). */
+.q-path {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 4px;
+    min-width: 0;
+}
+
+.q-path .tag {
+    flex: 0 0 auto;
+}
+
+.q-path-target {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
+}
+
+.queue-summary-warn {
+    color: var(--warn);
+    border-color: rgba(216, 162, 58, 0.35) !important;
 }
 
 .q-body {
@@ -4297,10 +4357,19 @@ input[type="radio"] {
     border-radius: 24px;
     color: var(--text);
     text-decoration: none;
+    cursor: pointer; /* вся карточка кликабельна */
     background:
         radial-gradient(circle at 80% 12%, rgba(115, 215, 255, 0.08), transparent 10rem),
         rgba(255, 255, 255, 0.026);
     transition: transform var(--ease), border-color var(--ease), background var(--ease);
+}
+
+/* Фокус с клавиатуры: сохраняем радиус карточки (глобальный :focus-visible сбрасывает его на 6px). */
+.build-card:focus-visible {
+    border-radius: 24px;
+    border-color: rgba(115, 215, 255, 0.5);
+    background: rgba(115, 215, 255, 0.06);
+    transform: translateY(-2px);
 }
 
 .build-card:hover {
@@ -4310,7 +4379,11 @@ input[type="radio"] {
 }
 
 .build-card--active {
-    border-color: rgba(95, 240, 167, 0.26);
+    border-color: rgba(95, 240, 167, 0.4);
+    box-shadow: 0 0 0 1px rgba(95, 240, 167, 0.16), 0 0 24px rgba(95, 240, 167, 0.07);
+    background:
+        radial-gradient(circle at 80% 12%, rgba(95, 240, 167, 0.1), transparent 10rem),
+        rgba(95, 240, 167, 0.035);
 }
 
 .build-card-orb {
@@ -4715,6 +4788,21 @@ th {
 .external-mod-list {
     display: grid;
     gap: 8px;
+}
+
+/* Пустые списки/ошибка загрузки внешних модов: приглашение + пояснение. */
+.external-mod-empty {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+}
+
+.external-mod-empty p {
+    margin: 0;
+}
+
+.external-mod-empty button {
+    width: fit-content;
 }
 
 .external-mod-row {

@@ -830,6 +830,7 @@ export function FileManager({
         onUploaded={onChanged}
         baseDir={dir}
         modProfiles={modProfiles}
+        existingPaths={files.map((f) => f.path)}
       />
 
       {selected.size > 0 && (

@@ -1859,3 +1859,217 @@ button.secondary:hover:not(:disabled) {
         animation: none;
     }
 }
+
+/* --- Загрузка файлов (FileUpload): dropzone и очередь ---
+   Десктопные правила из styles.css рассчитаны на мышь: плотные строки,
+   мелкие кнопки и горизонтальные ряды полей. На телефоне дропзона —
+   одна крупная цель на всю ширину, строки очереди складываются в
+   колонку, кнопки растут до пальца (≥44px), а поля ввода получают
+   шрифт 16px, чтобы iOS не приближал страницу при фокусе. */
+
+.m-screen .fm-upload {
+    /* Родитель (.fm) — flex-колонка: без min-width:0 длинные имена файлов
+       и пути не сжимаются и распирают панель в ширину. */
+    min-width: 0;
+}
+
+/* Дропзона: цель на всю ширину, содержимое — по центру. */
+.m-screen .fm-upload .dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 108px;
+    padding: 18px 16px;
+    border-radius: 18px;
+    font-size: 13px;
+}
+
+.m-screen .fm-upload .dropzone svg {
+    width: 22px;
+    height: 22px;
+}
+
+.m-screen .fm-upload .dropzone p {
+    margin: 0;
+}
+
+/* «выбрать файлы» / «загрузить папку» — единственные мелкие цели внутри
+   дропзоны: вертикальные поля расширяют зону тапа. */
+.m-screen .fm-upload .dropzone .link {
+    display: inline-block;
+    padding: 6px 2px;
+}
+
+.m-screen .fm-upload .dropzone:active {
+    border-color: var(--accent);
+    background: rgba(115, 215, 255, 0.08);
+}
+
+/* Глубокий путь рядом с заголовком не должен распирать панель. */
+.m-screen .fm-upload .fm-upload-target {
+    overflow-wrap: anywhere;
+}
+
+.m-screen .fm-upload .q-item {
+    padding: 12px;
+    border-radius: 14px;
+}
+
+/* Шапка строки очереди: имя файла и действия — друг под другом. */
+.m-screen .fm-upload .q-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.m-screen .fm-upload .q-right {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+/* Сообщение об ошибке — на всю строку с переносом: ховера для title на
+   телефоне нет, текст должен быть виден целиком, а не выталкивать кнопки. */
+.m-screen .fm-upload .q-right .q-err {
+    flex: 1 1 100%;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+    text-align: left;
+}
+
+/* «настроить»: прозрачная текстовая ссылка на тач-экране мелкая и не
+   читается как кнопка — превращаем в кнопку-чип высотой с палец. */
+.m-screen .fm-upload .q-right .link-btn {
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 13px;
+    font-weight: 750;
+}
+
+/* Крестик удаления: 44×44 и с видимым контуром — на прозрачном фоне
+   десктопного button.danger цель была бы «слепой». */
+.m-screen .fm-upload .q-right .icon-only {
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 0;
+    border-color: rgba(229, 83, 75, 0.28);
+    border-radius: 12px;
+    background: var(--danger-soft);
+}
+
+.m-screen .fm-upload .q-item .progress {
+    height: 6px;
+    margin-top: 8px;
+}
+
+/* Тело строки и «применить ко всем»: поля друг под другом. Вертикальный
+   ритм задает gap контейнера, margin у .field сброшен, чтобы не задваивался. */
+.m-screen .fm-upload .q-body,
+.m-screen .fm-upload .queue-batch-body {
+    display: grid;
+    gap: 12px;
+}
+
+.m-screen .fm-upload .q-body .field,
+.m-screen .fm-upload .queue-batch-body .field {
+    margin-bottom: 0;
+}
+
+.m-screen .fm-upload .row {
+    flex-direction: column;
+    gap: 12px;
+}
+
+.m-screen .fm-upload .row > .field {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+}
+
+/* Чекбоксы: строка высотой с палец (лэйбл кликабелен целиком), флажок крупнее. */
+.m-screen .fm-upload .checkbox-row {
+    min-height: 44px;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+}
+
+.m-screen .fm-upload .checkbox-row input {
+    flex: none;
+    width: 18px;
+    height: 18px;
+}
+
+/* iOS приближает страницу при фокусе на поле с шрифтом меньше 16px. */
+.m-screen .fm-upload input,
+.m-screen .fm-upload select {
+    font-size: 16px;
+}
+
+/* Чипы профилей модов: тап-цель заметно крупнее десктопной. */
+.m-screen .fm-upload .fm-profile-chip {
+    min-height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+}
+
+/* «Применить ко всем»: на десктопе блок не стилизован вовсе (родной
+   <details>); на мобильном — карточка в ритме очереди. */
+.m-screen .fm-upload .queue-batch {
+    margin-top: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.028);
+}
+
+.m-screen .fm-upload .queue-batch > summary {
+    min-height: 44px;
+    padding: 12px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.m-screen .fm-upload .queue-batch[open] > summary {
+    color: var(--text);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.m-screen .fm-upload .queue-batch-body {
+    padding: 12px;
+}
+
+/* Итоговые действия: кнопки переносятся по две в ряд, длинные подписи
+   переносятся внутри кнопки. Главная кнопка («Загрузить» / «Остановить
+   после текущего») всегда последняя в разметке — даем ей всю ширину
+   отдельной строкой; нечётный остаток вторичных растягивается сам. */
+.m-screen .fm-upload .queue-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.m-screen .fm-upload .queue-actions button {
+    flex: 1 1 calc(50% - 4px);
+    min-height: 44px;
+    min-width: 0;
+    justify-content: center;
+    padding: 10px 12px;
+    white-space: normal;
+    line-height: 1.25;
+}
+
+.m-screen .fm-upload .queue-actions button.primary,
+.m-screen .fm-upload .queue-actions button:last-child {
+    flex-basis: 100%;
+}

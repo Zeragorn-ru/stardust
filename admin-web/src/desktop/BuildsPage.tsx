@@ -1,5 +1,5 @@
-// Экран сборок (десктоп): список сборок перенесен в левый сайдбар всего приложения,
-// здесь отображаются детали выбранной сборки и менеджер файлов.
+// Экран сборок (десктоп): пока сборка не выбрана — хаб со списком карточек,
+// иначе — детали выбранной сборки и менеджер файлов.
 
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -117,12 +117,23 @@ function BuildsHub({ builds, onCreate }: { builds: BuildHeader[]; onCreate: () =
       ) : (
         <div className="build-card-grid">
           {builds.map((build) => (
-            <Link key={build.id} className={`build-card${build.isActive ? " build-card--active" : ""}`} to={`/builds/${build.id}`}>
+            // Вся карточка — ссылка (клавиатура/Enter работают нативно через <a>).
+            <Link
+              key={build.id}
+              className={`build-card${build.isActive ? " build-card--active" : ""}`}
+              to={`/builds/${build.id}`}
+              aria-label={`Открыть сборку ${build.name}`}
+            >
               <div className="build-card-orb"><IconBox size={18} /></div>
               <div className="build-card-main">
                 <div className="build-card-title">
                   <strong>{build.name}</strong>
-                  {build.isActive && <span className="badge active"><IconStar size={11} /> active</span>}
+                  {/* Бейдж активной сборки — она отдаётся лаунчеру клиентам. */}
+                  {build.isActive && (
+                    <span className="badge active" title="сборка отдаётся лаунчеру">
+                      <IconStar size={11} /> активная
+                    </span>
+                  )}
                 </div>
                 <span className="muted">v{build.version}</span>
               </div>
