@@ -18,6 +18,7 @@ import type {
   LogPaths,
   LogTail,
   MemoryLimits,
+  ModProfileInfo,
   NewsHighlight,
   NewsPost,
   OptionalMod,
@@ -631,6 +632,29 @@ export async function setModEnabled(
     return;
   }
   await invoke<void>("set_mod_enabled", { modId, enabled });
+}
+
+/** Профили модов активной сборки с состоянием игрока. */
+export async function listModProfiles(): Promise<ModProfileInfo[]> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(300);
+    return [];
+  }
+  return invoke<ModProfileInfo[]>("list_mod_profiles");
+}
+
+/** Включить/выключить профиль модов; возвращает число затронутых модов. */
+export async function setModProfile(
+  profileKey: string,
+  enabled: boolean,
+): Promise<number> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    await delay(150);
+    return 0;
+  }
+  return invoke<number>("set_mod_profile", { profileKey, enabled });
 }
 
 /**

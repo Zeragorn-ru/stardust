@@ -2708,6 +2708,41 @@ async fn set_mod_enabled(
     .await
 }
 
+/// Профили модов активной сборки (пресеты «Производительность»/«Качество»)
+/// с состоянием игрока: включён ли профиль и сколько в нём модов.
+#[tauri::command]
+async fn list_mod_profiles(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Vec<crate::modpack::ModProfileInfo>, String> {
+    crate::modpack::mod_profile_summary(
+        &state.http(),
+        &paths::data_dir(&app),
+        &paths::mod_choices_file(&app),
+    )
+    .await
+}
+
+/// Включить/выключить профиль: переводит все моды профиля в указанное
+/// состояние (переименование ± `.dis`, без перекачки).
+#[tauri::command]
+async fn set_mod_profile(
+    profile_key: String,
+    enabled: bool,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<usize, String> {
+    crate::modpack::set_mod_profile(
+        &state.http(),
+        &paths::data_dir(&app),
+        &paths::mod_choices_file(&app),
+        &game_dir(&app),
+        &profile_key,
+        enabled,
+    )
+    .await
+}
+
 /// Жив ли сейчас процесс игры. Фронт опрашивает это, чтобы держать
 /// кнопку «Играть» неактивной, пока Minecraft запущен.
 #[tauri::command]
@@ -3054,6 +3089,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             mark_news_seen,
             list_optional_mods,
             set_mod_enabled,
+            list_mod_profiles,
+            set_mod_profile,
             crate::update::check_update,
             crate::update::install_update,
             restart_after_update,

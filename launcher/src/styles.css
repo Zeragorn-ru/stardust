@@ -329,7 +329,10 @@ button,
     place-items: center;
 }
 
-/* ============ Аврора (фон) ============ */
+/* ============ Фон: звёздная пыль (статичный) ============
+   Слои: базовый градиент неба, две туманности по краям, три «поля звёзд»
+   (box-shadow на точке 1×1 — каждая звезда тень-офсет от неё) с нарастающим
+   параллаксом. Всё статично и почти бесплатно для GPU. */
 
 .aurora {
     position: absolute;
@@ -342,6 +345,38 @@ button,
         #141833 0%,
         var(--bg) 45%,
         var(--bg-deep) 100%
+    );
+}
+
+.aurora__nebula {
+    position: absolute;
+    inset: 0;
+}
+
+/* Звёздный слой: невидимая точка 1×1 в левом верхнем углу, звёзды — её
+   box-shadow-тени (формат box-shadow задаётся инлайном из JS). */
+.aurora__stars {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    background: transparent;
+}
+
+.aurora__nebula--left {
+    background: radial-gradient(
+        ellipse 55% 40% at 12% 78%,
+        rgba(124, 92, 255, 0.16) 0%,
+        transparent 70%
+    );
+}
+
+.aurora__nebula--right {
+    background: radial-gradient(
+        ellipse 45% 35% at 88% 22%,
+        rgba(79, 140, 255, 0.14) 0%,
+        transparent 70%
     );
 }
 
@@ -2259,6 +2294,105 @@ button,
     font-size: 12px;
     line-height: 1.4;
     color: #ffb4a8;
+}
+
+/* ============ Профили модов ============ */
+
+.mod-profiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    margin: 2px 0 14px;
+}
+
+.mod-profile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: rgba(22, 25, 40, 0.45);
+    cursor: pointer;
+    text-align: left;
+    transition:
+        border-color var(--t-fast),
+        background var(--t-fast),
+        box-shadow var(--t-fast);
+}
+
+.mod-profile:hover:not(:disabled) {
+    border-color: var(--glass-border-strong);
+    background: rgba(22, 25, 40, 0.6);
+}
+
+.mod-profile--on {
+    border-color: rgba(124, 92, 255, 0.55);
+    background: rgba(124, 92, 255, 0.12);
+    box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.25) inset;
+}
+
+.mod-profile--on:hover:not(:disabled) {
+    border-color: rgba(124, 92, 255, 0.75);
+    background: rgba(124, 92, 255, 0.18);
+}
+
+.mod-profile__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+}
+
+.mod-profile__name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.mod-profile__count {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.mod-profile__desc {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--muted);
+}
+
+.mod-profile__state {
+    margin-top: 4px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.mod-profile--on .mod-profile__state {
+    color: #b9a8ff;
+}
+
+/* Бейдж принадлежности мода профилю. */
+.mods-section__profiles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.mods-section__profile-badge {
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
 }
 
 .account-form {

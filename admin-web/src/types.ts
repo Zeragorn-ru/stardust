@@ -24,10 +24,21 @@ export interface BuildFile {
   modId: string | null;
   displayName: string | null;
   description: string | null;
+  /** Профили, в которых состоит файл; пусто = «общий» (есть во всех). */
+  profiles: string[];
+}
+
+/** Профиль опциональных модов сборки (пресет «Производительность»). */
+export interface ModProfile {
+  key: string;
+  name: string;
+  description: string | null;
+  sortOrder: number;
 }
 
 export interface BuildDetail extends BuildHeader {
   files: BuildFile[];
+  modProfiles: ModProfile[];
 }
 
 export interface Account {
@@ -97,6 +108,8 @@ export interface UploadMeta {
   modId?: string;
   displayName?: string;
   description?: string;
+  /** Профили, в которых состоит файл; пусто/не задано — «общий». */
+  profiles?: string[];
 }
 
 export interface BuildCheckProblem {

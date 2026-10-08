@@ -4876,3 +4876,104 @@ th {
         transition: none;
     }
 }
+
+/* ============ Профили модов ============ */
+
+/* Чипы выбора профилей в свойствах файла. */
+.fm-profile-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.fm-profile-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.fm-profile-chip:hover {
+    border-color: var(--glass-border-strong);
+    color: var(--text);
+}
+
+.fm-profile-chip.on {
+    border-color: rgba(124, 92, 255, 0.6);
+    background: rgba(124, 92, 255, 0.14);
+    color: var(--text);
+}
+
+/* Диалог управления профилями сборки. */
+.fm-profiles-modal .fm-profiles-sub {
+    margin: 2px 0 14px;
+    font-size: 13px;
+}
+
+.fm-profiles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.fm-profiles-empty {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.fm-profile-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: rgba(22, 25, 40, 0.45);
+}
+
+.fm-profile-row__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.fm-profile-row__text strong {
+    font-size: 13px;
+}
+
+.fm-profile-row__text span {
+    font-size: 12px;
+}
+
+.fm-profile-new {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.fm-profile-new strong {
+    font-size: 13px;
+}
+
+.fm-profile-new .primary {
+    align-self: flex-start;
+    margin-top: 4px;
+}
+
+.fm-profile-new__error {
+    font-size: 12px;
+    color: #ff8d7a;
+}

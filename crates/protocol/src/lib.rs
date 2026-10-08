@@ -168,6 +168,12 @@ pub struct FileEntry {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub conflicts_with: Vec<String>,
+    /// Профили, в которых состоит этот опциональный мод (ключи из
+    /// `Manifest.mod_profiles`). Пустой список — «общий» мод, есть во всех
+    /// профилях. Позволяет собрать из одной сборки пресеты вроде
+    /// «Производительность» (без шейдеров/графомодов) и «Качество» (полный).
+    #[serde(default, rename = "profiles", skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -215,6 +221,24 @@ pub struct Manifest {
         skip_serializing_if = "Option::is_none"
     )]
     pub external_mod_policy: Option<ExternalModPolicy>,
+    /// Мета-описания профилей модов (пресетов «Производительность»/«Качество»),
+    /// публикуемые сборкой. Ключ профиля в `FileEntry.profiles` совпадает с
+    /// `ModProfile.key`.
+    #[serde(default, rename = "modProfiles", skip_serializing_if = "Vec::is_empty")]
+    pub mod_profiles: Vec<ModProfile>,
+}
+
+/// Описание профиля опциональных модов для UI лаунчера.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModProfile {
+    /// Стабильный ключ (используется в `FileEntry.profiles` и выборах игрока).
+    pub key: String,
+    /// Человекочитаемое имя (напр. «Производительность»).
+    pub name: String,
+    /// Короткое описание для лаунчера, если задано.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 /// Политика сторонних модов для лаунчера и серверной проверки.

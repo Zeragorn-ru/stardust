@@ -60,6 +60,8 @@ pub struct OptionalMod {
     pub size: u64,
     /// `modId` конфликтующих опциональных модов (манифест + статические правила).
     pub conflicts_with: Vec<String>,
+    /// Профили, в которых состоит мод; пусто = «общий» (есть во всех).
+    pub profiles: Vec<String>,
 }
 
 /// Известные взаимоисключающие пары опциональных модов (modId ↔ modId).
@@ -98,6 +100,112 @@ fn optional_mod_enabled(entry: &protocol::FileEntry, choices: &BTreeMap<String, 
         return false;
     }
     entry.enabled_by_default
+}
+
+/// Профиль опциональных модов, как его видит UI лаунчера.
+#[derive(Debug, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ModProfileInfo {
+    /// Стабильный ключ профиля.
+    pub key: String,
+    /// Человекочитаемое имя («Производительность»).
+    pub name: String,
+    /// Описание для UI.
+    pub description: Option<String>,
+    /// Включён ли этот профиль у игрока (все его моды включены).
+    pub active: bool,
+    /// Сколько опциональных модов входят в профиль.
+    pub mod_count: usize,
+}
+
+/// Сводка профилей активной сборки: метаданные + состояние игрока.
+/// Моды без профиля («общие») в подсчёты не входят.
+pub async fn mod_profile_summary(
+    http: &reqwest::Client,
+    data_dir: &Path,
+    choices_file: &Path,
+) -> Result<Vec<ModProfileInfo>, String> {
+    let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
+        return Ok(Vec::new());
+    };
+    let choices = read_choices(data_dir, choices_file);
+    let mods: Vec<_> = manifest.optional_client_mods().collect();
+
+    Ok(manifest
+        .mod_profiles
+        .iter()
+        .map(|p| {
+            let members: Vec<&protocol::FileEntry> = mods
+                .iter()
+                .copied()
+                .filter(|m| {
+                    let keys = m.profiles.as_slice();
+                    keys.iter().any(|k| k.eq_ignore_ascii_case(&p.key))
+                })
+                .collect();
+            let active = !members.is_empty()
+                && members
+                    .iter()
+                    .all(|m| optional_mod_enabled(m, &choices));
+            ModProfileInfo {
+                key: p.key.clone(),
+                name: p.name.clone(),
+                description: p.description.clone(),
+                active,
+                mod_count: members.len(),
+            }
+        })
+        .collect())
+}
+
+/// Включает или выключает профиль: переводит все входящие в него моды в
+/// указанное состояние (пустой набор профилей у мода = «общий», не трогаем).
+/// Возвращает применённое количество модов.
+pub async fn set_mod_profile(
+    http: &reqwest::Client,
+    data_dir: &Path,
+    choices_file: &Path,
+    game_dir: &Path,
+    profile_key: &str,
+    enabled: bool,
+) -> Result<usize, String> {
+    let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
+        return Err("Активная сборка недоступна".to_string());
+    };
+    let mut choices = read_choices(data_dir, choices_file);
+    let mut applied = 0usize;
+
+    for entry in manifest.optional_client_mods() {
+        let belongs = entry
+            .profiles
+            .iter()
+            .any(|k| k.eq_ignore_ascii_case(profile_key));
+        if !belongs {
+            continue;
+        }
+        choices.insert(mod_choice_key(entry), enabled);
+        applied += 1;
+    }
+    write_choices(choices_file, &choices);
+
+    // Применяем на диск сразу (переименование ± `.dis`), без перекачки.
+    for entry in manifest.optional_client_mods() {
+        let belongs = entry
+            .profiles
+            .iter()
+            .any(|k| k.eq_ignore_ascii_case(profile_key));
+        if !belongs {
+            continue;
+        }
+        let choice = choices
+            .get(&mod_choice_key(entry))
+            .copied()
+            .unwrap_or(entry.enabled_by_default);
+        if let Some(rel) = sanitize_rel_path(&entry.path) {
+            apply_enabled_state(game_dir, &rel, choice);
+        }
+    }
+    Ok(applied)
 }
 
 /// Собирает список конфликтов для мода: манифест + симметричные статические правила.
@@ -344,6 +452,7 @@ pub async fn list_optional_mods(
                 enabled,
                 size: entry.size,
                 conflicts_with,
+                profiles: entry.profiles.clone(),
             }
         })
         .collect();
