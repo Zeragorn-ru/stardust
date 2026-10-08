@@ -214,18 +214,18 @@ button,
 .titlebar--macos-drag {
     display: flex;
     justify-content: center;
-    align-items: flex-start;
+    align-items: center; /* бренд центрируем по вертикали полосы */
     padding: 0 96px; /* место под traffic lights слева и кнопки шапки справа */
     border-bottom: none;
     background: transparent;
-    height: 44px;
+    height: 44px; /* центр (22px) = центр traffic lights (y=22) */
 }
 
 .titlebar--macos-drag .titlebar__brand {
     gap: 8px;
-    margin-top: 20px; /* на одной линии с traffic lights (y=22) */
     font-size: 12px;
     font-weight: 800;
+    line-height: 1; /* центр текста совпадает с центром кнопок светафора */
     letter-spacing: 0.06em;
     background: var(--accent-grad);
     -webkit-background-clip: text;
