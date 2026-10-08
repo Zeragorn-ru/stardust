@@ -2,7 +2,9 @@
 //
 // Слой данных и сам FileManager переиспользуются с десктопа без изменений —
 // под телефон их адаптирует mobile.css. Здесь только мобильная шапка с
-// переходом назад и крупными кнопками действий.
+// переходом назад, крупными кнопками действий и панелями статуса рядом
+// с ними. Удаление сборки тоже здесь: в списке на телефонах ≤390px иконки
+// действий карточек скрыты, и без этой кнопки удалить сборку негде.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
@@ -25,6 +27,7 @@ import {
   IconDownload,
   IconStar,
   IconSync,
+  IconTrash,
 } from "../ui/icons";
 
 const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
@@ -186,6 +189,32 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
   }
 
   const [busyClone, setBusyClone] = useState(false);
+  const [busyDelete, setBusyDelete] = useState(false);
+
+  async function removeBuild() {
+    if (!detail || busyDelete) return;
+    const ok = await confirm({
+      title: `Удалить сборку «${detail.name}»?`,
+      body: "Будут удалены все её файлы. Действие необратимо.",
+      confirmText: "Удалить",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusyDelete(true);
+    try {
+      await api.deleteBuild(buildId);
+      toast.success("Сборка удалена");
+      window.dispatchEvent(new Event("builds-updated"));
+      // Сборки больше нет — возвращаемся к списку.
+      onBack();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось удалить сборку",
+      );
+    } finally {
+      setBusyDelete(false);
+    }
+  }
 
   async function clone() {
     if (busyClone) return;
@@ -357,31 +386,32 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
             className="secondary icon-btn"
             disabled={syncing}
             onClick={syncToPanel}
-            title="Загрузить файлы сборки на сервер по SFTP"
           >
-            <IconSync size={15} />
-            {syncing ? "Синхр…" : "На сервер"}
+            <IconSync size={15} className={syncing ? "spin" : ""} />
+            {syncing ? "Синхр…" : "Синхр. на сервер"}
           </button>
           <button
             className="secondary icon-btn"
             disabled={deploying}
             onClick={deployMod}
-            title="Скачать stardust-mod из GitHub и добавить в сборку"
           >
             <IconDownload size={15} />
-            {deploying ? "Мод…" : "Мод"}
+            {deploying ? "Загрузка мода…" : "Обновить stardust-mod"}
+          </button>
+          <button
+            className="danger icon-btn"
+            onClick={removeBuild}
+            disabled={busyDelete}
+          >
+            <IconTrash size={15} /> {busyDelete ? "Удаление…" : "Удалить"}
           </button>
         </div>
       </div>
 
-      <div className="m-stats">
-        <Stat label="Загрузчик" value={detail.loaderKind} />
-        <Stat label="MC" value={detail.mcVersion} />
-        <Stat label="Загрузчик v" value={detail.loaderVersion || "—"} />
-        <Stat label="Файлов" value={String(files.length)} />
-        <Stat label="Размер" value={formatSize(totalSize)} />
-      </div>
-
+      {/* Панели статуса — сразу под кнопками, выше статистики и файлового
+          менеджера: кнопки «Синхр. на сервер» и «Обновить stardust-mod»
+          вверху, и админ должен видеть прогресс там же, где нажал, а не
+          после длинной простыни карточек и списка файлов. */}
       {syncStatus && syncStatus.state !== "idle" && (
         <div className={`panel sync-progress sync-progress--${syncStatus.state}`}>
           <div className="sync-progress__head">
@@ -407,15 +437,6 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
         </div>
       )}
 
-      <div className="panel m-fm-panel">
-        <FileManager
-          buildId={buildId}
-          files={files}
-          modProfiles={detail?.modProfiles ?? []}
-          onChanged={load}
-        />
-      </div>
-
       {deployStatus && (
         <div className={`panel sync-progress sync-progress--${deployStatus.state === "success" ? "success" : deployStatus.state === "error" ? "error" : "running"}`}>
           <div className="sync-progress__head">
@@ -434,6 +455,23 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
           {deployStatus.error && <div className="q-err">{deployStatus.error}</div>}
         </div>
       )}
+
+      <div className="m-stats">
+        <Stat label="Загрузчик" value={detail.loaderKind} />
+        <Stat label="MC" value={detail.mcVersion} />
+        <Stat label="Загрузчик v" value={detail.loaderVersion || "—"} />
+        <Stat label="Файлов" value={String(files.length)} />
+        <Stat label="Размер" value={formatSize(totalSize)} />
+      </div>
+
+      <div className="panel m-fm-panel">
+        <FileManager
+          buildId={buildId}
+          files={files}
+          modProfiles={detail?.modProfiles ?? []}
+          onChanged={load}
+        />
+      </div>
 
       <div className="panel m-checks-panel">
         <div className="m-checks-head">

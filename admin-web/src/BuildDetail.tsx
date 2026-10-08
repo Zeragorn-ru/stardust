@@ -221,15 +221,26 @@ export function BuildDetail({
 
   useEffect(() => stopDeployPoll, []);
 
-  const loadSyncStatus = useCallback(async () => {
-    const status = await api.syncToPanelStatus(buildId);
-    setSyncStatus(status);
-    setSyncing(status.state === "running");
-    return status;
-  }, [buildId]);
+  // adoptFinished=false — режим начальной загрузки: бэкенд хранит последний
+  // терминальный статус вечно, поэтому при заходе на страницу подхватываем
+  // только реально идущую синхронизацию — завершённая часы назад не должна
+  // встречать админа при каждом визите. Результат, наблюдённый опросом в
+  // текущем визите, остаётся видимым до ухода со страницы.
+  const loadSyncStatus = useCallback(
+    async (adoptFinished = true) => {
+      const status = await api.syncToPanelStatus(buildId);
+      setSyncStatus(
+        adoptFinished || status.state === "running" ? status : null,
+      );
+      setSyncing(status.state === "running");
+      return status;
+    },
+    [buildId],
+  );
 
   useEffect(() => {
-    loadSyncStatus().catch(() => undefined);
+    // При монтировании — без терминальных статусов с прошлых визитов.
+    loadSyncStatus(false).catch(() => undefined);
   }, [loadSyncStatus]);
 
   useEffect(() => {
@@ -380,10 +391,15 @@ export function BuildDetail({
   }
 
   async function deployMod() {
+    // Мод всегда попадает в АКТИВНУЮ сборку (так работает бэкенд), поэтому
+    // честно предупреждаем, когда открыта другая.
+    const active = detail?.isActive ?? true;
     const ok = await confirm({
       title: "Добавить мод в сборку?",
-      body: "Будет скачан последний релиз stardust-mod из GitHub и добавлен в эту сборку. При следующей синхронизации мод попадёт на сервер.",
-      confirmText: "Добавить",
+      body: active
+        ? "Будет скачан последний релиз stardust-mod из GitHub и добавлен в эту сборку. При следующей синхронизации мод попадёт на сервер."
+        : "Мод добавляется только в АКТИВНУЮ сборку, а открыта другая. Переключитесь на активную, чтобы обновить мод в ней.",
+      confirmText: active ? "Добавить" : "Всё равно открыть активную",
     });
     if (!ok) return;
 

@@ -66,6 +66,7 @@ export function BuildsPage() {
       <div className="builds-main-full">
         {selected !== null ? (
           <BuildDetail
+            key={selected}
             buildId={selected}
             onChanged={load}
           />

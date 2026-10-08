@@ -158,15 +158,30 @@ function ConfirmDialog({
   onClose: (ok: boolean) => void;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const confirmBtnRef = useRef<HTMLButtonElement>(null);
   useBodyScrollLock();
   useDialogFocus(dialogRef, () => onClose(false));
+  // Безопасные подтверждения: фокус — на кнопке подтверждения, чтобы Enter
+  // сразу подтверждал действие. Опасные: фокус остаётся на «Отмене» (её
+  // фокусирует useDialogFocus как первый фокусимый элемент) — случайный
+  // Enter тогда лишь закрывает диалог. Эффект объявлен после useDialogFocus,
+  // поэтому выполняется после его установки фокуса и переводит его надёжно.
+  useEffect(() => {
+    if (!state.danger) confirmBtnRef.current?.focus();
+  }, [state.danger]);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose(false);
+      if (e.key === "Escape") {
+        // Поглощаем: нижний confirm — верхний слой, Escape не должен
+        // пробиваться в родительский диалог и зацикливать его dirty-guard.
+        e.stopPropagation();
+        onClose(false);
+      }
       // Enter подтверждает только безопасные действия. Для опасных (удаление,
-      // снятие прав) требуем явного клика, чтобы случайный Enter не сработал.
-      // Кнопки (в т.ч. автофокусная «Отмена») обрабатывают Enter нативно —
-      // глобальный Enter не должен дублировать их действие.
+      // снятие прав) фокус стоит на «Отмене» и Enter игнорируем — нужно
+      // явное подтверждение кликом. Для безопасных фокус стоит на кнопке
+      // подтверждения: она обрабатывает Enter нативно — глобальный Enter
+      // не должен дублировать её действие.
       if (
         e.key === "Enter" &&
         !state.danger &&
@@ -193,10 +208,11 @@ function ConfirmDialog({
         <h3 id="confirm-dialog-title">{state.title}</h3>
         {state.body && <p className="muted">{state.body}</p>}
         <div className="modal-actions">
-          <button onClick={() => onClose(false)} autoFocus>
+          <button onClick={() => onClose(false)}>
             Отмена
           </button>
           <button
+            ref={confirmBtnRef}
             className={state.danger ? "danger-solid" : "primary"}
             onClick={() => onClose(true)}
           >

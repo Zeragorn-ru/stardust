@@ -846,10 +846,14 @@
 .m-detail-secondary-actions button {
     min-width: 0;
     min-height: 44px;
-    overflow: hidden;
     justify-content: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* Подписи объясняют сами себя («Обновить stardust-mod», «Синхр. на
+       сервер») и длиннее старых: на узком телефоне переносим их на вторую
+       строку, а не обрезаем по ellipsis — усечённая подпись снова делала
+       бы кнопку «криптической». Сетка в две колонки (minmax(0, 1fr))
+       не даёт ряду расползаться в ширину. */
+    white-space: normal;
+    line-height: 1.25;
 }
 
 .m-detail-secondary-actions .icon-btn {

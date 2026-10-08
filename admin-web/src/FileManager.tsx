@@ -18,6 +18,7 @@ import {
   slugifyModId,
 } from "./format";
 import { useConfirm, useToast } from "./ui/feedback";
+import { useContextMenu } from "./ui/ContextMenu";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import {
   IconChevronRight,
@@ -101,6 +102,8 @@ interface FileFilters {
   disabled: "all" | "yes" | "no";
   enabledByDefault: "all" | "yes" | "no";
   overwrite: "all" | "yes" | "no";
+  /** Фильтр по профилю модов: "all" | ключ | "none" (общие). */
+  profile: string;
 }
 
 const EMPTY_FILTERS: FileFilters = {
@@ -110,6 +113,7 @@ const EMPTY_FILTERS: FileFilters = {
   disabled: "all",
   enabledByDefault: "all",
   overwrite: "all",
+  profile: "all",
 };
 
 function hasActiveFilters(f: FileFilters): boolean {
@@ -133,6 +137,7 @@ export function FileManager({
 }) {
   const toast = useToast();
   const confirm = useConfirm();
+  const menu = useContextMenu();
   // Диалог управления профилями модов сборки.
   const [profilesOpen, setProfilesOpen] = useState(false);
   const [dir, setDir] = useState("");
@@ -177,6 +182,8 @@ export function FileManager({
     e.preventDefault();
     setDragDepth(0);
     uploadRef.current?.addFromDataTransfer(e.dataTransfer);
+    // Очередь ниже списка — без прокрутки дроп выглядит «пропавшим».
+    window.setTimeout(() => uploadRef.current?.scrollIntoQueue(), 150);
   }
 
   async function copyPublicLink(path: string, label: string) {
@@ -192,6 +199,24 @@ export function FileManager({
   const searching = query.trim().length > 0 || activeFilters;
 
   const listing = useMemo(() => buildListing(files, dir), [files, dir]);
+
+  /** Клик по бейджу профиля: включает фильтр (повторный клик — снимает). */
+  function filterByProfile(key: string) {
+    setFilters((f) => ({ ...f, profile: f.profile === key ? "all" : key }));
+    setFiltersOpen(true);
+  }
+
+  // Escape вне диалогов снимает выделение файлов (как в проводниках).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      // Открытый оверлей обрабатывает Escape сам — не мешаем.
+      if (document.querySelector(".modal-backdrop, .fm-drawer-backdrop")) return;
+      setSelected((cur) => (cur.size ? new Set() : cur));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // При активных фильтрах/поиске показываем плоский список совпадений по всем папкам.
   const searchResults = useMemo(() => {
@@ -209,6 +234,8 @@ export function FileManager({
         if (filters.enabledByDefault === "no" && f.enabledByDefault) return false;
         if (filters.overwrite === "yes" && !f.overwrite) return false;
         if (filters.overwrite === "no" && f.overwrite) return false;
+        if (filters.profile === "none" && f.profiles.length > 0) return false;
+        if (filters.profile !== "all" && filters.profile !== "none" && !f.profiles.includes(filters.profile)) return false;
         if (!q) return true;
         return (
           f.path.toLowerCase().includes(q) ||
@@ -236,13 +263,37 @@ export function FileManager({
   const allVisibleSelected =
     visibleFiles.length > 0 && visibleFiles.every((f) => selected.has(f.id));
 
-  function toggleOne(id: number) {
+  // Индекс последнего клика — якорь для shift-выделения диапазона.
+  const anchorIdx = useRef<number | null>(null);
+
+  function toggleOne(id: number, e?: { shiftKey?: boolean }) {
+    // Shift+клик выделяет диапазон от якоря до текущей строки.
+    if (e?.shiftKey && anchorIdx.current !== null) {
+      const ids = visibleFiles.map((f) => f.id);
+      const cur = ids.indexOf(id);
+      if (cur >= 0) {
+        const from = Math.min(anchorIdx.current, cur);
+        const to = Math.max(anchorIdx.current, cur);
+        const range = ids.slice(from, to + 1);
+        setSelected((prev) => new Set([...prev, ...range]));
+        return;
+      }
+    }
+    anchorIdx.current = visibleFiles.findIndex((f) => f.id === id);
     setSelected((cur) => {
       const next = new Set(cur);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
+  }
+
+  // Смена папки обнуляет выделение: файлы прошлой папки невидимы, а BulkBar
+  // мог бы применять патчи к ним (id глобальные!).
+  function navigateDir(next: string) {
+    setDir(next);
+    setSelected(new Set());
+    anchorIdx.current = null;
   }
 
   function toggleAllVisible() {
@@ -298,6 +349,62 @@ export function FileManager({
   }
 
   // Применяет один и тот же патч ко всем выбранным файлам.
+  /** Профили, отмеченные у ВСЕХ выделенных файлов (для состояния чипов). */
+  const profilesOfSelected = useMemo(() => {
+    const sel = files.filter((f) => selected.has(f.id));
+    if (sel.length === 0) return new Set<string>();
+    const first = new Set(sel[0].profiles);
+    for (const f of sel.slice(1)) {
+      for (const k of first) {
+        if (!f.profiles.includes(k)) first.delete(k);
+      }
+    }
+    return first;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, selected]);
+
+  /** Переключить членство всех выделенных файлов в профиле. */
+  function bulkToggleProfile(key: string) {
+    const sel = files.filter((f) => selected.has(f.id));
+    const allHave = sel.length > 0 && sel.every((f) => f.profiles.includes(key));
+    const patchProfiles = (cur: string[]): string[] =>
+      allHave ? cur.filter((k) => k !== key) : [...new Set([...cur, key])];
+    void bulkPatchProfiles(sel, key, patchProfiles, allHave);
+  }
+
+  async function bulkPatchProfiles(
+    sel: BuildFile[],
+    key: string,
+    patchProfiles: (cur: string[]) => string[],
+    removing: boolean,
+  ) {
+    if (sel.length === 0) return;
+    setBulkBusy(true);
+    let failed = 0;
+    for (const f of sel) {
+      // Файлы вне профиля и «добавляем» — патчим только членство.
+      const nextProfiles = patchProfiles(f.profiles);
+      if (nextProfiles.length === f.profiles.length && nextProfiles.every((k) => f.profiles.includes(k))) {
+        continue;
+      }
+      try {
+        await api.updateFile(f.id, { profiles: nextProfiles });
+      } catch {
+        failed++;
+      }
+    }
+    setBulkBusy(false);
+    const profileName = modProfiles.find((p) => p.key === key)?.name ?? key;
+    if (failed) toast.error(`Не удалось обновить файлов: ${failed}`);
+    else
+      toast.success(
+        removing
+          ? `${profileName}: убрано из ${sel.length} файл(ов)`
+          : `${profileName}: добавлено ${sel.length} файл(ов)`,
+      );
+    onChanged();
+  }
+
   async function bulkPatch(patch: Partial<BuildFile>, label: string) {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -312,6 +419,7 @@ export function FileManager({
           enabledByDefault: patch.enabledByDefault,
           overwrite: patch.overwrite,
           disabled: patch.disabled,
+          profiles: patch.profiles,
         });
       } catch {
         failed++;
@@ -386,7 +494,7 @@ export function FileManager({
     if (!clean) return;
     setQuery("");
     setFilters(EMPTY_FILTERS);
-    setDir(dir ? `${dir}/${clean}` : clean);
+    navigateDir(dir ? `${dir}/${clean}` : clean);
   }
 
   // Создаёт пустой файл в текущем каталоге и открывает редактор.
@@ -414,6 +522,53 @@ export function FileManager({
     }
   }
 
+  /** Правый клик по пустому месту: создание и навигация. */
+  function onBackgroundMenu(e: React.MouseEvent) {
+    // Не открываем фоновое меню, если клик пришёл по строке/кнопке — у них свои.
+    if (e.target instanceof Element && e.target.closest(".fm-row, .fm-toolbar, button, input, a, label")) {
+      return;
+    }
+    menu(e, {
+      title: dir === "" ? ".minecraft" : dir,
+      items: [
+        {
+          label: "Новая папка",
+          icon: <IconFolder size={15} />,
+          onSelect: () => setCreating("folder"),
+        },
+        {
+          label: "Новый файл",
+          icon: <IconPlus size={15} />,
+          onSelect: () => setCreating("file"),
+        },
+        "-",
+        ...(dir !== ""
+          ? [
+              {
+                label: "На уровень выше",
+                icon: <IconCornerUp size={15} />,
+                onSelect: () => navigateDir(parentDir(dir)),
+              },
+            ]
+          : []),
+        ...(activeFilters
+          ? [
+              {
+                label: "Сбросить фильтры",
+                icon: <IconFilter size={15} />,
+                onSelect: () => setFilters(EMPTY_FILTERS),
+              },
+            ]
+          : []),
+        {
+          label: "Скопировать ссылку на manifest",
+          icon: <IconCopy size={15} />,
+          onSelect: () => void copyPublicLink("/manifest", "Ссылка на manifest"),
+        },
+      ],
+    });
+  }
+
   return (
     <div
       className={`fm${dragDepth > 0 ? " fm-dragging" : ""}`}
@@ -421,12 +576,13 @@ export function FileManager({
       onDragOver={onManagerDragOver}
       onDragLeave={onManagerDragLeave}
       onDrop={onManagerDrop}
+      onContextMenu={onBackgroundMenu}
     >
       <div className="fm-toolbar fm-toolbar--mobile-sticky">
         <nav className="breadcrumbs">
           <button
             className={`crumb${dir === "" ? " current" : ""}`}
-            onClick={() => setDir("")}
+            onClick={() => navigateDir("")}
             title=".minecraft"
           >
             <IconHome size={15} />
@@ -437,7 +593,7 @@ export function FileManager({
               <IconChevronRight size={14} className="crumb-sep" />
               <button
                 className={`crumb${dir === c.path ? " current" : ""}`}
-                onClick={() => setDir(c.path)}
+                onClick={() => navigateDir(c.path)}
               >
                 {c.name}
               </button>
@@ -637,6 +793,34 @@ export function FileManager({
               ))}
             </div>
           </div>
+          {modProfiles.length > 0 && (
+            <div className="fm-filter-group">
+              <span className="fm-filter-label">Профиль</span>
+              <div className="fm-filter-options">
+                <button
+                  className={`fm-filter-opt${filters.profile === "all" ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, profile: "all" }))}
+                >
+                  все
+                </button>
+                {modProfiles.map((p) => (
+                  <button
+                    key={p.key}
+                    className={`fm-filter-opt${filters.profile === p.key ? " active" : ""}`}
+                    onClick={() => setFilters((f) => ({ ...f, profile: p.key }))}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+                <button
+                  className={`fm-filter-opt${filters.profile === "none" ? " active" : ""}`}
+                  onClick={() => setFilters((f) => ({ ...f, profile: "none" }))}
+                >
+                  общие
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -645,12 +829,16 @@ export function FileManager({
         buildId={buildId}
         onUploaded={onChanged}
         baseDir={dir}
+        modProfiles={modProfiles}
       />
 
       {selected.size > 0 && (
         <BulkBar
           count={selected.size}
           busy={bulkBusy}
+          modProfiles={modProfiles}
+          selectedProfiles={profilesOfSelected}
+          onToggleProfile={bulkToggleProfile}
           onSide={(s) => bulkPatch({ side: s }, `Сторона → ${sideLabel(s)}`)}
           onKind={(k) => bulkPatch({ kind: k }, `Тип → ${k}`)}
           onOptional={(v) =>
@@ -698,14 +886,17 @@ export function FileManager({
                 file={f}
                 selected={selected.has(f.id)}
                 active={editingProps?.id === f.id}
-                onToggle={() => toggleOne(f.id)}
+                onToggle={(e) => toggleOne(f.id, e)}
                 onDelete={() => removeFile(f)}
                 onEditProps={() => setEditingProps(f)}
                 onEdit={() => setEditing(f)}
+                modProfiles={modProfiles}
+                filters={filters}
+                onFilterProfile={filterByProfile}
                 onOpenDir={(d) => {
                   setQuery("");
                   setFilters(EMPTY_FILTERS);
-                  setDir(d);
+                  navigateDir(d);
                 }}
               />
             ))}
@@ -717,7 +908,7 @@ export function FileManager({
             <div className="fm-row up">
               <button
                 className="fm-main fm-up"
-                onClick={() => setDir(parentDir(dir))}
+                onClick={() => navigateDir(parentDir(dir))}
               >
                 <IconCornerUp size={17} className="fm-icon" />
                 <span className="fm-name">Наверх</span>
@@ -741,7 +932,7 @@ export function FileManager({
 
           {listing.folders.map((folder) => (
             <div key={folder.path} className="fm-row folder">
-              <button className="fm-main" onClick={() => setDir(folder.path)}>
+              <button className="fm-main" onClick={() => navigateDir(folder.path)}>
                 <IconFolder size={17} className="fm-icon folder" />
                 <span className="fm-folder-text">
                   <span className="fm-name">{folder.name}</span>
@@ -758,6 +949,41 @@ export function FileManager({
                 >
                   <IconTrash size={15} />
                 </button>
+                <button
+                  type="button"
+                  className="icon-only fm-folder-menu"
+                  aria-label={`Меню папки ${folder.name}`}
+                  onClick={(e) =>
+                    menu(e, {
+                      title: folder.name,
+                      items: [
+                        {
+                          label: "Открыть",
+                          icon: <IconFolder size={15} />,
+                          onSelect: () => navigateDir(folder.path),
+                        },
+                        ...(parentDir(folder.path)
+                          ? [
+                              {
+                                label: "На уровень выше",
+                                icon: <IconCornerUp size={15} />,
+                                onSelect: () => navigateDir(parentDir(folder.path)!),
+                              },
+                            ]
+                          : []),
+                        "-",
+                        {
+                          label: `Удалить папку (${folder.fileCount})`,
+                          icon: <IconTrash size={15} />,
+                          danger: true,
+                          onSelect: () => removeFolder(folder),
+                        },
+                      ],
+                    })
+                  }
+                >
+                  <IconSettings size={15} />
+                </button>
               </div>
             </div>
           ))}
@@ -768,10 +994,13 @@ export function FileManager({
               file={f}
               selected={selected.has(f.id)}
               active={editingProps?.id === f.id}
-              onToggle={() => toggleOne(f.id)}
+              onToggle={(e) => toggleOne(f.id, e)}
               onDelete={() => removeFile(f)}
               onEditProps={() => setEditingProps(f)}
               onEdit={() => setEditing(f)}
+              modProfiles={modProfiles}
+              filters={filters}
+              onFilterProfile={filterByProfile}
             />
           ))}
         </div>
@@ -842,23 +1071,31 @@ export function FileManager({
 function BulkBar({
   count,
   busy,
+  modProfiles,
+  selectedProfiles,
   onSide,
   onKind,
   onOptional,
   onEnabled,
   onOverwrite,
   onDisabled,
+  onToggleProfile,
   onDelete,
   onClear,
 }: {
   count: number;
   busy: boolean;
+  modProfiles: ModProfile[];
+  /** Профили, отмеченные у ВСЕХ выделенных файлов (для «вкл/выкл»-чипов). */
+  selectedProfiles: Set<string>;
   onSide: (s: string) => void;
   onKind: (k: string) => void;
   onOptional: (v: boolean) => void;
   onEnabled: (v: boolean) => void;
   onOverwrite: (v: boolean) => void;
   onDisabled: (v: boolean) => void;
+  /** Переключить членство выделенных файлов в профиле. */
+  onToggleProfile: (key: string) => void;
   onDelete: () => void;
   onClear: () => void;
 }) {
@@ -961,6 +1198,30 @@ function BulkBar({
             </button>
           </div>
         </div>
+
+        {modProfiles.length > 0 && (
+          <div className="fm-bulk-group">
+            <span className="fm-bulk-label">Профили</span>
+            <div className="fm-profile-chips">
+              {modProfiles.map((p) => {
+                const on = selectedProfiles.has(p.key);
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    className={`fm-profile-chip${on ? " on" : ""}`}
+                    disabled={busy}
+                    aria-pressed={on}
+                    title={on ? "Убрать выделенные файлы из профиля" : "Добавить выделенные файлы в профиль"}
+                    onClick={() => onToggleProfile(p.key)}
+                  >
+                    {p.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="fm-bulk-group">
           <span className="fm-bulk-label">Отключён</span>
@@ -1078,11 +1339,18 @@ function PromptDialog({
   useEffect(() => {
     inputRef.current?.focus();
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") {
+        // Введённое имя не выбрасываем молча — подтверждаем, как в drawer.
+        if (value.trim()) {
+          const ok = window.confirm(`«${value.trim()}» не сохранено. Закрыть?`);
+          if (!ok) return;
+        }
+        onCancel();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  }, [onCancel, value]);
 
   // Асинхронный submit с busy-состоянием: быстрый двойной Enter/клик
   // не должен запустить второй запрос на создание.
@@ -1164,19 +1432,34 @@ function FileRow({
   onEditProps,
   onEdit,
   onOpenDir,
+  modProfiles,
+  filters,
+  onFilterProfile,
 }: {
   file: BuildFile;
   selected: boolean;
   active: boolean;
-  onToggle: () => void;
+  onToggle: (e?: { shiftKey?: boolean }) => void;
   onDelete: () => void;
   onEditProps: () => void;
   onEdit: () => void;
   onOpenDir?: (dir: string) => void;
+  modProfiles: ModProfile[];
+  filters: FileFilters;
+  onFilterProfile?: (key: string) => void;
 }) {
   const editable = isEditable(file);
   const toast = useToast();
+  const menu = useContextMenu();
   const [actionsOpen, setActionsOpen] = useState(false);
+
+  /** Бейджи профилей файла (имена по ключам). */
+  const profileBadges = file.profiles
+    .map((k) => {
+      const p = modProfiles.find((x) => x.key === k);
+      return p ?? { key: k, name: k, description: null, sortOrder: 0 };
+    })
+    .sort((a, b) => a.sortOrder - b.sortOrder);
 
   async function copyFileField(value: string, label: string) {
     try {
@@ -1187,14 +1470,80 @@ function FileRow({
     }
   }
 
+  /** Правый клик: те же действия, что в kebab, плюс выделение/свойства. */
+  function openRowMenu(e: React.MouseEvent) {
+    // Если строка не выделена — правый клик выделяет её (как в проводниках).
+    if (!selected) onToggle();
+    menu(e, {
+      title: baseName(file.path),
+      items: [
+        {
+          label: "Открыть свойства",
+          icon: <IconSettings size={15} />,
+          onSelect: onEditProps,
+        },
+        ...(editable
+          ? [
+              {
+                label: "Редактировать текст",
+                icon: <IconPencil size={15} />,
+                onSelect: onEdit,
+              },
+            ]
+          : []),
+        "-",
+        {
+          label: "Скопировать путь",
+          icon: <IconCopy size={15} />,
+          hint: `${file.path.length > 22 ? "" : file.path}`,
+          onSelect: () => void copyFileField(file.path, "Путь"),
+        },
+        {
+          label: "Скопировать SHA-1",
+          onSelect: () => void copyFileField(file.sha1, "SHA-1"),
+        },
+        {
+          label: "Скопировать ссылку",
+          icon: <IconDownload size={15} />,
+          onSelect: () =>
+            void copyFileField(publicUrl(`/files/${file.sha1}`), "Ссылка"),
+        },
+        ...(parentDir(file.path) && onOpenDir
+          ? [
+              {
+                label: "Открыть папку файла",
+                icon: <IconFolder size={15} />,
+                onSelect: () => onOpenDir(parentDir(file.path)!),
+              },
+            ]
+          : []),
+        "-",
+        {
+          label: "Удалить",
+          icon: <IconTrash size={15} />,
+          danger: true,
+          onSelect: onDelete,
+        },
+      ],
+    });
+  }
+
   return (
     <div
       className={`fm-row file${active ? " editing" : ""}${
         selected ? " selected" : ""
       }${file.disabled ? " fm-row--disabled" : ""}`}
+      onContextMenu={(e) => openRowMenu(e)}
     >
       <label className="fm-check">
-        <input type="checkbox" checked={selected} onChange={onToggle} />
+        <input
+          type="checkbox"
+          checked={selected}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle({ shiftKey: e.shiftKey });
+          }}
+        />
       </label>
       <div className="fm-main static">
         <IconFile size={15} className="fm-icon file" />
@@ -1207,8 +1556,15 @@ function FileRow({
             <span className={`tag kind-${file.kind}`}>{file.kind}</span>
             <span className="fm-meta muted">{sideLabel(file.side)}</span>
             {file.optional && (
-              <span className="tag" title={file.enabledByDefault ? "Опциональный, включён по умолчанию" : "Опциональный, по умолчанию выключен"}>
-                {file.enabledByDefault ? "опц. ✓" : "опц. ✗"}
+              <span
+                className={`tag tag--optional${file.enabledByDefault ? " tag--optional-on" : ""}`}
+                title={
+                  file.enabledByDefault
+                    ? "Опциональный мод: включён у новых игроков по умолчанию"
+                    : "Опциональный мод: выключен по умолчанию, игрок включает сам"
+                }
+              >
+                опц. {file.enabledByDefault ? "вкл" : "выкл"}
               </span>
             )}
             {file.disabled && <span className="tag tag--disabled">откл.</span>}
@@ -1217,6 +1573,20 @@ function FileRow({
                 без перезаписи
               </span>
             )}
+            {profileBadges.map((p) => (
+              <button
+                key={p.key}
+                type="button"
+                className={`tag tag--profile${filters.profile === p.key ? " active" : ""}`}
+                title={`Фильтр: профиль ${p.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFilterProfile?.(p.key);
+                }}
+              >
+                {p.name}
+              </button>
+            ))}
             {onOpenDir && parentDir(file.path) && (
               <button
                 className="fm-path-link muted"
@@ -1264,27 +1634,39 @@ function FileRow({
           Ещё
         </button>
         <span className={`fm-actions-secondary${actionsOpen ? " open" : ""}`}>
+          {/* Одна кнопка копирования с меню (путь/SHA-1/ссылка) вместо трёх
+              неразличимых иконок: смысл действия виден в пунктах меню. */}
           <button
             type="button"
             className="icon-only"
-            title="Скопировать путь"
-            onClick={() => copyFileField(file.path, "Путь")}
-          >
-            <IconCopy size={15} />
-          </button>
-          <button
-            type="button"
-            className="icon-only"
-            title="Скопировать SHA-1"
-            onClick={() => copyFileField(file.sha1, "SHA-1")}
-          >
-            <IconCopy size={15} />
-          </button>
-          <button
-            type="button"
-            className="icon-only"
-            title="Скопировать ссылку на файл"
-            onClick={() => copyFileField(publicUrl(`/files/${file.sha1}`), "Ссылка на файл")}
+            title="Скопировать (путь, SHA-1 или ссылку)"
+            aria-haspopup="menu"
+            onClick={(e) =>
+              menu(e, {
+                title: baseName(file.path),
+                items: [
+                  {
+                    label: "Путь",
+                    icon: <IconCopy size={15} />,
+                    onSelect: () => void copyFileField(file.path, "Путь"),
+                  },
+                  {
+                    label: "SHA-1",
+                    icon: <IconCopy size={15} />,
+                    onSelect: () => void copyFileField(file.sha1, "SHA-1"),
+                  },
+                  {
+                    label: "Ссылка на файл",
+                    icon: <IconDownload size={15} />,
+                    onSelect: () =>
+                      void copyFileField(
+                        publicUrl(`/files/${file.sha1}`),
+                        "Ссылка на файл",
+                      ),
+                  },
+                ],
+              })
+            }
           >
             <IconCopy size={15} />
           </button>
@@ -1334,43 +1716,68 @@ function ModProfilesDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState(false);
+  // Редактируемый профиль: форма становится upsert этого профиля.
+  const [editingProfile, setEditingProfile] = useState<ModProfile | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        // Черновик формы не теряем молча.
+        const dirty = key.trim() || name.trim() || description.trim();
+        if (dirty && !editingProfile) {
+          const ok = window.confirm("Черновик профиля не сохранён. Закрыть?");
+          if (!ok) return;
+        }
+        onClose();
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, key, name, description, editingProfile]);
 
   /** Сколько файлов помечено профилем. */
   const members = (k: string): number =>
     files.filter((f) => f.profiles.includes(k)).length;
 
   const freeKey = key.trim().toLowerCase();
-  const keyTaken = profiles.some((p) => p.key === freeKey);
-  const canCreate =
-    !busy && freeKey.length > 0 && /^[a-z0-9-]+$/.test(freeKey) && name.trim().length > 0 && !keyTaken;
+  const keyTaken = profiles.some((p) => p.key === freeKey && p.key !== editingProfile?.key);
+  const keyBad = freeKey.length > 0 && !/^[a-z0-9-]+$/.test(freeKey);
+  const keyHint = keyBad
+    ? "Ключ — только латиница, цифры и дефис"
+    : keyTaken
+      ? "Профиль с таким ключом уже есть"
+      : null;
+  const canSave =
+    !busy && freeKey.length > 0 && !keyBad && !keyTaken && name.trim().length > 0;
 
-  async function create() {
-    if (!canCreate) return;
+  async function save() {
+    if (!canSave) return;
     setBusy(true);
     try {
       await api.upsertModProfile(buildId, {
         key: freeKey,
         name: name.trim(),
         description: description.trim() || undefined,
-        sortOrder: profiles.length,
+        sortOrder: editingProfile?.sortOrder ?? profiles.length,
       });
       setKey("");
       setName("");
       setDescription("");
+      setEditingProfile(null);
       onChanged();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Не удалось создать профиль");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось сохранить профиль");
     } finally {
       setBusy(false);
     }
+  }
+
+  /** Загрузить профиль в форму для правки (ключ блокируем — это identity). */
+  function startEdit(p: ModProfile) {
+    setEditingProfile(p);
+    setKey(p.key);
+    setName(p.name);
+    setDescription(p.description ?? "");
   }
 
   async function remove(p: ModProfile) {
@@ -1423,23 +1830,35 @@ function ModProfilesDialog({
                 </span>
                 {p.description && <span className="muted">{p.description}</span>}
               </div>
-              <button
-                className="danger icon-only"
-                title={`Удалить профиль ${p.name}`}
-                disabled={busy}
-                onClick={() => void remove(p)}
-              >
-                <IconTrash size={15} />
-              </button>
+              <div className="fm-profile-row__actions">
+                <button
+                  className="icon-only"
+                  title={`Переименовать/править ${p.name}`}
+                  disabled={busy}
+                  onClick={() => startEdit(p)}
+                >
+                  <IconPencil size={15} />
+                </button>
+                <button
+                  className="danger icon-only"
+                  title={`Удалить профиль ${p.name}`}
+                  disabled={busy}
+                  onClick={() => void remove(p)}
+                >
+                  <IconTrash size={15} />
+                </button>
+              </div>
             </div>
           ))}
 
           <div className="fm-profile-new">
-            <strong>Новый профиль</strong>
+            <strong>{editingProfile ? `Правка «${editingProfile.name}»` : "Новый профиль"}</strong>
             <input
               className="fm-edit-input"
               placeholder="ключ (латиницей), напр. performance"
               value={key}
+              disabled={editingProfile !== null}
+              title={editingProfile ? "Ключ нельзя менять: по нему файлы помечены профилем" : undefined}
               onChange={(e) => setKey(e.target.value)}
             />
             <input
@@ -1454,18 +1873,31 @@ function ModProfilesDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
-            {keyTaken && (
-              <span className="fm-profile-new__error">
-                Профиль с ключом «{freeKey}» уже существует
-              </span>
-            )}
-            <button
-              className="primary"
-              disabled={!canCreate}
-              onClick={() => void create()}
-            >
-              <IconPlus size={14} /> Добавить профиль
-            </button>
+            {keyHint && <span className="fm-profile-new__error">{keyHint}</span>}
+            <div className="fm-profile-new__buttons">
+              {editingProfile && (
+                <button
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setEditingProfile(null);
+                    setKey("");
+                    setName("");
+                    setDescription("");
+                  }}
+                >
+                  Отменить правку
+                </button>
+              )}
+              <button
+                className="primary"
+                disabled={!canSave}
+                onClick={() => void save()}
+              >
+                <IconPlus size={14} />{" "}
+                {editingProfile ? "Сохранить" : "Добавить профиль"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
