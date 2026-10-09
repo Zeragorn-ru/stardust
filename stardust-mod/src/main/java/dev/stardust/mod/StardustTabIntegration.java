@@ -56,7 +56,12 @@ final class StardustTabIntegration {
         refreshSecs = config.refreshIntervalSeconds();
         debug = config.debug();
 
-        // httpProvider работает всегда — и для TAB, и для чат-уведомлений, и в одиночке.
+        // Смена мира в одиночке снова зовёт ServerStartedEvent: останавливаем
+        // прошлый провайдер, иначе его планировщик и поток живут вечно
+        // (утечка по одной нити на каждую загрузку мира).
+        if (httpProvider != null) {
+            httpProvider.stop();
+        }
         httpProvider = new StardustHttpProvider(authUrl, refreshSecs, debug);
         httpProvider.setOnlinePlayersProvider(() -> {
             try {
@@ -68,7 +73,10 @@ final class StardustTabIntegration {
                     if (p != null && p.getName() != null) names.add(p.getName());
                 }
                 return names;
-            } catch (LinkageError e) {
+            } catch (LinkageError | IllegalStateException e) {
+                // IllegalStateException: TAB установлен, но ещё не включён
+                // (getInstance() кидает «API instance is null»). Если не
+                // гасить — исключение убивало periodic-task планировщика.
                 return java.util.List.of();
             }
         });

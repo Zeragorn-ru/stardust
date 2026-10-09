@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -56,7 +55,6 @@ public final class StardustHttpProvider {
     private final HttpClient httpClient;
     private final ScheduledExecutorService scheduler;
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
-    private final Set<String> knownNames = ConcurrentHashMap.newKeySet();
     private final Path cacheFile;
     private final Object cachePersistenceLock = new Object();
     private volatile Supplier<Collection<String>> onlinePlayersProvider;
@@ -74,7 +72,10 @@ public final class StardustHttpProvider {
         if (serverToken.isBlank()) {
             StardustMod.LOGGER.warn("Stardust telemetry token: НЕ ЗАДАН — телеметрия не будет отправляться");
         } else {
-            String masked = serverToken.substring(0, Math.min(4, serverToken.length())) + "****" + serverToken.substring(Math.max(0, serverToken.length() - 3));
+            // Для коротких токенов «маска» содержала бы весь токен.
+            String masked = serverToken.length() > 8
+                    ? serverToken.substring(0, 4) + "****" + serverToken.substring(serverToken.length() - 3)
+                    : "****";
             StardustMod.LOGGER.info("Stardust telemetry token: {} (длина={})", masked, serverToken.length());
         }
         this.httpClient = HttpClient.newBuilder()
@@ -168,7 +169,10 @@ public final class StardustHttpProvider {
     public void start() {
         if (running) return;
         running = true;
-        scheduler.scheduleAtFixedRate(this::refreshOnline, refreshIntervalSeconds, refreshIntervalSeconds, TimeUnit.SECONDS);
+        // scheduleAtFixedRate ПОГАШАЕТ задачу после первого необработанного
+        // исключения — refreshOnline обязан гасить всё сам, иначе обновление
+        // кастомизации тихо умирает до конца жизни JVM.
+        scheduler.scheduleAtFixedRate(this::refreshOnlineSafely, refreshIntervalSeconds, refreshIntervalSeconds, TimeUnit.SECONDS);
         StardustMod.LOGGER.info("Stardust HTTP provider запущен (url={}, refresh={}s, debug={})", authUrl, refreshIntervalSeconds, debug);
     }
 
@@ -185,7 +189,10 @@ public final class StardustHttpProvider {
         if (serverToken.isBlank()) {
             StardustMod.LOGGER.warn("Stardust reload: telemetry token НЕ ЗАДАН");
         } else {
-            String masked = serverToken.substring(0, Math.min(4, serverToken.length())) + "****" + serverToken.substring(Math.max(0, serverToken.length() - 3));
+            // Для коротких токенов «маска» содержала бы весь токен.
+            String masked = serverToken.length() > 8
+                    ? serverToken.substring(0, 4) + "****" + serverToken.substring(serverToken.length() - 3)
+                    : "****";
             StardustMod.LOGGER.info("Stardust reload: token={} (debug={})", masked, debug);
         }
         StardustMod.LOGGER.info("Stardust HTTP provider: конфиг перечитан (url={}, refresh={}s)", authUrl, refreshIntervalSeconds);
@@ -194,7 +201,6 @@ public final class StardustHttpProvider {
     public Assignment lookup(String playerName) {
         if (playerName == null) return null;
         String key = playerName.toLowerCase(Locale.ROOT);
-        knownNames.add(playerName);
         Assignment cached = cache.get(key);
         if (cached != null) return cached;
 
@@ -229,6 +235,15 @@ public final class StardustHttpProvider {
         Collection<String> online = provider.get();
         if (online == null || online.isEmpty()) return;
         if (fetchPlayers(online)) notifyAfterRefresh();
+    }
+
+    /** Обёртка для периодической задачи: любые исключения гасим здесь. */
+    private void refreshOnlineSafely() {
+        try {
+            refreshOnline();
+        } catch (Throwable t) {
+            StardustMod.LOGGER.warn("Stardust: сбой периодического обновления кастомизации (продолжаем по расписанию)", t);
+        }
     }
 
     /** Запрашивает кастомизацию у auth-server. */

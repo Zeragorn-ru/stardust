@@ -29,6 +29,9 @@ public final class StardustLightBlockInteraction {
         BlockState clickedState = level.getBlockState(clickedPos);
 
         if (clickedState.is(Blocks.LIGHT)) {
+            // Adventure-режим: как и в ветке установки ниже, прав на изменение
+            // чужого блока нет — иначе игроки в adventure крутят уровень света.
+            if (!player.mayBuild()) return;
             if (!level.isClientSide) {
                 int current = clickedState.getValue(LightBlock.LEVEL);
                 int next = player.isShiftKeyDown() ? (current == 0 ? 15 : current - 1) : (current + 1) % 16;
