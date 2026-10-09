@@ -1131,10 +1131,15 @@ impl Store {
     /// миграции 0013. Сессии старше `SESSION_TTL_DAYS` считаются протухшими.
     pub async fn validate_session(&self, token: &str) -> Option<String> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
+        // make_interval(days => ...) ждёт int4, а sqlx выводит для i64 тип
+        // int8 — prepared statement падает на prepare («function
+        // make_interval(days => bigint) does not exist»), и `.ok()` молча
+        // превращал это в «сессия недействительна» для ЛЮБОГО токена.
+        // Явный каст $3::int закрывает несоответствие.
         sqlx::query_scalar(
             "SELECT account_uuid FROM sessions
              WHERE (token = $1 OR token = $2)
-               AND created_at > now() - make_interval(days => $3)",
+               AND created_at > now() - make_interval(days => $3::int)",
         )
         .bind(&token_hash)
         .bind(token)
@@ -1159,7 +1164,7 @@ impl Store {
     /// Удаляет сессии старше `SESSION_TTL_DAYS`. Возвращает число удалённых.
     pub async fn purge_expired_sessions(&self) -> Result<u64, StoreError> {
         let changed = sqlx::query(
-            "DELETE FROM sessions WHERE created_at < now() - make_interval(days => $1)",
+            "DELETE FROM sessions WHERE created_at < now() - make_interval(days => $1::int)",
         )
         .bind(SESSION_TTL_DAYS)
         .execute(&self.pool)
