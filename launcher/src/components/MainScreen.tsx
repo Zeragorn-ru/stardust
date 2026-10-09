@@ -199,7 +199,10 @@ export default function MainScreen({
 
   return (
     <div className="main">
-      <header className="main__header">
+      <header
+        className="main__header"
+        data-tauri-drag-region="deep"
+      >
         <button
           type="button"
           className="account account--link"
