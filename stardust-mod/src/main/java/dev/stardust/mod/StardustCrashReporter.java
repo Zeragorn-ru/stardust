@@ -62,7 +62,6 @@ final class StardustCrashReporter {
         json.append("{\n");
         appendField(json, "timestamp", Instant.now().toString(), true);
         appendField(json, "pid", Long.toString(pid), false);
-        json.append(",\n");
         appendField(json, "status", status, true);
         appendField(json, "reason", reason, true);
         appendField(json, "thread", thread, true);

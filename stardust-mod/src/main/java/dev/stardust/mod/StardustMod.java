@@ -69,6 +69,15 @@ public final class StardustMod {
     }
 
     private void onServerStarted(ServerStartedEvent event) {
+        // Новый мир в одиночке = новый MinecraftServer со своим tickCounter:
+        // не сбрасывая счётчики, первая телеметрия мира B считала бы паузу
+        // в меню (завышенный mspt), а `tick - lastTelemetryTick < 300` ушло
+        // бы в минус и глотало бы до 15 минут телеметрии нового мира.
+        lastTelemetryTick = 0;
+        telemetryTickNanos = 0;
+        telemetryTickIntervalNanos = 0;
+        lastTickNanos = 0;
+        telemetryTickCount = 0;
         StardustTabIntegration.tryBootstrap();
     }
 
@@ -76,6 +85,7 @@ public final class StardustMod {
         event.getDispatcher().register(
             Commands.literal("stardust")
                 .then(Commands.literal("refresh")
+                    .requires(source -> source.hasPermission(2))
                     .executes(ctx -> {
                         StardustTabIntegration.refreshNow();
                         ctx.getSource().sendSuccess(() -> net.minecraft.network.chat.Component.literal("§aStardust: кеш кастомизации обновлён."), true);
@@ -83,6 +93,7 @@ public final class StardustMod {
                     })
                 )
                 .then(Commands.literal("reload")
+                    .requires(source -> source.hasPermission(2))
                     .executes(ctx -> {
                         StardustTabIntegration.reloadConfig();
                         ctx.getSource().sendSuccess(() -> Component.literal("§aStardust: конфиг и telemetry token перечитаны."), true);
@@ -246,6 +257,11 @@ public final class StardustMod {
     private void onServerTick(ServerTickEvent.Post event) {
         var server = event.getServer();
         if (server == null) return;
+
+        // Телеметрия — только с выделенного сервера: одиночная игра (даже
+        // открытая в LAN) — это клиентская машина, её TPS/MSPT не нужны
+        // админке.
+        if (!server.isDedicatedServer()) return;
 
         // Try Spark first — it has accurate TPS/MSPT with proper averaging.
         me.lucko.spark.api.Spark spark = null;
