@@ -185,12 +185,13 @@ button,
     box-shadow: none;
 }
 
-/* На macOS traffic lights опущены в шапку контента (как в Telegram):
-   контент идёт от самого верха окна, отдельной полосы под кнопки нет.
-   Заголовок окна «StarDust» — нативный (Overlay + hiddenTitle:false). */
+/* На macOS нативная полоса заголовка «StarDust» живёт в верхних 28px окна:
+   Overlay-стиль рисует её поверх webview, traffic lights (x≈18..78 при
+   trafficLightPosition {x:18, y:6}) центрированы по этой же полосе.
+   Контент начинается ниже — как полоса .titlebar на Windows/Linux. */
 .app--macos .app__content {
-    height: 100%;
-    margin-top: 0;
+    height: calc(100% - 28px);
+    margin-top: 28px;
 }
 
 .titlebar {
@@ -1397,9 +1398,9 @@ button,
     background: rgba(10, 11, 20, 0.4);
 }
 
-/* На macOS шапка прижата к верху окна (Overlay): отступ слева больше,
-   чтобы чип аккаунта не попадал под нативные traffic lights
-   (x≈18..78, y≈13..27 при trafficLightPosition {x:18, y:22}). */
+/* Шапка главного экрана уже ниже полосы заголовка (28px), но
+   автосайз нативного заголовка при длинных названиях профилей может
+   дотянуться до ~84px слева — держим чип аккаунта правее этой зоны. */
 .app--macos .main__header {
     padding-left: 84px;
 }
