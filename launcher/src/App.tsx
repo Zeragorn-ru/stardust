@@ -303,18 +303,11 @@ export default function App() {
   return (
     <div className={"app" + (mac ? " app--macos" : "")}>
       <Aurora />
-      {/* На macOS — нативные traffic lights (Overlay), кастомный бар не нужен.
-          Полоса ниже — только визуальный бренд (pointer-events:none в CSS):
-          интерактивной она быть не должна — перекрывала кнопки шапок. */}
+      {/* На macOS — нативная шапка (Overlay + нативный заголовок окна
+          «StarDust» у traffic lights), кастомный бар не нужен. Перетаскивание
+          окна — через data-tauri-drag-region на шапках экранов: drag.js
+          автоматически пропускает BUTTON/A/INPUT, интерактив не страдает. */}
       {!mac && <TitleBar />}
-      {mac && (
-        <div className="titlebar titlebar--macos-drag" aria-hidden>
-          <div className="titlebar__brand titlebar__brand--macos">
-            <span className="titlebar__mark" />
-            <span>StarDust</span>
-          </div>
-        </div>
-      )}
       <ErrorBoundary>
         <div className="app__content">
           {!ready ? (
