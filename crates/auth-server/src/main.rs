@@ -31,7 +31,7 @@ use std::time::Duration;
 use tracing_subscriber::prelude::*;
 
 use axum::{
-    extract::{ConnectInfo, Path, Query, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post, put},
@@ -44,14 +44,16 @@ use tower_http::cors::CorsLayer;
 use protocol::{
     AccountInfo, AuthResponse, ChallengeStatus, ChallengeStatusRequest, ChangePasswordRequest,
     ChangeUsernameRequest, Credentials, DeleteAccountRequest, LoginResult, PasswordResetConfirm,
-    PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile, PlayerStats, SessionResponse,
-    SkinImportRequest, SkinModel, SkinUploadRequest, TelegramLinkResponse, TwoFactorRequest,
+    PasswordResetRequest, PasswordlessLoginRequest, PlayerProfile, PlayerStats, RecordSessionRequest,
+    SessionResponse, SkinImportRequest, SkinModel, SkinUploadRequest, TelegramLinkResponse,
+    TwoFactorRequest,
 };
 
 use crate::yggdrasil::Keys;
 use store::{
     Account, ChallengeOutcome, Store, StoreError, StoredSkin, CHALLENGE_LOGIN_2FA,
     CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET, SETTING_TELEGRAM_USERNAME,
+    constant_time_eq,
 };
 use time::format_description::well_known::Rfc3339;
 
@@ -132,6 +134,9 @@ async fn main() {
     tokio::spawn(skin_refresh_loop(state.clone()));
     // Фоновое обновление времени игры из Minecraft stats по SFTP.
     tokio::spawn(playtime_refresh_loop(state.clone()));
+    // Периодическая чистка протухших сессий (validate_session их не пускает,
+    // но строки копились бы бесконечно).
+    tokio::spawn(session_cleanup_loop(state.clone()));
 
     let app = Router::new()
         .route("/health", get(health))
@@ -163,6 +168,7 @@ async fn main() {
         .route("/api/skin/:uuid", get(skin))
         .route("/api/cape/:uuid", get(cape))
         .route("/api/stats", get(stats_get))
+        .route("/api/stats/session", post(stats_record_session))
         .route("/api/coins", get(coins_get))
         .route("/api/report-crash", post(report_crash))
         .route("/api/server/report-crash", post(report_server_crash))
@@ -192,6 +198,7 @@ async fn main() {
         .route("/api/server/telemetry", post(server_telemetry))
         .route("/textures/:hash", get(texture))
         .with_state(state)
+        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .layer(CorsLayer::permissive());
 
     let addr = std::env::var("AUTH_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
@@ -275,6 +282,10 @@ async fn health() -> &'static str {
 /// Лимит чувствительных auth-эндпоинтов: 5 запросов / 60 с на IP.
 const AUTH_RATE_MAX: usize = 5;
 const AUTH_RATE_WINDOW_SECS: u64 = 60;
+
+/// Лимит тела запроса. Дефолтный лимит axum (2 МБ) режет crash-репорты
+/// лаунчера: до четырёх текстовых полей по 900 КБ плюс JSON-экранирование.
+const MAX_BODY_BYTES: usize = 8 * 1024 * 1024; // 8 МБ
 
 fn rate_limited(state: &Shared, ip: std::net::IpAddr) -> Result<(), ApiError> {
     if state
@@ -431,6 +442,9 @@ async fn login_passwordless(
             "Вход без пароля недоступен для этого аккаунта",
         )
     };
+    // Иначе любой IP мог бы пуш-бомбить все Telegram-аккаунты каждые 30 с
+    // (кулдаун есть только per-account).
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let uuid = state
         .store
         .uuid_for_telegram_login(req.username.trim())
@@ -463,6 +477,8 @@ async fn password_reset_start(
             "Сброс пароля недоступен для этого аккаунта",
         )
     };
+    // Как и passwordless: защита от пуш-бомбинга произвольных ников.
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let uuid = state
         .store
         .uuid_for_telegram_login(req.username.trim())
@@ -607,6 +623,10 @@ async fn profile(
 
 /// IP для rate-limit и привязки challenge. Заголовки `X-Forwarded-For` /
 /// `X-Real-IP` учитываются только при `TRUST_PROXY=1|true`; иначе — `ConnectInfo`.
+///
+/// Из `X-Forwarded-For` берём ПОСЛЕДНИЙ элемент: nginx с
+/// `$proxy_add_x_forwarded_for` дописывает реальный адрес в конец, а элементы
+/// слева клиент мог подделать сам (первый элемент = спуф, обход rate-limit).
 fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::IpAddr {
     let trust_proxy = std::env::var("TRUST_PROXY")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -614,8 +634,8 @@ fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::I
     if trust_proxy {
         if let Some(forwarded_for) = headers.get("x-forwarded-for") {
             if let Ok(val) = forwarded_for.to_str() {
-                if let Some(first_ip) = val.split(',').next() {
-                    if let Ok(ip) = first_ip.trim().parse::<std::net::IpAddr>() {
+                if let Some(last_ip) = val.split(',').next_back() {
+                    if let Ok(ip) = last_ip.trim().parse::<std::net::IpAddr>() {
                         return ip;
                     }
                 }
@@ -1092,7 +1112,6 @@ async fn ygg_refresh(State(state): State<Shared>, Json(req): Json<RefreshReq>) -
             "Invalid token.",
         );
     };
-    state.store.destroy_session(&req.access_token).await.ok();
     let access_token = match state.store.create_session(&uuid).await {
         Ok(t) => t,
         Err(_) => {
@@ -1103,6 +1122,9 @@ async fn ygg_refresh(State(state): State<Shared>, Json(req): Json<RefreshReq>) -
             )
         }
     };
+    // Старый токен гасим только после успешного создания нового — иначе
+    // сбой create_session оставлял бы пользователя без доступа вовсе.
+    state.store.destroy_session(&req.access_token).await.ok();
     let client_token = req
         .client_token
         .unwrap_or_else(|| uuid::Uuid::new_v4().simple().to_string());
@@ -1348,6 +1370,41 @@ async fn stats_get(
     }))
 }
 
+/// `POST /api/stats/session` — лаунчер сообщает о завершившейся игровой
+/// сессии. Накапливает относительное время игры (SFTP-цикл задаёт абсолютное
+/// значение из Minecraft-статистики, здесь — сумма сессий лаунчера) и пишет
+/// событие в журнал.
+async fn stats_record_session(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Json(req): Json<RecordSessionRequest>,
+) -> Result<StatusCode, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    if req.duration_seconds <= 0 || req.duration_seconds > 24 * 60 * 60 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Недопустимая длительность сессии",
+        ));
+    }
+    state
+        .store
+        .add_playtime(&account.uuid, req.duration_seconds)
+        .await?;
+    state
+        .store
+        .record_server_log(
+            "game_session",
+            Some(&account.username),
+            "Игровая сессия завершена",
+            serde_json::json!({
+                "durationSeconds": req.duration_seconds,
+                "launchedAt": req.launched_at,
+            }),
+        )
+        .await?;
+    Ok(StatusCode::OK)
+}
+
 /// `GET /api/coins` — баланс и последние операции текущего аккаунта.
 async fn coins_get(
     State(state): State<Shared>,
@@ -1448,7 +1505,11 @@ async fn report_server_crash(
         .and_then(|value| value.to_str().ok());
     let authorized = expected
         .as_deref()
-        .map(|token| supplied == Some(&format!("Bearer {token}")))
+        .map(|token| {
+            supplied
+                .map(|s| constant_time_eq(s.as_bytes(), format!("Bearer {token}").as_bytes()))
+                .unwrap_or(false)
+        })
         .unwrap_or(false);
     if !authorized {
         return Err(ApiError::new(
@@ -1744,7 +1805,11 @@ async fn server_telemetry(
     let supplied = headers.get("authorization").and_then(|v| v.to_str().ok());
     let authorized = expected
         .as_deref()
-        .map(|token| supplied == Some(&format!("Bearer {token}")))
+        .map(|token| {
+            supplied
+                .map(|s| constant_time_eq(s.as_bytes(), format!("Bearer {token}").as_bytes()))
+                .unwrap_or(false)
+        })
         .unwrap_or(false);
     if !authorized {
         return Err(ApiError::new(
@@ -1800,6 +1865,27 @@ async fn playtime_refresh_loop(state: Shared) {
         ticker.tick().await;
         if let Err(e) = refresh_playtime_once(&state).await {
             tracing::warn!("playtime refresh failed: {e}");
+        }
+    }
+}
+
+/// Раз в сутки удаляет сессии старше TTL (см. `SESSION_TTL_DAYS` в store).
+async fn session_cleanup_loop(state: Shared) {
+    let mut ticker = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+    ticker.tick().await; // первый тик — немедленно, пропускаем
+    loop {
+        ticker.tick().await;
+        match state.store.purge_expired_sessions().await {
+            Ok(n) if n > 0 => tracing::info!("удалено протухших сессий: {n}"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("session cleanup failed: {e}"),
+        }
+        // Заодно вычищаем истёкшие Telegram-challenge — они удаляются только
+        // при следующих действиях по аккаунту, а «забытые» копились бы вечно.
+        match state.store.purge_expired_challenges().await {
+            Ok(n) if n > 0 => tracing::info!("удалено истёкших challenge: {n}"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("challenge cleanup failed: {e}"),
         }
     }
 }

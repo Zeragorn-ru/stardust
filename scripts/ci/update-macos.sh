@@ -37,8 +37,15 @@ backup="${target_app}.old"
 rm -rf "$backup"
 mv "$target_app" "$backup" || true
 
-# Move new app into place.
-cp -R "$new_app" "$target_app"
+# Move new app into place; on failure restore the backup so the user
+# isn't left without a launcher at all.
+if ! cp -R "$new_app" "$target_app"; then
+  echo "[update-macos] failed to install new app, restoring backup"
+  if [ -d "$backup" ]; then
+    mv "$backup" "$target_app"
+  fi
+  exit 1
+fi
 
 # Fix permissions.
 chmod -R go-rwx "$target_app" || true

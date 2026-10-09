@@ -51,6 +51,10 @@ services:
       start_period: 15s
     environment:
       AUTH_BIND: 0.0.0.0:8080
+      # За reverse-proxy: доверяем X-Forwarded-For/X-Real-IP из прокси, чтобы
+      # rate-limit логина и привязка IP к challenge работали по реальным
+      # адресам клиентов, а не по адресу прокси (иначе все делят один бакет).
+      TRUST_PROXY: "1"
       # Строка подключения PostgreSQL. Миграции применяются автоматически
       # при старте auth-server (sqlx migrate).
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
@@ -87,6 +91,9 @@ services:
         condition: service_healthy
     environment:
       ADMIN_BIND: 0.0.0.0:8081
+      # За nginx (admin-web): доверяем X-Forwarded-For, чтобы rate-limit
+      # логина считался по реальным IP, а не по адресу nginx-контейнера.
+      TRUST_PROXY: "1"
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-db:5432/${POSTGRES_DB}
       # Каталог с байтами файлов сборок (content-addressable storage).
       MODPACK_DIR: /data/modpack

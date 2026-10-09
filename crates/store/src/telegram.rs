@@ -288,10 +288,19 @@ impl Store {
         };
 
         let now = OffsetDateTime::now_utc();
+        // Кулдаун + удаление старых попыток + вставка — одна транзакция с
+        // блокировкой строки аккаунта, иначе два параллельных запроса оба
+        // проходят проверку и оба шлют пуш (кулдаун обходится).
+        let mut tx = self.pool.begin().await?;
+
         // Анти-спам: не чаще одного запроса в CHALLENGE_COOLDOWN на аккаунт.
         // Учитываем только ещё активные (pending) и непросроченные попытки — уже
         // отвеченные («это я»/«это не я») или истёкшие challenge не должны
         // блокировать новый вход.
+        sqlx::query("SELECT 1 FROM accounts WHERE uuid = $1 FOR UPDATE")
+            .bind(&uuid)
+            .execute(&mut *tx)
+            .await?;
         let recent: Option<OffsetDateTime> = sqlx::query_scalar(
             "SELECT created_at FROM telegram_2fa_codes
              WHERE account_uuid = $1 AND status = 'pending' AND expires_at > $2
@@ -299,7 +308,7 @@ impl Store {
         )
         .bind(&uuid)
         .bind(now)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?;
         if let Some(created) = recent {
             if now - created < CHALLENGE_COOLDOWN {
@@ -307,11 +316,15 @@ impl Store {
             }
         }
 
-        // Старые незавершённые попытки этого аккаунта отбрасываем.
-        sqlx::query("DELETE FROM telegram_2fa_codes WHERE account_uuid = $1")
-            .bind(&uuid)
-            .execute(&self.pool)
-            .await?;
+        // Незавершённые попытки того же назначения отбрасываем. Не трогаем
+        // чужие назначения: вход не должен убивать идущий сброс пароля.
+        sqlx::query(
+            "DELETE FROM telegram_2fa_codes WHERE account_uuid = $1 AND purpose = $2 AND status = 'pending'",
+        )
+        .bind(&uuid)
+        .bind(purpose)
+        .execute(&mut *tx)
+        .await?;
 
         let challenge = random_code(24);
         let code = random_numeric_code(6);
@@ -326,18 +339,25 @@ impl Store {
         .bind(expires)
         .bind(purpose)
         .bind(client_ip)
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        tx.commit().await?;
 
         let (text, markup) = if purpose == CHALLENGE_PASSWORD_RESET {
+            let ip_line = client_ip
+                .map(|ip| format!("С IP-адреса: <code>{}</code>\n", html_escape(ip)))
+                .unwrap_or_default();
             let t = format!(
-                "Запрос сброса пароля в аккаунт <code>{nick}</code>.\nКод подтверждения: <code>{code}</code>\nДействует 5 минут. Если вы не запрашивали сброс пароля, проигнорируйте это сообщение.",
+                "Запрос сброса пароля в аккаунт <code>{nick}</code>.\n{ip_line}Код подтверждения: <code>{code}</code>\nДействует 5 минут. Если вы не запрашивали сброс пароля, проигнорируйте это сообщение.",
                 nick = html_escape(&username)
             );
             (t, None)
         } else {
+            let ip_line = client_ip
+                .map(|ip| format!("С IP-адреса: <code>{}</code>\n", html_escape(ip)))
+                .unwrap_or_default();
             let t = format!(
-                "Запрос входа в аккаунт <code>{nick}</code>.\nЕсли это вы — нажмите «✅ Это я».\nКод (если нужно ввести вручную): <code>{code}</code>\nДействует 5 минут. Если это не вы — нажмите «🚫 Это не я».",
+                "Запрос входа в аккаунт <code>{nick}</code>.\n{ip_line}Если это вы — нажмите «✅ Это я».\nКод (если нужно ввести вручную): <code>{code}</code>\nДействует 5 минут. Если это не вы — нажмите «🚫 Это не я».",
                 nick = html_escape(&username)
             );
             (t, Some(approval_markup(&challenge)))
@@ -624,7 +644,9 @@ impl Store {
         account_uuid.ok_or(StoreError::NotFound)
     }
 
-    /// Проверяет 6-значный код сброса пароля, сопоставляет IP-адрес клиента и возвращает UUID аккаунта при успехе.
+    /// Проверяет 6-значный код сброса пароля: challenge должен быть
+    /// подтверждён кнопкой в Telegram (`status = 'approved'`), код совпадать,
+    /// IP — тем же, что при старте. Возвращает UUID аккаунта при успехе.
     pub async fn verify_reset_challenge(
         &self,
         challenge: &str,
@@ -634,7 +656,7 @@ impl Store {
         let now = OffsetDateTime::now_utc();
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT account_uuid, code, expires_at, attempts, purpose, client_ip
+            "SELECT account_uuid, code, expires_at, attempts, purpose, status, client_ip
              FROM telegram_2fa_codes WHERE challenge = $1 FOR UPDATE",
         )
         .bind(challenge)
@@ -647,9 +669,13 @@ impl Store {
         let expires_at: OffsetDateTime = row.get("expires_at");
         let attempts: i32 = row.get("attempts");
         let purpose: String = row.get("purpose");
+        let status: String = row.get("status");
         let stored_ip: Option<String> = row.get("client_ip");
 
-        if expires_at <= now || purpose != CHALLENGE_PASSWORD_RESET || attempts >= MAX_2FA_ATTEMPTS
+        if expires_at <= now
+            || purpose != CHALLENGE_PASSWORD_RESET
+            || attempts >= MAX_2FA_ATTEMPTS
+            || status != "approved"
         {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)
