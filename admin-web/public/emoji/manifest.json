@@ -1,0 +1,1872 @@
+{
+  "generator": "scripts/gen-emoji-svg.mjs",
+  "source": "gist «Minecraft allowed emojis» + Minecraft.wiki (Mojangles, 44 native emoji)",
+  "font": "Mojangles / Minecraft Default Regular 26.2 (archive.org/details/minecraft-seven)",
+  "viewBox": "0 0 9 8",
+  "pixelGrid": "1 юнит = 1 пиксель глифа (8x8, EM 1024, cell 128)",
+  "fillRule": "evenodd",
+  "license": "Глифы Mojang; Minecraft Usage Guidelines; см. README.md",
+  "count": 186,
+  "emoji": [
+    {
+      "char": "☺",
+      "codepoints": [
+        "U+263A"
+      ],
+      "name": "Smiling Face",
+      "slug": "smiling-face",
+      "file": "emoji-smiling-face.svg",
+      "tier": "native"
+    },
+    {
+      "char": "☹",
+      "codepoints": [
+        "U+2639"
+      ],
+      "name": "Frowning Face",
+      "slug": "frowning-face",
+      "file": "emoji-frowning-face.svg",
+      "tier": "native"
+    },
+    {
+      "char": "☠",
+      "codepoints": [
+        "U+2620"
+      ],
+      "name": "Skull and Crossbones",
+      "slug": "skull-and-crossbones",
+      "file": "emoji-skull-and-crossbones.svg",
+      "tier": "native"
+    },
+    {
+      "char": "❣",
+      "codepoints": [
+        "U+2763"
+      ],
+      "name": "Heart Exclamation",
+      "slug": "heart-exclamation",
+      "file": "emoji-heart-exclamation.svg",
+      "tier": "native"
+    },
+    {
+      "char": "❤",
+      "codepoints": [
+        "U+2764"
+      ],
+      "name": "Red Heart",
+      "slug": "red-heart",
+      "file": "emoji-red-heart.svg",
+      "tier": "native"
+    },
+    {
+      "char": "✌",
+      "codepoints": [
+        "U+270C"
+      ],
+      "name": "Victory Hand",
+      "slug": "victory-hand",
+      "file": "emoji-victory-hand.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☝",
+      "codepoints": [
+        "U+261D"
+      ],
+      "name": "Index Pointing Up",
+      "slug": "index-pointing-up",
+      "file": "emoji-index-pointing-up.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✍",
+      "codepoints": [
+        "U+270D"
+      ],
+      "name": "Writing Hand",
+      "slug": "writing-hand",
+      "file": "emoji-writing-hand.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♨",
+      "codepoints": [
+        "U+2668"
+      ],
+      "name": "Hot Springs",
+      "slug": "hot-springs",
+      "file": "emoji-hot-springs.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✈",
+      "codepoints": [
+        "U+2708"
+      ],
+      "name": "Airplane",
+      "slug": "airplane",
+      "file": "emoji-airplane.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "⌛",
+      "codepoints": [
+        "U+231B"
+      ],
+      "name": "Hourglass Done",
+      "slug": "hourglass-done",
+      "file": "emoji-hourglass-done.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "⌚",
+      "codepoints": [
+        "U+231A"
+      ],
+      "name": "Watch",
+      "slug": "watch",
+      "file": "emoji-watch.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☀",
+      "codepoints": [
+        "U+2600"
+      ],
+      "name": "Sun",
+      "slug": "sun",
+      "file": "emoji-sun.svg",
+      "tier": "native"
+    },
+    {
+      "char": "☁",
+      "codepoints": [
+        "U+2601"
+      ],
+      "name": "Cloud",
+      "slug": "cloud",
+      "file": "emoji-cloud.svg",
+      "tier": "native"
+    },
+    {
+      "char": "☂",
+      "codepoints": [
+        "U+2602"
+      ],
+      "name": "Umbrella",
+      "slug": "umbrella",
+      "file": "emoji-umbrella.svg",
+      "tier": "native"
+    },
+    {
+      "char": "❄",
+      "codepoints": [
+        "U+2744"
+      ],
+      "name": "Snowflake",
+      "slug": "snowflake",
+      "file": "emoji-snowflake.svg",
+      "tier": "native"
+    },
+    {
+      "char": "☃",
+      "codepoints": [
+        "U+2603"
+      ],
+      "name": "Snowman",
+      "slug": "snowman",
+      "file": "emoji-snowman.svg",
+      "tier": "native"
+    },
+    {
+      "char": "☄",
+      "codepoints": [
+        "U+2604"
+      ],
+      "name": "Comet",
+      "slug": "comet",
+      "file": "emoji-comet.svg",
+      "tier": "native"
+    },
+    {
+      "char": "♠",
+      "codepoints": [
+        "U+2660"
+      ],
+      "name": "Spade Suit",
+      "slug": "spade-suit",
+      "file": "emoji-spade-suit.svg",
+      "tier": "native"
+    },
+    {
+      "char": "♥",
+      "codepoints": [
+        "U+2665"
+      ],
+      "name": "Heart Suit",
+      "slug": "heart-suit",
+      "file": "emoji-heart-suit.svg",
+      "tier": "native"
+    },
+    {
+      "char": "♦",
+      "codepoints": [
+        "U+2666"
+      ],
+      "name": "Diamond Suit",
+      "slug": "diamond-suit",
+      "file": "emoji-diamond-suit.svg",
+      "tier": "native"
+    },
+    {
+      "char": "♣",
+      "codepoints": [
+        "U+2663"
+      ],
+      "name": "Club Suit",
+      "slug": "club-suit",
+      "file": "emoji-club-suit.svg",
+      "tier": "native"
+    },
+    {
+      "char": "♟",
+      "codepoints": [
+        "U+265F"
+      ],
+      "name": "Chess Pawn",
+      "slug": "chess-pawn",
+      "file": "emoji-chess-pawn.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☎",
+      "codepoints": [
+        "U+260E"
+      ],
+      "name": "Telephone",
+      "slug": "telephone",
+      "file": "emoji-telephone.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "⌨",
+      "codepoints": [
+        "U+2328"
+      ],
+      "name": "Keyboard",
+      "slug": "keyboard",
+      "file": "emoji-keyboard.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✉",
+      "codepoints": [
+        "U+2709"
+      ],
+      "name": "Envelope",
+      "slug": "envelope",
+      "file": "emoji-envelope.svg",
+      "tier": "native"
+    },
+    {
+      "char": "✏",
+      "codepoints": [
+        "U+270F"
+      ],
+      "name": "Pencil",
+      "slug": "pencil",
+      "file": "emoji-pencil.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✒",
+      "codepoints": [
+        "U+2712"
+      ],
+      "name": "Black Nib",
+      "slug": "black-nib",
+      "file": "emoji-black-nib.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✂",
+      "codepoints": [
+        "U+2702"
+      ],
+      "name": "Scissors",
+      "slug": "scissors",
+      "file": "emoji-scissors.svg",
+      "tier": "native"
+    },
+    {
+      "char": "☢",
+      "codepoints": [
+        "U+2622"
+      ],
+      "name": "Radioactive",
+      "slug": "radioactive",
+      "file": "emoji-radioactive.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☣",
+      "codepoints": [
+        "U+2623"
+      ],
+      "name": "Biohazard",
+      "slug": "biohazard",
+      "file": "emoji-biohazard.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "⬆",
+      "codepoints": [
+        "U+2B06"
+      ],
+      "name": "Up Arrow",
+      "slug": "up-arrow",
+      "file": "emoji-up-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "⬇",
+      "codepoints": [
+        "U+2B07"
+      ],
+      "name": "Down Arrow",
+      "slug": "down-arrow",
+      "file": "emoji-down-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "➡",
+      "codepoints": [
+        "U+27A1"
+      ],
+      "name": "Right Arrow",
+      "slug": "right-arrow",
+      "file": "emoji-right-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "⬅",
+      "codepoints": [
+        "U+2B05"
+      ],
+      "name": "Left Arrow",
+      "slug": "left-arrow",
+      "file": "emoji-left-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↗",
+      "codepoints": [
+        "U+2197"
+      ],
+      "name": "Up-Right Arrow",
+      "slug": "up-right-arrow",
+      "file": "emoji-up-right-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↘",
+      "codepoints": [
+        "U+2198"
+      ],
+      "name": "Down-Right Arrow",
+      "slug": "down-right-arrow",
+      "file": "emoji-down-right-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↙",
+      "codepoints": [
+        "U+2199"
+      ],
+      "name": "Down-Left Arrow",
+      "slug": "down-left-arrow",
+      "file": "emoji-down-left-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↖",
+      "codepoints": [
+        "U+2196"
+      ],
+      "name": "Up-Left Arrow",
+      "slug": "up-left-arrow",
+      "file": "emoji-up-left-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↕",
+      "codepoints": [
+        "U+2195"
+      ],
+      "name": "Up-Down Arrow",
+      "slug": "up-down-arrow",
+      "file": "emoji-up-down-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↔",
+      "codepoints": [
+        "U+2194"
+      ],
+      "name": "Left-Right Arrow",
+      "slug": "left-right-arrow",
+      "file": "emoji-left-right-arrow.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↩",
+      "codepoints": [
+        "U+21A9"
+      ],
+      "name": "Right Arrow Curving Left",
+      "slug": "right-arrow-curving-left",
+      "file": "emoji-right-arrow-curving-left.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "↪",
+      "codepoints": [
+        "U+21AA"
+      ],
+      "name": "Left Arrow Curving Right",
+      "slug": "left-arrow-curving-right",
+      "file": "emoji-left-arrow-curving-right.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✡",
+      "codepoints": [
+        "U+2721"
+      ],
+      "name": "Star of David",
+      "slug": "star-of-david",
+      "file": "emoji-star-of-david.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☸",
+      "codepoints": [
+        "U+2638"
+      ],
+      "name": "Wheel of Dharma",
+      "slug": "wheel-of-dharma",
+      "file": "emoji-wheel-of-dharma.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☯",
+      "codepoints": [
+        "U+262F"
+      ],
+      "name": "Yin Yang",
+      "slug": "yin-yang",
+      "file": "emoji-yin-yang.svg",
+      "tier": "native"
+    },
+    {
+      "char": "✝",
+      "codepoints": [
+        "U+271D"
+      ],
+      "name": "Latin Cross",
+      "slug": "latin-cross",
+      "file": "emoji-latin-cross.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☦",
+      "codepoints": [
+        "U+2626"
+      ],
+      "name": "Orthodox Cross",
+      "slug": "orthodox-cross",
+      "file": "emoji-orthodox-cross.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☪",
+      "codepoints": [
+        "U+262A"
+      ],
+      "name": "Star and Crescent",
+      "slug": "star-and-crescent",
+      "file": "emoji-star-and-crescent.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☮",
+      "codepoints": [
+        "U+262E"
+      ],
+      "name": "Peace Symbol",
+      "slug": "peace-symbol",
+      "file": "emoji-peace-symbol.svg",
+      "tier": "native"
+    },
+    {
+      "char": "♈",
+      "codepoints": [
+        "U+2648"
+      ],
+      "name": "Aries",
+      "slug": "aries",
+      "file": "emoji-aries.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♉",
+      "codepoints": [
+        "U+2649"
+      ],
+      "name": "Taurus",
+      "slug": "taurus",
+      "file": "emoji-taurus.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♊",
+      "codepoints": [
+        "U+264A"
+      ],
+      "name": "Gemini",
+      "slug": "gemini",
+      "file": "emoji-gemini.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♋",
+      "codepoints": [
+        "U+264B"
+      ],
+      "name": "Cancer",
+      "slug": "cancer",
+      "file": "emoji-cancer.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♌",
+      "codepoints": [
+        "U+264C"
+      ],
+      "name": "Leo",
+      "slug": "leo",
+      "file": "emoji-leo.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♍",
+      "codepoints": [
+        "U+264D"
+      ],
+      "name": "Virgo",
+      "slug": "virgo",
+      "file": "emoji-virgo.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♎",
+      "codepoints": [
+        "U+264E"
+      ],
+      "name": "Libra",
+      "slug": "libra",
+      "file": "emoji-libra.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♏",
+      "codepoints": [
+        "U+264F"
+      ],
+      "name": "Scorpio",
+      "slug": "scorpio",
+      "file": "emoji-scorpio.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♐",
+      "codepoints": [
+        "U+2650"
+      ],
+      "name": "Sagittarius",
+      "slug": "sagittarius",
+      "file": "emoji-sagittarius.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♑",
+      "codepoints": [
+        "U+2651"
+      ],
+      "name": "Capricorn",
+      "slug": "capricorn",
+      "file": "emoji-capricorn.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♒",
+      "codepoints": [
+        "U+2652"
+      ],
+      "name": "Aquarius",
+      "slug": "aquarius",
+      "file": "emoji-aquarius.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♓",
+      "codepoints": [
+        "U+2653"
+      ],
+      "name": "Pisces",
+      "slug": "pisces",
+      "file": "emoji-pisces.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "▶",
+      "codepoints": [
+        "U+25B6"
+      ],
+      "name": "Play Button",
+      "slug": "play-button",
+      "file": "emoji-play-button.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "◀",
+      "codepoints": [
+        "U+25C0"
+      ],
+      "name": "Reverse Button",
+      "slug": "reverse-button",
+      "file": "emoji-reverse-button.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♀",
+      "codepoints": [
+        "U+2640"
+      ],
+      "name": "Female Sign",
+      "slug": "female-sign",
+      "file": "emoji-female-sign.svg",
+      "tier": "native"
+    },
+    {
+      "char": "♂",
+      "codepoints": [
+        "U+2642"
+      ],
+      "name": "Male Sign",
+      "slug": "male-sign",
+      "file": "emoji-male-sign.svg",
+      "tier": "native"
+    },
+    {
+      "char": "✖",
+      "codepoints": [
+        "U+2716"
+      ],
+      "name": "Multiply",
+      "slug": "multiply",
+      "file": "emoji-multiply.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "‼",
+      "codepoints": [
+        "U+203C"
+      ],
+      "name": "Double Exclamation Mark",
+      "slug": "double-exclamation-mark",
+      "file": "emoji-double-exclamation-mark.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "〰",
+      "codepoints": [
+        "U+3030"
+      ],
+      "name": "Wavy Dash",
+      "slug": "wavy-dash",
+      "file": "emoji-wavy-dash.svg",
+      "tier": "text"
+    },
+    {
+      "char": "☑",
+      "codepoints": [
+        "U+2611"
+      ],
+      "name": "Check Box with Check",
+      "slug": "check-box-with-check",
+      "file": "emoji-check-box-with-check.svg",
+      "tier": "native"
+    },
+    {
+      "char": "✔",
+      "codepoints": [
+        "U+2714"
+      ],
+      "name": "Check Mark",
+      "slug": "check-mark",
+      "file": "emoji-check-mark.svg",
+      "tier": "native"
+    },
+    {
+      "char": "✳",
+      "codepoints": [
+        "U+2733"
+      ],
+      "name": "Eight-Spoked Asterisk",
+      "slug": "eight-spoked-asterisk",
+      "file": "emoji-eight-spoked-asterisk.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✴",
+      "codepoints": [
+        "U+2734"
+      ],
+      "name": "Eight-Pointed Star",
+      "slug": "eight-pointed-star",
+      "file": "emoji-eight-pointed-star.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "❇",
+      "codepoints": [
+        "U+2747"
+      ],
+      "name": "Sparkle",
+      "slug": "sparkle",
+      "file": "emoji-sparkle.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "©",
+      "codepoints": [
+        "U+00A9"
+      ],
+      "name": "Copyright",
+      "slug": "copyright",
+      "file": "emoji-copyright.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "®",
+      "codepoints": [
+        "U+00AE"
+      ],
+      "name": "Registered",
+      "slug": "registered",
+      "file": "emoji-registered.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "™",
+      "codepoints": [
+        "U+2122"
+      ],
+      "name": "Trade Mark",
+      "slug": "trade-mark",
+      "file": "emoji-trade-mark.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "Ⓜ",
+      "codepoints": [
+        "U+24C2"
+      ],
+      "name": "Circled M",
+      "slug": "circled-m",
+      "file": "emoji-circled-m.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "㊗",
+      "codepoints": [
+        "U+3297"
+      ],
+      "name": "Japanese “Congratulations” Button",
+      "slug": "japanese-congratulations-button",
+      "file": "emoji-japanese-congratulations-button.svg",
+      "tier": "text"
+    },
+    {
+      "char": "㊙",
+      "codepoints": [
+        "U+3299"
+      ],
+      "name": "Japanese “Secret” Button",
+      "slug": "japanese-secret-button",
+      "file": "emoji-japanese-secret-button.svg",
+      "tier": "text"
+    },
+    {
+      "char": "▪",
+      "codepoints": [
+        "U+25AA"
+      ],
+      "name": "Black Small Square",
+      "slug": "black-small-square",
+      "file": "emoji-black-small-square.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "▫",
+      "codepoints": [
+        "U+25AB"
+      ],
+      "name": "White Small Square",
+      "slug": "white-small-square",
+      "file": "emoji-white-small-square.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☷",
+      "codepoints": [
+        "U+2637"
+      ],
+      "name": "Trigram for Earth",
+      "slug": "trigram-for-earth",
+      "file": "emoji-trigram-for-earth.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☵",
+      "codepoints": [
+        "U+2635"
+      ],
+      "name": "Trigram for Water",
+      "slug": "trigram-for-water",
+      "file": "emoji-trigram-for-water.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☶",
+      "codepoints": [
+        "U+2636"
+      ],
+      "name": "Trigram for Mountain",
+      "slug": "trigram-for-mountain",
+      "file": "emoji-trigram-for-mountain.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☋",
+      "codepoints": [
+        "U+260B"
+      ],
+      "name": "Descending Node",
+      "slug": "descending-node",
+      "file": "emoji-descending-node.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "*",
+      "codepoints": [
+        "U+002A"
+      ],
+      "name": "Asterisk",
+      "slug": "asterisk",
+      "file": "emoji-asterisk.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☌",
+      "codepoints": [
+        "U+260C"
+      ],
+      "name": "Conjunction",
+      "slug": "conjunction",
+      "file": "emoji-conjunction.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♜",
+      "codepoints": [
+        "U+265C"
+      ],
+      "name": "Black Chess Rook",
+      "slug": "black-chess-rook",
+      "file": "emoji-black-chess-rook.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♕",
+      "codepoints": [
+        "U+2655"
+      ],
+      "name": "White Chess Queen",
+      "slug": "white-chess-queen",
+      "file": "emoji-white-chess-queen.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♡",
+      "codepoints": [
+        "U+2661"
+      ],
+      "name": "White Heart Suit",
+      "slug": "white-heart-suit",
+      "file": "emoji-white-heart-suit.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♬",
+      "codepoints": [
+        "U+266C"
+      ],
+      "name": "Beamed Sixteenth Notes",
+      "slug": "beamed-sixteenth-notes",
+      "file": "emoji-beamed-sixteenth-notes.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☚",
+      "codepoints": [
+        "U+261A"
+      ],
+      "name": "Black Left Pointing Index",
+      "slug": "black-left-pointing-index",
+      "file": "emoji-black-left-pointing-index.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♮",
+      "codepoints": [
+        "U+266E"
+      ],
+      "name": "Music Natural Sign",
+      "slug": "music-natural-sign",
+      "file": "emoji-music-natural-sign.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♝",
+      "codepoints": [
+        "U+265D"
+      ],
+      "name": "Black Chess Bishop",
+      "slug": "black-chess-bishop",
+      "file": "emoji-black-chess-bishop.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♯",
+      "codepoints": [
+        "U+266F"
+      ],
+      "name": "Sharp",
+      "slug": "sharp",
+      "file": "emoji-sharp.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☴",
+      "codepoints": [
+        "U+2634"
+      ],
+      "name": "Trigram for Wind",
+      "slug": "trigram-for-wind",
+      "file": "emoji-trigram-for-wind.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♭",
+      "codepoints": [
+        "U+266D"
+      ],
+      "name": "Flat",
+      "slug": "flat",
+      "file": "emoji-flat.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☓",
+      "codepoints": [
+        "U+2613"
+      ],
+      "name": "Saltire",
+      "slug": "saltire",
+      "file": "emoji-saltire.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☛",
+      "codepoints": [
+        "U+261B"
+      ],
+      "name": "Black Right Pointing Index",
+      "slug": "black-right-pointing-index",
+      "file": "emoji-black-right-pointing-index.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☭",
+      "codepoints": [
+        "U+262D"
+      ],
+      "name": "Hammer and Sickle",
+      "slug": "hammer-and-sickle",
+      "file": "emoji-hammer-and-sickle.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "0",
+      "codepoints": [
+        "U+0030"
+      ],
+      "name": "Digit Zero",
+      "slug": "digit-zero",
+      "file": "emoji-digit-zero.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♢",
+      "codepoints": [
+        "U+2662"
+      ],
+      "name": "White Diamond Suit",
+      "slug": "white-diamond-suit",
+      "file": "emoji-white-diamond-suit.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "3",
+      "codepoints": [
+        "U+0033"
+      ],
+      "name": "Digit Three",
+      "slug": "digit-three",
+      "file": "emoji-digit-three.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✐",
+      "codepoints": [
+        "U+2710"
+      ],
+      "name": "Upper Right Pencil",
+      "slug": "upper-right-pencil",
+      "file": "emoji-upper-right-pencil.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♖",
+      "codepoints": [
+        "U+2656"
+      ],
+      "name": "White Chess Rook",
+      "slug": "white-chess-rook",
+      "file": "emoji-white-chess-rook.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☈",
+      "codepoints": [
+        "U+2608"
+      ],
+      "name": "Thunderstorm",
+      "slug": "thunderstorm",
+      "file": "emoji-thunderstorm.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☒",
+      "codepoints": [
+        "U+2612"
+      ],
+      "name": "Ballot Box with X",
+      "slug": "ballot-box-with-x",
+      "file": "emoji-ballot-box-with-x.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "★",
+      "codepoints": [
+        "U+2605"
+      ],
+      "name": "Black Star",
+      "slug": "black-star",
+      "file": "emoji-black-star.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♚",
+      "codepoints": [
+        "U+265A"
+      ],
+      "name": "Black Chess King",
+      "slug": "black-chess-king",
+      "file": "emoji-black-chess-king.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♛",
+      "codepoints": [
+        "U+265B"
+      ],
+      "name": "Black Chess Queen",
+      "slug": "black-chess-queen",
+      "file": "emoji-black-chess-queen.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "✎",
+      "codepoints": [
+        "U+270E"
+      ],
+      "name": "Lower Right Pencil",
+      "slug": "lower-right-pencil",
+      "file": "emoji-lower-right-pencil.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♪",
+      "codepoints": [
+        "U+266A"
+      ],
+      "name": "Eighth Note",
+      "slug": "eighth-note",
+      "file": "emoji-eighth-note.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☰",
+      "codepoints": [
+        "U+2630"
+      ],
+      "name": "Trigram for Heaven",
+      "slug": "trigram-for-heaven",
+      "file": "emoji-trigram-for-heaven.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☽",
+      "codepoints": [
+        "U+263D"
+      ],
+      "name": "First Quarter Moon",
+      "slug": "first-quarter-moon",
+      "file": "emoji-first-quarter-moon.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☡",
+      "codepoints": [
+        "U+2621"
+      ],
+      "name": "Caution Sign",
+      "slug": "caution-sign",
+      "file": "emoji-caution-sign.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☼",
+      "codepoints": [
+        "U+263C"
+      ],
+      "name": "White Sun with Rays",
+      "slug": "white-sun-with-rays",
+      "file": "emoji-white-sun-with-rays.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♅",
+      "codepoints": [
+        "U+2645"
+      ],
+      "name": "Uranus",
+      "slug": "uranus",
+      "file": "emoji-uranus.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☐",
+      "codepoints": [
+        "U+2610"
+      ],
+      "name": "Ballot Box",
+      "slug": "ballot-box",
+      "file": "emoji-ballot-box.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☟",
+      "codepoints": [
+        "U+261F"
+      ],
+      "name": "White Down Pointing Index",
+      "slug": "white-down-pointing-index",
+      "file": "emoji-white-down-pointing-index.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "❦",
+      "codepoints": [
+        "U+2766"
+      ],
+      "name": "Floral Heart",
+      "slug": "floral-heart",
+      "file": "emoji-floral-heart.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☊",
+      "codepoints": [
+        "U+260A"
+      ],
+      "name": "Ascending Node",
+      "slug": "ascending-node",
+      "file": "emoji-ascending-node.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☍",
+      "codepoints": [
+        "U+260D"
+      ],
+      "name": "Opposition",
+      "slug": "opposition",
+      "file": "emoji-opposition.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☬",
+      "codepoints": [
+        "U+262C"
+      ],
+      "name": "Adi Shakti",
+      "slug": "adi-shakti",
+      "file": "emoji-adi-shakti.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "7",
+      "codepoints": [
+        "U+0037"
+      ],
+      "name": "Digit Seven",
+      "slug": "digit-seven",
+      "file": "emoji-digit-seven.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♧",
+      "codepoints": [
+        "U+2667"
+      ],
+      "name": "White Club Suit",
+      "slug": "white-club-suit",
+      "file": "emoji-white-club-suit.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☫",
+      "codepoints": [
+        "U+262B"
+      ],
+      "name": "Farsi Symbol",
+      "slug": "farsi-symbol",
+      "file": "emoji-farsi-symbol.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☱",
+      "codepoints": [
+        "U+2631"
+      ],
+      "name": "Trigram for Lake",
+      "slug": "trigram-for-lake",
+      "file": "emoji-trigram-for-lake.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☾",
+      "codepoints": [
+        "U+263E"
+      ],
+      "name": "Last Quarter Moon",
+      "slug": "last-quarter-moon",
+      "file": "emoji-last-quarter-moon.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☤",
+      "codepoints": [
+        "U+2624"
+      ],
+      "name": "Caduceus",
+      "slug": "caduceus",
+      "file": "emoji-caduceus.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "❧",
+      "codepoints": [
+        "U+2767"
+      ],
+      "name": "Rotated Floral Heart Bullet",
+      "slug": "rotated-floral-heart-bullet",
+      "file": "emoji-rotated-floral-heart-bullet.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "2",
+      "codepoints": [
+        "U+0032"
+      ],
+      "name": "Digit Two",
+      "slug": "digit-two",
+      "file": "emoji-digit-two.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "8",
+      "codepoints": [
+        "U+0038"
+      ],
+      "name": "Digit Eight",
+      "slug": "digit-eight",
+      "file": "emoji-digit-eight.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♄",
+      "codepoints": [
+        "U+2644"
+      ],
+      "name": "Saturn",
+      "slug": "saturn",
+      "file": "emoji-saturn.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♁",
+      "codepoints": [
+        "U+2641"
+      ],
+      "name": "Earth",
+      "slug": "earth",
+      "file": "emoji-earth.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "1",
+      "codepoints": [
+        "U+0031"
+      ],
+      "name": "Digit One",
+      "slug": "digit-one",
+      "file": "emoji-digit-one.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♔",
+      "codepoints": [
+        "U+2654"
+      ],
+      "name": "White Chess King",
+      "slug": "white-chess-king",
+      "file": "emoji-white-chess-king.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "4",
+      "codepoints": [
+        "U+0034"
+      ],
+      "name": "Digit Four",
+      "slug": "digit-four",
+      "file": "emoji-digit-four.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "❥",
+      "codepoints": [
+        "U+2765"
+      ],
+      "name": "Rotated Heavy Black Heart Bullet",
+      "slug": "rotated-heavy-black-heart-bullet",
+      "file": "emoji-rotated-heavy-black-heart-bullet.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☥",
+      "codepoints": [
+        "U+2625"
+      ],
+      "name": "Ankh",
+      "slug": "ankh",
+      "file": "emoji-ankh.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☻",
+      "codepoints": [
+        "U+263B"
+      ],
+      "name": "Black Smiling Face",
+      "slug": "black-smiling-face",
+      "file": "emoji-black-smiling-face.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "5",
+      "codepoints": [
+        "U+0035"
+      ],
+      "name": "Digit Five",
+      "slug": "digit-five",
+      "file": "emoji-digit-five.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♤",
+      "codepoints": [
+        "U+2664"
+      ],
+      "name": "White Spade Suit",
+      "slug": "white-spade-suit",
+      "file": "emoji-white-spade-suit.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "6",
+      "codepoints": [
+        "U+0036"
+      ],
+      "name": "Digit Six",
+      "slug": "digit-six",
+      "file": "emoji-digit-six.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♞",
+      "codepoints": [
+        "U+265E"
+      ],
+      "name": "Black Chess Knight",
+      "slug": "black-chess-knight",
+      "file": "emoji-black-chess-knight.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♆",
+      "codepoints": [
+        "U+2646"
+      ],
+      "name": "Neptune",
+      "slug": "neptune",
+      "file": "emoji-neptune.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "#",
+      "codepoints": [
+        "U+0023"
+      ],
+      "name": "Hash Sign",
+      "slug": "hash-sign",
+      "file": "emoji-hash-sign.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♃",
+      "codepoints": [
+        "U+2643"
+      ],
+      "name": "Jupiter",
+      "slug": "jupiter",
+      "file": "emoji-jupiter.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♩",
+      "codepoints": [
+        "U+2669"
+      ],
+      "name": "Quarter Note",
+      "slug": "quarter-note",
+      "file": "emoji-quarter-note.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "9",
+      "codepoints": [
+        "U+0039"
+      ],
+      "name": "Digit Nine",
+      "slug": "digit-nine",
+      "file": "emoji-digit-nine.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☇",
+      "codepoints": [
+        "U+2607"
+      ],
+      "name": "Lightning",
+      "slug": "lightning",
+      "file": "emoji-lightning.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☞",
+      "codepoints": [
+        "U+261E"
+      ],
+      "name": "White Right Pointing Index",
+      "slug": "white-right-pointing-index",
+      "file": "emoji-white-right-pointing-index.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♫",
+      "codepoints": [
+        "U+266B"
+      ],
+      "name": "Beamed Eighth Notes",
+      "slug": "beamed-eighth-notes",
+      "file": "emoji-beamed-eighth-notes.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☏",
+      "codepoints": [
+        "U+260F"
+      ],
+      "name": "White Telephone",
+      "slug": "white-telephone",
+      "file": "emoji-white-telephone.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♘",
+      "codepoints": [
+        "U+2658"
+      ],
+      "name": "White Chess Knight",
+      "slug": "white-chess-knight",
+      "file": "emoji-white-chess-knight.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☧",
+      "codepoints": [
+        "U+2627"
+      ],
+      "name": "Chi Rho",
+      "slug": "chi-rho",
+      "file": "emoji-chi-rho.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☉",
+      "codepoints": [
+        "U+2609"
+      ],
+      "name": "Sun",
+      "slug": "sun-2",
+      "file": "emoji-sun-2.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♇",
+      "codepoints": [
+        "U+2647"
+      ],
+      "name": "Pluto",
+      "slug": "pluto",
+      "file": "emoji-pluto.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☩",
+      "codepoints": [
+        "U+2629"
+      ],
+      "name": "Cross of Jerusalem",
+      "slug": "cross-of-jerusalem",
+      "file": "emoji-cross-of-jerusalem.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♙",
+      "codepoints": [
+        "U+2659"
+      ],
+      "name": "White Chess Pawn",
+      "slug": "white-chess-pawn",
+      "file": "emoji-white-chess-pawn.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☜",
+      "codepoints": [
+        "U+261C"
+      ],
+      "name": "White Left Pointing Index",
+      "slug": "white-left-pointing-index",
+      "file": "emoji-white-left-pointing-index.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☲",
+      "codepoints": [
+        "U+2632"
+      ],
+      "name": "Trigram for Fire",
+      "slug": "trigram-for-fire",
+      "file": "emoji-trigram-for-fire.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☨",
+      "codepoints": [
+        "U+2628"
+      ],
+      "name": "Cross of Lorraine",
+      "slug": "cross-of-lorraine",
+      "file": "emoji-cross-of-lorraine.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "♗",
+      "codepoints": [
+        "U+2657"
+      ],
+      "name": "White Chess Bishop",
+      "slug": "white-chess-bishop",
+      "file": "emoji-white-chess-bishop.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☳",
+      "codepoints": [
+        "U+2633"
+      ],
+      "name": "Trigram for Thunder",
+      "slug": "trigram-for-thunder",
+      "file": "emoji-trigram-for-thunder.svg",
+      "tier": "extra"
+    },
+    {
+      "char": "☔",
+      "codepoints": [
+        "U+2614"
+      ],
+      "name": "Umbrella with Rain Drops",
+      "slug": "umbrella-with-rain-drops",
+      "file": "emoji-umbrella-with-rain-drops.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⚓",
+      "codepoints": [
+        "U+2693"
+      ],
+      "name": "Anchor",
+      "slug": "anchor",
+      "file": "emoji-anchor.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⚔",
+      "codepoints": [
+        "U+2694"
+      ],
+      "name": "Crossed Swords",
+      "slug": "crossed-swords",
+      "file": "emoji-crossed-swords.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⚗",
+      "codepoints": [
+        "U+2697"
+      ],
+      "name": "Alembic",
+      "slug": "alembic",
+      "file": "emoji-alembic.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⚠",
+      "codepoints": [
+        "U+26A0"
+      ],
+      "name": "Warning",
+      "slug": "warning",
+      "file": "emoji-warning.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⚡",
+      "codepoints": [
+        "U+26A1"
+      ],
+      "name": "High Voltage",
+      "slug": "high-voltage",
+      "file": "emoji-high-voltage.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⛄",
+      "codepoints": [
+        "U+26C4"
+      ],
+      "name": "Snowman Without Snow",
+      "slug": "snowman-without-snow",
+      "file": "emoji-snowman-without-snow.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⛈",
+      "codepoints": [
+        "U+26C8"
+      ],
+      "name": "Cloud with Lightning and Rain",
+      "slug": "cloud-with-lightning-and-rain",
+      "file": "emoji-cloud-with-lightning-and-rain.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⛏",
+      "codepoints": [
+        "U+26CF"
+      ],
+      "name": "Pick",
+      "slug": "pick",
+      "file": "emoji-pick.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🔥",
+      "codepoints": [
+        "U+1F525"
+      ],
+      "name": "Fire",
+      "slug": "fire",
+      "file": "emoji-fire.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🌊",
+      "codepoints": [
+        "U+1F30A"
+      ],
+      "name": "Water Wave",
+      "slug": "water-wave",
+      "file": "emoji-water-wave.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🗡",
+      "codepoints": [
+        "U+1F5E1"
+      ],
+      "name": "Dagger",
+      "slug": "dagger",
+      "file": "emoji-dagger.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🏹",
+      "codepoints": [
+        "U+1F3F9"
+      ],
+      "name": "Bow and Arrow",
+      "slug": "bow-and-arrow",
+      "file": "emoji-bow-and-arrow.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🪓",
+      "codepoints": [
+        "U+1FA93"
+      ],
+      "name": "Axe",
+      "slug": "axe",
+      "file": "emoji-axe.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🔱",
+      "codepoints": [
+        "U+1F531"
+      ],
+      "name": "Trident",
+      "slug": "trident",
+      "file": "emoji-trident.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🎣",
+      "codepoints": [
+        "U+1F3A3"
+      ],
+      "name": "Fishing Pole",
+      "slug": "fishing-pole",
+      "file": "emoji-fishing-pole.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🧪",
+      "codepoints": [
+        "U+1F9EA"
+      ],
+      "name": "Test Tube",
+      "slug": "test-tube",
+      "file": "emoji-test-tube.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🍖",
+      "codepoints": [
+        "U+1F356"
+      ],
+      "name": "Meat on Bone",
+      "slug": "meat-on-bone",
+      "file": "emoji-meat-on-bone.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🪣",
+      "codepoints": [
+        "U+1FAA3"
+      ],
+      "name": "Bucket",
+      "slug": "bucket",
+      "file": "emoji-bucket.svg",
+      "tier": "native"
+    },
+    {
+      "char": "🔔",
+      "codepoints": [
+        "U+1F514"
+      ],
+      "name": "Bell",
+      "slug": "bell",
+      "file": "emoji-bell.svg",
+      "tier": "native"
+    },
+    {
+      "char": "⏳",
+      "codepoints": [
+        "U+23F3"
+      ],
+      "name": "Hourglass Done",
+      "slug": "hourglass-done-2",
+      "file": "emoji-hourglass-done-2.svg",
+      "tier": "native"
+    }
+  ]
+}
