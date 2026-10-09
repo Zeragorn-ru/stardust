@@ -12,6 +12,14 @@ function normalizeId(id: string): string {
   return id.trim().toLowerCase();
 }
 
+/** Русская плюрализация: 1 мод / 2-4 мода / 5+ модов, включая 21 мод. */
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  if (n % 100 >= 11 && n % 100 <= 14) return many;
+  if (n % 10 === 1) return one;
+  if (n % 10 >= 2 && n % 10 <= 4) return few;
+  return many;
+}
+
 export default function ModsSection() {
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
   const [profiles, setProfiles] = useState<ModProfileInfo[] | null>(null);
@@ -64,6 +72,8 @@ export default function ModsSection() {
   }
 
   async function toggle(mod: OptionalMod) {
+    // Не спорим с идущим переключением профиля (см. toggleProfile).
+    if (pendingProfile !== null) return;
     const next = !mod.enabled;
     // Оптимистично обновляем UI.
     setMods((prev) =>
@@ -95,6 +105,11 @@ export default function ModsSection() {
   }
 
   async function toggleProfile(profile: ModProfileInfo) {
+    // Мьютекс: пока идёт переключение профиля, блокируем и другие профили,
+    // и индивидуальные моды — их запись в choices-файл перетёрла бы
+    // параллельную запись профиля (lost update), а откат по снимку
+    // затирал бы чужие оптимистичные изменения.
+    if (pendingProfile !== null || pending.size > 0) return;
     const next = !profile.active;
     // Снимок состояния модов профиля до переключения — для точного отката
     // (индивидуально выключенные моды не должны «включаться» при откате).
@@ -117,13 +132,6 @@ export default function ModsSection() {
     );
     try {
       await setModProfile(profile.key, next);
-      // Перечитываем согласованное состояние с бэкенда.
-      const [list, profileList] = await Promise.all([
-        listOptionalMods(),
-        listModProfiles(),
-      ]);
-      setMods(list);
-      setProfiles(profileList);
     } catch {
       // Откат к снимку: каждый мод возвращается к своему значению.
       setMods(modsSnapshot);
@@ -134,9 +142,18 @@ export default function ModsSection() {
             )
           : prev,
       );
+      return;
     } finally {
       setPendingProfile(null);
     }
+    // Перечитываем согласованное состояние уже после снятия блокировки;
+    // сбой обновления — не откат самого переключения (диск уже изменён).
+    const [list, profileList] = await Promise.allSettled([
+      listOptionalMods(),
+      listModProfiles(),
+    ]);
+    if (list.status === "fulfilled") setMods(list.value);
+    if (profileList.status === "fulfilled") setProfiles(profileList.value);
   }
 
   if (loadError) {
@@ -201,7 +218,9 @@ export default function ModsSection() {
       {(profiles ?? []).length > 0 && (
         <div className="mod-profiles stagger-item" role="group" aria-label="Профили модов">
           {(profiles ?? []).map((p) => {
-            const busy = pendingProfile === p.key;
+            // Любая идущая операция профиля/модов блокирует все карточки —
+            // см. мьютекс в toggleProfile.
+            const busy = pendingProfile !== null;
             return (
               <button
                 type="button"
@@ -217,7 +236,7 @@ export default function ModsSection() {
                   <span className="mod-profile__name">{p.name}</span>
                   <span className="mod-profile__count">
                     {p.modCount}{" "}
-                    {p.modCount === 1 ? "мод" : p.modCount < 5 ? "мода" : "модов"}
+                    {pluralRu(p.modCount, "мод", "мода", "модов")}
                   </span>
                 </span>
                 {p.description && (

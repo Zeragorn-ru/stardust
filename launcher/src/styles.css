@@ -208,17 +208,22 @@ button,
     -webkit-app-region: drag;
 }
 
-/* Drag-зона по центру шапки с брендом StarDust на уровне traffic lights.
-   Слева/справа оставлены поля, чтобы не перекрывать нативные кнопки и
-   кнопки шапок экранов; сама полоса — только для перетаскивания окна. */
+/* Декоративная зона с брендом StarDust на уровне traffic lights. ВАЖНО:
+   pointer-events:none — полоса прозрачна, но hit-test_box = весь border-box
+   (padding не вырезает зоны!), и при интерактивности она перекрывала кнопки
+   шапок (клики по верху кнопок уходили в перетаскивание окна через
+   drag.js). Перетаскивание окна теперь — через data-tauri-drag-region на
+   шапках экранов (см. MainScreen/SettingsScreen/NewsScreen/LoginScreen/
+   OnboardingScreen): drag.js автоматически пропускает BUTTON/A/INPUT. */
 .titlebar--macos-drag {
     display: flex;
     justify-content: center;
     align-items: center; /* бренд центрируем по вертикали полосы */
-    padding: 0 96px; /* место под traffic lights слева и кнопки шапки справа */
+    padding: 0 96px;
     border-bottom: none;
     background: transparent;
     height: 44px; /* центр (22px) = центр traffic lights (y=22) */
+    pointer-events: none;
 }
 
 .titlebar--macos-drag .titlebar__brand {
@@ -1425,6 +1430,13 @@ button,
     padding: 12px 18px;
     border-bottom: 1px solid var(--glass-border);
     background: rgba(10, 11, 20, 0.4);
+}
+
+/* На macOS шапка прижата к верху окна (Overlay): отступ слева больше,
+   чтобы чип аккаунта не попадал под нативные traffic lights
+   (x≈18..78, y≈13..27 при trafficLightPosition {x:18, y:22}). */
+.app--macos .main__header {
+    padding-left: 84px;
 }
 
 .account {

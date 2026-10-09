@@ -16,7 +16,7 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
   }, [load]);
 
   return <main className="news-screen stagger">
-    <header className="news-screen__header settings__header">
+    <header className="news-screen__header settings__header" data-tauri-drag-region="deep">
       <button type="button" className="btn btn--ghost" onClick={onClose}>← Назад</button>
       <h2>Новости</h2>
     </header>

@@ -429,7 +429,7 @@ export default function SettingsScreen({
 
   return (
     <div className="settings">
-      <header className="settings__header">
+      <header className="settings__header" data-tauri-drag-region="deep">
         <button className="btn btn--ghost" onClick={handleClose}>
           ← Назад
         </button>

@@ -41,6 +41,11 @@ export default function App() {
   const [dataDirectory, setDataDirectory] = useState<DataDirectoryInfo | null>(null);
   const { reload: reloadSkin } = useSkin();
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  // Копия для exit-анимации: setUpdate(null) в onDismiss размонтирует модалку
+  // мгновенно, и useDelayedUnmount не успевает отыграть закрытие. Пока
+  // shouldRender=true, продолжаем рендерить последнюю известную версию.
+  const updateForExit = useRef<UpdateInfo | null>(null);
+  if (update) updateForExit.current = update;
   const [autoInstallUpdate, setAutoInstallUpdate] = useState(false);
   // Версия, обновление до которой пользователь уже отклонил: не навязываем
   // её повторно при следующем плановом опросе.
@@ -148,7 +153,8 @@ export default function App() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       // Cmd/Ctrl+W — закрыть окно (нативный жест macOS / Windows).
-      if (isModKey(e) && e.key.toLowerCase() === "w") {
+      // e.code, не e.key: на русской раскладке Cmd+W даёт «ц», а не «w».
+      if (isModKey(e) && e.code === "KeyW") {
         e.preventDefault();
         if (!runningRef.current) {
           void closeWindow();
@@ -197,6 +203,8 @@ export default function App() {
           }
         });
       })
+      // Без catch отвергнутый промис уходил в unhandled rejection.
+      .catch(() => undefined)
       .finally(() => setReady(true));
   }, []);
 
@@ -251,7 +259,15 @@ export default function App() {
 
   function renderScreen(v: View, cls: string, key: string) {
     return (
-      <div key={key} className={cls}>
+      <div
+        key={key}
+        className={cls}
+        // Перетаскивание окна на macOS: контейнер экрана — полноценная
+        // drag-зона (клики по пустому фону вокруг центрированных карточек).
+        // drag.js пропускает BUTTON/A/INPUT, интерактив не страдает; на
+        // Windows это нейтрально (там drag обеспечивает TitleBar).
+        data-tauri-drag-region={mac ? "" : undefined}
+      >
         {v === "onboarding" && dataDirectory && (
           <OnboardingScreen dataDirectory={dataDirectory} onDone={finishOnboarding} />
         )}
@@ -287,10 +303,12 @@ export default function App() {
   return (
     <div className={"app" + (mac ? " app--macos" : "")}>
       <Aurora />
-      {/* На macOS — нативные traffic lights (Overlay), кастомный бар не нужен. */}
+      {/* На macOS — нативные traffic lights (Overlay), кастомный бар не нужен.
+          Полоса ниже — только визуальный бренд (pointer-events:none в CSS):
+          интерактивной она быть не должна — перекрывала кнопки шапок. */}
       {!mac && <TitleBar />}
       {mac && (
-        <div className="titlebar titlebar--macos-drag" data-tauri-drag-region aria-hidden>
+        <div className="titlebar titlebar--macos-drag" aria-hidden>
           <div className="titlebar__brand titlebar__brand--macos">
             <span className="titlebar__mark" />
             <span>StarDust</span>
@@ -311,13 +329,14 @@ export default function App() {
           )}
         </div>
       </ErrorBoundary>
-      {updateModal.shouldRender && update && (
+      {updateModal.shouldRender && (update ?? updateForExit.current) && (
         <UpdateModal
-          update={update}
+          update={update ?? updateForExit.current!}
           autoInstall={autoInstallUpdate}
           onDismiss={() => {
             if (update) dismissedUpdateVersion.current = update.version;
             setUpdate(null);
+            updateForExit.current = null;
             setAutoInstallUpdate(false);
           }}
           closing={!updateModal.visible}
