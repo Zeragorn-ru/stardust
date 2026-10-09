@@ -2301,6 +2301,7 @@ td.num {
 
 .fm-filter-options {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
 }
 
