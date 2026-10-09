@@ -12,6 +12,7 @@ use tauri::Manager;
 
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use std::sync::OnceLock;
 use sysinfo::System;
 use tauri::{AppHandle, Emitter, State};
 
@@ -92,8 +93,21 @@ pub struct MemoryLimits {
 /// Возвращает безопасный диапазон heap: от 6 ГиБ до 75% физической RAM.
 /// На ПК с менее чем 8 ГиБ возвращает фиксированные 6 ГиБ: это соответствует
 /// минимальным требованиям сборки, хотя ОС может испытывать нехватку памяти.
+/// Общий объём RAM (МБ). `new_all()` сканирует процессы/диски/сети и стоит
+/// сотни мс — и звался из sync-команд на главном потоке. Кэшируем в OnceLock
+/// и обновляем только память.
+fn total_ram_mb() -> u64 {
+    static TOTAL: OnceLock<u64> = OnceLock::new();
+    *TOTAL.get_or_init(|| {
+        let system = System::new_with_specifics(
+            sysinfo::RefreshKind::nothing().with_memory(sysinfo::MemoryRefreshKind::everything()),
+        );
+        system.total_memory() / (1024 * 1024)
+    })
+}
+
 pub fn memory_limits() -> MemoryLimits {
-    let total_mb = (System::new_all().total_memory() / (1024 * 1024)).min(u32::MAX as u64) as u32;
+    let total_mb = total_ram_mb().min(u32::MAX as u64) as u32;
     let three_quarters_mb = total_mb.saturating_mul(3) / 4;
     MemoryLimits {
         min_mb: MEMORY_MIN_MB,
@@ -217,6 +231,10 @@ struct SavedSession {
 #[derive(Debug, Serialize, Deserialize)]
 struct SessionTokenFile {
     token: String,
+    /// UUID аккаунта-владельца токена. Отсутствует в старом формате —
+    /// тогда считаем несовпадение неизвестным (пропускаем строгую проверку).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    profile_id: Option<String>,
 }
 
 fn token_file_path(app: &AppHandle) -> PathBuf {
@@ -224,25 +242,39 @@ fn token_file_path(app: &AppHandle) -> PathBuf {
 }
 
 /// Пишет токен на диск; на Unix выставляет файлу права 0600.
-fn write_token_file(app: &AppHandle, token: &str) -> Result<(), String> {
+fn write_token_file(app: &AppHandle, token: &str, profile_id: Option<&str>) -> Result<(), String> {
     let path = token_file_path(app);
     let json = serde_json::to_string_pretty(&SessionTokenFile {
         token: token.to_string(),
+        profile_id: profile_id.map(str::to_string),
     })
     .map_err(|e| e.to_string())?;
-    std::fs::write(&path, json).map_err(|e| format!("не удалось сохранить токен: {e}"))?;
+    // Файл создаётся сразу с 0600: fs::write + последующий chmod оставлял бы
+    // окно, в котором токен читается всеми пользователями машины.
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+            .map_err(|e| format!("не удалось сохранить токен: {e}"))?;
+        use std::io::Write;
+        file.write_all(json.as_bytes())
+            .map_err(|e| format!("не удалось сохранить токен: {e}"))?;
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(&path, json).map_err(|e| format!("не удалось сохранить токен: {e}"))?;
     }
     Ok(())
 }
 
-fn read_token_file(app: &AppHandle) -> Option<String> {
+fn read_token_file_entry(app: &AppHandle) -> Option<SessionTokenFile> {
     let raw = std::fs::read_to_string(token_file_path(app)).ok()?;
-    let file: SessionTokenFile = serde_json::from_str(&raw).ok()?;
-    Some(file.token)
+    serde_json::from_str(&raw).ok()
 }
 
 fn remove_token_file(app: &AppHandle) {
@@ -258,11 +290,19 @@ fn session_entry(profile_id: &str) -> Result<keyring::Entry, String> {
 
 /// Токен текущей сессии: сначала файл, затем миграция из keyring.
 fn load_session_token(app: &AppHandle, profile_id: &str) -> Option<String> {
-    if let Some(token) = read_token_file(app) {
-        return Some(token);
+    if let Some(file) = read_token_file_entry(app) {
+        // Проверяем владельца: токен в файле мог остаться от другого
+        // аккаунта (автологин под другим профилем), а очередь сессий
+        // привязана к конкретному profile_id.
+        if let Some(owner) = &file.profile_id {
+            if !owner.eq_ignore_ascii_case(profile_id) {
+                return None;
+            }
+        }
+        return Some(file.token);
     }
     let token = session_entry(profile_id).ok()?.get_password().ok()?;
-    match write_token_file(app, &token) {
+    match write_token_file(app, &token, Some(profile_id)) {
         Ok(()) => {
             if let Ok(entry) = session_entry(profile_id) {
                 let _ = entry.delete_password();
@@ -592,7 +632,7 @@ fn read_saved_session(app: &AppHandle) -> Option<SavedSession> {
 }
 
 fn write_saved_session(app: &AppHandle, session: &SavedSession) -> Result<(), String> {
-    write_token_file(app, &session.token)?;
+    write_token_file(app, &session.token, Some(&session.profile.id))?;
 
     let path = paths::session_file(app);
     let json = serde_json::to_string_pretty(&DiskSession {
@@ -769,6 +809,12 @@ struct PendingSession {
     /// в саму очередь не пишется.
     profile_id: String,
     duration: i64,
+    /// Счётчик неудачных попыток отправки. Сессии без счётчика (старый
+    /// формат) получают 1 при первом ретрае. После `MAX_SESSION_ATTEMPTS`
+    /// запись отбрасывается — сервер отвергает сессии старше суток, а
+    /// вечные ретраи только распухают очередь.
+    #[serde(default)]
+    attempts: u32,
     launched_at: String,
 }
 
@@ -793,6 +839,10 @@ fn pending_sessions_path(data_dir: &std::path::Path) -> std::path::PathBuf {
 }
 
 /// Сохраняет сессию в очередь для повтора (только profile id, без токена).
+/// После стольких неудачных попыток запись отбрасывается (сервер всё равно
+/// отвергает сессии старше суток — вечные ретраи только распухают очередь).
+const MAX_SESSION_ATTEMPTS: u32 = 5;
+
 fn save_pending_session(
     data_dir: &std::path::Path,
     profile_id: &str,
@@ -808,6 +858,7 @@ fn save_pending_session(
         profile_id: profile_id.to_string(),
         duration,
         launched_at: launched_at.to_string(),
+        attempts: 0,
     });
     let _ = std::fs::write(&path, serde_json::to_vec(&sessions).unwrap_or_default());
 }
@@ -837,7 +888,9 @@ async fn drain_pending_sessions(
     let mut remaining = Vec::new();
     for record in records {
         match record {
-            PendingSessionRecord::Current(s) => {
+            PendingSessionRecord::Current(mut s) => {
+                // Токен мог не сохраниться, или профиль в очереди не совпадает
+                // с текущим автологином — тогда запись ждёт своего владельца.
                 let token = match load_session_token(app, &s.profile_id) {
                     Some(t) => t,
                     None => {
@@ -845,7 +898,15 @@ async fn drain_pending_sessions(
                             "[stats] нет сохранённого токена для {}",
                             s.profile_id
                         );
-                        remaining.push(s);
+                        s.attempts += 1;
+                        if s.attempts < MAX_SESSION_ATTEMPTS {
+                            remaining.push(s);
+                        } else {
+                            tracing::warn!(
+                                "[stats] запись сессии {} отброшена: слишком много попыток",
+                                s.launched_at
+                            );
+                        }
                         continue;
                     }
                 };
@@ -857,7 +918,15 @@ async fn drain_pending_sessions(
                         s.duration,
                         s.launched_at
                     );
-                    remaining.push(s);
+                    s.attempts += 1;
+                    if s.attempts < MAX_SESSION_ATTEMPTS {
+                        remaining.push(s);
+                    } else {
+                        tracing::warn!(
+                            "[stats] запись сессии {} отброшена: слишком много попыток",
+                            s.launched_at
+                        );
+                    }
                 }
             }
             PendingSessionRecord::Legacy(s) => {
@@ -1215,12 +1284,12 @@ fn get_settings_cached(state: &State<AppState>, app: &AppHandle) -> Settings {
 }
 
 #[tauri::command]
-fn get_settings(state: State<'_, AppState>, app: AppHandle) -> Settings {
-    get_settings_cached(&state, &app)
+async fn get_settings(state: State<'_, AppState>, app: AppHandle) -> Result<Settings, String> {
+    Ok(get_settings_cached(&state, &app))
 }
 
 #[tauri::command]
-fn save_settings(
+async fn save_settings(
     mut settings: Settings,
     state: State<'_, AppState>,
     app: AppHandle,
@@ -1233,12 +1302,15 @@ fn save_settings(
 }
 
 #[tauri::command]
-fn get_memory_limits() -> MemoryLimits {
+async fn get_memory_limits() -> MemoryLimits {
     memory_limits()
 }
 
 #[tauri::command]
-fn reset_settings(state: State<'_, AppState>, app: AppHandle) -> Result<Settings, String> {
+async fn reset_settings(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<Settings, String> {
     let settings = Settings::default();
     write_settings(&app, &settings)?;
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
@@ -1350,6 +1422,9 @@ async fn relocate_data_directory(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<DataDirectoryInfo, String> {
+    // launch_lock закрывает окно «запустили игру (фаза скачивания, pid ещё
+    // не записан) и параллельно переносим/удаляем папку с данными».
+    let _guard = state.launch_lock.lock().await;
     if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
     {
         return Err("Закройте Minecraft перед переносом папки данных".into());
@@ -1390,6 +1465,8 @@ async fn reset_data_directory(
     if paths::data_dir(&app) == default_path {
         return Ok(get_data_directory_info(app));
     }
+    // Аналогично relocate: лок против одновременного запуска игры.
+    let _guard = state.launch_lock.lock().await;
     if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
     {
         return Err("Закройте Minecraft перед сбросом папки данных".into());
@@ -2094,7 +2171,7 @@ fn read_file_tail(path: &std::path::Path, max_bytes: usize) -> Result<String, St
 
 /// Пути к логам лаунчера и Minecraft.
 #[tauri::command]
-fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
+async fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
     let data_dir = paths::data_dir(&app);
     let log_dir = launcher_log_dir();
     let _ = std::fs::create_dir_all(&log_dir);
@@ -2127,7 +2204,7 @@ fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
 
 /// Прочитать последние N строк лог-файла (безопасно: только разрешённые каталоги).
 #[tauri::command]
-fn read_log_tail(app: AppHandle, path: String, lines: Option<u32>) -> Result<LogTail, String> {
+async fn read_log_tail(app: AppHandle, path: String, lines: Option<u32>) -> Result<LogTail, String> {
     const MAX_LINES: usize = 2000;
     let max_lines = lines.unwrap_or(200).clamp(1, MAX_LINES as u32) as usize;
 
@@ -2635,9 +2712,11 @@ fn trim_report_text(mut text: String, max_bytes: usize) -> String {
     }
     let marker = "[Stardust] Лог урезан: показан конец файла.\n";
     let keep = max_bytes.saturating_sub(marker.len());
+    // Ищем границу, начиная С КОНЦА хвоста: нужен минимальный idx, такой что
+    // len - idx <= keep. Итерация вперёд даёт первую подходящую границу;
+    // обратная (`.rev()`) цеплялась за границу у самого конца (1 байт).
     let start = text
         .char_indices()
-        .rev()
         .find(|(idx, _)| text.len() - *idx <= keep)
         .map(|(idx, _)| idx)
         .unwrap_or(0);

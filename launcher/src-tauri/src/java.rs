@@ -361,6 +361,11 @@ fn bundled_runtime_dir(data_dir: &Path, vendor: JavaVendor) -> Option<PathBuf> {
     if !dir.exists() {
         return None;
     }
+    // Маркер полной распаковки: частичная (убитый процесс/диск) проходит
+    // проверку java -version, но рантайм битый — JVM падает на каждой загрузке.
+    if !dir.join(".complete").exists() {
+        return None;
+    }
     find_java_home_under(&dir)
 }
 
@@ -1052,6 +1057,11 @@ fn finalize_extracted_java(runtime_dir: &Path) -> Result<(), String> {
                 .map_err(|e| format!("Не удалось выставить права java: {e}"))?;
         }
     }
+
+    // Рантайм полностью распакован — с этого момента считаем валидным
+    // (маркер проверяется в `bundled_runtime_dir`).
+    fs::write(runtime_dir.join(".complete"), b"ok")
+        .map_err(|e| format!("Не удалось записать маркер Java runtime: {e}"))?;
 
     Ok(())
 }
