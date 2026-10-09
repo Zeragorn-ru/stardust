@@ -94,6 +94,10 @@ struct JoinRecord {
 /// Сколько живёт запись о `join` до проверки сервером.
 const JOIN_TTL: Duration = Duration::from_secs(30);
 
+/// Время жизни сессии в днях. Токен — он же Yggdrasil `accessToken`, поэтому
+/// бессрочные сессии означали бы вечный доступ к аккаунту при утечке токена.
+const SESSION_TTL_DAYS: i64 = 30;
+
 /// Один аккаунт.
 #[derive(Debug, Clone)]
 pub struct Account {
@@ -724,7 +728,8 @@ impl Store {
         .bind(&key)
         .bind(hash_password(password))
         .execute(&self.pool)
-        .await?;
+        .await
+        .map_err(unique_name_taken)?;
         Ok(PlayerProfile {
             id: uuid,
             name: username.to_string(),
@@ -812,7 +817,8 @@ impl Store {
                 .bind(&new_key)
                 .bind(&uuid)
                 .execute(&self.pool)
-                .await?
+                .await
+                .map_err(unique_name_taken)?
                 .rows_affected();
         if changed == 0 {
             return Err(StoreError::NotFound);
@@ -1121,16 +1127,22 @@ impl Store {
     }
 
     /// Проверяет bearer-токен и возвращает UUID аккаунта, если сессия жива.
-    /// Ищет по SHA-256; OR с plaintext оставлен для сессий, созданных до миграции.
+    /// Ищет по SHA-256; OR с plaintext оставлен для сессий, созданных до
+    /// миграции 0013. Сессии старше `SESSION_TTL_DAYS` считаются протухшими.
     pub async fn validate_session(&self, token: &str) -> Option<String> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
-        sqlx::query_scalar("SELECT account_uuid FROM sessions WHERE token = $1 OR token = $2")
-            .bind(&token_hash)
-            .bind(token)
-            .fetch_optional(&self.pool)
-            .await
-            .ok()
-            .flatten()
+        sqlx::query_scalar(
+            "SELECT account_uuid FROM sessions
+             WHERE (token = $1 OR token = $2)
+               AND created_at > now() - make_interval(days => $3)",
+        )
+        .bind(&token_hash)
+        .bind(token)
+        .bind(SESSION_TTL_DAYS)
+        .fetch_optional(&self.pool)
+        .await
+        .ok()
+        .flatten()
     }
 
     /// Удаляет сессию (logout).
@@ -1142,6 +1154,29 @@ impl Store {
             .execute(&self.pool)
             .await?;
         Ok(())
+    }
+
+    /// Удаляет сессии старше `SESSION_TTL_DAYS`. Возвращает число удалённых.
+    pub async fn purge_expired_sessions(&self) -> Result<u64, StoreError> {
+        let changed = sqlx::query(
+            "DELETE FROM sessions WHERE created_at < now() - make_interval(days => $1)",
+        )
+        .bind(SESSION_TTL_DAYS)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        Ok(changed)
+    }
+
+    /// Удаляет истёкшие Telegram-challenge любого статуса: живые строки
+    /// удаляются при использовании, а «забытые» (аккаунт не логинится)
+    /// иначе копились бы вечно.
+    pub async fn purge_expired_challenges(&self) -> Result<u64, StoreError> {
+        let changed = sqlx::query("DELETE FROM telegram_2fa_codes WHERE expires_at < now()")
+            .execute(&self.pool)
+            .await?
+            .rows_affected();
+        Ok(changed)
     }
 
     /// Удаляет все сессии аккаунта (например, после смены пароля).
@@ -1197,6 +1232,22 @@ impl Store {
         sqlx::query(
             "UPDATE accounts
              SET playtime_seconds = GREATEST(playtime_seconds, $2)
+             WHERE uuid = $1",
+        )
+        .bind(normalize_uuid(uuid))
+        .bind(seconds)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Добавляет время завершившейся сессии лаунчера к накопленному
+    /// (в отличие от `set_playtime_absolute`, которая задаёт абсолют из
+    /// Minecraft-статистики по SFTP).
+    pub async fn add_playtime(&self, uuid: &str, seconds: i64) -> Result<(), StoreError> {
+        sqlx::query(
+            "UPDATE accounts
+             SET playtime_seconds = playtime_seconds + $2
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
@@ -1776,6 +1827,20 @@ fn normalize_uuid(uuid: &str) -> String {
     uuid.replace('-', "").to_lowercase()
 }
 
+/// Гонка «check-then-insert» на ник: конкурентная вставка бьёт в unique
+/// `accounts_username_lower_key` — маппим её в человекочитаемое NameTaken
+/// вместо 500.
+fn unique_name_taken(e: sqlx::Error) -> StoreError {
+    match e {
+        sqlx::Error::Database(database)
+            if database.constraint() == Some("accounts_username_lower_key") =>
+        {
+            StoreError::NameTaken
+        }
+        other => StoreError::from(other),
+    }
+}
+
 /// UUID v4 без дефисов в нижнем регистре (формат Mojang).
 fn random_uuid_no_dashes() -> String {
     uuid::Uuid::new_v4().simple().to_string()
@@ -1854,7 +1919,7 @@ fn to_hex(bytes: &[u8]) -> String {
     s
 }
 
-fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }

@@ -35,8 +35,15 @@ backup="${target_bin}.old"
 rm -f "$backup"
 mv "$target_bin" "$backup" 2>/dev/null || true
 
-# Move new binary into place.
-mv "$new_bin" "$target_bin"
+# Move new binary into place; on failure restore the backup so the user
+# isn't left without a launcher at all.
+if ! mv "$new_bin" "$target_bin"; then
+  echo "[update-linux] failed to install new binary, restoring backup"
+  if [ -f "$backup" ]; then
+    mv "$backup" "$target_bin"
+  fi
+  exit 1
+fi
 chmod +x "$target_bin"
 
 # Remove backup.
@@ -44,5 +51,5 @@ rm -f "$backup"
 
 echo "[update-linux] update complete, launching"
 
-# Re-launch.
-exec "$target_bin" &
+# Re-launch (detached — the script's parent, the old launcher, is exiting).
+"$target_bin" &

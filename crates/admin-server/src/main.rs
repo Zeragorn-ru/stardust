@@ -480,6 +480,10 @@ struct LoginResponse {
 
 /// IP для rate-limit. Заголовки `X-Forwarded-For` / `X-Real-IP` учитываются
 /// только при `TRUST_PROXY=1|true` (за reverse-proxy); иначе — `ConnectInfo`.
+///
+/// Из `X-Forwarded-For` берём ПОСЛЕДНИЙ элемент: nginx с
+/// `$proxy_add_x_forwarded_for` дописывает реальный адрес в конец, а элементы
+/// слева клиент мог подделать сам (первый элемент = спуф, обход rate-limit).
 fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::IpAddr {
     let trust_proxy = std::env::var("TRUST_PROXY")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -487,8 +491,8 @@ fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::I
     if trust_proxy {
         if let Some(forwarded_for) = headers.get("x-forwarded-for") {
             if let Ok(val) = forwarded_for.to_str() {
-                if let Some(first_ip) = val.split(',').next() {
-                    if let Ok(ip) = first_ip.trim().parse::<std::net::IpAddr>() {
+                if let Some(last_ip) = val.split(',').next_back() {
+                    if let Ok(ip) = last_ip.trim().parse::<std::net::IpAddr>() {
                         return ip;
                     }
                 }
@@ -1618,6 +1622,14 @@ async fn upsert_mod_profile(
             "Ключ и имя профиля обязательны",
         ));
     }
+    // Ключ попадает в URL DELETE-роута (`/mod-profiles/:key`) — символы вне
+    // `[a-z0-9-]` ломают маршрутизацию и делают профиль неудаляемым.
+    if !key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Ключ профиля может содержать только строчные латиницу, цифры и дефис",
+        ));
+    }
     let profile = state
         .store
         .upsert_mod_profile(
@@ -1644,16 +1656,12 @@ async fn delete_mod_profile(
     Path((id, key)): Path<(i64, String)>,
 ) -> Result<StatusCode, ApiError> {
     require_admin(&state, &headers).await?;
+    // Удаление профиля и чистка ссылок — одна транзакция внутри store.
     state
         .store
         .delete_mod_profile(id, &key)
         .await
         .map_err(map_store)?;
-    state
-        .store
-        .strip_profile_key(id, &key)
-        .await
-        .map_err(internal)?;
     Ok(StatusCode::NO_CONTENT)
 }
 

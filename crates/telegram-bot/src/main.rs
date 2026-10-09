@@ -155,6 +155,12 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
     }
 }
 
+/// Ошибка reqwest без URL — в Display ошибки зашит адрес вида
+/// `.../bot<token>/sendMessage`, и токен утекал бы в логи и в БД.
+fn sanitize_reqwest_error(e: reqwest::Error) -> String {
+    e.without_url().to_string()
+}
+
 /// Отправляет документ (файл) через Telegram Bot API.
 async fn send_document(
     http: &reqwest::Client,
@@ -178,7 +184,7 @@ async fn send_document(
         .multipart(form)
         .send()
         .await
-        .map_err(|e| format!("запрос sendDocument: {e}"))?;
+        .map_err(|e| format!("запрос sendDocument: {}", sanitize_reqwest_error(e)))?;
 
     if resp.status().is_success() {
         Ok(())
@@ -222,7 +228,7 @@ async fn send_message(
         .json(&payload)
         .send()
         .await
-        .map_err(|e| format!("запрос sendMessage: {e}"))?;
+        .map_err(|e| format!("запрос sendMessage: {}", sanitize_reqwest_error(e)))?;
     if resp.status().is_success() {
         Ok(())
     } else {
@@ -287,14 +293,14 @@ async fn cache_bot_username(store: &Store, http: &reqwest::Client, token: &str) 
     let resp = match http.get(&url).send().await {
         Ok(r) => r,
         Err(e) => {
-            tracing::warn!(error = %e, "getMe не удался");
+            tracing::warn!(error = %sanitize_reqwest_error(e), "getMe не удался");
             return;
         }
     };
     let body: serde_json::Value = match resp.json().await {
         Ok(b) => b,
         Err(e) => {
-            tracing::warn!(error = %e, "разбор getMe не удался");
+            tracing::warn!(error = %sanitize_reqwest_error(e), "разбор getMe не удался");
             return;
         }
     };
@@ -497,7 +503,7 @@ async fn answer_callback(
         payload["text"] = serde_json::Value::String(text.to_string());
     }
     if let Err(e) = http.post(&url).json(&payload).send().await {
-        tracing::warn!(error = %e, "answerCallbackQuery не удался");
+        tracing::warn!(error = %sanitize_reqwest_error(e), "answerCallbackQuery не удался");
     }
 }
 
@@ -516,14 +522,14 @@ async fn get_updates(
         ])
         .send()
         .await
-        .map_err(|e| format!("запрос getUpdates: {e}"))?;
+        .map_err(|e| format!("запрос getUpdates: {}", sanitize_reqwest_error(e)))?;
     if !resp.status().is_success() {
         return Err(format!("getUpdates вернул {}", resp.status()));
     }
     let body: GetUpdatesResponse = resp
         .json()
         .await
-        .map_err(|e| format!("разбор getUpdates: {e}"))?;
+        .map_err(|e| format!("разбор getUpdates: {}", sanitize_reqwest_error(e)))?;
     if !body.ok {
         return Err("getUpdates: ok=false".to_string());
     }

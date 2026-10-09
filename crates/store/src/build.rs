@@ -531,30 +531,28 @@ impl Store {
         Ok(profile)
     }
 
-    /// Удаляет профиль по ключу. Ссылки на него в `build_files.profile_keys`
-    /// вычищаются автоматически (сторона вызывает `strip_profile_key`).
+    /// Удаляет профиль по ключу и в той же транзакции вычищает ссылки на него
+    /// из `build_files.profile_keys` — иначе сбой между запросами оставляет
+    /// «висячие» ключи навсегда (ретрай получает NotFound до чистки).
     pub async fn delete_mod_profile(&self, build_id: i64, key: &str) -> Result<(), StoreError> {
-        let changed =
-            sqlx::query("DELETE FROM build_mod_profiles WHERE build_id = $1 AND key = $2")
-                .bind(build_id)
-                .bind(key)
-                .execute(self.pool())
-                .await?
-                .rows_affected();
+        let mut tx = self.pool().begin().await?;
+        let changed = sqlx::query("DELETE FROM build_mod_profiles WHERE build_id = $1 AND key = $2")
+            .bind(build_id)
+            .bind(key)
+            .execute(&mut *tx)
+            .await?
+            .rows_affected();
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
-        Ok(())
-    }
-
-    /// Убирает ключ профиля из `profile_keys` всех файлов сборки.
-    /// Вызывается после удаления профиля, чтобы не осталось битых ссылок.
-    pub async fn strip_profile_key(&self, build_id: i64, key: &str) -> Result<(), StoreError> {
-        sqlx::query("UPDATE build_files SET profile_keys = array_remove(profile_keys, $2) WHERE build_id = $1")
-            .bind(build_id)
-            .bind(key)
-            .execute(self.pool())
-            .await?;
+        sqlx::query(
+            "UPDATE build_files SET profile_keys = array_remove(profile_keys, $2) WHERE build_id = $1",
+        )
+        .bind(build_id)
+        .bind(key)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await?;
         Ok(())
     }
 }
