@@ -78,7 +78,22 @@ pub fn run() {
                 use tauri::menu::{MenuBuilder, SubmenuBuilder};
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.set_decorations(true);
+                    // Порядок важен: set_decorations в tao ставит маску через
+                    // main-queue async (без FullSizeContentView) и перетирает
+                    // стиль, применённый до него. Повторяем Overlay ПОСЛЕ —
+                    // когда декорации уже применены, маска остаётся корректной.
                     let _ = window.set_title_bar_style(tauri::TitleBarStyle::Overlay);
+                    let handle = app.handle().clone();
+                    let handle2 = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        // Финальный повтор после гарантированного применения
+                        // decorations: тоже Overlay, поверх обеих масок.
+                        let _ = handle.run_on_main_thread(move || {
+                            if let Some(w) = handle2.get_webview_window("main") {
+                                let _ = w.set_title_bar_style(tauri::TitleBarStyle::Overlay);
+                            }
+                        });
+                    });
                 }
                 if let Ok(app_menu) = SubmenuBuilder::new(app, "StarDust")
                     .about(None)
