@@ -3286,7 +3286,7 @@ dependencies = [
 
 [[package]]
 name = "launcher"
-version = "0.0.0"
+version = "0.11.1"
 dependencies = [
  "base64 0.22.1",
  "cc",
