@@ -453,9 +453,14 @@ export const FileUpload = forwardRef<
                   <label>Профили модов</label>
                   <div className="fm-profile-chips">
                     {modProfiles.map((p) => {
-                      const on = items
-                        .filter((it) => it.status === "queued" || it.status === "error")
-                        .every((it) => it.profiles.includes(p.key));
+                      // [] .every(...) === true — без проверки длины чипы
+                      // выглядели бы «включёнными», когда ставить нечего.
+                      const pending = items.filter(
+                        (it) => it.status === "queued" || it.status === "error",
+                      );
+                      const on =
+                        pending.length > 0 &&
+                        pending.every((it) => it.profiles.includes(p.key));
                       return (
                         <button
                           key={p.key}

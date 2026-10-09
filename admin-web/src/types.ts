@@ -105,9 +105,10 @@ export interface UploadMeta {
   optional?: boolean;
   enabledByDefault?: boolean;
   disabled?: boolean;
-  modId?: string;
-  displayName?: string;
-  description?: string;
+  /** `null` = явно очистить поле на сервере; `undefined` = не менять. */
+  modId?: string | null;
+  displayName?: string | null;
+  description?: string | null;
   /** Профили, в которых состоит файл; пусто/не задано — «общий». */
   profiles?: string[];
 }

@@ -44,6 +44,14 @@ function sideLabel(s: string): string {
   return s === "both" ? "обе" : s === "client" ? "клиент" : "сервер";
 }
 
+/** Русская плюрализация: 1 мод / 2-4 мода / 5+ модов, включая 21 мод. */
+function pluralRu(n: number, one: string, few: string, many: string): string {
+  if (n % 100 >= 11 && n % 100 <= 14) return many;
+  if (n % 10 === 1) return one;
+  if (n % 10 >= 2 && n % 10 <= 4) return few;
+  return many;
+}
+
 // Подпапка текущего каталога с агрегатами по содержимому.
 interface FolderEntry {
   name: string;
@@ -218,6 +226,13 @@ export function FileManager({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Смена поиска/фильтров, как и смена папки (см. navigateDir), обнуляет
+  // выделение: невидимые строки не должны попадать под BulkBar-патчи.
+  useEffect(() => {
+    setSelected(new Set());
+    anchorIdx.current = null;
+  }, [query, filters]);
+
   // При активных фильтрах/поиске показываем плоский список совпадений по всем папкам.
   const searchResults = useMemo(() => {
     if (!searching) return [];
@@ -339,9 +354,12 @@ export function FileManager({
       enabledByDefault: patch.enabledByDefault,
       overwrite: patch.overwrite,
       disabled: patch.disabled,
-      modId: patch.modId ?? undefined,
-      displayName: patch.displayName ?? undefined,
-      description: patch.description ?? undefined,
+      // null передаём как null (сервер: «очистить»), а не проглатываем в
+      // undefined («не менять») — иначе очистка modId/displayName/ description
+      // в редакторе свойств молча не работает.
+      modId: patch.modId,
+      displayName: patch.displayName,
+      description: patch.description,
       profiles: patch.profiles,
     });
     toast.success("Файл обновлён");
@@ -576,6 +594,9 @@ export function FileManager({
       onDragOver={onManagerDragOver}
       onDragLeave={onManagerDragLeave}
       onDrop={onManagerDrop}
+      // Capture: внутренняя дропзона зовёт stopPropagation, и без этого
+      // счётчик dragDepth зависал > 0 (рамка «fm-dragging» навсегда).
+      onDropCapture={() => setDragDepth(0)}
       onContextMenu={onBackgroundMenu}
     >
       <div className="fm-toolbar fm-toolbar--mobile-sticky">
@@ -932,7 +953,23 @@ export function FileManager({
           )}
 
           {listing.folders.map((folder) => (
-            <div key={folder.path} className="fm-row folder">
+            <div
+              key={folder.path}
+              className="fm-row folder"
+              // ПКМ по папке открывает то же меню, что и кнопка-«кебаб»:
+              // иначе показывался бы нативный браузерный (файловые строки
+              // своё меню имеют).
+              onContextMenu={(e) => {
+                if ((e.target as HTMLElement).closest("button")) return;
+                e.preventDefault();
+                const kebab = e.currentTarget.querySelector<HTMLButtonElement>(".fm-folder-menu");
+                if (kebab) {
+                  kebab.dispatchEvent(
+                    new MouseEvent("click", { bubbles: true, cancelable: true }),
+                  );
+                }
+              }}
+            >
               <button className="fm-main" onClick={() => navigateDir(folder.path)}>
                 <IconFolder size={17} className="fm-icon folder" />
                 <span className="fm-folder-text">
@@ -1540,6 +1577,7 @@ function FileRow({
         <input
           type="checkbox"
           checked={selected}
+          aria-label={`Выбрать ${baseName(file.path)}`}
           onClick={(e) => {
             e.stopPropagation();
             onToggle({ shiftKey: e.shiftKey });
@@ -1723,6 +1761,10 @@ function ModProfilesDialog({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
+        // Вложенный оверлей (confirm удаления и т.п.) обрабатывает Escape
+        // сам — иначе вслед за ним срабатывал бы этот хендлер и окно
+        // закрывалось бы целиком.
+        if (document.querySelector(".modal-backdrop, .fm-drawer-backdrop")) return;
         // Черновик формы не теряем молча.
         const dirty = key.trim() || name.trim() || description.trim();
         if (dirty && !editingProfile) {
@@ -1827,7 +1869,7 @@ function ModProfilesDialog({
                 <strong>{p.name}</strong>
                 <span className="muted">
                   {p.key} · {members(p.key)}{" "}
-                  {members(p.key) === 1 ? "файл" : members(p.key) < 5 ? "файла" : "файлов"}
+                  {pluralRu(members(p.key), "файл", "файла", "файлов")}
                 </span>
                 {p.description && <span className="muted">{p.description}</span>}
               </div>
