@@ -225,8 +225,10 @@ struct SavedSession {
 // Раньше использовали системный keyring, но на macOS связка ключей для
 // неподписанного приложения просит доступ при каждом запуске — автологин
 // превращался в диалог. Поэтому токен лежит в `session-token.json` рядом с
-// остальными данными лаунчера (права 0600), а для уже сохранённых сессий
-// выполняется одноразовая миграция из keyring с последующей очисткой.
+// остальными данными лаунчера (права 0600). Код keyring-миграции выпилен
+// полностью: даже чтение/удаление старой записи показывает системный
+// запрос Keychain (записи прошлых сборок имеют чужой ACL). Протухшие
+// ключи в чьей-то связке остаются там мёртвыми и безвредными.
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SessionTokenFile {
@@ -281,46 +283,30 @@ fn remove_token_file(app: &AppHandle) {
     let _ = std::fs::remove_file(token_file_path(app));
 }
 
-/// Legacy-хранилище (системный keyring): используется только для чтения
-/// при миграции и для очистки старых записей.
-fn session_entry(profile_id: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new("com.stardust.launcher", profile_id)
-        .map_err(|e| format!("не удалось открыть keyring: {e}"))
-}
-
-/// Токен текущей сессии: сначала файл, затем миграция из keyring.
+/// Legacy-хранилище (системный keyring) полностью выпилено: даже
+/// delete_password на macOS ходит в Keychain и показывает системный
+/// запрос «доступ к связке ключей» (записи, созданные прошлыми
+/// подписанными сборками, имеют чужой ACL). Оставшиеся в чьей-то связке
+/// старые записи безопасно игнорируем: токены протухли (TTL сессии
+/// 30 дней), файловое хранилище не зависит от них.
+///
+/// Токен текущей сессии: только файл `session-token.json` (0600).
 fn load_session_token(app: &AppHandle, profile_id: &str) -> Option<String> {
-    if let Some(file) = read_token_file_entry(app) {
-        // Проверяем владельца: токен в файле мог остаться от другого
-        // аккаунта (автологин под другим профилем), а очередь сессий
-        // привязана к конкретному profile_id.
-        if let Some(owner) = &file.profile_id {
-            if !owner.eq_ignore_ascii_case(profile_id) {
-                return None;
-            }
-        }
-        return Some(file.token);
-    }
-    let token = session_entry(profile_id).ok()?.get_password().ok()?;
-    match write_token_file(app, &token, Some(profile_id)) {
-        Ok(()) => {
-            if let Ok(entry) = session_entry(profile_id) {
-                let _ = entry.delete_password();
-            }
-        }
-        Err(e) => {
-            tracing::warn!("[session] не удалось мигрировать токен из keyring в файл: {e}");
+    let file = read_token_file_entry(app)?;
+    // Проверяем владельца: токен в файле мог остаться от другого
+    // аккаунта (автологин под другим профилем), а очередь сессий
+    // привязана к конкретному profile_id.
+    if let Some(owner) = &file.profile_id {
+        if !owner.eq_ignore_ascii_case(profile_id) {
+            return None;
         }
     }
-    Some(token)
+    Some(file.token)
 }
 
-/// Удаляет токен и из файла, и из legacy-keyring.
-fn clear_session_token(app: &AppHandle, profile_id: &str) {
+/// Удаляет токен из файла.
+fn clear_session_token(app: &AppHandle, _profile_id: &str) {
     remove_token_file(app);
-    if let Ok(entry) = session_entry(profile_id) {
-        let _ = entry.delete_password();
-    }
 }
 
 /// Результат входа, отдаваемый фронтенду.
@@ -864,8 +850,8 @@ fn save_pending_session(
 }
 
 /// Пытается отправить все сессии из очереди. Успешные удаляются.
-/// Токен читается из хранилища сессии (`session-token.json` с миграцией
-/// из keyring); legacy-записи с токеном отправляются один раз и не
+/// Токен читается из хранилища сессии (`session-token.json`);
+/// legacy-записи с токеном отправляются один раз и не
 /// перезаписываются на диск.
 async fn drain_pending_sessions(
     http: &reqwest::Client,
