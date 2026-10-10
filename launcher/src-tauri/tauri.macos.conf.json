@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "StarDust",
+        "width": 1100,
+        "height": 700,
+        "minWidth": 1000,
+        "minHeight": 640,
+        "resizable": false,
+        "maximizable": false,
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": false,
+        "backgroundColor": "#07080f",
+        "decorations": true
+      }
+    ]
+  }
+}
