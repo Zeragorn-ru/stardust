@@ -10,8 +10,14 @@ fn main() {
             // порождает каскад -Wunguarded-availability-new.
             .flag("-mmacosx-version-min=10.14")
             .compile("macos_mic");
+        cc::Build::new()
+            .file("native/macos_titlebar.m")
+            .flag("-fobjc-arc")
+            .flag("-mmacosx-version-min=10.13")
+            .compile("macos_titlebar");
         println!("cargo:rustc-link-lib=framework=AVFoundation");
         println!("cargo:rustc-link-lib=framework=Foundation");
+        println!("cargo:rustc-link-lib=framework=AppKit");
     }
 
     tauri_build::build()

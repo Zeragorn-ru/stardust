@@ -7,6 +7,8 @@ mod game_guard;
 mod java;
 #[cfg(target_os = "macos")]
 mod macos_permissions;
+#[cfg(target_os = "macos")]
+mod macos_titlebar;
 mod minecraft;
 mod modpack;
 mod paths;
@@ -62,11 +64,13 @@ pub fn run() {
         .setup(|app| {
             commands::bootstrap(app.handle())?;
 
-            // macOS: шапка с traffic lights. В конфиге decorations:false ради
-            // кастомной шапки на Windows/Linux; per-OS через platformConfig
-            // нельзя — его не понимает tauri-build при прямом cargo-вызове
-            // (clippy в CI падал). Поэтому нативную рамку на macOS возвращаем
-            // в рантайме; Overlay/hiddenTitle уже заданы в tauri.conf.json.
+            // macOS: нативная шапка. На macOS окно создаётся сразу с нативными
+            // декорациями (tauri.macos.conf.json: decorations:true + Overlay),
+            // поэтому рантайм-переключений масок нет — они и ломали раскладку
+            // (tao применяет set_decorations через async main-queue и AppKit
+            // пересобирает titlebar). Геометрию полосы 38pt настраивает
+            // нативный хелпер ПОСЛЕ применения стилей. На Windows/Linux
+            // по-прежнему decorations:false + кастомная шапка из конфига.
             // Дополнительно — стандартное меню приложения, чтобы Cmd+Q / About
             // работали как у остальных Mac-приложений.
             #[cfg(target_os = "macos")]
@@ -76,21 +80,16 @@ pub fn run() {
                 });
 
                 use tauri::menu::{MenuBuilder, SubmenuBuilder};
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.set_decorations(true);
-                    // Порядок важен: set_decorations в tao ставит маску через
-                    // main-queue async (без FullSizeContentView) и перетирает
-                    // стиль, применённый до него. Повторяем Overlay ПОСЛЕ —
-                    // когда декорации уже применены, маска остаётся корректной.
-                    let _ = window.set_title_bar_style(tauri::TitleBarStyle::Overlay);
+                if app.get_webview_window("main").is_some() {
                     let handle = app.handle().clone();
                     let handle2 = app.handle().clone();
                     tauri::async_runtime::spawn(async move {
-                        // Финальный повтор после гарантированного применения
-                        // decorations: тоже Overlay, поверх обеих масок.
+                        // Хелпер должен отработать после применения масок окна
+                        // tao (async main-queue), поэтому вызываем его тоже
+                        // через main-thread очередь — FIFO гарантирует порядок.
                         let _ = handle.run_on_main_thread(move || {
                             if let Some(w) = handle2.get_webview_window("main") {
-                                let _ = w.set_title_bar_style(tauri::TitleBarStyle::Overlay);
+                                crate::macos_titlebar::apply(&w);
                             }
                         });
                     });
