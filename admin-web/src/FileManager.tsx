@@ -159,6 +159,8 @@ export function FileManager({
   const [bulkBusy, setBulkBusy] = useState(false);
   // Активный диалог создания: папка или файл.
   const [creating, setCreating] = useState<"folder" | "file" | null>(null);
+  // Папка, чей архив сейчас готовится на сервере (для подписи «Готовлю архив…»).
+  const [archivingFolder, setArchivingFolder] = useState<string | null>(null);
   // Перетаскивание файлов на весь менеджер (а не только в зону загрузки).
   const uploadRef = useRef<FileUploadHandle>(null);
   const [dragDepth, setDragDepth] = useState(0);
@@ -501,6 +503,24 @@ export function FileManager({
       toast.success(`Папка удалена (${victims.length} файлов)`);
     }
     onChanged();
+  }
+
+  // Скачивает папку одним zip-архивом. Пока сервер собирает архив —
+  // в меню пункта меняем подпись, повторный клик блокируем.
+  async function downloadFolder(folder: FolderEntry) {
+    if (archivingFolder) return;
+    setArchivingFolder(folder.path);
+    try {
+      await api.downloadFolderArchive(buildId, folder.path);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "Не удалось скачать папку",
+      );
+    } finally {
+      setArchivingFolder(null);
+    }
   }
 
   const empty = listing.folders.length === 0 && listing.files.length === 0;
@@ -983,6 +1003,7 @@ export function FileManager({
                 <button
                   className="danger icon-only"
                   title="Удалить папку"
+                  disabled={archivingFolder !== null}
                   onClick={() => removeFolder(folder)}
                 >
                   <IconTrash size={15} />
@@ -1011,9 +1032,19 @@ export function FileManager({
                           : []),
                         "-",
                         {
+                          label:
+                            archivingFolder === folder.path
+                              ? `Готовлю архив… (${folder.fileCount} файл(ов))`
+                              : `Скачать папку (${folder.fileCount})`,
+                          icon: <IconDownload size={15} />,
+                          disabled: archivingFolder !== null,
+                          onSelect: () => void downloadFolder(folder),
+                        },
+                        {
                           label: `Удалить папку (${folder.fileCount})`,
                           icon: <IconTrash size={15} />,
                           danger: true,
+                          disabled: archivingFolder !== null,
                           onSelect: () => removeFolder(folder),
                         },
                       ],

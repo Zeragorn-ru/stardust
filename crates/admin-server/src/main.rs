@@ -28,10 +28,11 @@ use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
-    NewBuild, Role, Store, SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY,
+    NewBuild, Role, SeasonRow, Store, SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY,
     SETTING_BACKUP_BUCKET, SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
-    SETTING_BACKUP_SECRET_KEY, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
-    SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
+    SETTING_BACKUP_SECRET_KEY, SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD,
+    SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
+    SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -90,6 +91,14 @@ struct AppState {
     backup_source_dir: PathBuf,
     backup_running: Mutex<bool>,
     backup_status: Mutex<backup::Status>,
+    /// Защита от параллельных архиваций сезонов.
+    season_archive_running: Mutex<bool>,
+    /// Последний статус архивации сезона для polling из админки.
+    season_archive_status: Mutex<SeasonArchiveStatus>,
+    /// Защита от параллельных продвижений релизов в stable.
+    promote_running: Mutex<bool>,
+    /// Последний статус продвижения релиза для polling из админки.
+    promote_status: Mutex<PromoteStatus>,
 }
 
 /// Закэшированный authlib-injector.jar с временем загрузки.
@@ -193,6 +202,10 @@ async fn main() {
         ),
         backup_running: Mutex::new(false),
         backup_status: Mutex::new(backup::Status::default()),
+        season_archive_running: Mutex::new(false),
+        season_archive_status: Mutex::new(SeasonArchiveStatus::default()),
+        promote_running: Mutex::new(false),
+        promote_status: Mutex::new(PromoteStatus::default()),
     });
 
     // Фоновая задача: синхронизация статистики с SFTP каждые 15 минут.
@@ -277,6 +290,7 @@ async fn main() {
         .route("/api/builds/:id/activate", post(activate_build))
         .route("/api/builds/:id/clone", post(clone_build))
         .route("/api/builds/:id/files", post(upload_file))
+        .route("/api/builds/:id/folder-archive", get(folder_archive))
         .route(
             "/api/builds/:id/mod-profiles",
             get(list_mod_profiles).post(upsert_mod_profile),
@@ -365,12 +379,21 @@ async fn main() {
         )
         .route("/api/deploy-mod", post(deploy_mod))
         .route("/api/deploy-mod/status", get(deploy_mod_status))
+        // --- Сезоны и релизы лаунчера ---
+        .route("/api/seasons", get(list_seasons))
+        .route("/api/seasons/archive", post(archive_season))
+        .route("/api/seasons/archive-status", get(season_archive_status))
+        .route("/api/releases", get(list_releases))
+        .route("/api/releases/:tag/promote", post(promote_release))
+        .route("/api/releases/promote-status", get(promote_status))
         // --- Публичное для лаунчера ---
         .route("/news", get(news_highlight))
         .route("/news/all", get(public_news))
         .route("/public/guides", get(public_guides))
         .route("/public/guides/:slug", get(public_guide))
         .route("/public/leaderboards", get(public_leaderboards))
+        .route("/public/seasons", get(public_seasons))
+        .route("/public/seasons/:id/leaderboards", get(public_season_leaderboards))
         .route("/manifest", get(manifest))
         .route(
             "/authlib-injector/latest.json",
@@ -621,6 +644,9 @@ struct SettingsDto {
     backup_secret_key_set: bool,
     #[serde(rename = "achievementCoinReward")]
     achievement_coin_reward: i64,
+    /// Установлен ли GitHub-токен (сам токен наружу не отдаём — секрет).
+    #[serde(rename = "githubTokenSet")]
+    github_token_set: bool,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -639,6 +665,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_BACKUP_ACCESS_KEY,
         SETTING_BACKUP_SECRET_KEY,
         SETTING_ACHIEVEMENT_COIN_REWARD,
+        SETTING_GITHUB_TOKEN,
     ];
     let map = state
         .store
@@ -671,6 +698,9 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
             .and_then(|value| value.parse::<i64>().ok())
             .filter(|value| (0..=1_000_000).contains(value))
             .unwrap_or(10),
+        github_token_set: get(SETTING_GITHUB_TOKEN)
+            .map(|t| !t.trim().is_empty())
+            .unwrap_or(false),
     })
 }
 
@@ -724,6 +754,8 @@ struct UpdateSettingsRequest {
     backup_secret_key: Option<String>,
     #[serde(rename = "achievementCoinReward", default)]
     achievement_coin_reward: Option<i64>,
+    #[serde(rename = "githubToken", default)]
+    github_token: Option<String>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -854,6 +886,7 @@ async fn update_settings(
         (req.backup_prefix, SETTING_BACKUP_PREFIX),
         (req.backup_access_key, SETTING_BACKUP_ACCESS_KEY),
         (req.backup_secret_key, SETTING_BACKUP_SECRET_KEY),
+        (req.github_token, SETTING_GITHUB_TOKEN),
     ] {
         if let Some(value) = value {
             let value = value.trim();
@@ -1331,6 +1364,202 @@ async fn clone_build(
         .await
         .map_err(map_store)?;
     Ok(Json(CreatedBuild { id: new_id }))
+}
+
+// ───────────────────────── Архив папки ─────────────────────────
+
+/// Лимит на суммарный размер файлов (до сжатия) в архиве одной папки:
+/// архив собирается в памяти, поэтому без предела упираемся в RAM сервера.
+const MAX_FOLDER_ARCHIVE_BYTES: i64 = 2 * 1024 * 1024 * 1024; // 2 ГиБ
+
+/// `GET /api/builds/:id/folder-archive?path=<папка>` — zip со всеми файлами
+/// папки. Имена внутри архива — пути относительно самой папки (без её префикса),
+/// разделитель — прямой слэш. Имя архива — последний сегмент пути + `.zip`.
+async fn folder_archive(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(build_id): Path<i64>,
+    Query(q): Query<FolderArchiveQuery>,
+) -> Result<Response, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Пустой path — это корень `.minecraft`, выгрузка всей сборки; сейчас
+    // это не поддерживаем, чтобы не собирать гигабайтные архивы случайно.
+    let folder = q.path.trim().trim_matches('/');
+    if folder.is_empty() {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Укажите путь папки (выгрузка корня .minecraft не поддерживается)",
+        ));
+    }
+    if folder.split('/').any(|seg| seg == ".." || seg.is_empty()) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Недопустимый путь папки",
+        ));
+    }
+
+    let build = state
+        .store
+        .get_build(build_id)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Сборка не найдена"))?;
+
+    // Точный префикс по сегментам: `mods` не должен ловить `mods-backup`.
+    let prefix = format!("{folder}/");
+    let files: Vec<_> = build
+        .files
+        .into_iter()
+        .filter(|f| f.path.starts_with(&prefix))
+        .collect();
+    if files.is_empty() {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "В этой папке нет файлов",
+        ));
+    }
+
+    // Предохранитель по памяти: сумма исходных байтов до сжатия.
+    let total: i64 = files.iter().map(|f| f.size_bytes.max(0)).sum();
+    if total > MAX_FOLDER_ARCHIVE_BYTES {
+        return Err(ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "Папка слишком большая для архива: {} (лимит {})",
+                human_bytes(total),
+                human_bytes(MAX_FOLDER_ARCHIVE_BYTES)
+            ),
+        ));
+    }
+
+    // Чтение блобов и Deflate до 2 ГиБ — блокирующая работа, её нельзя
+    // делать на потоке tokio (как и бекап, уводим в spawn_blocking).
+    let archive_state = Arc::clone(&state);
+    let archive_folder = folder.to_string();
+    let zip_bytes =
+        tokio::task::spawn_blocking(move || build_folder_zip(&archive_state, &archive_folder, &files))
+            .await
+            .map_err(|e| internal(format!("задача архивации: {e}")))??;
+
+    // Имя архива — последний сегмент пути. Для не-ASCII добавляем filename*
+    // (RFC 5987), а в базовом filename оставляем только ASCII-символы.
+    let last_segment = folder.rsplit('/').next().unwrap_or(folder);
+    let (_ascii_name, disposition) = archive_disposition(last_segment);
+
+    Ok((
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/zip"),
+            (header::CONTENT_DISPOSITION, disposition.as_str()),
+            // Архив собирается заново при каждом запросе — кэшировать нельзя.
+            (header::CACHE_CONTROL, "no-store"),
+        ],
+        zip_bytes,
+    )
+        .into_response())
+}
+
+#[derive(Deserialize)]
+struct FolderArchiveQuery {
+    path: String,
+}
+
+/// Собирает zip в памяти: блобы читаются с диска по `storage_key` (sha1).
+fn build_folder_zip(
+    state: &AppState,
+    folder: &str,
+    files: &[store::BuildFileRow],
+) -> Result<Vec<u8>, ApiError> {
+    use std::io::Write;
+
+    let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    let prefix = format!("{folder}/");
+    for f in files {
+        let entry_name = f.path[prefix.len()..].replace('\\', "/");
+        // Путь должен указывать на файл внутри папки, но не доверяем БД
+        // на слово: пустое имя или `..`-сегмент в остатке — повреждённая
+        // запись. Молча пропустить нельзя (архив получился бы тихо
+        // неполным), а `..` в имени записи — это zip-slip для
+        // распаковщиков вроде Java ZipInputStream, которые путь не
+        // проверяют. Отваливаемся с ошибкой.
+        if entry_name.is_empty() || entry_name.split('/').any(|seg| seg == "..") {
+            return Err(internal(format!(
+                "у файла {} путь внутри папки некорректен",
+                f.path
+            )));
+        }
+        let blob = std::fs::read(state.modpack_dir.join(&f.storage_key)).map_err(|e| {
+            internal(format!(
+                "нет блоба {} на диске для файла {}: {e}",
+                f.storage_key, f.path
+            ))
+        })?;
+        zip.start_file(entry_name, options)
+            .map_err(|e| internal(format!("zip entry {}: {e}", f.path)))?;
+        zip.write_all(&blob)
+            .map_err(|e| internal(format!("zip write {}: {e}", f.path)))?;
+    }
+
+    let cursor = zip
+        .finish()
+        .map_err(|e| internal(format!("zip finalize: {e}")))?;
+    Ok(cursor.into_inner())
+}
+
+/// Возвращает (ascii-имя, значение Content-Disposition) для архива папки.
+///
+/// Базовый `filename` держим ASCII-safe (санитайзим всё вне печатной ASCII),
+/// а оригинальное имя с юникодом отдаём в `filename*` по RFC 5987 — браузеры
+/// предпочитают его, когда он есть.
+fn archive_disposition(last_segment: &str) -> (String, String) {
+    let ascii_name: String = last_segment
+        .chars()
+        .map(|c| if c.is_ascii_graphic() && c != '"' && c != '\\' { c } else { '_' })
+        .collect::<String>()
+        + ".zip";
+    let disposition = if last_segment.is_ascii() {
+        format!("attachment; filename=\"{ascii_name}\"")
+    } else {
+        let encoded = percent_encode_rfc5987(last_segment);
+        format!("attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}.zip")
+    };
+    (ascii_name, disposition)
+}
+
+/// Процентное кодирование по RFC 5987 (для filename*): всё вне
+/// ATTR-chars (attribute-char = ALPHA / DIGIT / !#$&+-.^_`|~) кодируется.
+fn percent_encode_rfc5987(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for &b in s.as_bytes() {
+        let ok = b.is_ascii_alphanumeric()
+            || matches!(b, b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~');
+        if ok {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
+/// Человекочитаемый размер для сообщений об ошибках.
+fn human_bytes(bytes: i64) -> String {
+    let mut v = bytes as f64;
+    for unit in ["Б", "КиБ", "МиБ", "ГиБ"] {
+        if v < 1024.0 {
+            return if unit == "Б" {
+                format!("{} {unit}", v as i64)
+            } else {
+                format!("{v:.1} {unit}")
+            };
+        }
+        v /= 1024.0;
+    }
+    format!("{v:.1} ТиБ")
 }
 
 // ───────────────────────── Загрузка файлов ─────────────────────────
@@ -2271,6 +2500,626 @@ async fn write_sftp_file_atomic(
     Ok(())
 }
 
+// ───────────────────── Сезоны и релизы лаунчера ─────────────────────
+
+/// Статус фоновой архивации сезона (polling из админки).
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SeasonArchiveStatus {
+    /// `idle` | `running` | `success` | `error`.
+    state: SyncState,
+    season_id: Option<i32>,
+    season_name: Option<String>,
+    phase: String,
+    error: Option<String>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+}
+
+/// Статус фонового продвижения релиза в stable (polling из админки).
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PromoteStatus {
+    /// `idle` | `running` | `success` | `error`.
+    state: SyncState,
+    tag: Option<String>,
+    phase: String,
+    error: Option<String>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+}
+
+/// `GET /api/seasons` — все сезоны, от новых к старым.
+async fn list_seasons(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<SeasonRow>>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let seasons = state.store.list_seasons().await.map_err(map_store)?;
+    Ok(Json(seasons))
+}
+
+/// `GET /api/seasons/archive-status` — статус архивации.
+async fn season_archive_status(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<SeasonArchiveStatus>, ApiError> {
+    require_admin(&state, &headers).await?;
+    Ok(Json(state.season_archive_status.lock().await.clone()))
+}
+
+/// `POST /api/seasons/archive` — архивировать активный сезон в фоне.
+/// Подтверждение (confirm-диалог) живёт на фронтенде; бэкенд просто делает.
+async fn archive_season(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Старый сезон нужен сразу: по его id считается имя следующего. Запрос
+    // делаем ДО установки флага running: на этом пути можно упасть с
+    // ошибкой до tokio::spawn, и флаг, поставленный раньше, уже никто
+    // не сбросил бы — все последующие POST навсегда получили бы 409.
+    let active = state
+        .store
+        .active_season()
+        .await
+        .map_err(map_store)?
+        .ok_or_else(|| {
+            ApiError::new(StatusCode::NOT_FOUND, "Нет активного сезона в базе данных")
+        })?;
+
+    {
+        let mut running = state.season_archive_running.lock().await;
+        if *running {
+            return Err(ApiError::new(
+                StatusCode::CONFLICT,
+                "Архивация сезона уже выполняется",
+            ));
+        }
+        *running = true;
+    }
+
+    {
+        let mut status = state.season_archive_status.lock().await;
+        *status = SeasonArchiveStatus {
+            state: SyncState::Running,
+            season_id: Some(active.id),
+            season_name: Some(active.name.clone()),
+            phase: "Снимок статистики игроков".to_string(),
+            started_at: Some(
+                OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_default(),
+            ),
+            ..Default::default()
+        };
+    }
+
+    let next_name = format!("Сезон {}", active.id + 1);
+    let task_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        let result: Result<SeasonRow, String> = async {
+            update_season_archive_status(&task_state, |s| {
+                s.phase = "Снимок статистики игроков".to_string()
+            })
+            .await;
+            // Все шаги ниже выполняются одной транзакцией внутри store;
+            // фазы отражают логический прогресс для UI.
+            let new_season = task_state
+                .store
+                .archive_active_season(&next_name)
+                .await
+                .map_err(|e| e.to_string())?;
+            update_season_archive_status(&task_state, |s| {
+                s.phase = "Закрытие сезона".to_string()
+            })
+            .await;
+            update_season_archive_status(&task_state, |s| {
+                s.phase = "Открытие нового сезона".to_string()
+            })
+            .await;
+            update_season_archive_status(&task_state, |s| {
+                s.phase = "Обнуление счётчиков".to_string()
+            })
+            .await;
+            Ok(new_season)
+        }
+        .await;
+
+        let mut status = task_state.season_archive_status.lock().await;
+        match result {
+            Ok(new_season) => {
+                status.state = SyncState::Success;
+                status.season_id = Some(new_season.id);
+                status.season_name = Some(new_season.name.clone());
+                status.phase = format!("Готово: открыт {}", new_season.name);
+                status.error = None;
+            }
+            Err(error) => {
+                status.state = SyncState::Error;
+                status.phase = "Ошибка".to_string();
+                status.error = Some(error.clone());
+                tracing::warn!("seasons-archive: {error}");
+            }
+        }
+        status.finished_at = Some(
+            OffsetDateTime::now_utc()
+                .format(&Rfc3339)
+                .unwrap_or_default(),
+        );
+        *task_state.season_archive_running.lock().await = false;
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "inProgress": true })),
+    ))
+}
+
+async fn update_season_archive_status(
+    state: &Shared,
+    update: impl FnOnce(&mut SeasonArchiveStatus),
+) {
+    let mut status = state.season_archive_status.lock().await;
+    update(&mut status);
+}
+
+// ───────────────────── Релизы лаунчера (GitHub) ─────────────────────
+
+/// Репозиторий, в котором живут релизы лаунчера и алиасы апдейтера.
+const GITHUB_REPO: &str = "Zeragorn-ru/stardust";
+/// Тег алиаса, из которого stable-клиенты качают latest.json.
+const STABLE_ALIAS_TAG: &str = "launcher-stable";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseDto {
+    tag: String,
+    name: Option<String>,
+    prerelease: bool,
+    published_at: Option<String>,
+}
+
+/// `GET /api/releases` — релизы лаунчера (тег `v*`) из GitHub API,
+/// от новых к старым, максимум 10. Без авторизации — публичный список.
+async fn list_releases(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<ReleaseDto>>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    let url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=30");
+    let resp = state
+        .http
+        .get(&url)
+        .header("Accept", "application/vnd.github.v3+json")
+        .send()
+        .await
+        .map_err(|e| internal(format!("запрос списка релизов: {e}")))?;
+
+    let releases: Vec<GitHubRelease> = resp
+        .json()
+        .await
+        .map_err(|e| internal(format!("парсинг списка релизов: {e}")))?;
+
+    let mut launcher_releases: Vec<GitHubRelease> = releases
+        .into_iter()
+        .filter(|r| r.tag_name.starts_with('v'))
+        .collect();
+    // published_at DESC (пустые — в конец), затем берём 10.
+    launcher_releases.sort_by(|a, b| {
+        let key = |r: &GitHubRelease| r.published_at.clone().unwrap_or_default();
+        key(b).cmp(&key(a))
+    });
+    launcher_releases.truncate(10);
+
+    Ok(Json(
+        launcher_releases
+            .into_iter()
+            .map(|r| ReleaseDto {
+                tag: r.tag_name,
+                name: r.name,
+                prerelease: r.prerelease,
+                published_at: r.published_at,
+            })
+            .collect(),
+    ))
+}
+
+/// `GET /api/releases/promote-status` — статус продвижения.
+async fn promote_status(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<PromoteStatus>, ApiError> {
+    require_admin(&state, &headers).await?;
+    Ok(Json(state.promote_status.lock().await.clone()))
+}
+
+/// `POST /api/releases/:tag/promote` — выкатить pre-release релиз лаунчера
+/// в stable: снять метку pre-release и обновить latest.json в алиасе
+/// launcher-stable. Фоновая задача со статусом.
+async fn promote_release(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(tag): Path<String>,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Тег должен выглядеть как релиз лаунчера (vX.Y.Z), а не как алиас.
+    if !tag.starts_with('v') || tag.contains("stable") || tag.contains("beta") {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            format!("Тег {tag} не является релизом лаунчера"),
+        ));
+    }
+
+    {
+        let mut running = state.promote_running.lock().await;
+        if *running {
+            return Err(ApiError::new(
+                StatusCode::CONFLICT,
+                "Продвижение релиза уже выполняется",
+            ));
+        }
+        *running = true;
+    }
+
+    {
+        let mut status = state.promote_status.lock().await;
+        *status = PromoteStatus {
+            state: SyncState::Running,
+            tag: Some(tag.clone()),
+            phase: "Проверка релиза".to_string(),
+            started_at: Some(
+                OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_default(),
+            ),
+            ..Default::default()
+        };
+    }
+
+    let task_state = Arc::clone(&state);
+    let task_tag = tag;
+    tokio::spawn(async move {
+        let result = do_promote_release(&task_state, &task_tag).await;
+        let mut status = task_state.promote_status.lock().await;
+        match result {
+            Ok(()) => {
+                status.state = SyncState::Success;
+                status.phase = "Готово: релиз в stable".to_string();
+                status.error = None;
+            }
+            Err(message) => {
+                status.state = SyncState::Error;
+                status.phase = "Ошибка".to_string();
+                status.error = Some(message.clone());
+                tracing::warn!("promote-release: {message}");
+            }
+        }
+        status.finished_at = Some(
+            OffsetDateTime::now_utc()
+                .format(&Rfc3339)
+                .unwrap_or_default(),
+        );
+        *task_state.promote_running.lock().await = false;
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "inProgress": true })),
+    ))
+}
+
+async fn update_promote_status(state: &Shared, update: impl FnOnce(&mut PromoteStatus)) {
+    let mut status = state.promote_status.lock().await;
+    update(&mut status);
+}
+
+/// Прогон GitHub-запроса с токеном. Токен уходит ТОЛЬКО на api.github.com /
+/// uploads.github.com (в URL-хосте проверяем), чтобы не утечь в чужой хост
+/// при редиректе или ошибке в URL.
+async fn github_api(
+    state: &Shared,
+    method: reqwest::Method,
+    url: &str,
+    token: &str,
+    body: Option<serde_json::Value>,
+) -> Result<reqwest::Response, String> {
+    if !is_github_host(url) {
+        return Err("внутренняя ошибка: запрос не на GitHub API".to_string());
+    }
+    let mut request = state
+        .http
+        .request(method, url)
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("Authorization", format!("Bearer {token}"));
+    if let Some(body) = body {
+        request = request.json(&body);
+    }
+    request
+        .send()
+        .await
+        .map_err(|e| format!("запрос к GitHub API: {e}"))
+}
+
+/// Проверяет, что URL ведёт на api.github.com или uploads.github.com.
+fn is_github_host(url: &str) -> bool {
+    reqwest::Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_string()))
+        .is_some_and(|h| h == "api.github.com" || h == "uploads.github.com")
+}
+
+/// Продвижение релиза лаунчера в stable. Шаги:
+/// 1) проверка релиза по тегу;
+/// 2) скачивание и валидация latest.json (все три семейства:
+///    darwin/linux/windows);
+/// 3) снятие pre-release метки;
+/// 4) публикация latest.json в алиас launcher-stable.
+async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
+    update_promote_status(state, |s| s.phase = "Проверка релиза".to_string()).await;
+
+    // 1. Токен из настроек.
+    let token = state
+        .store
+        .get_setting(SETTING_GITHUB_TOKEN)
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| "GitHub токен не задан в настройках".to_string())?;
+
+    // 2. Релиз по тегу.
+    let release_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{tag}");
+    let resp = github_api(state, reqwest::Method::GET, &release_url, &token, None)
+        .await?;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err(format!("Релиз {tag} не найден на GitHub"));
+    }
+    if !resp.status().is_success() {
+        // Частые случаи: 401/403 — токен неверный или без прав repo.
+        return Err(format!(
+            "получение релиза {tag}: HTTP {} (проверьте GitHub токен)",
+            resp.status().as_u16()
+        ));
+    }
+    let release: GitHubRelease = resp
+        .json()
+        .await
+        .map_err(|e| format!("парсинг релиза {tag}: {e}"))?;
+
+    // 3. latest.json из ассетов релиза.
+    update_promote_status(state, |s| s.phase = "Валидация latest.json".to_string()).await;
+    let latest_asset = release
+        .assets
+        .iter()
+        .find(|a| a.name == "latest.json")
+        .ok_or_else(|| {
+            format!("В релизе {tag} нет ассета latest.json — релиз неполный")
+        })?;
+
+    let latest_bytes = state
+        .http
+        .get(&latest_asset.browser_download_url)
+        .send()
+        .await
+        .map_err(|e| format!("скачивание latest.json: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("чтение latest.json: {e}"))?
+        .to_vec();
+
+    // Валидация: платформы содержат все три семейства. Семейство — первый
+    // токен ключа платформы, разделённый дефисами (как в CI alias job).
+    let latest: serde_json::Value =
+        serde_json::from_slice(&latest_bytes).map_err(|e| format!("latest.json не парсится: {e}"))?;
+    let platforms = latest
+        .get("platforms")
+        .and_then(|p| p.as_object())
+        .ok_or_else(|| "latest.json не содержит объект platforms".to_string())?;
+    let families: std::collections::HashSet<&str> = platforms
+        .keys()
+        .map(|key| key.split('-').next().unwrap_or(""))
+        .collect();
+    for required in ["darwin", "linux", "windows"] {
+        if !families.contains(required) {
+            return Err(format!(
+                "latest.json неполный: нет семейства {required} (есть: {:?})",
+                families.iter().collect::<Vec<_>>()
+            ));
+        }
+    }
+
+    // 4. Снятие pre-release метки.
+    update_promote_status(state, |s| {
+        s.phase = "Снятие pre-release метки".to_string()
+    })
+    .await;
+    let release_id = release.id.ok_or_else(|| {
+        format!("GitHub не вернул id релиза {tag} — невозможно обновить")
+    })?;
+    let patch_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/{release_id}");
+    let resp = github_api(
+        state,
+        reqwest::Method::PATCH,
+        &patch_url,
+        &token,
+        Some(serde_json::json!({ "prerelease": false })),
+    )
+    .await?;
+    if !resp.status().is_success() {
+        return Err(format!(
+            "снятие pre-release метки с {tag}: HTTP {}",
+            resp.status().as_u16()
+        ));
+    }
+
+    // 5. Алиас launcher-stable: найти или создать.
+    update_promote_status(state, |s| {
+        s.phase = "Публикация в launcher-stable".to_string()
+    })
+    .await;
+    let alias_url =
+        format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{STABLE_ALIAS_TAG}");
+    let resp = github_api(
+        state,
+        reqwest::Method::GET,
+        &alias_url,
+        &token,
+        None,
+    )
+    .await?;
+    let alias_release: GitHubRelease = if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        // Создаём алиас (gh-style), ошибки статуса проверим ниже.
+        let create_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases");
+        let resp = github_api(
+            state,
+            reqwest::Method::POST,
+            &create_url,
+            &token,
+            Some(serde_json::json!({
+                "tag_name": STABLE_ALIAS_TAG,
+                "name": "StarDust Launcher (stable updater)",
+                "notes": "Stable updater metadata alias for launcher releases."
+            })),
+        )
+        .await?;
+        if !resp.status().is_success() {
+            return Err(format!(
+                "создание алиаса {STABLE_ALIAS_TAG}: HTTP {}",
+                resp.status().as_u16()
+            ));
+        }
+        resp.json()
+            .await
+            .map_err(|e| format!("парсинг созданного алиаса: {e}"))?
+    } else if !resp.status().is_success() {
+        // Не 404 и не успех — обычно неверный токен (401/403).
+        return Err(format!(
+            "получение алиаса {STABLE_ALIAS_TAG}: HTTP {} (проверьте GitHub токен)",
+            resp.status().as_u16()
+        ));
+    } else {
+        resp.json()
+            .await
+            .map_err(|e| format!("парсинг алиаса {STABLE_ALIAS_TAG}: {e}"))?
+    };
+    let alias_id = alias_release.id.ok_or_else(|| {
+        format!("GitHub не вернул id алиаса {STABLE_ALIAS_TAG}")
+    })?;
+
+    // Удаляем старый latest.json с алиаса, если он есть (upload не перезаписывает).
+    if let Some(old_asset) = alias_release.assets.iter().find(|a| a.name == "latest.json") {
+        if let Some(asset_id) = old_asset.id {
+            let delete_url =
+                format!("https://api.github.com/repos/{GITHUB_REPO}/releases/assets/{asset_id}");
+            let resp = github_api(
+                state,
+                reqwest::Method::DELETE,
+                &delete_url,
+                &token,
+                None,
+            )
+            .await?;
+            // 404 = уже удалён кем-то другим, это не ошибка.
+            if !resp.status().is_success() && resp.status() != reqwest::StatusCode::NOT_FOUND {
+                return Err(format!(
+                    "удаление старого latest.json: HTTP {}",
+                    resp.status().as_u16()
+                ));
+            }
+        }
+    }
+
+    // Загружаем новый latest.json.
+    let upload_url = format!(
+        "https://uploads.github.com/repos/{GITHUB_REPO}/releases/{alias_id}/assets?name=latest.json"
+    );
+    let resp = state
+        .http
+        .post(&upload_url)
+        .header("Accept", "application/vnd.github.v3+json")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/octet-stream")
+        .body(latest_bytes)
+        .send()
+        .await
+        .map_err(|e| format!("загрузка latest.json в {STABLE_ALIAS_TAG}: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!(
+            "загрузка latest.json в {STABLE_ALIAS_TAG}: HTTP {}",
+            resp.status().as_u16()
+        ));
+    }
+
+    tracing::info!("promote-release: {tag} продвинут в stable ({STABLE_ALIAS_TAG})");
+    Ok(())
+}
+
+// ───────────────── Публичные сезоны ─────────────────
+
+/// Публичная карточка сезона (архивированные только).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PublicSeasonDto {
+    id: i32,
+    name: String,
+    ended_at: Option<String>,
+}
+
+/// `GET /public/seasons` — список архивированных сезонов.
+async fn public_seasons(
+    State(state): State<Shared>,
+) -> Result<Json<Vec<PublicSeasonDto>>, ApiError> {
+    let seasons = state.store.archived_seasons().await.map_err(map_store)?;
+    Ok(Json(
+        seasons
+            .into_iter()
+            .map(|s| PublicSeasonDto {
+                id: s.id,
+                name: s.name,
+                ended_at: s.ended_at,
+            })
+            .collect(),
+    ))
+}
+
+/// `GET /public/seasons/:id/leaderboards` — топы снимка сезона.
+async fn public_season_leaderboards(
+    State(state): State<Shared>,
+    Path(id): Path<i32>,
+) -> Result<Json<protocol::Leaderboards>, ApiError> {
+    let season = state
+        .store
+        .archived_season(id)
+        .await
+        .map_err(map_store)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Сезон не найден"))?;
+
+    let boards = state
+        .store
+        .season_leaderboards(season.id)
+        .await
+        .map_err(map_store)?;
+    let to_entries = |rows: Vec<(i64, String, i64)>| {
+        rows.into_iter()
+            .map(|(rank, username, value)| protocol::LeaderboardEntry {
+                rank,
+                username,
+                value,
+            })
+            .collect()
+    };
+    Ok(Json(protocol::Leaderboards {
+        playtime: to_entries(boards.playtime),
+        deaths: to_entries(boards.deaths),
+        blocks_mined: to_entries(boards.blocks_mined),
+        distance: to_entries(boards.distance),
+    }))
+}
+
 // ───────────────────────── Деплой мода ─────────────────────────
 
 #[derive(Clone, Default, Serialize)]
@@ -2286,12 +3135,22 @@ struct DeployModStatus {
 
 #[derive(Deserialize)]
 struct GitHubRelease {
+    id: Option<i64>,
     tag_name: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    prerelease: bool,
+    /// ISO-строка от GitHub (published_at уже в RFC 3339).
+    #[serde(default)]
+    published_at: Option<String>,
+    #[serde(default)]
     assets: Vec<GitHubAsset>,
 }
 
 #[derive(Deserialize)]
 struct GitHubAsset {
+    id: Option<i64>,
     name: String,
     browser_download_url: String,
 }

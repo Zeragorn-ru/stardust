@@ -15,10 +15,14 @@ import type {
   DepsCheckResult,
   Gradient,
   Guide,
+  LauncherRelease,
   ModProfile,
   NewsPost,
   PlayerCustomization,
   PlayerStats,
+  PromoteStatus,
+  Season,
+  SeasonArchiveStatus,
   Settings,
   ServerTelemetry,
   ServerLogsResponse,
@@ -286,6 +290,40 @@ export const api = {
     return request("PUT", `/api/builds/files/${fileId}/content`, { content });
   },
 
+  // Скачивает папку сборки одним zip-архивом: сервер собирает его на лету
+  // из контент-адресных блобов. Токен и обработка ошибок — как в request(),
+  // но ответ бинарный, поэтому отдельно.
+  async downloadFolderArchive(buildId: number, path: string): Promise<void> {
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const resp = await fetch(
+      `/api/builds/${buildId}/folder-archive?path=${encodeURIComponent(path)}`,
+      { headers },
+    );
+    if (resp.status === 401 && token) onAuthRejected();
+    if (!resp.ok) {
+      const message = await errorMessage(resp);
+      throw new ApiError(resp.status, message);
+    }
+
+    const blob = await resp.blob();
+    // Имя берём из Content-Disposition, если сервер прислал распарсиваемое.
+    const filename = filenameFromDisposition(
+      resp.headers.get("Content-Disposition"),
+    ) ?? `${path.split("/").pop() || "folder"}.zip`;
+    const url = URL.createObjectURL(blob);
+    try {
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  },
+
   listAccounts(): Promise<Account[]> {
     return request("GET", "/api/accounts");
   },
@@ -397,6 +435,7 @@ export const api = {
     backupAccessKey?: string;
     backupSecretKey?: string;
     achievementCoinReward?: number;
+    githubToken?: string;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
   },
@@ -552,7 +591,67 @@ export const api = {
   }> {
     return request("GET", "/api/deploy-mod/status");
   },
+
+  // ───── Сезоны ─────
+
+  getSeasons(): Promise<Season[]> {
+    return request("GET", "/api/seasons");
+  },
+
+  // Завершает активный сезон: снимок статистики всех игроков, сброс
+  // счётчиков и открытие следующего сезона. Фоновая задача (202).
+  archiveSeason(): Promise<{ inProgress: boolean }> {
+    return request("POST", "/api/seasons/archive");
+  },
+
+  getSeasonArchiveStatus(): Promise<SeasonArchiveStatus> {
+    return request("GET", "/api/seasons/archive-status");
+  },
+
+  // ───── Релизы лаунчера ─────
+
+  getReleases(): Promise<LauncherRelease[]> {
+    return request("GET", "/api/releases");
+  },
+
+  // Переводит pre-release в полноценный релиз и обновляет latest.json
+  // канала launcher-stable. Фоновая задача (202).
+  promoteRelease(tag: string): Promise<{ inProgress: boolean }> {
+    return request("POST", `/api/releases/${encodeURIComponent(tag)}/promote`);
+  },
+
+  getPromoteStatus(): Promise<PromoteStatus> {
+    return request("GET", "/api/releases/promote-status");
+  },
 };
+
+/// Сообщение об ошибке из тела ответа (как в request(), но для fetch,
+/// где тело читается вручную).
+async function errorMessage(resp: Response): Promise<string> {
+  const text = await resp.text().catch(() => "");
+  const data = text ? safeJson(text) : undefined;
+  if (data && typeof data === "object" && "error" in data) {
+    const message = String((data as { error: unknown }).error);
+    if (message) return message;
+  }
+  return `Ошибка ${resp.status}`;
+}
+
+/// Имя файла из Content-Disposition: сначала RFC 5987 filename*
+/// (UTF-8), затем обычный filename. null, если заголовка нет.
+function filenameFromDisposition(header: string | null): string | null {
+  if (!header) return null;
+  const star = /filename\*=(?:UTF-8|utf-8)''([^;]+)/.exec(header);
+  if (star) {
+    try {
+      return decodeURIComponent(star[1]);
+    } catch {
+      // падение decode — используем обычный filename ниже
+    }
+  }
+  const plain = /filename="([^"]*)"/.exec(header);
+  return plain ? plain[1] : null;
+}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
