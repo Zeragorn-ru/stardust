@@ -33,6 +33,9 @@ pub const SETTING_SFTP_PASSWORD: &str = "sftp_password";
 pub const SETTING_SFTP_STATS_PATH: &str = "sftp_stats_path";
 /// Базовая награда в монетах за одно подтверждённое достижение.
 pub const SETTING_ACHIEVEMENT_COIN_REWARD: &str = "achievement_coin_reward";
+/// Ключ настройки: токен GitHub (секрет, наружу не отдаём). Нужен для
+/// продвижения релизов лаунчера в stable из админ-панели.
+pub const SETTING_GITHUB_TOKEN: &str = "github_token";
 
 /// Время жизни кода привязки Telegram.
 const LINK_TTL: Duration = Duration::minutes(15);

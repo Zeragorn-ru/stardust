@@ -5210,3 +5210,20 @@ th {
     background: rgba(84, 196, 130, 0.16);
     color: #7ed9a5;
 }
+
+/* --- Сезоны и релизы лаунчера --- */
+
+/* Приглушённая подсказка под таблицами: explain-текст операции. */
+.seasons-hint {
+    margin: 12px 0 0;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.seasons-view .section-head {
+    margin-bottom: 12px;
+}
+
+.seasons-view .sync-progress {
+    margin-bottom: 14px;
+}

@@ -71,6 +71,50 @@ export interface Settings {
   backupAccessKeySet: boolean;
   backupSecretKeySet: boolean;
   achievementCoinReward: number;
+  /** Установлен ли GitHub-токен (секреты наружу не отдаём). */
+  githubTokenSet?: boolean;
+}
+
+// ───── Сезоны и релизы лаунчера ─────
+
+/** Сезон из GET /api/seasons (новые сверху). */
+export interface Season {
+  id: number;
+  name: string;
+  status: "active" | "archived";
+  startedAt: string | null;
+  endedAt: string | null;
+  /** Число игроков в архивном снимке (только для завершённых сезонов). */
+  accountsCount: number | null;
+}
+
+/** Статус фоновой задачи архивации сезона. */
+export interface SeasonArchiveStatus {
+  state: "idle" | "running" | "success" | "error";
+  seasonId: number | null;
+  seasonName: string | null;
+  phase: string;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+/** Релиз лаунчера из GitHub (GET /api/releases, теги «v…», новые сверху). */
+export interface LauncherRelease {
+  tag: string;
+  name: string | null;
+  prerelease: boolean;
+  publishedAt: string | null;
+}
+
+/** Статус фоновой задачи перевода релиза в стабильный. */
+export interface PromoteStatus {
+  state: "idle" | "running" | "success" | "error";
+  tag: string | null;
+  phase: string;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
 }
 
 export interface BackupStatus {

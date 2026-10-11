@@ -2073,3 +2073,24 @@ button.secondary:hover:not(:disabled) {
 .m-screen .fm-upload .queue-actions button:last-child {
     flex-basis: 100%;
 }
+
+/* --- Сезоны и релизы лаунчера --- */
+
+/* Кнопка архивации и «В стабильный» на узком экране: текст длинный,
+   даём кнопке перенос и полную ширину строки карточки. */
+.m-screen-seasons .sd-table-row .sd-button {
+    white-space: normal;
+    line-height: 1.3;
+    min-height: 44px;
+}
+
+/* Подсказки под таблицами: чуть больше воздуха на мобильном. */
+.m-screen-seasons .seasons-hint {
+    margin-top: 10px;
+    font-size: 11.5px;
+}
+
+/* Пустая ячейка «Действие» у архивных сезонов: прячем с карточки. */
+.m-screen-seasons td[data-label="Действие"]:empty {
+    display: none;
+}

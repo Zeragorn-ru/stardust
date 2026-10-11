@@ -37,6 +37,11 @@ export function SettingsView() {
   const [achievementCoinReward, setAchievementCoinReward] = useState(10);
   const [savingAchievementReward, setSavingAchievementReward] = useState(false);
 
+  // GitHub токен для релизов лаунчера (секрет: наружу не отдаётся, только
+  // флаг установлен/нет; пустое поле при сохранении = не менять).
+  const [githubToken, setGithubToken] = useState("");
+  const [savingGithubToken, setSavingGithubToken] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const s = await api.getSettings();
@@ -184,6 +189,24 @@ export function SettingsView() {
     }
   }
 
+  async function saveGithubToken() {
+    const trimmed = githubToken.trim();
+    if (!trimmed) return;
+    setSavingGithubToken(true);
+    try {
+      const next = await api.saveSettings({ githubToken: trimmed });
+      setSettings(next);
+      setGithubToken("");
+      toast.success("GitHub токен сохранён");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сохранить GitHub токен",
+      );
+    } finally {
+      setSavingGithubToken(false);
+    }
+  }
+
   async function saveAchievementReward() {
     const reward = Math.trunc(achievementCoinReward);
     if (reward < 0 || reward > 1_000_000) {
@@ -267,6 +290,7 @@ export function SettingsView() {
         <div className="metric-card metric-card--blue"><span>Telegram</span><strong>{settings?.telegramTokenSet ? "подключён" : "отключён"}</strong><small>{settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "бот не подключён"}</small></div>
         <div className="metric-card metric-card--green"><span>SFTP</span><strong>{settings?.sftpPasswordSet ? "готов" : "настроить"}</strong><small>{settings?.sftpHost || "хост не задан"}</small></div>
         <div className="metric-card metric-card--yellow"><span>Путь статистики</span><strong>{settings?.sftpStatsPath ? "задан" : "пусто"}</strong><small>{settings?.sftpStatsPath || "путь к stats не задан"}</small></div>
+        <div className="metric-card metric-card--blue"><span>GitHub</span><strong>{settings?.githubTokenSet ? "токен задан" : "не настроен"}</strong><small>{settings?.githubTokenSet ? "релизы лаунчера доступны" : "нужен для стабильных релизов"}</small></div>
       </div>
 
       <div className="settings-grid">
@@ -459,6 +483,67 @@ export function SettingsView() {
                   onClick={savePanel}
                 >
                   Сохранить
+                </Button>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        <Card className="settings-card">
+          <CardHeader className="settings-card-head">
+            <IconKey />
+            <div>
+              <CardTitle>GitHub токен</CardTitle>
+              <CardDescription>
+                Токен с правами repo — для выката релизов лаунчера в стабильные.
+              </CardDescription>
+            </div>
+          </CardHeader>
+
+          {loading ? (
+            <p className="muted">
+              <span className="spinner" />
+              Загрузка…
+            </p>
+          ) : (
+            <CardContent>
+              <div className="settings-status">
+                {settings?.githubTokenSet ? (
+                  <Badge variant="secondary">токен установлен</Badge>
+                ) : (
+                  <Badge variant="outline">не настроен</Badge>
+                )}
+              </div>
+
+              <label className="fm-prompt-field">
+                <span className="muted">
+                  {settings?.githubTokenSet
+                    ? "Новый токен (оставьте пустым, чтобы не менять)"
+                    : "Токен доступа (classic fine-grained, scope repo)"}
+                </span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  placeholder="ghp_… или github_pat_…"
+                  value={githubToken}
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && githubToken.trim() && !savingGithubToken)
+                      saveGithubToken();
+                  }}
+                />
+              </label>
+
+              <p className="muted">
+                Используется при переводе pre-release лаунчера в стабильный релиз на экране «Сезоны».
+              </p>
+
+              <div className="modal-actions">
+                <Button
+                  disabled={!githubToken.trim() || savingGithubToken}
+                  onClick={saveGithubToken}
+                >
+                  {savingGithubToken ? "Сохранение…" : "Сохранить токен"}
                 </Button>
               </div>
             </CardContent>

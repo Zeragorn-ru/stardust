@@ -18,6 +18,7 @@ use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
 use protocol::{Badge, BanInfo, Gradient, PlayerProfile, SkinModel};
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
@@ -34,8 +35,8 @@ pub use telegram::{
     ChallengeAnswer, ChallengeOutcome, OutboxMessage, CALLBACK_APPROVE, CALLBACK_BAN_HOUR,
     CALLBACK_DENY, CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET,
     SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET,
-    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
-    SETTING_BACKUP_SECRET_KEY, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
+    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION, SETTING_BACKUP_SECRET_KEY,
+    SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
     SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 
@@ -168,6 +169,29 @@ pub struct CoinTransaction {
     pub amount: i64,
     pub reason: String,
     pub created_at: String,
+}
+
+/// Сезон. Времена сериализуются на границе Store в ISO-8601 (Rfc3339).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeasonRow {
+    pub id: i32,
+    pub name: String,
+    /// `active` | `archived`.
+    pub status: String,
+    pub started_at: Option<String>,
+    pub ended_at: Option<String>,
+    /// Число игроков в снимке (считается только для архивированных).
+    pub accounts_count: Option<i64>,
+}
+
+/// Топы всех четырёх метрик по снимку сезона.
+#[derive(Debug, Clone)]
+pub struct SeasonLeaderboards {
+    pub playtime: Vec<(i64, String, i64)>,
+    pub deaths: Vec<(i64, String, i64)>,
+    pub blocks_mined: Vec<(i64, String, i64)>,
+    pub distance: Vec<(i64, String, i64)>,
 }
 
 impl Ban {
@@ -533,6 +557,179 @@ impl Store {
             .enumerate()
             .map(|(index, row)| (index as i64 + 1, row.get("username"), row.get("value")))
             .collect())
+    }
+
+    // ───────────────────────── Сезоны ─────────────────────────
+
+    /// Все сезоны, от новых к старым. Для архивированных считается число
+    /// игроков в снимке (для UI «архив статистики»).
+    pub async fn list_seasons(&self) -> Result<Vec<SeasonRow>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT s.id, s.name, s.status, s.started_at, s.ended_at, \
+                    (SELECT COUNT(*)::BIGINT FROM season_accounts sa \
+                     WHERE sa.season_id = s.id) AS accounts_count
+             FROM seasons s
+             ORDER BY s.id DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.iter().map(row_to_season).collect())
+    }
+
+    /// Текущий активный сезон, если он есть.
+    pub async fn active_season(&self) -> Result<Option<SeasonRow>, StoreError> {
+        let row = sqlx::query(
+            "SELECT s.id, s.name, s.status, s.started_at, s.ended_at, \
+                    (SELECT COUNT(*)::BIGINT FROM season_accounts sa \
+                     WHERE sa.season_id = s.id) AS accounts_count
+             FROM seasons s
+             WHERE s.status = 'active'
+             ORDER BY s.id DESC
+             LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|row| row_to_season(&row)))
+    }
+
+    /// Архивирует активный сезон одной транзакцией:
+    /// 1) снимок статистики всех аккаунтов в season_accounts;
+    /// 2) старый сезон закрывается (archived + ended_at = now);
+    /// 3) открывается новый сезон (id = старый + 1, given name, started_at = now);
+    /// 4) живые счётчики аккаунтов обнуляются (last_joined_at сохраняется).
+    ///
+    /// Возвращает НОВЫЙ активный сезон.
+    pub async fn archive_active_season(&self, new_name: &str) -> Result<SeasonRow, StoreError> {
+        let mut tx = self.pool.begin().await?;
+
+        let old_season: Option<(i32, String)> = sqlx::query_as(
+            "SELECT id, name FROM seasons WHERE status = 'active' ORDER BY id DESC LIMIT 1",
+        )
+        .fetch_optional(&mut *tx)
+        .await?;
+        let Some((old_id, old_name)) = old_season else {
+            return Err(StoreError::NotFound);
+        };
+
+        sqlx::query(
+            "INSERT INTO season_accounts
+                 (season_id, uuid, username, username_lower,
+                  playtime_seconds, deaths, blocks_mined, distance_cm, last_joined_at)
+             SELECT $1, uuid, username, username_lower,
+                    playtime_seconds, deaths, blocks_mined, distance_cm, last_joined_at
+             FROM accounts
+             ON CONFLICT (season_id, uuid) DO NOTHING",
+        )
+        .bind(old_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "UPDATE seasons SET status = 'archived', ended_at = now() WHERE id = $1",
+        )
+        .bind(old_id)
+        .execute(&mut *tx)
+        .await?;
+
+        let row = sqlx::query(
+            "INSERT INTO seasons (id, name, status, started_at)
+             VALUES ($1, $2, 'active', now())
+             RETURNING id, name, status, started_at, ended_at",
+        )
+        .bind(old_id + 1)
+        .bind(new_name)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "UPDATE accounts
+             SET playtime_seconds = 0, deaths = 0, blocks_mined = 0, distance_cm = 0",
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        tracing::info!("[seasons] сезон «{old_name}» (id={old_id}) архивирован, открыт «{new_name}»");
+        Ok(SeasonRow {
+            id: row.get("id"),
+            name: row.get("name"),
+            status: row.get("status"),
+            started_at: row.get("started_at"),
+            ended_at: row.get("ended_at"),
+            accounts_count: None,
+        })
+    }
+
+    /// Топ-10 всех четырёх метрик по снимку сезона (как stat_leaderboard:
+    /// value DESC, username_lower ASC, rank через enumerate+1).
+    pub async fn season_leaderboards(
+        &self,
+        season_id: i32,
+    ) -> Result<SeasonLeaderboards, StoreError> {
+        let playtime = self.season_stat_leaderboard(season_id, "playtime_seconds").await?;
+        let deaths = self.season_stat_leaderboard(season_id, "deaths").await?;
+        let blocks_mined = self.season_stat_leaderboard(season_id, "blocks_mined").await?;
+        let distance = self.season_stat_leaderboard(season_id, "distance_cm").await?;
+        Ok(SeasonLeaderboards {
+            playtime,
+            deaths,
+            blocks_mined,
+            distance,
+        })
+    }
+
+    async fn season_stat_leaderboard(
+        &self,
+        season_id: i32,
+        column: &str,
+    ) -> Result<Vec<(i64, String, i64)>, StoreError> {
+        // column — не пользовательский ввод, а литерал из кода.
+        let query = format!(
+            "SELECT username, {column} AS value
+             FROM season_accounts
+             WHERE season_id = $1 AND {column} > 0
+             ORDER BY {column} DESC, username_lower ASC
+             LIMIT 10"
+        );
+        let rows = sqlx::query(&query)
+            .bind(season_id)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(rows
+            .iter()
+            .enumerate()
+            .map(|(index, row)| (index as i64 + 1, row.get("username"), row.get("value")))
+            .collect())
+    }
+
+    /// Архивированные сезоны для публичного списка (новые сверху).
+    pub async fn archived_seasons(&self) -> Result<Vec<SeasonRow>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT s.id, s.name, s.status, s.started_at, s.ended_at, \
+                    (SELECT COUNT(*)::BIGINT FROM season_accounts sa \
+                     WHERE sa.season_id = s.id) AS accounts_count
+             FROM seasons s
+             WHERE s.status = 'archived'
+             ORDER BY s.id DESC",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.iter().map(row_to_season).collect())
+    }
+
+    /// Один архивированный сезон по id (для публичного лидерборда).
+    pub async fn archived_season(&self, season_id: i32) -> Result<Option<SeasonRow>, StoreError> {
+        let row = sqlx::query(
+            "SELECT s.id, s.name, s.status, s.started_at, s.ended_at, \
+                    (SELECT COUNT(*)::BIGINT FROM season_accounts sa \
+                     WHERE sa.season_id = s.id) AS accounts_count
+             FROM seasons s
+             WHERE s.id = $1 AND s.status = 'archived'",
+        )
+        .bind(season_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|row| row_to_season(&row)))
     }
 
     // ───────────────────────── Гайды ─────────────────────────
@@ -1706,6 +1903,28 @@ fn row_to_news(row: &PgRow) -> NewsPost {
         pinned: row.get("pinned"),
         created_at: format_timestamp(row.get("created_at")),
         updated_at: format_timestamp(row.get("updated_at")),
+    }
+}
+
+fn row_to_season(row: &PgRow) -> SeasonRow {
+    let status: String = row.get("status");
+    // Число игроков снимка имеет смысл только у архивированных сезонов.
+    let accounts_count = if status == "archived" {
+        row.get("accounts_count")
+    } else {
+        None
+    };
+    SeasonRow {
+        id: row.get("id"),
+        name: row.get("name"),
+        status,
+        started_at: row
+            .get::<Option<OffsetDateTime>, _>("started_at")
+            .map(format_timestamp),
+        ended_at: row
+            .get::<Option<OffsetDateTime>, _>("ended_at")
+            .map(format_timestamp),
+        accounts_count,
     }
 }
 

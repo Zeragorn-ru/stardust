@@ -20,7 +20,8 @@ import { NewsView } from "../views/NewsView";
 import { GuidesView } from "../views/GuidesView";
 import { LogsView } from "../views/LogsView";
 import { ExternalModsView } from "../views/ExternalModsView";
-import { IconBox, IconChart, IconFile, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
+import { SeasonsView } from "../views/SeasonsView";
+import { IconArchive, IconBox, IconChart, IconFile, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
 export function DesktopApp() {
@@ -141,6 +142,9 @@ function Shell() {
           <NavLink to="/mods" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
             <IconBox /> <span className="nav-label">Внешние моды</span>
           </NavLink>
+          <NavLink to="/seasons" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
+            <IconArchive /> <span className="nav-label">Сезоны</span>
+          </NavLink>
         </nav>
         <div className="sidebar-foot">
           {username && (
@@ -186,6 +190,7 @@ function Shell() {
             <Route path="/guides" element={<GuidesView />} />
             <Route path="/logs" element={<LogsView />} />
             <Route path="/mods" element={<ExternalModsView />} />
+            <Route path="/seasons" element={<SeasonsView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
@@ -236,6 +241,11 @@ function sectionDetails(section: string): { title: string; description: string }
       return {
         title: "Внешние моды",
         description: "Разрешённые моды и правила очистки перед запуском клиента.",
+      };
+    case "seasons":
+      return {
+        title: "Сезоны и релизы",
+        description: "Архив статистики игроков по сезонам и выкат релизов лаунчера в стабильный канал.",
       };
     default:
       return {
