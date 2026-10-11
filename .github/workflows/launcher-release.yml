@@ -91,16 +91,29 @@ jobs:
         with:
           version: ${{ github.ref_name }}
 
+      # Параллельные leg создают релиз одновременно: 422 already_exists в окне
+      # между view и create — ретраим, релиз в итоге видят все legs.
       - name: "⑦ Create stable release"
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
-          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" \
+          for attempt in 1 2 3 4 5; do
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              echo "Release $GITHUB_REF_NAME already exists"
+              exit 0
+            fi
+            if gh release create "$GITHUB_REF_NAME" \
               --target "$GITHUB_SHA" \
               --title "Launcher $GITHUB_REF_NAME" \
-              --generate-notes
-          fi
+              --generate-notes 2>/dev/null; then
+              echo "Created release $GITHUB_REF_NAME"
+              exit 0
+            fi
+            echo "Попытка $attempt создать релиз не удалась (гонка leg?), ждём 3с"
+            sleep 3
+          done
+          echo "ERROR: не удалось создать релиз $GITHUB_REF_NAME" >&2
+          exit 1
 
       - name: "⑦ Wait for token"
         if: startsWith(github.ref, 'refs/tags/')
@@ -215,11 +228,13 @@ jobs:
           fetch-depth: 1
       - name: Publish launcher-stable metadata
         shell: bash
+        env:
+          META_DIR: ${{ runner.temp }}/launcher-meta
         run: |
-          mkdir -p "$RUNNER_TEMP/launcher-meta"
+          mkdir -p "$META_DIR"
           gh release download "$GITHUB_REF_NAME" \
             --pattern latest.json \
-            --dir "$RUNNER_TEMP/launcher-meta" \
+            --dir "$META_DIR" \
             --clobber
           # Гонка платформ: каждая leg матрицы пишет latest.json поверх чужой
           # (read-modify-write), и параллельные записи могут потерять платформы.
@@ -227,8 +242,9 @@ jobs:
           # windows; иначе останавливаем релиз, а не отдаём клиентам битый
           # апдейтер (v0.11.4 уехал без darwin именно так).
           python3 - <<'PY'
-          import json, sys
-          data = json.load(open("$RUNNER_TEMP/launcher-meta/latest.json"))
+          import json, os, sys
+          path = os.path.join(os.environ["META_DIR"], "latest.json")
+          data = json.load(open(path))
           families = {p.split("-")[0] for p in data.get("platforms", {})}
           missing = {"darwin", "linux", "windows"} - families
           if missing:
@@ -244,4 +260,4 @@ jobs:
               --notes "Stable updater metadata alias for launcher releases."
           fi
           gh release upload launcher-stable \
-            "$RUNNER_TEMP/launcher-meta/latest.json" --clobber
+            "$META_DIR/latest.json" --clobber
