@@ -60,7 +60,18 @@ pub fn run() {
         // The plugin is registered in every build. Stable and test channels use
         // signed Tauri updates; the legacy Rust updater remains available as an
         // emergency rollback and migration path for old installed clients.
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        //
+        // Cache-Control: no-cache — GitHub CDN кеширует latest.json на ~5
+        // минут; после публикации релиза старый установленный клиент мог
+        // получить закешированную СТАРУЮ версию JSON и не увидеть обновление
+        // (инцидент 0.11.8: alias обновили, а клиент при старте получил кеш).
+        // no-cache заставляет промежуточные кеши ревалидироваться у origin.
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .header(reqwest::header::CACHE_CONTROL, "no-cache")
+                .expect("static header value is always valid")
+                .build(),
+        )
         .setup(|app| {
             commands::bootstrap(app.handle())?;
 

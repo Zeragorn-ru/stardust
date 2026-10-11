@@ -228,7 +228,11 @@ export default function App() {
           setAutoInstallUpdate(!busyNow && !updateModal.visible);
           setUpdate(info);
         }
-      } catch { /* ignore */ } finally { checking = false; }
+      } catch (err) {
+        // Диагностика: иначе ошибки проверки обновлений исчезают молча и
+        // «лаунчер не видит релиз» приходится отлаживать вслепую.
+        console.error("[update] проверка не удалась:", err);
+      } finally { checking = false; }
     }
     runCheck();
     const timer = window.setInterval(runCheck, 30 * 60 * 1000);
