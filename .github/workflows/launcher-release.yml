@@ -93,7 +93,10 @@ jobs:
 
       # Параллельные leg создают релиз одновременно: 422 already_exists в окне
       # между view и create — ретраим, релиз в итоге видят все legs.
-      - name: "⑦ Create stable release"
+      # Каждый новый релиз лаунчера стартует как pre-release: GitHub сам
+      # исключает pre-release из указателя latest. Продвижение в stable
+      # выполняется позже из админ-панели (не в этом workflow).
+      - name: "⑦ Create pre-release"
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
@@ -104,6 +107,7 @@ jobs:
             fi
             if gh release create "$GITHUB_REF_NAME" \
               --target "$GITHUB_SHA" \
+              --prerelease \
               --title "Launcher $GITHUB_REF_NAME" \
               --generate-notes 2>/dev/null; then
               echo "Created release $GITHUB_REF_NAME"
@@ -214,6 +218,9 @@ jobs:
   # Keep updater metadata on a dedicated release. The GitHub `latest` release
   # is also used by other artifacts (for example authlib-injector), so it is
   # not a stable updater endpoint.
+  # Метаданные апдейтера теперь живут в alias launcher-beta: сюда публикуется
+  # каждый новый pre-release. Alias launcher-stable обновляется отдельным
+  # действием из админ-панели при продвижении релиза в stable.
   publish-updater-alias:
     if: startsWith(github.ref, 'refs/tags/')
     needs: release
@@ -226,7 +233,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      - name: Publish launcher-stable metadata
+      # Alias launcher-beta держит метаданные бета-апдейтера (legacy Rust flow).
+      # Alias launcher-stable больше не трогаем: он обновляется действием
+      # продвижения релиза из админ-панели, когда pre-release повышают до
+      # stable.
+      - name: Publish launcher-beta metadata
         shell: bash
         env:
           META_DIR: ${{ runner.temp }}/launcher-meta
@@ -254,10 +265,10 @@ jobs:
               sys.exit(1)
           print(f"latest.json OK: {len(data.get('platforms', {}))} платформ, семейства {sorted(families)}")
           PY
-          if ! gh release view launcher-stable >/dev/null 2>&1; then
-            gh release create launcher-stable \
-              --title "StarDust Launcher (stable updater)" \
-              --notes "Stable updater metadata alias for launcher releases."
+          if ! gh release view launcher-beta >/dev/null 2>&1; then
+            gh release create launcher-beta \
+              --title "StarDust Launcher (beta updater)" \
+              --notes "Beta updater metadata alias for launcher releases."
           fi
-          gh release upload launcher-stable \
+          gh release upload launcher-beta \
             "$META_DIR/latest.json" --clobber
