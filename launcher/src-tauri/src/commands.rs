@@ -63,6 +63,13 @@ pub struct Settings {
     /// Админский режим: не синхронизировать и не проверять локальную сборку.
     #[serde(rename = "skipBuildCheck", alias = "disableAllMods", default)]
     pub skip_build_check: bool,
+    /// Автообновление лаунчера: периодически проверять и устанавливать
+    /// обновления без участия пользователя.
+    #[serde(rename = "autoUpdate", default = "default_true")]
+    pub auto_update: bool,
+    /// Бета-канал обновлений: устанавливать pre-release версии лаунчера.
+    #[serde(rename = "betaUpdates", default)]
+    pub beta_updates: bool,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -151,6 +158,8 @@ impl Default for Settings {
             java_provider: JavaProvider::default(),
             java_custom_path: None,
             skip_build_check: false,
+            auto_update: true,
+            beta_updates: false,
         }
     }
 }
@@ -499,6 +508,10 @@ mod settings_tests {
             assert_eq!(settings.memory_mb, MEMORY_MIN_MB);
             assert_eq!(settings.download_concurrency, 6);
             assert!(!settings.show_3d_model);
+            // Старый settings.json без ключей автообновления должен
+            // десериализоваться: autoUpdate = true, betaUpdates = false.
+            assert!(settings.auto_update);
+            assert!(!settings.beta_updates);
             assert_eq!(settings.java_provider, JavaProvider::Temurin);
             assert_eq!(settings.java_custom_path, None);
             match proxy {
@@ -523,6 +536,24 @@ mod settings_tests {
         let serialized = serde_json::to_value(settings).expect("settings must serialize");
         assert_eq!(serialized["skipBuildCheck"], true);
         assert!(serialized.get("disableAllMods").is_none());
+    }
+
+    #[test]
+    fn update_channel_fields_roundtrip_camel_case() {
+        // Имена полей должны совпадать с TS-типом Settings (autoUpdate,
+        // betaUpdates), иначе фронтенд прочитает undefined.
+        let settings = parse(json!({
+            "memoryMb": 8192,
+            "proxyType": "system",
+            "autoUpdate": false,
+            "betaUpdates": true,
+        }));
+        assert!(!settings.auto_update);
+        assert!(settings.beta_updates);
+
+        let serialized = serde_json::to_value(&settings).expect("settings must serialize");
+        assert_eq!(serialized["autoUpdate"], false);
+        assert_eq!(serialized["betaUpdates"], true);
     }
 
     #[test]
@@ -1393,6 +1424,34 @@ async fn save_settings(
 #[tauri::command]
 async fn get_memory_limits() -> MemoryLimits {
     memory_limits()
+}
+
+/// Включить/выключить автообновление лаунчера.
+#[tauri::command]
+async fn set_auto_update(
+    enabled: bool,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let mut settings = read_settings(&app);
+    settings.auto_update = enabled;
+    write_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = Some(settings);
+    Ok(())
+}
+
+/// Включить/выключить бета-канал обновлений (pre-release версии).
+#[tauri::command]
+async fn set_beta_updates(
+    enabled: bool,
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<(), String> {
+    let mut settings = read_settings(&app);
+    settings.beta_updates = enabled;
+    write_settings(&app, &settings)?;
+    *state.settings.lock().unwrap() = Some(settings);
+    Ok(())
 }
 
 #[tauri::command]
@@ -3186,6 +3245,12 @@ fn restart_after_update(app: AppHandle) {
     app.request_restart();
 }
 
+/// Публичная обёртка для вызова из update.rs (signed_install_update):
+/// та же команда, но доступная из соседнего модуля.
+pub(crate) fn restart_after_update_pub(app: AppHandle) {
+    restart_after_update(app)
+}
+
 #[tauri::command]
 async fn set_active_customization(
     app: tauri::AppHandle,
@@ -3249,6 +3314,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             get_settings,
             save_settings,
             get_memory_limits,
+            set_auto_update,
+            set_beta_updates,
             reset_settings,
             list_java_installations,
             list_java_installations_deep,
@@ -3288,6 +3355,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             set_mod_profile,
             crate::update::check_update,
             crate::update::install_update,
+            crate::update::signed_check_update,
+            crate::update::signed_install_update,
             restart_after_update,
             ping_minecraft_server,
             get_customization,

@@ -57,6 +57,8 @@ const FALLBACK_SETTINGS: Settings = {
   javaProvider: "temurin",
   javaCustomPath: null,
   skipBuildCheck: false,
+  autoUpdate: true,
+  betaUpdates: false,
 };
 
 // Ключи для dev-фолбэка в браузере.
@@ -441,6 +443,20 @@ export async function saveSettings(settings: Settings): Promise<void> {
   await invoke<void>("save_settings", { settings });
 }
 
+/** Включить/выключить автообновление лаунчера. */
+export async function setAutoUpdate(enabled: boolean): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) return;
+  await invoke<void>("set_auto_update", { enabled });
+}
+
+/** Включить/выключить бета-канал обновлений лаунчера. */
+export async function setBetaUpdates(enabled: boolean): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) return;
+  await invoke<void>("set_beta_updates", { enabled });
+}
+
 /** Допустимый диапазон памяти JVM для текущего компьютера. */
 export async function getMemoryLimits(): Promise<MemoryLimits> {
   const invoke = await getInvoke();
@@ -660,61 +676,32 @@ export async function setModProfile(
 /**
  * Stable builds use Tauri's signed updater. The private test channel uses the
  * same implementation; `legacy` is retained only for emergency rollback and
- * local compatibility testing.
+ * local compatibility testing. Канал (stable/beta) и прокси выбираются
+ * Rust-командами signed_*: плагиновый JS-API не умеет переопределять
+ * endpoints, а UpdaterExt в Rust — умеет.
  */
 const LAUNCHER_UPDATE_CHANNEL =
   import.meta.env.VITE_LAUNCHER_UPDATE_CHANNEL || "stable";
 const SIGNED_UPDATER_ENABLED =
   LAUNCHER_UPDATE_CHANNEL === "stable" || LAUNCHER_UPDATE_CHANNEL === "tauri-test";
 
-export const usesSignedUpdaterTestChannel = LAUNCHER_UPDATE_CHANNEL === "tauri-test";
-
-/**
- * Прокси для signed-апдейтера из настроек лаунчера. `undefined` = системный
- * (env) — дефолт плагина; "none" = явное отключение через no_proxy-семантику
- * не поддерживается в CheckOptions, отдаём undefined.
- */
-async function updaterProxyUrl(): Promise<string | undefined> {
-  try {
-    const settings = await getSettings();
-    switch (settings.proxyType) {
-      case "builtin":
-        return "http://assets.zeragorn.xyz:3128";
-      case "builtinSocks":
-        return "socks5h://assets.zeragorn.xyz:1080";
-      // "system" и "none" — плагин сам решает (env-прокси либо без прокси
-      // в среде); отдельного no-proxy флага в CheckOptions нет.
-      default:
-        return undefined;
-    }
-  } catch {
-    return undefined;
-  }
-}
-
 /** Проверить наличие обновления лаунчера. */
 export async function checkUpdate(): Promise<UpdateInfo> {
+  // Подписанный апдейтер: endpoint канала (stable/beta) и прокси подставляет
+  // Rust-команда signed_check_update. Legacy-путь (check_update) оставлен
+  // только как аварийный откат на сборках без плагина.
   if (SIGNED_UPDATER_ENABLED) {
-    const { check } = await import("@tauri-apps/plugin-updater");
-    // Updater-плагин строит собственный reqwest-клиент и не видит настройки
-    // лаунчера: без явного proxy юзеры за builtin-прокси получают молчаливый
-    // отказ (github.com недоступен, ошибка глотается в App.tsx).
-    const update = await check({ proxy: await updaterProxyUrl() });
-    if (!update) {
-      const appInfo = await getAppInfo();
+    const invoke = await getInvoke();
+    if (!invoke) {
+      await delay(400);
       return {
         available: false,
-        currentVersion: appInfo.version,
+        currentVersion: "0.1.0",
         version: null,
         notes: null,
       };
     }
-    return {
-      available: true,
-      currentVersion: update.currentVersion,
-      version: update.version,
-      notes: update.body ?? null,
-    };
+    return invoke<UpdateInfo>("signed_check_update");
   }
 
   const invoke = await getInvoke();
@@ -732,69 +719,14 @@ export async function checkUpdate(): Promise<UpdateInfo> {
 
 /** Скачать и установить обновление, затем перезапустить лаунчер. */
 export async function installUpdate(): Promise<void> {
+  // Подписанный апдейтер: канал (stable/beta) выбирает Rust-команда
+  // signed_install_update, прогресс приходит событиями
+  // launcher://update-progress (app.emit). Legacy-путь (install_update)
+  // — аварийный откат на сборках без плагина.
   if (SIGNED_UPDATER_ENABLED) {
-    const { check } = await import("@tauri-apps/plugin-updater");
-    // Тот же прокси, что и в checkUpdate — качать тоже надо через него.
-    const update = await check({ proxy: await updaterProxyUrl() });
-    if (!update) throw new Error("Обновление больше недоступно");
-
-    let downloaded = 0;
-    await update.downloadAndInstall((event) => {
-      if (event.event === "Started") {
-        downloaded = 0;
-        window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
-          detail: {
-            phase: "downloading_installer",
-            label: "Скачивание подписанного обновления",
-            fraction: 0,
-            downloadedBytes: 0,
-            totalBytes: event.data.contentLength ?? null,
-            speedBytesPerSec: null,
-            etaSeconds: null,
-          },
-        }));
-      } else if (event.event === "Progress") {
-        downloaded += event.data.chunkLength;
-        window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
-          detail: {
-            phase: "downloading_installer",
-            label: "Скачивание подписанного обновления",
-            fraction: null,
-            downloadedBytes: downloaded,
-            totalBytes: null,
-            speedBytesPerSec: null,
-            etaSeconds: null,
-          },
-        }));
-      } else {
-        window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
-          detail: {
-            phase: "launching",
-            label: "Обновление загружено, устанавливаем…",
-            fraction: 1,
-            downloadedBytes: downloaded,
-            totalBytes: downloaded,
-            speedBytesPerSec: null,
-            etaSeconds: null,
-          },
-        }));
-      }
-    });
-
-    window.dispatchEvent(new CustomEvent<UpdateProgress>("launcher://update-progress", {
-      detail: {
-        phase: "launching",
-        label: "Обновление установлено. Перезапускаем лаунчер…",
-        fraction: 1,
-        downloadedBytes: downloaded,
-        totalBytes: downloaded,
-        speedBytesPerSec: null,
-        etaSeconds: null,
-      },
-    }));
     const invoke = await getInvoke();
-    if (!invoke) throw new Error("Не удалось перезапустить лаунчер после обновления");
-    await invoke<void>("restart_after_update");
+    if (!invoke) throw new Error("Обновление недоступно в браузерном режиме");
+    await invoke<void>("signed_install_update");
     return;
   }
 
@@ -807,19 +739,16 @@ export async function installUpdate(): Promise<void> {
 export async function onUpdateProgress(
   handler: (progress: UpdateProgress) => void,
 ): Promise<() => void> {
-  if (SIGNED_UPDATER_ENABLED) {
-    const listener = (event: Event) => {
-      handler((event as CustomEvent<UpdateProgress>).detail);
-    };
-    window.addEventListener("launcher://update-progress", listener);
-    return () => window.removeEventListener("launcher://update-progress", listener);
-  }
-
+  // Прогресс шлут оба Rust-пути (signed и legacy) одним событием
+  // launcher://update-progress через app.emit, слушаем plugin-канал.
   try {
     const mod = await import("@tauri-apps/api/event");
-    return mod.listen<UpdateProgress>("launcher://update-progress", (event) => {
+    const unlisten = await mod.listen<UpdateProgress>("launcher://update-progress", (event) => {
       handler(event.payload);
     });
+    return () => {
+      void unlisten();
+    };
   } catch {
     return () => undefined;
   }

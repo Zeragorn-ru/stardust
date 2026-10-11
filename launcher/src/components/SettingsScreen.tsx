@@ -241,7 +241,8 @@ export default function SettingsScreen({
       (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) !==
         (initialSettings.javaProvider ?? DEFAULT_JAVA_PROVIDER) ||
       (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? "") ||
-      settings.skipBuildCheck !== initialSettings.skipBuildCheck);
+      settings.skipBuildCheck !== initialSettings.skipBuildCheck ||
+      settings.autoUpdate !== initialSettings.autoUpdate);
 
   useEffect(() => {
     if (!settings || !initialSettings || !isDirty) return;
@@ -306,6 +307,15 @@ export default function SettingsScreen({
       setUpdateError(e instanceof Error ? e.message : String(e));
       setUpdateStatus("error");
     }
+  }
+
+  /** Ручная проверка из секции «О лаунчере»: App.tsx слушает событие
+   * launcher://check-update и форсирует опрос даже при выключенном
+   * автообновлении; локальную проверку запускаем параллельно, чтобы карточка
+   * обновлений в настройках показала результат. */
+  function handleManualCheckUpdate() {
+    window.dispatchEvent(new CustomEvent("launcher://check-update"));
+    void handleCheckUpdate();
   }
 
   async function handleInstallUpdate() {
@@ -705,7 +715,7 @@ export default function SettingsScreen({
                 <button
                   type="button"
                   className="btn btn--ghost"
-                  onClick={handleCheckUpdate}
+                  onClick={handleManualCheckUpdate}
                   disabled={
                     updateStatus === "checking" || updateStatus === "installing"
                   }
@@ -713,6 +723,28 @@ export default function SettingsScreen({
                   {updateStatus === "checking"
                     ? "Проверка…"
                     : "Проверить обновления"}
+                </button>
+              </div>
+
+              <div className="toggle-row">
+                <div className="toggle-row__text">
+                  <span className="toggle-row__title">Автообновление лаунчера</span>
+                  <span className="muted toggle-row__desc">
+                    Проверять и устанавливать обновления автоматически
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-label="Автообновление лаунчера"
+                  aria-checked={settings?.autoUpdate ?? true}
+                  className={"switch" + ((settings?.autoUpdate ?? true) ? " switch--on" : "")}
+                  onClick={() =>
+                    settings &&
+                    setSettings({ ...settings, autoUpdate: !settings.autoUpdate })
+                  }
+                >
+                  <span className="switch__knob" />
                 </button>
               </div>
 

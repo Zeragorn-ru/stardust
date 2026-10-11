@@ -129,6 +129,10 @@ export interface Settings {
   javaCustomPath?: string | null;
   /** Админский режим: не синхронизировать локальную сборку перед запуском. */
   skipBuildCheck: boolean;
+  /** Проверять и устанавливать обновления лаунчера автоматически. */
+  autoUpdate: boolean;
+  /** Устанавливать pre-release (бета) версии лаунчера. */
+  betaUpdates: boolean;
 }
 
 /** Режим запуска лаунчера. */

@@ -30,6 +30,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 sysinfo = "0.33"
+url = "2"
 hickory-resolver = { version = "0.25", default-features = false, features = ["tokio", "system-config"] }
 rfd = "0.15"
 

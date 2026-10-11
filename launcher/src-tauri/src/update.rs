@@ -203,15 +203,23 @@ fn is_release_ready(release: &GhRelease) -> bool {
 
 /// Ищет первый релиз, который новее текущей версии и готов к скачиванию
 /// (есть установщик + bootstrap.exe). Релизы идут от нового к старому.
+///
+/// Режим бета-канала (settings.betaUpdates): все новые релизы публикуются
+/// как GitHub pre-releases, стабильными их делает админ-панель позже.
+/// Поэтому при включённом бета-режиме pre-release тоже считаем кандидатом
+/// (те же проверки готовности ассетов), а при выключенном — пропускаем,
+/// как и раньше: стабильные клиенты не должны получать вручную
+/// опубликованные pre-release, включая подписной тест-канал Tauri updater.
 async fn find_update_release(
     app: &AppHandle,
     current_version: &str,
 ) -> Result<Option<GhRelease>, String> {
+    let beta_updates = crate::commands::read_settings(app).beta_updates;
     let releases = fetch_releases(app).await?;
     for release in releases {
         // Stable clients must never consume manually published prereleases,
         // including the signed Tauri updater test channel.
-        if !is_stable_release(&release) {
+        if !beta_updates && !is_stable_release(&release) {
             continue;
         }
         let tag = normalize(&release.tag_name);
@@ -814,6 +822,174 @@ fn find_update_script() -> Option<std::path::PathBuf> {
         std::path::PathBuf::from(format!("/opt/stardust-launcher/{name}")),
     ];
     candidates.into_iter().find(|p| p.exists())
+}
+
+// ─── Подписанный апдейтер (tauri-plugin-updater) с выбором канала ───────────
+//
+// Стабильные и бета-клиенты обновляются одинаково — через подписанный
+// Tauri-апдейтер. Разница только в endpoint'е:
+//   stable -> алиас-релиз launcher-stable (latest.json обновляется при
+//             «выкате в стабильный релиз» из админ-панели),
+//   beta   -> алиас-релиз launcher-beta   (latest.json публикует CI сразу
+//             при создании pre-release релиза).
+// Бета-канал видит pre-release версии: semver-сравнение апдейтера строгое
+// (`release.version > current`), поэтому свежий pre-release 0.12.0 будет
+// предложен клиенту 0.11.8, а стабильная 0.11.8 — нет.
+
+const STABLE_UPDATER_ENDPOINT: &str =
+    "https://github.com/Zeragorn-ru/stardust/releases/download/launcher-stable/latest.json";
+const BETA_UPDATER_ENDPOINT: &str =
+    "https://github.com/Zeragorn-ru/stardust/releases/download/launcher-beta/latest.json";
+
+/// Строит апдейтер плагина с endpoint'ом текущего канала и прокси из
+/// настроек лаунчера (апдейтер живёт в собственном reqwest-клиенте и
+/// настроек не видит — как и в JS-пути, прокси задаём явно).
+fn signed_updater(
+    app: &AppHandle,
+) -> Result<tauri_plugin_updater::Updater, tauri_plugin_updater::Error> {
+    use tauri_plugin_updater::UpdaterExt;
+
+    let settings = crate::commands::read_settings(app);
+    let endpoint = if settings.beta_updates {
+        BETA_UPDATER_ENDPOINT
+    } else {
+        STABLE_UPDATER_ENDPOINT
+    };
+    let url = url::Url::parse(endpoint).expect("статический endpoint валиден");
+
+    let mut builder = app.updater_builder().endpoints(vec![url])?;
+    match settings.proxy_type {
+        crate::commands::ProxyType::System => {}
+        crate::commands::ProxyType::Builtin => {
+            builder = builder.proxy(
+                url::Url::parse("http://assets.zeragorn.xyz:3128")
+                    .expect("валидный прокси-URL"),
+            );
+        }
+        crate::commands::ProxyType::BuiltinSocks => {
+            builder = builder.proxy(
+                url::Url::parse("socks5h://assets.zeragorn.xyz:1080")
+                    .expect("валидный прокси-URL"),
+            );
+        }
+        crate::commands::ProxyType::None => {
+            builder = builder.no_proxy();
+        }
+    }
+    builder.build()
+}
+
+/// Проверка обновления через плагиновый апдейтер с endpoint'ом канала
+/// из настроек (см. signed_updater).
+#[tauri::command]
+pub async fn signed_check_update(app: AppHandle) -> Result<UpdateInfo, String> {
+    let updater = signed_updater(&app).map_err(|e| e.to_string())?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(UpdateInfo {
+            available: true,
+            current_version: update.current_version.clone(),
+            version: Some(update.version.clone()),
+            notes: update.body.clone(),
+        }),
+        Ok(None) => Ok(UpdateInfo {
+            available: false,
+            current_version: app.package_info().version.to_string(),
+            version: None,
+            notes: None,
+        }),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Скачать и установить обновление через подписанный апдейтер.
+/// Прогресс транслируется в те же события `launcher://update-progress`,
+/// что слушает UI (фаза downloading_installer, затем launching).
+#[tauri::command]
+pub async fn signed_install_update(app: AppHandle) -> Result<(), String> {
+    let updater = signed_updater(&app).map_err(|e| e.to_string())?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Обновление больше недоступно".to_string())?;
+
+    emit_progress(
+        &app,
+        &UpdateProgress {
+            phase: "downloading_installer".into(),
+            label: "Скачивание подписанного обновления".into(),
+            fraction: Some(0.0),
+            downloaded_bytes: Some(0),
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
+        },
+    );
+
+    let mut downloaded: u64 = 0;
+    update
+        .download_and_install(
+            |chunk, total| {
+                if downloaded == 0 && total.is_some() {
+                    emit_progress(
+                        &app,
+                        &UpdateProgress {
+                            phase: "downloading_installer".into(),
+                            label: "Скачивание подписанного обновления".into(),
+                            fraction: Some(0.02),
+                            downloaded_bytes: Some(0),
+                            total_bytes: total,
+                            speed_bytes_per_sec: None,
+                            eta_seconds: None,
+                        },
+                    );
+                }
+                downloaded += chunk as u64;
+                emit_progress(
+                    &app,
+                    &UpdateProgress {
+                        phase: "downloading_installer".into(),
+                        label: "Скачивание подписанного обновления".into(),
+                        fraction: None,
+                        downloaded_bytes: Some(downloaded),
+                        total_bytes: None,
+                        speed_bytes_per_sec: None,
+                        eta_seconds: None,
+                    },
+                );
+            },
+            || {
+                emit_progress(
+                    &app,
+                    &UpdateProgress {
+                        phase: "launching".into(),
+                        label: "Обновление загружено, устанавливаем…".into(),
+                        fraction: Some(1.0),
+                        downloaded_bytes: None,
+                        total_bytes: None,
+                        speed_bytes_per_sec: None,
+                        eta_seconds: None,
+                    },
+                );
+            },
+        )
+        .await
+        .map_err(|e| e.to_string())?;
+
+    emit_progress(
+        &app,
+        &UpdateProgress {
+            phase: "launching".into(),
+            label: "Обновление установлено. Перезапускаем лаунчер…".into(),
+            fraction: Some(1.0),
+            downloaded_bytes: None,
+            total_bytes: None,
+            speed_bytes_per_sec: None,
+            eta_seconds: None,
+        },
+    );
+    crate::commands::restart_after_update_pub(app);
+    Ok(())
 }
 
 // ─── Tauri commands ─────────────────────────────────────────────────────────

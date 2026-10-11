@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DataDirectoryInfo, PlayerProfile, Progress, UpdateInfo } from "./types";
-import { checkUpdate, closeWindow, currentProfile, gameRunning, getDataDirectoryInfo, logout, onLauncherProgress } from "./api";
+import { checkUpdate, closeWindow, currentProfile, gameRunning, getDataDirectoryInfo, getSettings, logout, onLauncherProgress } from "./api";
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { isMac, isModKey } from "./platform";
 import { useSkin } from "./skin";
@@ -211,21 +211,35 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     let checking = false;
-    async function runCheck() {
+    async function runCheck(manual = false) {
       if (checking) return;
       checking = true;
       try {
+        // Настройку перечитываем на каждом опросе: выключение автообновления
+        // в настройках должно применяться без перезапуска лаунчера.
+        // Ручная проверка (manual) идёт мимо этого гейта.
+        if (!manual) {
+          try {
+            const settings = await getSettings();
+            if (!settings.autoUpdate) return;
+          } catch {
+            // Не прочитали настройки — считаем автообновление включённым,
+            // чтобы проблема чтения не отключала проверки молча.
+          }
+        }
         const info = await checkUpdate();
         // Найдено обновление во время игры/загрузки: автоустановка НЕ включаем —
         // она перезапускает лаунчер поверх Minecraft и рвёт активные загрузки.
         // Показываем модалку с ручной кнопкой; автоустановка произойдёт при
         // следующем спокойном опросе (когда running/busy сбросятся).
+        // Ручная проверка (manual) тоже не автоустанавливает: пользователь
+        // с выключенным автообновлением запросил именно проверку, а не установку.
         const busyNow =
           runningRef.current ||
           (progressRef.current != null &&
             ["checking", "downloading", "extracting", "launching"].includes(progressRef.current.phase));
         if (!cancelled && info.available && info.version !== dismissedUpdateVersion.current) {
-          setAutoInstallUpdate(!busyNow && !updateModal.visible);
+          setAutoInstallUpdate(!manual && !busyNow && !updateModal.visible);
           setUpdate(info);
         }
       } catch (err) {
@@ -235,8 +249,15 @@ export default function App() {
       } finally { checking = false; }
     }
     runCheck();
-    const timer = window.setInterval(runCheck, 30 * 60 * 1000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    const timer = window.setInterval(() => void runCheck(), 30 * 60 * 1000);
+    // Ручная проверка из настроек: форсируем опрос независимо от autoUpdate.
+    const onManualCheck = () => void runCheck(true);
+    window.addEventListener("launcher://check-update", onManualCheck);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("launcher://check-update", onManualCheck);
+    };
   }, [updateModal.visible]);
 
   function finishOnboarding() { setOnboarded(); navigate("login"); }
