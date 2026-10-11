@@ -9,12 +9,25 @@ cd "$root"
 
 title="Launcher $tag"
 
-if ! gh release view "$tag" >/dev/null 2>&1; then
-  gh release create "$tag" --title "$title" --generate-notes
-  echo "Created release $tag"
-else
-  echo "Release $tag already exists"
-fi
+# Параллельные leg матрицы создают релиз одновременно: gh release create
+# может получить 422 (already_exists) между view и create. Ретраим с
+# повторной проверкой — после первой итерации все увидят один релиз.
+for attempt in 1 2 3; do
+  if gh release view "$tag" >/dev/null 2>&1; then
+    echo "Release $tag already exists"
+    break
+  fi
+  if gh release create "$tag" --title "$title" --generate-notes 2>/dev/null; then
+    echo "Created release $tag"
+    break
+  fi
+  echo "Попытка $attempt создать релиз не удалась (гонка?), ждём 5с"
+  sleep 5
+done
+gh release view "$tag" >/dev/null 2>&1 || {
+  echo "ERROR: не удалось создать релиз $tag" >&2
+  exit 1
+}
 
 if [ ! -d dist/launcher-bundles ] || [ -z "$(ls -A dist/launcher-bundles 2>/dev/null)" ]; then
   "$root/scripts/ci/collect-launcher-bundles.sh"

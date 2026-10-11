@@ -7,6 +7,13 @@ on:
   push:
     branches: [master]
   pull_request:
+    # PR гоняет только задетые пакеты — полный прогон остаётся на push в master.
+    paths:
+      - "launcher/**"
+      - "crates/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - ".github/workflows/ci.yml"
   workflow_dispatch:
     inputs:
       target:
@@ -67,6 +74,7 @@ jobs:
         with:
           workspaces: ". -> target"
           shared-key: launcher-ci
+          cache-all-crates: true
           cache-on-failure: true
       - name: Install frontend deps
         working-directory: launcher
@@ -74,6 +82,8 @@ jobs:
       - name: Frontend build
         working-directory: launcher
         run: npm run build
+      - name: Test
+        run: cargo test -p launcher
       - name: Clippy
         run: cargo clippy -p launcher --profile launcher-release -- -D warnings
 
@@ -106,6 +116,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle
       - name: Build
         working-directory: stardust-mod
         run: ./gradlew build

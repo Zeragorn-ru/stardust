@@ -1,11 +1,29 @@
 name: Launcher — Wait for GitHub token
 description: |
-  Пауза 15 с после создания тега — GitHub иногда не сразу отдаёт права
-  GITHUB_TOKEN для tauri-action / gh release upload.
+  Ждёт, пока GitHub начнёт отдавать права GITHUB_TOKEN после создания тега
+  (проверка gh release view с ретраем вместо слепого sleep 15:
+  обычно токен готов за 1-2с, лимит 30с на случай медленного propagation).
 
 runs:
   using: composite
   steps:
-    - name: sleep 15
+    - name: poll token readiness
       shell: bash
-      run: sleep 15
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        # Если релиза ещё нет — токен считается «готовым», его создаст шаг ⑦.
+        for i in $(seq 1 15); do
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME доступен (попытка $i)"
+            exit 0
+          fi
+          # 404 = релиза ещё нет (нормально) — это не говорит о неготовности
+          # токена; считаем токен готовым сразу в этом случае.
+          if ! gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Релиза ещё нет — создаст шаг ⑦, токен считаем готовым"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "Release доступен после ${i} попыток — продолжаем"

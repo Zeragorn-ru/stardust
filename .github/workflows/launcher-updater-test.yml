@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Install Rust and Node toolchains
         uses: dtolnay/rust-toolchain@stable
@@ -43,6 +43,14 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: launcher/package-lock.json
+      # Кеш rust здесь раньше отсутствовал вовсе — каждый тест канала
+      # пересобирал ~700 крейтов с нуля.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          shared-key: launcher-updater-test
+          cache-all-crates: true
+          cache-on-failure: true
 
       - name: Install dependencies
         working-directory: launcher

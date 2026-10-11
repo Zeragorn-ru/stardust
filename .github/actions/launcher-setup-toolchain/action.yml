@@ -35,16 +35,14 @@ runs:
       shell: bash
       run: rustup target add x86_64-apple-darwin
 
+    # cache-all-crates кеширует ПОЗАКЕШНО: bump одной зависимости в Cargo.lock
+    # инвалидирует только её запись, а не весь кеш (раньше hash всего lock
+    # в ключе превращал каждый релизный бамп версии в полный ремисс: ~350
+    # перекачек и ~700 компиляций на macOS).
     - uses: Swatinem/rust-cache@v2
       with:
         workspaces: ". -> target"
         shared-key: launcher-${{ inputs.cache-key-suffix }}-${{ inputs.platform }}
+        cache-all-crates: true
         save-if: ${{ inputs.save-cache == 'true' }}
         cache-on-failure: true
-
-    - name: npm node_modules cache
-      uses: actions/cache@v4
-      with:
-        path: launcher/node_modules
-        key: npm-${{ inputs.platform }}-${{ hashFiles('launcher/package-lock.json') }}
-        restore-keys: npm-${{ inputs.platform }}-

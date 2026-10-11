@@ -55,7 +55,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # Полная история не нужна: release notes генерирует GitHub API по тегу,
+          # скрипты используют только рабочее дерево.
+          fetch-depth: 1
 
       - name: "① Linux deps"
         if: matrix.platform == 'linux'
@@ -71,7 +73,10 @@ jobs:
       - name: "③ npm ci"
         uses: ./.github/actions/launcher-install-deps
 
+      # Clippy на релизном теге — дублирование: тот же коммит уже прошёл
+      # cargo clippy в ci.yml (push/PR в master). Экономит 1-3 мин на leg.
       - name: "④ Clippy"
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: ./.github/actions/launcher-clippy
 
       - name: "⑤ Bootstrap (Windows)"
@@ -177,23 +182,6 @@ jobs:
             echo "Bundled update-macos.sh in $RESOURCES"
           fi
 
-      - name: "⑩ Create .app.zip (macOS)"
-        if: matrix.id == 'macos'
-        run: |
-          # Find .app bundle in target directory.
-          APP_PATH=$(find target -path '*/bundle/macos/*.app' -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "WARNING: .app bundle not found, skipping .app.zip"
-            exit 0
-          fi
-          APP_NAME=$(basename "$APP_PATH" .app)
-          ZIP_NAME="${APP_NAME}.app.zip"
-          echo "Creating $ZIP_NAME from $APP_PATH"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_NAME"
-          mkdir -p dist/launcher-bundles
-          cp "$ZIP_NAME" dist/launcher-bundles/
-          echo "Created $ZIP_NAME ($(du -h "$ZIP_NAME" | cut -f1))"
-
       - name: "⑪ Collect bundles"
         if: always()
         uses: ./.github/actions/launcher-collect-bundles
@@ -233,6 +221,23 @@ jobs:
             --pattern latest.json \
             --dir "$RUNNER_TEMP/launcher-meta" \
             --clobber
+          # Гонка платформ: каждая leg матрицы пишет latest.json поверх чужой
+          # (read-modify-write), и параллельные записи могут потерять платформы.
+          # Проверяем, что json содержит все три семейства — darwin, linux,
+          # windows; иначе останавливаем релиз, а не отдаём клиентам битый
+          # апдейтер (v0.11.4 уехал без darwin именно так).
+          python3 - <<'PY'
+          import json, sys
+          data = json.load(open("$RUNNER_TEMP/launcher-meta/latest.json"))
+          families = {p.split("-")[0] for p in data.get("platforms", {})}
+          missing = {"darwin", "linux", "windows"} - families
+          if missing:
+              platforms = sorted(data.get("platforms", {}).keys())
+              print(f"latest.json неполный: нет семейств {sorted(missing)}")
+              print(f"Присутствующие платформы: {platforms}")
+              sys.exit(1)
+          print(f"latest.json OK: {len(data.get('platforms', {}))} платформ, семейства {sorted(families)}")
+          PY
           if ! gh release view launcher-stable >/dev/null 2>&1; then
             gh release create launcher-stable \
               --title "StarDust Launcher (stable updater)" \

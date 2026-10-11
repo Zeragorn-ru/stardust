@@ -34,6 +34,7 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
+      # Ручной запуск с выбором платформы собирает только её (all — все три).
       matrix:
         include:
           - id: windows
@@ -48,6 +49,10 @@ jobs:
             platform: macos
             runner: macos-latest
             tauri-args: "--target universal-apple-darwin"
+        exclude:
+          - id: ${{ (github.event.inputs.platform != 'all' && github.event.inputs.platform != '' && github.event.inputs.platform != 'windows') && 'windows' || 'skip-never' }}
+          - id: ${{ (github.event.inputs.platform != 'all' && github.event.inputs.platform != '' && github.event.inputs.platform != 'linux') && 'linux' || 'skip-never' }}
+          - id: ${{ (github.event.inputs.platform != 'all' && github.event.inputs.platform != '' && github.event.inputs.platform != 'macos') && 'macos' || 'skip-never' }}
     runs-on: ${{ matrix.runner }}
     environment: ${{ matrix.id == 'macos' && 'launcher-release' || '' }}
     env:
@@ -57,18 +62,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          # Полная история не нужна: тегов/ченджлогов этот workflow не читает.
+          fetch-depth: 1
 
       - name: "① Linux deps"
         if: matrix.platform == 'linux'
         uses: ./.github/actions/launcher-setup-linux
 
+      # save-cache: true — отладочные сборки прогревают общий кеш
+      # (shared-key launcher-build-<platform>), иначе каждая шла с нуля.
       - name: "② Toolchain & caches"
         uses: ./.github/actions/launcher-setup-toolchain
         with:
           platform: ${{ matrix.runner }}
           cache-key-suffix: build
-          save-cache: "false"
+          save-cache: "true"
 
       - name: "③ npm ci"
         uses: ./.github/actions/launcher-install-deps
