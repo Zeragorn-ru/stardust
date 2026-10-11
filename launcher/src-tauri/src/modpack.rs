@@ -172,21 +172,25 @@ pub async fn set_mod_profile(
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Err("Активная сборка недоступна".to_string());
     };
-    let mut choices = read_choices(data_dir, choices_file);
-    let mut applied = 0usize;
-
-    for entry in manifest.optional_client_mods() {
-        let belongs = entry
-            .profiles
-            .iter()
-            .any(|k| k.eq_ignore_ascii_case(profile_key));
-        if !belongs {
-            continue;
+    // Читаем и дополняем под тем же локом, что set_mod_enabled (см. CHOICES_LOCK).
+    let (choices, applied) = {
+        let _guard = CHOICES_LOCK.lock().unwrap();
+        let mut choices = read_choices(data_dir, choices_file);
+        let mut applied = 0usize;
+        for entry in manifest.optional_client_mods() {
+            let belongs = entry
+                .profiles
+                .iter()
+                .any(|k| k.eq_ignore_ascii_case(profile_key));
+            if !belongs {
+                continue;
+            }
+            choices.insert(mod_choice_key(entry), enabled);
+            applied += 1;
         }
-        choices.insert(mod_choice_key(entry), enabled);
-        applied += 1;
-    }
-    write_choices(choices_file, &choices);
+        write_choices(choices_file, &choices);
+        (choices, applied)
+    };
 
     // Применяем на диск сразу (переименование ± `.dis`), без перекачки.
     for entry in manifest.optional_client_mods() {
@@ -459,6 +463,11 @@ pub async fn list_optional_mods(
     Ok(mods)
 }
 
+/// Сериализует чтение-модификацию-запись `mod-choices.json`: set_mod_enabled
+/// и set_mod_profile — async-команды, и без лока два быстрых переключения
+/// перетирали бы друг друга (lost update).
+static CHOICES_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Включает/выключает опциональный мод. Сохраняет выбор и, если файл уже
 /// скачан, мгновенно переименовывает его (± `.dis`) без обращения к серверу.
 /// Если файл ещё не установлен, выбор применится при ближайшей синхронизации.
@@ -471,9 +480,12 @@ pub async fn set_mod_enabled(
     enabled: bool,
 ) -> Result<(), String> {
     // Выбор сохраняем всегда — даже если сервер недоступен.
-    let mut choices = read_choices(data_dir, choices_file);
-    choices.insert(mod_id.clone(), enabled);
-    write_choices(choices_file, &choices);
+    {
+        let _guard = CHOICES_LOCK.lock().unwrap();
+        let mut choices = read_choices(data_dir, choices_file);
+        choices.insert(mod_id.clone(), enabled);
+        write_choices(choices_file, &choices);
+    }
 
     // Пытаемся применить переименование сразу. Путь берём из манифеста (не
     // доверяем фронту). Если манифест недоступен — переименование произойдёт

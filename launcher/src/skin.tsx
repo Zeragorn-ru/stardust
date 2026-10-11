@@ -42,11 +42,15 @@ export function SkinProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Мгновенно показываем кеш с диска, затем обновляем с сервера.
-    loadSkinCache().then((cached) => {
-      if (cached) setSkinState(cached);
-      // Всегда обновляем с сервера (кеш мог устареть).
-      reload();
-    });
+    // Ошибка любого шага не должна рвать цепочку: сервер может быть
+    // временно недоступен, а кеш — уже показан.
+    loadSkinCache()
+      .catch(() => null)
+      .then((cached) => {
+        if (cached) setSkinState(cached);
+        // Всегда обновляем с сервера (кеш мог устареть).
+        reload().catch(() => undefined);
+      });
   }, []);
 
   const save = useCallback(async (dataUrl: string, model: SkinModel) => {

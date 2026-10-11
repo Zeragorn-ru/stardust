@@ -417,12 +417,17 @@ pub async fn download_java(
     );
 
     let runtime_dir = data_dir.join("runtime").join(vendor.id()).join("java-21");
-    if runtime_dir.exists() {
-        fs::remove_dir_all(&runtime_dir)
-            .map_err(|e| format!("Не удалось очистить runtime Java: {e}"))?;
-    }
-    fs::create_dir_all(&runtime_dir)
-        .map_err(|e| format!("Не удалось создать runtime Java: {e}"))?;
+    // Скачиваем и распаковываем в staging-каталог, старый runtime удаляем
+    // только ПОСЛЕ успешной распаковки нового. Раньше remove_dir_all шёл
+    // первым: сбой сети посреди загрузки оставлял юзера вообще без Java
+    // (в оффлайне игра не запускалась).
+    let staging_dir = data_dir
+        .join("runtime")
+        .join(vendor.id())
+        .join(".staging-java-21");
+    let _ = fs::remove_dir_all(&staging_dir);
+    fs::create_dir_all(&staging_dir)
+        .map_err(|e| format!("Не удалось создать staging-каталог Java: {e}"))?;
 
     let url = resolve_download_url(vendor, http).await?;
     let archive_format = archive_format_for_url(&url);
@@ -443,7 +448,7 @@ pub async fn download_java(
         .await?;
         validate_archive_header(&archive, JavaArchiveFormat::Zip)?;
         progress.set_label("extracting", "Распаковываем Java 21…");
-        extract_java_zip(&archive, &runtime_dir)?;
+        extract_java_zip(&archive, &staging_dir)?;
         let _ = fs::remove_file(&archive);
     } else {
         let archive = data_dir
@@ -461,11 +466,25 @@ pub async fn download_java(
         .await?;
         validate_archive_header(&archive, JavaArchiveFormat::TarGz)?;
         progress.set_label("extracting", "Распаковываем Java 21…");
-        extract_java_tar_gz(&archive, &runtime_dir)?;
+        extract_java_tar_gz(&archive, &staging_dir)?;
         let _ = fs::remove_file(&archive);
     }
 
-    finalize_extracted_java(&runtime_dir)?;
+    finalize_extracted_java(&staging_dir)?;
+
+    // Всё скачалось и распаковалось — теперь безопасно заменить старый runtime.
+    if runtime_dir.exists() {
+        fs::remove_dir_all(&runtime_dir)
+            .map_err(|e| format!("Не удалось очистить runtime Java: {e}"))?;
+    }
+    fs::rename(&staging_dir, &runtime_dir).map_err(|e| {
+        format!(
+            "Не удалось переместить новый runtime Java ({staging} -> {target}): {e}",
+            staging = staging_dir.display(),
+            target = runtime_dir.display()
+        )
+    })?;
+    let _ = fs::remove_dir_all(&staging_dir);
 
     bundled_java_for(data_dir, vendor).ok_or_else(|| {
         format!(
@@ -1158,6 +1177,26 @@ fn extract_tar_entry(
                 .link_name()
                 .map_err(|e| e.to_string())?
                 .ok_or_else(|| format!("Симлинк без цели: {stripped}"))?;
+            // Path traversal: цель симлинка проходит ту же проверку, что и путь
+            // записи. Абсолютная цель или содержащая `..` после склейки с
+            // каталогом записи позволяет последующим файлам писать ЗА пределы
+            // runtime (например, `lib -> ../../../../Users/x/Library`, затем
+            // `lib/LaunchAgents/evil.plist`). JDK для запуска `java` симлинки
+            // с такими целями не содержит — отказываемся целиком.
+            let link_str = link.to_string_lossy();
+            if link.is_absolute() {
+                return Err(format!(
+                    "Небезопасный симлинк в tar: {stripped} -> {link_str} (абсолютная цель)"
+                ));
+            }
+            if link
+                .components()
+                .any(|c| matches!(c, Component::ParentDir))
+            {
+                return Err(format!(
+                    "Небезопасный симлинк в tar: {stripped} -> {link_str} (выход за пределы каталога)"
+                ));
+            }
             if let Some(parent) = out.parent() {
                 fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
@@ -1432,6 +1471,76 @@ mod tests {
         assert!(home.join("bin").join("java").exists());
         assert!(!target.join("Contents").join("_CodeSignature").exists());
         assert_eq!(find_java_home_under(&target), Some(home));
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Path traversal через симлинк: `lib -> ../../..` + файл `lib/evil` —
+    /// запись за пределы runtime. Должен быть отказ, а не «распаковали».
+    #[test]
+    fn extract_java_tar_gz_rejects_symlink_escape() {
+        let dir = std::env::temp_dir().join("stardust_test_tar_symlink_escape");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("target");
+        fs::create_dir_all(&target).unwrap();
+
+        let archive_path = dir.join("evil.tar.gz");
+        {
+            let file = fs::File::create(&archive_path).unwrap();
+            let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+            let mut builder = tar::Builder::new(enc);
+
+            let mut link_header = tar::Header::new_gnu();
+            link_header.set_path("jdk-21/Contents/Home/lib").unwrap();
+            link_header.set_size(0);
+            link_header.set_entry_type(tar::EntryType::Symlink);
+            link_header.set_link_name("../../..").unwrap();
+            link_header.set_cksum();
+            builder.append(&link_header, &b""[..]).unwrap();
+
+            builder.into_inner().unwrap().finish().unwrap();
+        }
+
+        let result = extract_java_tar_gz(&archive_path, &target);
+        assert!(result.is_err(), "Symlink escape должен быть отклонён");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("Небезопасный симлинк"),
+            "Error was: {err}"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Абсолютная цель симлинка — тоже отказ (пишет мимо sandbox).
+    #[test]
+    fn extract_java_tar_gz_rejects_absolute_symlink() {
+        let dir = std::env::temp_dir().join("stardust_test_tar_symlink_abs");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("target");
+        fs::create_dir_all(&target).unwrap();
+
+        let archive_path = dir.join("evil.tar.gz");
+        {
+            let file = fs::File::create(&archive_path).unwrap();
+            let enc = flate2::write::GzEncoder::new(file, flate2::Compression::default());
+            let mut builder = tar::Builder::new(enc);
+
+            let mut link_header = tar::Header::new_gnu();
+            link_header.set_path("jdk-21/Contents/Home/lib").unwrap();
+            link_header.set_size(0);
+            link_header.set_entry_type(tar::EntryType::Symlink);
+            link_header.set_link_name("/etc").unwrap();
+            link_header.set_cksum();
+            builder.append(&link_header, &b""[..]).unwrap();
+
+            builder.into_inner().unwrap().finish().unwrap();
+        }
+
+        let result = extract_java_tar_gz(&archive_path, &target);
+        assert!(result.is_err(), "Абсолютный симлинк должен быть отклонён");
 
         let _ = fs::remove_dir_all(&dir);
     }

@@ -31,6 +31,14 @@ pub struct PendingSession {
     /// RFC 3339, время старта игры.
     pub launched_at: String,
     pub pid: u32,
+    /// RFC 3339, время последнего heartbeat-а лаунчера: фронт опрашивает
+    /// `game_running` каждые 1.5с, и каждый такой опрос продлевает метку.
+    /// С её помощью восстановление после краша лаунчера считает длительность
+    /// по факту наблюдавшейся игры, а не до момента запуска лаунчера:
+    /// иначе ночь сна/выходного превращалась в десятки часов «игры».
+    /// Отсутствует в старом формате — тогда behaves как раньше.
+    #[serde(default)]
+    pub last_seen: Option<String>,
 }
 
 /// Записывает PID и `launched_at` на диск.
@@ -38,9 +46,30 @@ pub fn write_session(data_dir: &Path, pid: u32, launched_at: &str) {
     let s = PendingSession {
         launched_at: launched_at.to_owned(),
         pid,
+        last_seen: Some(launched_at.to_owned()),
     };
     if let Ok(json) = serde_json::to_string(&s) {
         let _ = std::fs::write(data_dir.join(SESSION_FILE), json);
+    }
+}
+
+/// Продлевает метку последней активности (heartbeat). Вызывается из
+/// `game_running`, пока фронтенд держит лаунчер открытым рядом с игрой.
+/// Ошибка записи — не критична: метка лишь уточняет статистику.
+pub fn touch_session(data_dir: &Path) {
+    let now = time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap_or_default();
+    if now.is_empty() {
+        return;
+    }
+    if let Some(mut s) = read_session(data_dir) {
+        if s.last_seen.as_deref() != Some(&now) {
+            s.last_seen = Some(now);
+            if let Ok(json) = serde_json::to_string(&s) {
+                let _ = std::fs::write(data_dir.join(SESSION_FILE), json);
+            }
+        }
     }
 }
 

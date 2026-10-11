@@ -666,9 +666,25 @@ fn persist_session(
             token: token.clone(),
         },
     )?;
-    set_runtime_session(state, profile, token);
+    set_runtime_session(state, profile.clone(), token.clone());
     spawn_stats_poller(app, state);
+    // Пробуем отправить накопившиеся в очереди сессии: раньше drain звался
+    // только из recover_pending_session (автологин), а при ручном входе
+    // очередь могла ждать своего владельца бесконечно.
+    drain_pending_sessions_spawn(app, &token);
     Ok(())
+}
+
+/// Фоновый повтор отправки очереди сессий (токен уже в хранилище, но
+/// drain читает его заново из файла по profile_id — используется и для
+/// чужих профилей, чьи записи ждут своего владельца).
+fn drain_pending_sessions_spawn(app: &AppHandle, _token: &str) {
+    let app = app.clone();
+    let http = app.state::<AppState>().http();
+    let data_dir = paths::data_dir(&app);
+    tauri::async_runtime::spawn(async move {
+        drain_pending_sessions(&http, &app, &data_dir, "").await;
+    });
 }
 
 /// Инициализация локальной папки данных при старте приложения.
@@ -737,7 +753,72 @@ pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
     };
     let state = app.state::<AppState>();
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
+    // Подчищаем осиротевшие временные файлы прошлых запусков: обрывы
+    // загрузок оставляют *.download-* в minecraft/assets и java-21-*.zip
+    // в runtime (они стираются сами только при «мягком» провале).
+    sweep_orphaned_temp_files(&paths::data_dir(app));
     Ok(())
+}
+
+/// Удаляет временные файлы, оставшиеся от прерванных загрузок прошлых
+/// запусков. Имена содержат PID процесса-создателя, поэтому текущий запуск
+/// никогда не совпадает с ними — активные загрузки не трогаем.
+fn sweep_orphaned_temp_files(data_dir: &std::path::Path) {
+    let sweep = |dir: &std::path::Path| {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name.contains(".download-") {
+                let _ = std::fs::remove_file(entry.path());
+            }
+        }
+    };
+    // Загрузки Minecraft раскладаны глубже — обходим рекурсивно, но неглубоко:
+    // assets/ и libraries/ создают 1-2 уровня каталогов.
+    let roots = [
+        data_dir.join("minecraft"),
+        data_dir.join("runtime"),
+    ];
+    let mut stack: Vec<std::path::PathBuf> = roots.to_vec();
+    let mut depth_budget = 6;
+    while !stack.is_empty() {
+        let Some(dir) = stack.pop() else {
+            break;
+        };
+        sweep(&dir);
+        if depth_budget == 0 {
+            continue;
+        }
+        depth_budget -= 1;
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                if let Ok(meta) = entry.metadata() {
+                    if meta.is_dir() {
+                        stack.push(entry.path());
+                    }
+                }
+            }
+        }
+    }
+    // Архивы Java от прерванных установок (про staging-механизм новые
+    // не оставляют, но старые сборки могли).
+    let runtime_vendor = data_dir.join("runtime");
+    if let Ok(entries) = std::fs::read_dir(&runtime_vendor) {
+        for vendor in entries.flatten() {
+            if let Ok(files) = std::fs::read_dir(vendor.path()) {
+                for file in files.flatten() {
+                    let name = file.file_name();
+                    let name = name.to_string_lossy();
+                    if name.starts_with("java-21-") {
+                        let _ = std::fs::remove_file(file.path());
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// Если при прошлом запуске лаунчер закрылся пока игра работала,
@@ -745,6 +826,10 @@ pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
 /// если PID уже мёртв — записываем статистику и чистим файл.
 ///
 /// Вызывать только после того, как токен уже загружен в `AppState`.
+// Верхняя граница длительности сессии без heartbeat-а (старый формат
+// game_session.json): сервер всё равно отвергает сессии старше суток.
+const LEGACY_RECOVERY_CAP_SECS: i64 = 24 * 60 * 60;
+
 fn recover_pending_session(app: &AppHandle, state: &AppState) {
     let data_dir = paths::data_dir(app);
     let Some(pending) = crate::game_guard::read_session(&data_dir) else {
@@ -765,13 +850,21 @@ fn recover_pending_session(app: &AppHandle, state: &AppState) {
     let http = state.http().clone();
     let app = app.clone();
     let launched_at_str = pending.launched_at.clone();
+    // Конец сессии — последний heartbeat лаунчера (пока фронт был жив и
+    // опрашивал game_running), а не «сейчас»: между крашем лаунчера и
+    // повторным открытием могли пройти часы сна/выходной.
+    let last_seen = pending.last_seen.clone().unwrap_or_default();
     tauri::async_runtime::spawn(async move {
-        let duration = time::OffsetDateTime::parse(
-            &launched_at_str,
-            &time::format_description::well_known::Rfc3339,
-        )
-        .map(|t| (time::OffsetDateTime::now_utc() - t).whole_seconds().max(0))
-        .unwrap_or(0);
+        let rfc3339 = &time::format_description::well_known::Rfc3339;
+        let parse = |s: &str| time::OffsetDateTime::parse(s, rfc3339).ok();
+        let duration = match (parse(&launched_at_str), parse(&last_seen)) {
+            (Some(start), Some(end)) => (end - start).whole_seconds().max(0),
+            (Some(start), None) => (time::OffsetDateTime::now_utc() - start)
+                .whole_seconds()
+                .max(0)
+                .clamp(0, LEGACY_RECOVERY_CAP_SECS),
+            _ => 0,
+        };
         crate::game_guard::clear_session(&data_dir);
         if duration > 0 {
             if let Err(e) = backend::record_session(&http, &token, duration, &launched_at_str).await
@@ -1158,8 +1251,18 @@ async fn register(
 }
 
 /// Завершить сессию.
+///
+/// Пока игра запущена (или вот-вот стартует — фаза скачивания до записи PID),
+/// выход запрещён: сессия и токен уже уехали в JVM запущенного Minecraft, а
+/// статистика/скин игры засчитались бы на следующий аккаунт. Кнопка «Играть»
+/// блокируется через `busy`, но `logout` могли позвать из настроек поверх.
 #[tauri::command]
 async fn logout(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    let _guard = state.launch_lock.lock().await;
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
+    {
+        return Err("Закройте Minecraft перед выходом из аккаунта".into());
+    }
     let token = state.token.lock().unwrap().take();
     clear_runtime_session(&state);
     remove_saved_session(&app);
@@ -1336,6 +1439,14 @@ async fn download_java(
     if matches!(vendor, java::JavaVendor::Oracle) {
         return Err("Oracle JDK можно выбрать только вручную через путь к java".to_string());
     }
+    // download_java делает remove_dir_all(runtime) — без лока он сносит рантайм
+    // из-под запущенной игры/одновременного play_game. Тот же лок, что у
+    // play_game/relocate: сериализуем разрушительные операции с данными.
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
+    {
+        return Err("Закройте Minecraft перед заменой Java".into());
+    }
+    let _guard = state.launch_lock.lock().await;
     let data_dir = paths::data_dir(&app);
     // Отдельный канал: иначе Settings → «Скачать Java» залипает в глобальном
     // progress и блокирует кнопку «Играть» на главном экране.
@@ -1813,7 +1924,17 @@ async fn load_skin_cache(
     };
     let cache_path = crate::paths::skin_cache_dir(&app).join(format!("{uuid}.json"));
     match tokio::fs::read_to_string(&cache_path).await {
-        Ok(json) => serde_json::from_str(&json).map_err(|e| e.to_string()),
+        Ok(json) => match serde_json::from_str::<Skin>(&json) {
+            Ok(skin) => Ok(Some(skin)),
+            // Битый кеш — не ошибка для юзера: отдаём пусто, серверный get_skin
+            // в reload() всё равно перезапишет. Раньше Err обрывал промис в
+            // skin.tsx и reload() не вызывался вовсе.
+            Err(e) => {
+                tracing::warn!("[skin] кеш повреждён ({}): {e}", cache_path.display());
+                let _ = tokio::fs::remove_file(&cache_path).await;
+                Ok(None)
+            }
+        },
         Err(_) => Ok(None),
     }
 }
@@ -2810,9 +2931,18 @@ async fn set_mod_profile(
 
 /// Жив ли сейчас процесс игры. Фронт опрашивает это, чтобы держать
 /// кнопку «Играть» неактивной, пока Minecraft запущен.
+///
+/// Каждый опрос продлевает heartbeat в game_session.json: если лаунчер
+/// упадёт, восстановление посчитает длительность сессии по последней метке,
+/// а не до момента следующего открытия лаунчера.
 #[tauri::command]
 fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
     let data_dir = paths::data_dir(&app);
+    // Heartbeat-и имеет смысл продлевать, пока PID-файл вообще существует
+    // (иначе каждые 1.5с впустую перезаписываем бы файл сессии).
+    if crate::game_guard::is_running(&data_dir) {
+        crate::game_guard::touch_session(&data_dir);
+    }
     let mut guard = state.game.lock().unwrap();
     match guard.as_mut() {
         Some(child) => match child.try_wait() {

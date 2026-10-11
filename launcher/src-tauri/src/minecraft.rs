@@ -1233,7 +1233,14 @@ fn native_artifact_for_current_os(path: &str, name: Option<&str>) -> bool {
         if cfg!(target_arch = "aarch64") {
             haystack.contains("natives-windows-arm64")
         } else {
-            haystack.contains("natives-windows") && !haystack.contains("arm64")
+            // x64: только natives-windows, но НЕ x86-вариант. В 1.21.1 JSON
+            // все три windows-записи проходят os-правило (x64, arm64, x86 —
+            // в этом порядке); без отсечения x86 его 32-битные DLL
+            // распаковываются последними и затирают 64-битные →
+            // UnsatisfiedLinkError на старте JVM.
+            haystack.contains("natives-windows")
+                && !haystack.contains("arm64")
+                && !haystack.contains("x86")
         }
     } else if cfg!(target_arch = "aarch64") {
         haystack.contains("natives-linux-arm64") || haystack.contains("natives-linux-aarch64")
@@ -2742,6 +2749,32 @@ mod tests {
         }
         if cfg!(target_os = "macos") && !cfg!(target_arch = "aarch64") {
             assert!(!native_artifact_for_current_os(arm_path, None));
+        }
+    }
+
+    /// Регрессия 1.21.1: на Windows x64 x86-джарник natives-windows-x86 проходит
+    /// os-правило и распаковывается ПОСЛЕ x64 → 32-битные DLL затирают 64-битные
+    /// (UnsatisfiedLinkError «not a valid Win32 application»).
+    #[test]
+    fn native_artifact_for_current_os_rejects_windows_x86_on_x64() {
+        let x86 = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-windows-x86.jar";
+        let x64 = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-windows.jar";
+        let arm64 = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-windows-arm64.jar";
+        if cfg!(target_os = "windows") && !cfg!(target_arch = "aarch64") {
+            assert!(!native_artifact_for_current_os(x86, None));
+            assert!(native_artifact_for_current_os(x64, None));
+            assert!(!native_artifact_for_current_os(arm64, None));
+        }
+    }
+
+    /// macOS arm64: x64-джарник не должен матчиться (иначе перезаписывает arm64).
+    #[test]
+    fn native_artifact_for_current_os_rejects_macos_x64_on_arm64() {
+        let x64 = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-macos.jar";
+        let arm64 = "org/lwjgl/lwjgl-glfw/3.3.3/lwjgl-glfw-3.3.3-natives-macos-arm64.jar";
+        if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+            assert!(!native_artifact_for_current_os(x64, None));
+            assert!(native_artifact_for_current_os(arm64, None));
         }
     }
 

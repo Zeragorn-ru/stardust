@@ -669,11 +669,37 @@ const SIGNED_UPDATER_ENABLED =
 
 export const usesSignedUpdaterTestChannel = LAUNCHER_UPDATE_CHANNEL === "tauri-test";
 
+/**
+ * Прокси для signed-апдейтера из настроек лаунчера. `undefined` = системный
+ * (env) — дефолт плагина; "none" = явное отключение через no_proxy-семантику
+ * не поддерживается в CheckOptions, отдаём undefined.
+ */
+async function updaterProxyUrl(): Promise<string | undefined> {
+  try {
+    const settings = await getSettings();
+    switch (settings.proxyType) {
+      case "builtin":
+        return "http://assets.zeragorn.xyz:3128";
+      case "builtinSocks":
+        return "socks5h://assets.zeragorn.xyz:1080";
+      // "system" и "none" — плагин сам решает (env-прокси либо без прокси
+      // в среде); отдельного no-proxy флага в CheckOptions нет.
+      default:
+        return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+}
+
 /** Проверить наличие обновления лаунчера. */
 export async function checkUpdate(): Promise<UpdateInfo> {
   if (SIGNED_UPDATER_ENABLED) {
     const { check } = await import("@tauri-apps/plugin-updater");
-    const update = await check();
+    // Updater-плагин строит собственный reqwest-клиент и не видит настройки
+    // лаунчера: без явного proxy юзеры за builtin-прокси получают молчаливый
+    // отказ (github.com недоступен, ошибка глотается в App.tsx).
+    const update = await check({ proxy: await updaterProxyUrl() });
     if (!update) {
       const appInfo = await getAppInfo();
       return {
@@ -708,7 +734,8 @@ export async function checkUpdate(): Promise<UpdateInfo> {
 export async function installUpdate(): Promise<void> {
   if (SIGNED_UPDATER_ENABLED) {
     const { check } = await import("@tauri-apps/plugin-updater");
-    const update = await check();
+    // Тот же прокси, что и в checkUpdate — качать тоже надо через него.
+    const update = await check({ proxy: await updaterProxyUrl() });
     if (!update) throw new Error("Обновление больше недоступно");
 
     let downloaded = 0;

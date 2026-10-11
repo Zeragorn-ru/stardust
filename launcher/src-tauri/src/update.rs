@@ -963,46 +963,30 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
         },
     );
 
-    let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name);
-    match sha256_asset {
-        Some(sha256_a) => {
-            let expected = fetch_expected_sha256(&http, &sha256_a.browser_download_url).await;
-            match expected {
-                Ok(expected_hex) => {
-                    let actual = tauri::async_runtime::spawn_blocking({
-                        let p = installer_path.clone();
-                        move || compute_sha256(&p)
-                    })
-                    .await
-                    .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
-                    match actual {
-                        Ok(actual_hex) if actual_hex == expected_hex => {
-                            tracing::debug!("[update] SHA-256 OK");
-                        }
-                        Ok(_mismatched_hex) => {
-                            let _ = std::fs::remove_file(&installer_path);
-                            return Err(
-                                "Повреждён файл установщика (SHA-256 не совпал). Скачайте заново."
-                                    .to_string(),
-                            );
-                        }
-                        Err(e) => {
-                            let _ = std::fs::remove_file(&installer_path);
-                            return Err(format!("Не удалось проверить файл: {e}"));
-                        }
-                    }
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "[update] предупреждение: не удалось проверить SHA-256 ({e}), продолжаем без верификации"
-                    );
-                }
-            }
+    // Верификация обязательна: без неё повреждённый или подменённый
+    // установщик просто запускается. Сайдкары .sha256 заливает
+    // collect-launcher-bundles для каждого артефакта, так что их отсутствие —
+    // ошибка релиза, а не штатный случай.
+    let sha256_asset = find_sha256_asset(&release.assets, &installer_asset.name)
+        .ok_or_else(|| "В релизе нет .sha256 файла установщика — обновление прервано".to_string())?;
+    let expected_hex = fetch_expected_sha256(&http, &sha256_asset.browser_download_url).await?;
+    let actual = tauri::async_runtime::spawn_blocking({
+        let p = installer_path.clone();
+        move || compute_sha256(&p)
+    })
+    .await
+    .map_err(|e| format!("Ошибка потока SHA-256: {e}"))?;
+    match actual {
+        Ok(actual_hex) if actual_hex == expected_hex => {
+            tracing::debug!("[update] SHA-256 OK");
         }
-        None => {
-            tracing::warn!(
-                "[update] предупреждение: .sha256 файл не найден в релизе, продолжаем без верификации хеша"
-            );
+        Ok(_mismatched_hex) => {
+            let _ = std::fs::remove_file(&installer_path);
+            return Err("Повреждён файл установщика (SHA-256 не совпал). Скачайте заново.".to_string());
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&installer_path);
+            return Err(format!("Не удалось проверить файл: {e}"));
         }
     }
 

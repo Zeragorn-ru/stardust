@@ -216,8 +216,16 @@ export default function App() {
       checking = true;
       try {
         const info = await checkUpdate();
+        // Найдено обновление во время игры/загрузки: автоустановка НЕ включаем —
+        // она перезапускает лаунчер поверх Minecraft и рвёт активные загрузки.
+        // Показываем модалку с ручной кнопкой; автоустановка произойдёт при
+        // следующем спокойном опросе (когда running/busy сбросятся).
+        const busyNow =
+          runningRef.current ||
+          (progressRef.current != null &&
+            ["checking", "downloading", "extracting", "launching"].includes(progressRef.current.phase));
         if (!cancelled && info.available && info.version !== dismissedUpdateVersion.current) {
-          setAutoInstallUpdate(true);
+          setAutoInstallUpdate(!busyNow && !updateModal.visible);
           setUpdate(info);
         }
       } catch { /* ignore */ } finally { checking = false; }
@@ -225,7 +233,7 @@ export default function App() {
     runCheck();
     const timer = window.setInterval(runCheck, 30 * 60 * 1000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
+  }, [updateModal.visible]);
 
   function finishOnboarding() { setOnboarded(); navigate("login"); }
 
@@ -236,7 +244,18 @@ export default function App() {
   }
 
   async function handleLogout() {
-    await logout();
+    try {
+      await logout();
+    } catch (err) {
+      // Игра запущена: выход заблокирован на бэкенде — остаёмся на месте,
+      // показываем причину в общем прогресс-слое главного экрана.
+      setProgress({
+        phase: "error",
+        label: err instanceof Error ? err.message : String(err),
+        fraction: null,
+      });
+      return;
+    }
     setProfile(null);
     setRunning(false);
     setProgress(null);
