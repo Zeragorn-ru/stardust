@@ -2238,6 +2238,9 @@ button,
     flex-direction: column;
     gap: 26px;
     overflow-y: auto;
+    /* Sticky-рейл пресетов (~180-220px) не должен прячеть под собой
+       цель скролла (поиск, заголовки групп). */
+    scroll-padding-top: 220px;
     max-width: min(1120px, calc(100vw - 260px));
     width: 100%;
     margin: 0 auto;
@@ -2306,7 +2309,8 @@ button,
     cursor: not-allowed;
 }
 
-.switch--locked:hover {
+.switch--locked:hover,
+.switch:disabled:hover {
     background: rgba(255, 255, 255, 0.12);
 }
 
@@ -2333,85 +2337,381 @@ button,
     color: #ffb4a8;
 }
 
-/* ============ Профили модов ============ */
-
-.mod-profiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+/* ============ Пресеты модов (двухшаговый флоу) ============ */
+/* Шаг 01 — выбор пресета: sticky-рейл карточек-исходов. Выбранность
+   читается радио-точкой и акцентной рамкой. */
+.new-preset-step {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
-    margin: 2px 0 14px;
+    padding: 10px 0 14px;
+    margin: 0 -6px;
+    padding-left: 6px;
+    padding-right: 6px;
+    background: rgba(10, 11, 20, 0.78);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 
-.mod-profile {
+.new-preset-step__head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.new-preset-step__num {
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--muted);
+    flex-shrink: 0;
+}
+
+.new-preset-step__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.new-preset-step__sub {
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.new-preset-step__note {
+    font-size: 11px;
+    line-height: 1.4;
+    margin: -2px 0 0 36px;
+}
+
+/* Рейл: равные карточки-исходы. */
+.new-preset-rail {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+}
+
+.new-preset-rail--busy .new-preset:not(.new-preset--on) {
+    opacity: 0.5;
+}
+
+.new-preset {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
-    padding: 12px 14px;
-    border-radius: var(--radius-sm);
+    gap: 3px;
+    padding: 14px 16px 12px;
+    border-radius: var(--radius);
     border: 1px solid var(--glass-border);
-    background: rgba(22, 25, 40, 0.45);
+    background: var(--glass);
     cursor: pointer;
     text-align: left;
     transition:
         border-color var(--t-fast),
         background var(--t-fast),
-        box-shadow var(--t-fast);
+        box-shadow var(--t-fast),
+        transform var(--t-fast),
+        opacity var(--t-mid);
 }
 
-.mod-profile:hover:not(:disabled) {
+.new-preset:hover:not(:disabled):not(.new-preset--on) {
     border-color: var(--glass-border-strong);
-    background: rgba(22, 25, 40, 0.6);
+    background: rgba(22, 25, 40, 0.7);
+    transform: translateY(-1px);
 }
 
-.mod-profile--on {
+/* Выбранная карточка при ховере остаётся акцентной — её состояние
+   важнее нейтрального hover-эффекта. */
+.new-preset--on:hover:not(:disabled) {
+    border-color: rgba(124, 92, 255, 0.75);
+    background: linear-gradient(
+        135deg,
+        rgba(124, 92, 255, 0.2),
+        rgba(79, 140, 255, 0.14)
+    );
+}
+
+.new-preset:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.new-preset--on {
     border-color: rgba(124, 92, 255, 0.55);
-    background: rgba(124, 92, 255, 0.12);
+    background: linear-gradient(
+        135deg,
+        rgba(124, 92, 255, 0.16),
+        rgba(79, 140, 255, 0.1)
+    );
     box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.25) inset;
 }
 
-.mod-profile--on:hover:not(:disabled) {
-    border-color: rgba(124, 92, 255, 0.75);
-    background: rgba(124, 92, 255, 0.18);
-}
-
-.mod-profile__head {
-    display: flex;
+.new-preset--single {
+    cursor: default;
+    flex-direction: row;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
+    gap: 10px;
 }
 
-.mod-profile__name {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--text);
+/* Радио-точка — главный индикатор «выбери один». */
+.new-preset__dot {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(154, 160, 181, 0.55);
+    display: grid;
+    place-items: center;
+    transition: border-color var(--t-fast);
 }
 
-.mod-profile__count {
-    font-size: 11px;
+.new-preset__dot::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    transform: scale(0.4);
+    opacity: 0;
+    transition:
+        transform var(--t-mid) cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity var(--t-fast);
+}
+
+.new-preset--on .new-preset__dot {
+    border-color: var(--accent);
+}
+
+.new-preset--on .new-preset__dot::after {
+    transform: scale(1);
+    opacity: 1;
+    box-shadow: 0 0 10px rgba(124, 92, 255, 0.8);
+}
+
+.new-preset-rail--busy .new-preset--on .new-preset__dot {
+    animation: newPresetPulse 1.2s ease-out infinite;
+}
+
+@keyframes newPresetPulse {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(124, 92, 255, 0);
+    }
+}
+
+.new-preset__name {
+    font-size: 16px;
+    font-weight: 800;
+    padding-right: 26px;
+}
+
+.new-preset__profile {
+    font-size: 12px;
+    font-weight: 600;
     color: var(--muted);
-    white-space: nowrap;
 }
 
-.mod-profile__desc {
+.new-preset--on .new-preset__profile {
+    color: #b9a8ff;
+}
+
+.new-preset__desc {
     font-size: 12px;
     line-height: 1.4;
     color: var(--muted);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
-.mod-profile__state {
-    margin-top: 4px;
-    font-size: 10px;
+/* Мини-состав: до 3 эксклюзивных модов пресета. */
+.new-preset__preview {
+    font-size: 11px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.new-preset__meta {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.new-preset__state {
+    color: #b9a8ff;
+    font-weight: 700;
+}
+
+.new-preset__default {
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Шаг 02 — моды как следствие выбора. */
+.new-mods-step {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px solid var(--glass-border);
+    padding-top: 16px;
+}
+
+.new-mods-step__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.new-mods-step__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.new-mods-step__context {
+    font-size: 12px;
+    font-weight: 600;
+    color: #b9a8ff;
+    animation: newContextIn var(--t-fast) ease-out;
+}
+
+@keyframes newContextIn {
+    from {
+        opacity: 0;
+        transform: translateY(2px);
+    }
+}
+
+.new-mods-step__count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.new-mods-step__count--bump {
+    animation: newCountBump 0.22s ease-out;
+}
+
+@keyframes newCountBump {
+    50% {
+        transform: scale(1.06);
+        color: var(--play);
+    }
+}
+
+.new-mods-step__group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.new-mods-step__group-title {
+    margin: 4px 0 0;
+    font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--muted);
 }
 
-.mod-profile--on .mod-profile__state {
+.new-mods-step__group-toggle {
+    align-self: flex-start;
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+}
+
+.new-mods-step__group-toggle:hover {
+    color: var(--text);
+}
+
+.new-mods-step__group--collapsed .toggle-row,
+.new-mods-step__group--collapsed .mods-section__locked-note {
+    display: none;
+}
+
+/* Постфактум-заметка о ручных потерях (нейтральный тон, не ошибка). */
+.new-preset-step__note-live {
+    margin: 0 0 0 36px;
+    color: var(--muted);
+}
+
+/* Кликабельное имя пресета в locked-note. */
+.new-preset-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
     color: #b9a8ff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+
+.new-preset-link:hover {
+    color: var(--accent);
+}
+
+.new-preset-link:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+/* Экономия движения: выбор читается рамкой, точкой и цветом. */
+[data-motion="off"] .new-preset,
+[data-motion="off"] .new-preset__dot,
+[data-motion="off"] .new-preset__dot::after,
+[data-motion="off"] .new-mods-step__context,
+[data-motion="off"] .new-mods-step__count {
+    transition: none;
+    animation: none;
+}
+
+[data-motion="off"] .new-preset:hover {
+    transform: none;
+}
+
+[data-motion="off"] .new-preset-rail--busy .new-preset--on .new-preset__dot {
+    animation: none;
+}
+
+[data-motion="off"] .new-preset-step {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 }
 
 /* Бейдж принадлежности мода профилю. */
@@ -2554,7 +2854,12 @@ button,
     transition: background var(--t-mid), box-shadow var(--t-mid);
 }
 
-.switch:hover {
+.switch:disabled {
+    cursor: default;
+    opacity: 0.55;
+}
+
+.switch:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.16);
 }
 

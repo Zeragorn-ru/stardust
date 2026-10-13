@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ModProfileInfo, OptionalMod } from "../types";
 import { listModProfiles, listOptionalMods, selectModProfile, setModEnabled } from "../api";
 import { formatBytes } from "../format";
@@ -15,6 +15,18 @@ function pluralRu(n: number, one: string, few: string, many: string): string {
   return many;
 }
 
+/**
+ * Заголовки-исходы для известных пресетов: игрок выбирает желание, а не
+ * формальное имя профиля. Неизвестные ключи не ломают UI — фолбэк на name.
+ * Ключи покрывают и опечатку «perfomance» (она так живёт в прод-манифесте),
+ * и корректное «performance» — чтобы исход не пропал при исправлении сборки.
+ */
+const PRESET_OUTCOME: Record<string, string> = {
+  perfomance: "Чтобы летало",
+  performance: "Чтобы летало",
+  quality: "Красивая картинка",
+};
+
 export default function ModsSection() {
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
   const [profiles, setProfiles] = useState<ModProfileInfo[] | null>(null);
@@ -25,6 +37,23 @@ export default function ModsSection() {
   const [pending, setPending] = useState<Set<string>>(new Set());
   // Ключ профиля, который сейчас выбирается.
   const [pendingProfile, setPendingProfile] = useState<string | null>(null);
+  // Сбой переключения профиля: строка ошибки над рейлом (откат уже отыгран).
+  const [profileError, setProfileError] = useState<string | null>(null);
+  // Постфактум-заметка о потерях ручных включений (не ошибка — нейтральный тон).
+  const [switchingNote, setSwitchingNote] = useState<string | null>(null);
+  // Свернута ли группа «В других пресетах» (нет смысла в шуме по умолчанию).
+  const [othersCollapsed, setOthersCollapsed] = useState(true);
+  // Одноразовый счётчик «привет» после переключения пресета.
+  const [bump, setBump] = useState(false);
+  const bumpTimer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (bumpTimer.current !== null) {
+        window.clearTimeout(bumpTimer.current);
+      }
+    },
+    [],
+  );
 
   const loadMods = useCallback(async () => {
     setLoading(true);
@@ -56,6 +85,11 @@ export default function ModsSection() {
     }
     return map;
   }, [mods]);
+
+  const selectedProfile = useMemo(
+    () => (profiles ?? []).find((p) => p.selected) ?? null,
+    [profiles],
+  );
 
   /** Активные конфликты для мода: включённые моды из conflictsWith. */
   function activeConflicts(mod: OptionalMod): OptionalMod[] {
@@ -107,8 +141,23 @@ export default function ModsSection() {
     // Снимок состояния модов до переключения — для точного отката.
     const modsSnapshot = mods ?? [];
     const profilesSnapshot = profiles ?? [];
-    // Оптимистично: помечаем выбранный профиль и пересчитываем моды по гейту.
+    // Потери ручных включений: моды, которые игрок сам включил руками
+    // (optional, не от гейта), но которые выключатся при смене профиля.
+    // Считаем ДО оптимистичного обновления, по текущему состоянию.
+    const switchingLoss = modsSnapshot.filter(
+      (m) =>
+        m.optional &&
+        m.enabled &&
+        !m.locked &&
+        m.profiles.length > 0 &&
+        !m.profiles.some(
+          (k) => k.toLowerCase() === profile.key.toLowerCase(),
+        ),
+    );
     setPendingProfile(profile.key);
+    setProfileError(null);
+    setSwitchingNote(null);
+    // Оптимистично: помечаем выбранный профиль и пересчитываем моды по гейту.
     setProfiles((prev) =>
       prev
         ? prev.map((p) => ({ ...p, selected: p.key === profile.key }))
@@ -122,37 +171,70 @@ export default function ModsSection() {
               m.profiles.some(
                 (k) => k.toLowerCase() === profile.key.toLowerCase(),
               );
-            return inProfile
-              ? m
-              : {
-                  ...m,
-                  locked: true,
-                  // Неопциональные моды включатся вместе с профилем
-                  // (гейт file_enabled), опциональные вернутся к выбору
-                  // игрока — перечитаем после применения.
-                  enabled: false,
-                };
+            if (inProfile) {
+              // Моды нового профиля: снимаем лок; неопциональные включены
+              // по гейту всегда (см. file_enabled), опциональные получат
+              // точное состояние из перечитывания ниже.
+              return m.optional
+                ? m.locked
+                  ? { ...m, locked: false }
+                  : m
+                : { ...m, locked: false, enabled: true };
+            }
+            return {
+              ...m,
+              locked: true,
+              enabled: false,
+            };
           })
         : prev,
     );
     try {
       await selectModProfile(profile.key);
+      // Перечитываем согласованное состояние, ПОКА блокировка ещё держится:
+      // тумблер или второй выбор в окне refetch перетёрлись бы устаревшим
+      // ответом (UI и диск расходятся до перемонтирования экрана).
+      const [list, profileList] = await Promise.allSettled([
+        listOptionalMods(),
+        listModProfiles(),
+      ]);
+      if (list.status === "fulfilled") setMods(list.value);
+      if (profileList.status === "fulfilled") setProfiles(profileList.value);
+      if (list.status === "rejected" || profileList.status === "rejected") {
+        // Переключение на диске уже применено — не откатываем, но и не
+        // глотаем: штатная перезагрузка при повторном сбое покажет экран
+        // ошибки с «Повторить».
+        void loadMods();
+      }
     } catch {
       // Откат к снимку: профили и моды возвращаются к прежнему состоянию.
       setMods(modsSnapshot);
       setProfiles(profilesSnapshot);
+      setProfileError("Не удалось переключить пресет — попробуйте ещё раз");
       return;
     } finally {
       setPendingProfile(null);
     }
-    // Перечитываем согласованное состояние уже после снятия блокировки;
-    // сбой обновления — не откат самого переключения (диск уже изменён).
-    const [list, profileList] = await Promise.allSettled([
-      listOptionalMods(),
-      listModProfiles(),
-    ]);
-    if (list.status === "fulfilled") setMods(list.value);
-    if (profileList.status === "fulfilled") setProfiles(profileList.value);
+    // Одноразовая «пульсация» счётчика после применения.
+    setBump(true);
+    if (bumpTimer.current !== null) {
+      window.clearTimeout(bumpTimer.current);
+    }
+    bumpTimer.current = window.setTimeout(() => setBump(false), 260);
+    // Заметка о ручных потерях: то, что игрок включал руками и что
+    // выключится в новом пресете. Показываем после переключения,
+    // чтобы не блокировать выбор и не пугать до клика.
+    if (switchingLoss.length > 0) {
+      const lossNames = switchingLoss
+        .slice(0, 3)
+        .map((m) => m.name)
+        .join(", ");
+      setSwitchingNote(
+        switchingLoss.length > 3
+          ? `${switchingLoss.length} мода(ов), включённых руками, выключились — включая ${lossNames}…`
+          : `${switchingLoss.length} ${pluralRu(switchingLoss.length, "мод", "мода", "модов")}, включённые руками, выключились: ${lossNames}`,
+      );
+    }
   }
 
   if (loadError) {
@@ -207,6 +289,140 @@ export default function ModsSection() {
     return p ? p.name : key;
   };
 
+  /** Объект профиля по ключу — для ссылки-переключения из locked-note. */
+  const profileByKey = (key: string): ModProfileInfo | null => {
+    const p = (profiles ?? []).find(
+      (x) => x.key.toLowerCase() === key.toLowerCase(),
+    );
+    return p ?? null;
+  };
+
+  // Группы: «Из пресета» (профильные), «Общие» (без тегов),
+  // «В других пресетах» (locked) — свёрнутая по умолчанию.
+  const fromPreset = filtered.filter(
+    (m) => m.profiles.length > 0 && !m.locked,
+  );
+  const common = filtered.filter((m) => m.profiles.length === 0);
+  const others = filtered.filter((m) => m.locked);
+  const othersExpanded = !othersCollapsed || q.length > 0;
+  const enabledCount = mods.filter((m) => m.enabled).length;
+  // Знаменатель — только доступные в текущем пресете моды: залоченные
+  // в других пресетах включить невозможно, и «X из Y» с ними обещал бы
+  // недостижимый максимум.
+  const accessibleCount = mods.filter((m) => !m.locked).length;
+  const hasProfiles = (profiles ?? []).length > 0;
+  const singleProfile = hasProfiles && (profiles ?? []).length === 1;
+
+  // Мини-состав для карточки пресета: до 3 эксклюзивных модов по modId.
+  const presetModsPreview = (profileKey: string): string[] => {
+    const selected = (profiles ?? []).find(
+      (x) => x.key.toLowerCase() === profileKey.toLowerCase(),
+    );
+    if (!selected) return [];
+    const exclusive = (mods ?? []).filter(
+      (m) =>
+        m.profiles.length > 0 &&
+        m.profiles.some((k) => k.toLowerCase() === profileKey.toLowerCase()),
+    );
+    return exclusive
+      .slice(0, 3)
+      .map((m) => m.name)
+      .filter(Boolean);
+  };
+
+  /** Ряд мода (существующий .toggle-row) с новыми бейджами. */
+  function renderRow(mod: OptionalMod) {
+    const busy = pending.has(mod.modId);
+    const conflicts = activeConflicts(mod);
+    return (
+      <div className="toggle-row stagger-item" key={mod.modId}>
+        <div className="toggle-row__text">
+          <span className="toggle-row__title">
+            {mod.name}
+            {mod.size > 0 && (
+              <span className="muted mods-section__size">
+                {" "}
+                · {formatBytes(mod.size)}
+              </span>
+            )}
+          </span>
+          {mod.description && (
+            <span className="muted toggle-row__desc">{mod.description}</span>
+          )}
+          {mod.locked && (
+            <span className="muted mods-section__locked-note">
+              Доступен в пресете{" "}
+              {mod.profiles.map((k, i) => {
+                const target = profileByKey(k);
+                const sep = i > 0 ? " / " : "";
+                if (!target) {
+                  // Профиля с этим ключом нет в сборке (мусорный тег) —
+                  // просто имя, без «нажмите».
+                  return (
+                    <span key={k}>
+                      {sep}«{profileName(k)}»
+                    </span>
+                  );
+                }
+                return (
+                  <span key={k}>
+                    {sep}
+                    <button
+                      type="button"
+                      className="new-preset-link"
+                      disabled={pendingProfile !== null}
+                      onClick={() => void selectProfile(target)}
+                    >
+                      «{profileName(k)}»
+                    </button>
+                  </span>
+                );
+              })}
+              {" — выберите его, чтобы включить."}
+            </span>
+          )}
+          {conflicts.length > 0 && (
+            <span className="mods-section__conflict" role="alert">
+              Конфликт с{" "}
+              {conflicts.map((c) => c.name).join(", ")}. Вместе лучше не
+              включать — выключите один из модов.
+            </span>
+          )}
+        </div>
+        {mod.optional ? (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={mod.enabled}
+            aria-disabled={mod.locked}
+            aria-label={`${mod.enabled ? "Выключить" : "Включить"} мод: ${mod.name}`}
+            disabled={busy || mod.locked}
+            title={
+              mod.locked
+                ? "Мод недоступен в выбранном пресете"
+                : undefined
+            }
+            className={
+              "switch" +
+              (mod.enabled ? " switch--on" : "") +
+              (mod.locked ? " switch--locked" : "")
+            }
+            onClick={() => toggle(mod)}
+          >
+            <span className="switch__knob" />
+          </button>
+        ) : (
+          <span
+            className="mods-section__profile-state"
+            title="Обязательный мод пресета — переключается выбором пресета"
+          >
+            {mod.enabled ? "от профиля" : "выключен"}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mods-section stagger">
       <p className="muted mods-section__hint stagger-item">
@@ -214,52 +430,124 @@ export default function ModsSection() {
         загружаются игрой — включение применится при следующем запуске.
       </p>
 
-      {(profiles ?? []).length > 0 && (
-        <div
-          className="mod-profiles stagger-item"
-          role="radiogroup"
-          aria-label="Профиль модов"
-        >
-          {(profiles ?? []).map((p) => {
-            // Любая идущая операция профиля/модов блокирует все карточки —
-            // см. мьютекс в selectProfile.
-            const busy = pendingProfile !== null;
-            return (
-              <button
-                type="button"
-                key={p.key}
-                role="radio"
-                aria-checked={p.selected}
-                disabled={busy}
-                className={
-                  "mod-profile" + (p.selected ? " mod-profile--on" : "")
-                }
-                onClick={() => void selectProfile(p)}
-              >
-                <span className="mod-profile__head">
-                  <span className="mod-profile__name">{p.name}</span>
-                  <span className="mod-profile__count">
-                    {p.modCount}{" "}
-                    {pluralRu(p.modCount, "мод", "мода", "модов")}
-                  </span>
-                </span>
-                {p.description && (
-                  <span className="mod-profile__desc">{p.description}</span>
-                )}
-                <span className="mod-profile__state" aria-hidden>
-                  {busy
-                    ? "…"
-                    : p.selected
-                      ? "выбран"
-                      : "нажмите, чтобы выбрать"}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+      {/* Шаг 01 — пресет: sticky-рейл, выбор желания игрока. */}
+      {hasProfiles && (
+        <section className="new-preset-step stagger-item">
+          {!singleProfile && (
+            <header className="new-preset-step__head">
+              <span className="new-preset-step__num" aria-hidden>01</span>
+              <div className="new-preset-step__headtext">
+                <h3 className="new-preset-step__title">Пресет</h3>
+                <p className="new-preset-step__sub">
+                  Выберите один — моды настроятся сами
+                </p>
+              </div>
+            </header>
+          )}
+          {singleProfile ? (
+            <div className="new-preset new-preset--single" role="status">
+              <span className="new-preset__profile">
+                Пресет: {selectedProfile?.name}
+              </span>
+              <span className="new-preset__meta">
+                {(selectedProfile?.modCount ?? 0) > 0
+                  ? `${selectedProfile?.modCount} ${pluralRu(selectedProfile?.modCount ?? 0, "мод", "мода", "модов")}`
+                  : "Только базовые моды"}
+              </span>
+            </div>
+          ) : (
+            <div
+              className={"new-preset-rail" + (pendingProfile ? " new-preset-rail--busy" : "")}
+              role="radiogroup"
+              aria-label="Пресет модов"
+            >
+              {(profiles ?? []).map((p) => {
+                const preview = presetModsPreview(p.key);
+                return (
+                  <button
+                    type="button"
+                    key={p.key}
+                    role="radio"
+                    aria-checked={p.selected}
+                    disabled={pendingProfile !== null}
+                    className={"new-preset" + (p.selected ? " new-preset--on" : "")}
+                    onClick={() => void selectProfile(p)}
+                  >
+                    <span className="new-preset__dot" aria-hidden />
+                    <span className="new-preset__name">
+                      {PRESET_OUTCOME[p.key.toLowerCase()] ?? p.name}
+                    </span>
+                    <span className="new-preset__profile">{p.name}</span>
+                    {p.description && (
+                      <span
+                        className="new-preset__desc"
+                        title={p.description}
+                      >
+                        {p.description}
+                      </span>
+                    )}
+                    {preview.length > 0 && (
+                      <span className="new-preset__preview muted">
+                        {preview.join(" · ")}
+                      </span>
+                    )}
+                    <span className="new-preset__meta">
+                      {p.modCount > 0
+                        ? `${p.modCount} ${pluralRu(p.modCount, "мод", "мода", "модов")}`
+                        : "Только базовые моды"}
+                      {p.selected && (
+                        <span className="new-preset__state">включён</span>
+                      )}
+                      {p.key === (profiles ?? [])[0]?.key && (
+                        <span className="new-preset__default">по умолчанию</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {/* Мирная подсказка: ручные тумблеры не ломают пресет. */}
+          {!singleProfile && (
+            <p className="muted new-preset-step__note">
+              Отдельные моды можно поменять ниже — пресет не сломается.
+            </p>
+          )}
+          {profileError && (
+            <p className="form-msg form-msg--error" role="alert">{profileError}</p>
+          )}
+          {!profileError && switchingNote && (
+            <p className="form-msg new-preset-step__note-live" role="status">
+              {switchingNote}
+            </p>
+          )}
+        </section>
       )}
 
-      {mods.length > 0 && (
+      {/* Шаг 02 — моды как следствие выбора пресета. */}
+      <section className="new-mods-step">
+        <header className="new-mods-step__head" role="status" aria-live="polite">
+          <span className="new-preset-step__num" aria-hidden>
+            {hasProfiles && !singleProfile ? "02" : "·"}
+          </span>
+          <h3 className="new-mods-step__title">Моды</h3>
+          {selectedProfile && (
+            <span
+              key={selectedProfile.key}
+              className="new-mods-step__context"
+            >
+              пресет «{selectedProfile.name}»
+            </span>
+          )}
+          <span
+            className={
+              "new-mods-step__count" + (bump ? " new-mods-step__count--bump" : "")
+            }
+          >
+            включено {enabledCount} из {accessibleCount}
+          </span>
+        </header>
+
         <input
           type="text"
           className="input mods-section__filter"
@@ -267,84 +555,42 @@ export default function ModsSection() {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-      )}
-      {filtered.map((mod) => {
-        const busy = pending.has(mod.modId);
-        const conflicts = activeConflicts(mod);
-        return (
-          <div className="toggle-row stagger-item" key={mod.modId}>
-            <div className="toggle-row__text">
-              <span className="toggle-row__title">
-                {mod.name}
-                {mod.size > 0 && (
-                  <span className="muted mods-section__size">
-                    {" "}
-                    · {formatBytes(mod.size)}
-                  </span>
-                )}
-              </span>
-              {mod.description && (
-                <span className="muted toggle-row__desc">{mod.description}</span>
-              )}
-              {mod.profiles.length > 0 && (
-                <span className="mods-section__profiles">
-                  {mod.profiles.map((k) => (
-                    <span className="mods-section__profile-badge" key={k}>
-                      {profileName(k)}
-                    </span>
-                  ))}
-                </span>
-              )}
-              {mod.locked && (
-                <span className="muted mods-section__locked-note">
-                  Недоступен в выбранном профиле — выберите профиль{" "}
-                  {mod.profiles.map(profileName).join(" / ")}.
-                </span>
-              )}
-              {conflicts.length > 0 && (
-                <span className="mods-section__conflict" role="alert">
-                  Конфликт с{" "}
-                  {conflicts.map((c) => c.name).join(", ")}. Вместе лучше не
-                  включать — выключите один из модов.
-                </span>
-              )}
-            </div>
-            {mod.optional ? (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={mod.enabled}
-                aria-disabled={mod.locked}
-                aria-label={`${mod.enabled ? "Выключить" : "Включить"} мод: ${mod.name}`}
-                disabled={busy || mod.locked}
-                title={
-                  mod.locked
-                    ? "Мод недоступен в выбранном профиле"
-                    : undefined
-                }
-                className={
-                  "switch" +
-                  (mod.enabled ? " switch--on" : "") +
-                  (mod.locked ? " switch--locked" : "")
-                }
-                onClick={() => toggle(mod)}
-              >
-                <span className="switch__knob" />
-              </button>
-            ) : (
-              <span
-                className="mods-section__profile-state"
-                title="Обязательный мод профиля — переключается выбором профиля"
-              >
-                {mod.enabled ? "от профиля" : "выключен"}
-              </span>
-            )}
+
+        {fromPreset.length > 0 && (
+          <div className="new-mods-step__group">
+            <p className="new-mods-step__group-title">Из пресета</p>
+            {fromPreset.map((m) => renderRow(m))}
           </div>
-        );
-      })}
-      {q && filtered.length === 0 && (
-        <p className="muted">По запросу «{filter.trim()}» ничего не найдено.</p>
-      )}
+        )}
+        {common.length > 0 && (
+          <div className="new-mods-step__group">
+            <p className="new-mods-step__group-title">Общие</p>
+            {common.map((m) => renderRow(m))}
+          </div>
+        )}
+        {others.length > 0 && (
+          <div
+            className={
+              "new-mods-step__group new-mods-step__group--other" +
+              (!othersExpanded ? " new-mods-step__group--collapsed" : "")
+            }
+          >
+            <button
+              type="button"
+              className="new-mods-step__group-toggle"
+              aria-expanded={othersExpanded}
+              disabled={q.length > 0}
+              onClick={() => setOthersCollapsed((v) => !v)}
+            >
+              {othersExpanded ? "▾" : "▸"} В других пресетах · {others.length}
+            </button>
+            {others.map((m) => renderRow(m))}
+          </div>
+        )}
+        {q && filtered.length === 0 && (
+          <p className="muted">По запросу «{filter.trim()}» ничего не найдено.</p>
+        )}
+      </section>
     </div>
   );
 }
