@@ -2,8 +2,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { MobileApp } from "./MobileApp";
 import { redirectIfWrongView } from "../app/viewMode";
+import { reloadOnStaleChunk } from "../app/staleChunks";
 import "../styles.css";
 import "./mobile.css";
+
+// Деплой сменил чанки под открытой вкладкой — тихо перезагружаемся
+// вместо красного экрана «error loading dynamically imported module».
+reloadOnStaleChunk();
 
 // Десктоп на мобильном URL — уводим на /. Если редиректим, рендерить не нужно.
 // Мобильный интерфейс — single-page web app: вкладки меняются состоянием React,

@@ -3,7 +3,12 @@ import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { DesktopApp } from "./desktop/DesktopApp";
 import { redirectIfWrongView } from "./app/viewMode";
+import { reloadOnStaleChunk } from "./app/staleChunks";
 import "./styles.css";
+
+// Деплой сменил чанки под открытой вкладкой — тихо перезагружаемся
+// вместо красного экрана «error loading dynamically imported module».
+reloadOnStaleChunk();
 
 // Телефон на десктопном URL — уводим на /m. Если редиректим, рендерить не нужно.
 //
