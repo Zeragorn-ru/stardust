@@ -4009,7 +4009,9 @@ input[type="radio"] {
     margin-top: 18px;
 }
 
-.overview-hero-pills span {
+/* Дочерний селектор: стилизуем только сами пилюли, не вложенный
+   span-индикатор StatusDot внутри них. */
+.overview-hero-pills > span {
     min-height: 32px;
     display: inline-flex;
     align-items: center;
@@ -4975,16 +4977,16 @@ input[type="radio"] {
     box-shadow: 0 0 10px rgba(255, 209, 102, 0.5);
 }
 
-.overview-hero-pills span {
+.overview-hero-pills > span {
     gap: 7px;
 }
 
-.overview-hero-pills span.is-ready {
+.overview-hero-pills > span.is-ready {
     border-color: rgba(95, 240, 167, 0.18);
     background: rgba(95, 240, 167, 0.055);
 }
 
-.overview-hero-pills span.is-warning {
+.overview-hero-pills > span.is-warning {
     border-color: rgba(255, 209, 102, 0.2);
     background: rgba(255, 209, 102, 0.06);
 }
