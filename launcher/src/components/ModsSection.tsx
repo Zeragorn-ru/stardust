@@ -67,8 +67,9 @@ export default function ModsSection() {
   }
 
   async function toggle(mod: OptionalMod) {
-    // Не спорим с идущим переключением профиля (см. selectProfile).
-    if (pendingProfile !== null || mod.locked) return;
+    // Не спорим с идущим переключением профиля (см. selectProfile);
+    // неопциональные моды руками не переключаются вовсе.
+    if (pendingProfile !== null || mod.locked || !mod.optional) return;
     const next = !mod.enabled;
     // Оптимистично обновляем UI.
     setMods((prev) =>
@@ -121,7 +122,16 @@ export default function ModsSection() {
               m.profiles.some(
                 (k) => k.toLowerCase() === profile.key.toLowerCase(),
               );
-            return inProfile ? m : { ...m, locked: true, enabled: false };
+            return inProfile
+              ? m
+              : {
+                  ...m,
+                  locked: true,
+                  // Неопциональные моды включатся вместе с профилем
+                  // (гейт file_enabled), опциональные вернутся к выбору
+                  // игрока — перечитаем после применения.
+                  enabled: false,
+                };
           })
         : prev,
     );
@@ -299,27 +309,36 @@ export default function ModsSection() {
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={mod.enabled}
-              aria-disabled={mod.locked}
-              aria-label={`${mod.enabled ? "Выключить" : "Включить"} мод: ${mod.name}`}
-              disabled={busy || mod.locked}
-              title={
-                mod.locked
-                  ? "Мод недоступен в выбранном профиле"
-                  : undefined
-              }
-              className={
-                "switch" +
-                (mod.enabled ? " switch--on" : "") +
-                (mod.locked ? " switch--locked" : "")
-              }
-              onClick={() => toggle(mod)}
-            >
-              <span className="switch__knob" />
-            </button>
+            {mod.optional ? (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={mod.enabled}
+                aria-disabled={mod.locked}
+                aria-label={`${mod.enabled ? "Выключить" : "Включить"} мод: ${mod.name}`}
+                disabled={busy || mod.locked}
+                title={
+                  mod.locked
+                    ? "Мод недоступен в выбранном профиле"
+                    : undefined
+                }
+                className={
+                  "switch" +
+                  (mod.enabled ? " switch--on" : "") +
+                  (mod.locked ? " switch--locked" : "")
+                }
+                onClick={() => toggle(mod)}
+              >
+                <span className="switch__knob" />
+              </button>
+            ) : (
+              <span
+                className="mods-section__profile-state"
+                title="Обязательный мод профиля — переключается выбором профиля"
+              >
+                {mod.enabled ? "от профиля" : "выключен"}
+              </span>
+            )}
           </div>
         );
       })}

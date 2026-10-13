@@ -71,6 +71,9 @@ pub struct OptionalMod {
     /// Недоступен ли мод в текущем выбранном профиле: такой мод не
     /// переключается руками и принудительно выключен.
     pub locked: bool,
+    /// Опциональный ли мод: у неопционального нет ручного тумблера,
+    /// его состояние полностью определяет выбранный профиль.
+    pub optional: bool,
 }
 
 /// Известные взаимоисключающие пары опциональных модов (modId ↔ modId).
@@ -126,6 +129,9 @@ fn optional_mod_enabled(
 
 /// Открыт ли мод в выбранном профиле: мод без тегов («общий») — да;
 /// мод с тегами — да, только если выбранный профиль входит в его теги.
+/// Неопциональные моды подчиняются гейту так же, как опциональные:
+/// тег профиля означает «файл принадлежит этому профилю» независимо
+/// от того, можно ли его переключать руками.
 fn profile_gate_open(entry: &protocol::FileEntry, selected_profile: Option<&str>) -> bool {
     if entry.profiles.is_empty() {
         return true;
@@ -138,6 +144,23 @@ fn profile_gate_open(entry: &protocol::FileEntry, selected_profile: Option<&str>
         .profiles
         .iter()
         .any(|k| k.eq_ignore_ascii_case(selected))
+}
+
+/// Итоговое состояние файла на диске: гейт по профилям накрывает и
+/// опциональные, и обязательные моды с тегами; опциональность добавляет
+/// лишь ручной тумблер поверх гейта.
+fn file_enabled(
+    entry: &protocol::FileEntry,
+    choices: &BTreeMap<String, bool>,
+    selected_profile: Option<&str>,
+) -> bool {
+    if !profile_gate_open(entry, selected_profile) {
+        return false;
+    }
+    if !entry.optional {
+        return true;
+    }
+    optional_mod_enabled(entry, choices, selected_profile)
 }
 
 /// Прочитать выбранный профиль из файла, сверив ключ с профилями манифеста.
@@ -215,7 +238,9 @@ pub async fn mod_profile_summary(
         return Ok(Vec::new());
     };
     let selected = read_selected_profile(&manifest, selected_profile_file);
-    let mods: Vec<_> = manifest.optional_client_mods().collect();
+    // Считаем все клиентские файлы с тегами: неопциональный мод из профиля
+    // тоже входит в него (гейт в sync() действует на оба вида).
+    let mods: Vec<_> = manifest.client_files().collect();
 
     Ok(manifest
         .mod_profiles
@@ -273,8 +298,10 @@ pub async fn select_mod_profile(
     write_selected_profile(selected_profile_file, profile_key);
 
     let mut applied = 0usize;
-    for entry in manifest.optional_client_mods() {
-        let enabled = optional_mod_enabled(entry, &choices, Some(profile_key));
+    // Все клиентские файлы (не только опциональные): тег профиля у
+    // обязательного мода значит «файл принадлежит профилю» так же.
+    for entry in manifest.client_files() {
+        let enabled = file_enabled(entry, &choices, Some(profile_key));
         if let Some(rel) = sanitize_rel_path(&entry.path) {
             if apply_enabled_state(game_dir, &rel, enabled) {
                 applied += 1;
@@ -369,12 +396,10 @@ pub async fn sync(
             .ok_or_else(|| format!("Недопустимый путь в манифесте: {}", entry.path))?;
         let rel_key = rel.to_string_lossy().replace('\\', "/");
 
-        // Включён ли мод. Обязательные файлы (ядро, конфиги) — всегда «включены».
-        let enabled = if entry.optional {
-            optional_mod_enabled(entry, &choices, selected_profile.as_deref())
-        } else {
-            true
-        };
+        // Включён ли файл: гейт по профилям действует и на обязательные
+        // моды с тегами (неопциональный «в своём» профиле — включён,
+        // в чужом — выключен), опциональность добавляет ручной тумблер.
+        let enabled = file_enabled(entry, &choices, selected_profile.as_deref());
 
         // Активное имя файла — то, под которым он должен лежать сейчас;
         // неактивное — противоположный вариант (его убираем, чтобы не было
@@ -486,8 +511,9 @@ pub async fn sync(
     Ok(())
 }
 
-/// Список опциональных клиентских модов активной сборки с текущим состоянием
-/// (вкл/выкл) для экрана управления. Если активной сборки нет — пустой список.
+/// Список клиентских модов активной сборки для экрана «Сборка»: опциональные
+/// (с тумблером) и неопциональные с тегами профилей (управляются профилем).
+/// Если активной сборки нет — пустой список.
 pub async fn list_optional_mods(
     http: &reqwest::Client,
     data_dir: &Path,
@@ -502,13 +528,16 @@ pub async fn list_optional_mods(
     let selected_profile = read_selected_profile(&manifest, selected_profile_file);
 
     let mods = manifest
-        .optional_client_mods()
+        .client_files()
+        // Обычные обязательные файлы (конфиги, ядро) не показываем;
+        // обязательные моды с тегами профилей — показываем.
+        .filter(|entry| entry.optional || !entry.profiles.is_empty())
         .map(|entry| {
             // Стабильный ключ: `mod_id`, а если его нет — путь файла. Так моды,
             // помеченные опциональными без явного modId, всё равно попадают в список.
             let mod_id = mod_choice_key(entry);
             let locked = !profile_gate_open(entry, selected_profile.as_deref());
-            let enabled = !locked && optional_mod_enabled(entry, &choices, selected_profile.as_deref());
+            let enabled = file_enabled(entry, &choices, selected_profile.as_deref());
             // Имя/описание: приоритет у манифеста. Если их там нет — пробуем
             // достать из метаданных самого jar (он всегда скачан, пусть и как
             // `.dis`). В последнюю очередь — имя файла.
@@ -536,6 +565,7 @@ pub async fn list_optional_mods(
                 conflicts_with,
                 profiles: entry.profiles.clone(),
                 locked,
+                optional: entry.optional,
             }
         })
         .collect();
@@ -1024,6 +1054,29 @@ mod tests {
         let off_by_default = mod_entry("voxy", &["performance"], false);
         assert!(optional_mod_enabled(&perf, &choices, Some("performance")));
         assert!(!optional_mod_enabled(&off_by_default, &choices, Some("performance")));
+    }
+
+    #[test]
+    fn gate_covers_non_optional_tagged_files() {
+        // Неопциональный мод с тегами: в чужом профиле выключен, в своём
+        // включён (даже без choices — опциональность тут ни при чём).
+        let required = protocol::FileEntry {
+            optional: false,
+            ..mod_entry("volcanic", &["perfomance"], true)
+        };
+        let choices = BTreeMap::new();
+
+        assert!(!file_enabled(&required, &choices, Some("quality")));
+        assert!(file_enabled(&required, &choices, Some("perfomance")));
+        // Без профилей в сборке (selected=None) теговый файл недоступен.
+        assert!(!file_enabled(&required, &choices, None));
+
+        // Неопциональный без тегов («общий»): всегда включён.
+        let common_required = protocol::FileEntry {
+            optional: false,
+            ..mod_entry("fabric-api", &[], true)
+        };
+        assert!(file_enabled(&common_required, &choices, None));
     }
 
     #[test]
