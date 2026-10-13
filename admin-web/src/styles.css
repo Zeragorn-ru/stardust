@@ -923,18 +923,20 @@ label {
     gap: 8px;
     padding: 10px 0;
     margin-bottom: 18px;
+    /* Полностью непрозрачная подложка цвета фона: при залипании (sticky
+       заработал только теперь, когда скроллится .content) контент не
+       просвечивает, а лента не выглядит «чёрной плашкой» с blur. */
+    background: var(--bg);
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    background: rgba(3, 4, 6, 0.86);
-    backdrop-filter: blur(14px);
 }
 
 .settings-subnav-item {
     display: inline-flex;
     align-items: center;
     padding: 7px 14px;
-    border: 1px solid transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: var(--radius-pill);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--bg-elev);
     color: var(--muted);
     font-size: var(--fs-sm);
     font-weight: 700;
