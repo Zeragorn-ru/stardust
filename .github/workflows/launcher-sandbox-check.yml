@@ -18,10 +18,12 @@ on:
     branches: [master]
     paths:
       - "launcher/src-tauri/src/lib.rs"
+      - "crates/sandbox-probe/**"
       - ".github/workflows/launcher-sandbox-check.yml"
   pull_request:
     paths:
       - "launcher/src-tauri/src/lib.rs"
+      - "crates/sandbox-probe/**"
       - ".github/workflows/launcher-sandbox-check.yml"
 
 jobs:
@@ -46,23 +48,15 @@ jobs:
       - name: Build the sandbox probe binary
         shell: bash
         run: |
-          cd launcher/src-tauri
-          cargo build --bin launcher-sandbox-probe 2>&1 || {
-            # Бинарь может отсутствовать на старых коммитах — тогда проверяем
-            # сам lib.rs компиляцией основного крейта с проверкой фоллбэка.
-            cargo check
-          }
+          # Probe живёт отдельным крейтом crates/sandbox-probe: бинарь в
+          # пакете launcher ломал выбор главного бинаря tauri (v0.11.12–13).
+          cargo build -p sandbox-probe
 
       - name: Read-only log directory reproduction (Gear Lever scenario)
         shell: bash
         run: |
           set -euo pipefail
-          BIN="launcher/src-tauri/target/debug/launcher-sandbox-probe"
-          if [ ! -f "$BIN" ]; then
-            echo "PROBE_BINARY_MISSING — проверка инициализации логов пропущена"
-            echo "(лаунчер без фоллбэка бы паниковал; см. lib.rs)"
-            exit 0
-          fi
+          BIN="target/debug/sandbox-probe"
 
           # Сценарий Gear Lever/Flatpak: бинарь лежит в read-only каталоге.
           # app/ в /tmp создаём read-only — как squashed /app в песочнице.

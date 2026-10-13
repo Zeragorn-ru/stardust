@@ -1,13 +1,12 @@
 // Проба инициализации логов в песочнице с read-only каталогом.
 //
-// Дублирует логику run() из lib.rs (файловый аппендер с фоллбэком на
-// stdout), но без Tauri — чтобы workflow launcher-sandbox-check мог
-// быстро собрать и запустить её в Arch-контейнере. Если лог-каталог
-// рядом с бинарём read-only (Gear Lever/Flatpak-сценарий), проба не
-// паникует, а пишет в stdout и выходит кодом 0.
+// Дублирует логику run() из launcher_lib (файловый аппендер с фоллбэком
+// на stdout), но без Tauri — чтобы workflow launcher-sandbox-check мог
+// быстро собрать и запустить её в Arch-контейнере. Живёт отдельным крейтом
+// (не бинарем пакета launcher): с двумя бинарями tauri упаковывал в
+// установщики не тот бинарь (инцидент v0.11.12–v0.11.13).
 //
-// Запуск: launcher-sandbox-probe [--probe-logs]
-
+// Запуск: sandbox-probe [--probe-logs]
 fn main() {
     let log_dir = std::env::current_exe()
         .ok()

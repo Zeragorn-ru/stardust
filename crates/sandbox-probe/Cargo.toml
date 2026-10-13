@@ -1,0 +1,17 @@
+# Проба инициализации логов лаунчера в песочнице с read-only каталогом.
+#
+# Отдельный крейт (а не бинарь в пакете launcher): tauri при нескольких
+# бинарях в пакете может упаковать в установщики НЕ launcher (инцидент
+# v0.11.12–v0.11.13: в бандлы попал probe). Пакет лаунчера должен
+# содержать ровно один бинарь.
+[package]
+name = "sandbox-probe"
+version = "0.0.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"

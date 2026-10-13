@@ -6,6 +6,7 @@ members = [
     "crates/auth-server",
     "crates/admin-server",
     "crates/telegram-bot",
+    "crates/sandbox-probe",
     "launcher/src-tauri",
 ]
 exclude = ["crates/bootstrap"]
