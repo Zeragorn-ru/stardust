@@ -163,15 +163,6 @@ function Shell() {
             <strong>{sectionMeta.title}</strong>
             <small className="topbar-description">{sectionMeta.description}</small>
           </div>
-          <div className="topbar-actions">
-            <a className="topbar-view-link" href={switchViewHref("mobile")}>Открыть мобильную версию</a>
-            {username && (
-              <div className="topbar-status" aria-label="Текущий пользователь">
-                <span className="status-dot status-dot--online" />
-                {username}
-              </div>
-            )}
-          </div>
         </header>
         <main className="content">
           <Routes>

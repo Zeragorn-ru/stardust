@@ -140,9 +140,12 @@ export function SettingsView() {
   }, [backupRunning]);
 
   // Scroll-spy: подсвечиваем секцию, чей заголовок пересёк верх экрана.
+  // Корень наблюдателя — контейнер .content (именно он прокручивается),
+  // отступ сверху — высота липкой строки подсекций.
   useEffect(() => {
     const container = sectionsRef.current;
     if (!container) return;
+    const scroller = container.closest<HTMLElement>(".content");
     const observer = new IntersectionObserver(
       (entries) => {
         // Берём верхнюю видимую секцию с положительным intersectionRatio.
@@ -151,7 +154,7 @@ export function SettingsView() {
           .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
         if (visible[0]?.target.id) setActiveSection(visible[0].target.id);
       },
-      { rootMargin: "-96px 0px -60% 0px", threshold: 0 },
+      { root: scroller ?? null, rootMargin: "-64px 0px -60% 0px", threshold: 0 },
     );
     for (const section of SETTINGS_SECTIONS) {
       const el = document.getElementById(section.id);
@@ -163,10 +166,22 @@ export function SettingsView() {
   function scrollToSection(id: string) {
     const el = document.getElementById(id);
     if (!el) return;
-    // Смещение под фиксированный/липкий верх шапки, чтобы заголовок
-    // секции не прятался под ним.
-    const top = el.getBoundingClientRect().top + window.scrollY - 90;
-    window.scrollTo({ top, behavior: "smooth" });
+    // Скроллится контейнер .content, а не окно (у .workspace
+    // overflow: hidden) — прокручиваем именно его, оставляя место
+    // под липкую строку подсекций, чтобы заголовок секции не
+    // прятался под ней.
+    const scroller = el.closest<HTMLElement>(".content");
+    if (scroller) {
+      const top =
+        el.getBoundingClientRect().top -
+        scroller.getBoundingClientRect().top +
+        scroller.scrollTop -
+        64;
+      scroller.scrollTo({ top, behavior: "smooth" });
+    } else {
+      const top = el.getBoundingClientRect().top + window.scrollY - 90;
+      window.scrollTo({ top, behavior: "smooth" });
+    }
     setActiveSection(id);
   }
 
