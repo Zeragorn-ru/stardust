@@ -650,7 +650,7 @@ export async function setModEnabled(
   await invoke<void>("set_mod_enabled", { modId, enabled });
 }
 
-/** Профили модов активной сборки с состоянием игрока. */
+/** Профили модов активной сборки: какой выбран и сколько модов в каждом. */
 export async function listModProfiles(): Promise<ModProfileInfo[]> {
   const invoke = await getInvoke();
   if (!invoke) {
@@ -660,17 +660,15 @@ export async function listModProfiles(): Promise<ModProfileInfo[]> {
   return invoke<ModProfileInfo[]>("list_mod_profiles");
 }
 
-/** Включить/выключить профиль модов; возвращает число затронутых модов. */
-export async function setModProfile(
-  profileKey: string,
-  enabled: boolean,
-): Promise<number> {
+/** Выбрать профиль модов (профили взаимоисключающие); возвращает число
+ *  файлов, реально сменивших состояние. */
+export async function selectModProfile(profileKey: string): Promise<number> {
   const invoke = await getInvoke();
   if (!invoke) {
     await delay(150);
     return 0;
   }
-  return invoke<number>("set_mod_profile", { profileKey, enabled });
+  return invoke<number>("select_mod_profile", { profileKey });
 }
 
 /**

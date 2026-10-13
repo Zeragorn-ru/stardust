@@ -2928,13 +2928,15 @@ async fn list_optional_mods(
         &state.http(),
         &paths::data_dir(&app),
         &paths::mod_choices_file(&app),
+        &paths::selected_profile_file(&app),
         &game_dir(&app),
     )
     .await
 }
 
 /// Включить/выключить опциональный мод. Сохраняет выбор и, если файл уже
-/// скачан, мгновенно переименовывает его (± `.dis`).
+/// скачан, мгновенно переименовывает его (± `.dis`). Моды вне выбранного
+/// профиля переключать нельзя — сначала нужно выбрать их профиль.
 #[tauri::command]
 async fn set_mod_enabled(
     mod_id: String,
@@ -2946,6 +2948,7 @@ async fn set_mod_enabled(
         &state.http(),
         &paths::data_dir(&app),
         &paths::mod_choices_file(&app),
+        &paths::selected_profile_file(&app),
         &game_dir(&app),
         mod_id,
         enabled,
@@ -2953,8 +2956,8 @@ async fn set_mod_enabled(
     .await
 }
 
-/// Профили модов активной сборки (пресеты «Производительность»/«Качество»)
-/// с состоянием игрока: включён ли профиль и сколько в нём модов.
+/// Профили модов активной сборки (пресеты «Производительность»/«Качество»):
+/// какой выбран и сколько модов входит в каждый.
 #[tauri::command]
 async fn list_mod_profiles(
     state: State<'_, AppState>,
@@ -2963,27 +2966,26 @@ async fn list_mod_profiles(
     crate::modpack::mod_profile_summary(
         &state.http(),
         &paths::data_dir(&app),
-        &paths::mod_choices_file(&app),
+        &paths::selected_profile_file(&app),
     )
     .await
 }
 
-/// Включить/выключить профиль: переводит все моды профиля в указанное
-/// состояние (переименование ± `.dis`, без перекачки).
+/// Выбрать профиль модов (профили взаимоисключающие): сохраняет выбор и
+/// применяет состояния модов к файлам (переименование ± `.dis`, без перекачки).
 #[tauri::command]
-async fn set_mod_profile(
+async fn select_mod_profile(
     profile_key: String,
-    enabled: bool,
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<usize, String> {
-    crate::modpack::set_mod_profile(
+    crate::modpack::select_mod_profile(
         &state.http(),
         &paths::data_dir(&app),
         &paths::mod_choices_file(&app),
+        &paths::selected_profile_file(&app),
         &game_dir(&app),
         &profile_key,
-        enabled,
     )
     .await
 }
@@ -3352,7 +3354,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             list_optional_mods,
             set_mod_enabled,
             list_mod_profiles,
-            set_mod_profile,
+            select_mod_profile,
             crate::update::check_update,
             crate::update::install_update,
             crate::update::signed_check_update,

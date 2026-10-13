@@ -139,6 +139,14 @@ pub fn mod_choices_file(app: &AppHandle) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("mod-choices.json"))
 }
 
+/// Выбранный профиль модов (профили взаимоисключающие) — рядом с выборами.
+pub fn selected_profile_file(app: &AppHandle) -> PathBuf {
+    location_file(app)
+        .parent()
+        .map(|dir| dir.join("selected-profile.json"))
+        .unwrap_or_else(|| PathBuf::from("selected-profile.json"))
+}
+
 pub fn configured_data_dir(app: &AppHandle) -> Option<PathBuf> {
     let raw = std::fs::read_to_string(location_file(app)).ok()?;
     let location: DataDirectoryLocation = serde_json::from_str(&raw).ok()?;

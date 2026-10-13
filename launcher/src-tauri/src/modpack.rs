@@ -12,6 +12,12 @@
 // нет — берём `enabled_by_default` из манифеста, с поправкой на
 // `PLATFORM_DEFAULT_DISABLED` (например Better Clouds на macOS).
 //
+// Профили модов взаимоисключающие: выбран ровно один, ключ хранится в
+// `selected-profile.json` рядом с выборами модов (по умолчанию — первый
+// профиль сборки). Мод с тегами профилей доступен (и переключается руками)
+// только пока выбранный профиль входит в его теги; вне своего профиля он
+// принудительно выключен. «Общие» моды без тегов от профилей не зависят.
+//
 // Чтобы при обновлении сборки убирать удалённые из неё моды, лаунчер хранит
 // рядом список ранее установленных им файлов (`managed-files.json`). Файлы,
 // которых больше нет в манифесте, удаляются — но только если игрок их сам не
@@ -62,6 +68,9 @@ pub struct OptionalMod {
     pub conflicts_with: Vec<String>,
     /// Профили, в которых состоит мод; пусто = «общий» (есть во всех).
     pub profiles: Vec<String>,
+    /// Недоступен ли мод в текущем выбранном профиле: такой мод не
+    /// переключается руками и принудительно выключен.
+    pub locked: bool,
 }
 
 /// Известные взаимоисключающие пары опциональных модов (modId ↔ modId).
@@ -86,8 +95,21 @@ fn normalize_mod_id(id: &str) -> String {
     id.trim().to_ascii_lowercase()
 }
 
-/// Включён ли опциональный мод с учётом выбора игрока и platform-default.
-fn optional_mod_enabled(entry: &protocol::FileEntry, choices: &BTreeMap<String, bool>) -> bool {
+/// Включён ли опциональный мод с учётом выбора игрока, выбранного профиля
+/// и platform-default.
+///
+/// Профильный гейт: у мода с тегами профилей выбранный профиль должен входить
+/// в эти теги — иначе мод недоступен и принудительно выключен. Для «общих»
+/// модов (без тегов) и при их совпадении дальше действует обычная логика:
+/// выбор игрока → platform-default → enabled_by_default.
+fn optional_mod_enabled(
+    entry: &protocol::FileEntry,
+    choices: &BTreeMap<String, bool>,
+    selected_profile: Option<&str>,
+) -> bool {
+    if !profile_gate_open(entry, selected_profile) {
+        return false;
+    }
     let key = mod_choice_key(entry);
     if let Some(&choice) = choices.get(&key) {
         return choice;
@@ -102,6 +124,70 @@ fn optional_mod_enabled(entry: &protocol::FileEntry, choices: &BTreeMap<String, 
     entry.enabled_by_default
 }
 
+/// Открыт ли мод в выбранном профиле: мод без тегов («общий») — да;
+/// мод с тегами — да, только если выбранный профиль входит в его теги.
+fn profile_gate_open(entry: &protocol::FileEntry, selected_profile: Option<&str>) -> bool {
+    if entry.profiles.is_empty() {
+        return true;
+    }
+    let Some(selected) = selected_profile else {
+        // В сборке нет профилей, а у мода есть теги — считаем недоступным.
+        return false;
+    };
+    entry
+        .profiles
+        .iter()
+        .any(|k| k.eq_ignore_ascii_case(selected))
+}
+
+/// Прочитать выбранный профиль из файла, сверив ключ с профилями манифеста.
+/// Нет файла/неизвестный ключ → первый профиль манифеста (профили
+/// взаимоисключающие, один всегда выбран). Манифест без профилей → `None`.
+fn resolve_selected_profile(
+    manifest: &protocol::Manifest,
+    selected_profile_file: &Path,
+) -> Option<String> {
+    if manifest.mod_profiles.is_empty() {
+        return None;
+    }
+    let saved = std::fs::read_to_string(selected_profile_file)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    if let Some(key) = saved {
+        if manifest
+            .mod_profiles
+            .iter()
+            .any(|p| p.key.eq_ignore_ascii_case(&key))
+        {
+            return Some(key);
+        }
+    }
+    manifest.mod_profiles.first().map(|p| p.key.clone())
+}
+
+/// Выбранный профиль с фоллбэком на первый профиль манифеста; записываем,
+/// чтобы игрок видел выбранное, и UI не «прыгал» между перечитываниями.
+fn read_selected_profile(
+    manifest: &protocol::Manifest,
+    selected_profile_file: &Path,
+) -> Option<String> {
+    let resolved = resolve_selected_profile(manifest, selected_profile_file);
+    if let Some(key) = &resolved {
+        write_selected_profile(selected_profile_file, key);
+    }
+    resolved
+}
+
+fn write_selected_profile(path: &Path, key: &str) {
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Err(e) = std::fs::write(path, key) {
+        tracing::warn!("Не удалось сохранить выбранный профиль модов: {e}");
+    }
+}
+
 /// Профиль опциональных модов, как его видит UI лаунчера.
 #[derive(Debug, Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -112,101 +198,87 @@ pub struct ModProfileInfo {
     pub name: String,
     /// Описание для UI.
     pub description: Option<String>,
-    /// Включён ли этот профиль у игрока (все его моды включены).
-    pub active: bool,
+    /// Выбран ли этот профиль (профили взаимоисключающие, выбран ровно один).
+    pub selected: bool,
     /// Сколько опциональных модов входят в профиль.
     pub mod_count: usize,
 }
 
-/// Сводка профилей активной сборки: метаданные + состояние игрока.
+/// Сводка профилей активной сборки: метаданные + выбранный профиль игрока.
 /// Моды без профиля («общие») в подсчёты не входят.
 pub async fn mod_profile_summary(
     http: &reqwest::Client,
     data_dir: &Path,
-    choices_file: &Path,
+    selected_profile_file: &Path,
 ) -> Result<Vec<ModProfileInfo>, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Ok(Vec::new());
     };
-    let choices = read_choices(data_dir, choices_file);
+    let selected = read_selected_profile(&manifest, selected_profile_file);
     let mods: Vec<_> = manifest.optional_client_mods().collect();
 
     Ok(manifest
         .mod_profiles
         .iter()
         .map(|p| {
-            let members: Vec<&protocol::FileEntry> = mods
+            let members = mods
                 .iter()
                 .copied()
                 .filter(|m| {
                     let keys = m.profiles.as_slice();
                     keys.iter().any(|k| k.eq_ignore_ascii_case(&p.key))
                 })
-                .collect();
-            let active = !members.is_empty()
-                && members
-                    .iter()
-                    .all(|m| optional_mod_enabled(m, &choices));
+                .count();
             ModProfileInfo {
                 key: p.key.clone(),
                 name: p.name.clone(),
                 description: p.description.clone(),
-                active,
-                mod_count: members.len(),
+                selected: selected
+                    .as_deref()
+                    .is_some_and(|s| s.eq_ignore_ascii_case(&p.key)),
+                mod_count: members,
             }
         })
         .collect())
 }
 
-/// Включает или выключает профиль: переводит все входящие в него моды в
-/// указанное состояние (пустой набор профилей у мода = «общий», не трогаем).
-/// Возвращает применённое количество модов.
-pub async fn set_mod_profile(
+/// Выбирает профиль модов (профили взаимоисключающие). Сохраняет ключ в
+/// `selected-profile.json` и применяет состояния на диск: моды, чьи теги не
+/// включают новый профиль, выключаются гейтом, остальные возвращаются к
+/// сохранённому выбору игрока (или дефолту). Переименование ± `.dis`, без
+/// перекачки. Возвращает количество файлов, реально сменивших состояние.
+pub async fn select_mod_profile(
     http: &reqwest::Client,
     data_dir: &Path,
     choices_file: &Path,
+    selected_profile_file: &Path,
     game_dir: &Path,
     profile_key: &str,
-    enabled: bool,
 ) -> Result<usize, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Err("Активная сборка недоступна".to_string());
     };
-    // Читаем и дополняем под тем же локом, что set_mod_enabled (см. CHOICES_LOCK).
-    let (choices, applied) = {
-        let _guard = CHOICES_LOCK.lock().unwrap();
-        let mut choices = read_choices(data_dir, choices_file);
-        let mut applied = 0usize;
-        for entry in manifest.optional_client_mods() {
-            let belongs = entry
-                .profiles
-                .iter()
-                .any(|k| k.eq_ignore_ascii_case(profile_key));
-            if !belongs {
-                continue;
-            }
-            choices.insert(mod_choice_key(entry), enabled);
-            applied += 1;
-        }
-        write_choices(choices_file, &choices);
-        (choices, applied)
-    };
+    let known = manifest
+        .mod_profiles
+        .iter()
+        .any(|p| p.key.eq_ignore_ascii_case(profile_key));
+    if !known {
+        return Err(format!("Неизвестный профиль модов: {profile_key}"));
+    }
 
-    // Применяем на диск сразу (переименование ± `.dis`), без перекачки.
+    // Держим лок и на записи профиля, и на переименованиях: параллельный
+    // set_mod_enabled не должен вклиниться между ними (см. CHOICES_LOCK).
+    let choices = read_choices(data_dir, choices_file);
+    let _guard = CHOICES_LOCK.lock().unwrap();
+    write_selected_profile(selected_profile_file, profile_key);
+
+    let mut applied = 0usize;
     for entry in manifest.optional_client_mods() {
-        let belongs = entry
-            .profiles
-            .iter()
-            .any(|k| k.eq_ignore_ascii_case(profile_key));
-        if !belongs {
-            continue;
-        }
-        let choice = choices
-            .get(&mod_choice_key(entry))
-            .copied()
-            .unwrap_or(entry.enabled_by_default);
+        let enabled = optional_mod_enabled(entry, &choices, Some(profile_key));
         if let Some(rel) = sanitize_rel_path(&entry.path) {
-            apply_enabled_state(game_dir, &rel, choice);
+            if apply_enabled_state(game_dir, &rel, enabled) {
+                applied += 1;
+            }
         }
     }
     Ok(applied)
@@ -247,11 +319,13 @@ fn mod_choice_key(entry: &protocol::FileEntry) -> String {
 ///
 /// Если активной сборки нет (404) — тихо выходит: игра запустится без модпака.
 /// Сетевые/серверные ошибки пробрасываются, чтобы пользователь увидел причину.
+#[allow(clippy::too_many_arguments)]
 pub async fn sync(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
     choices_file: &Path,
+    selected_profile_file: &Path,
     game_dir: &Path,
     concurrency: usize,
     manifest: Option<&protocol::Manifest>,
@@ -267,6 +341,7 @@ pub async fn sync(
     };
 
     let choices = read_choices(data_dir, choices_file);
+    let selected_profile = read_selected_profile(manifest, selected_profile_file);
     let mut state = read_state(game_dir);
     let mut desired: BTreeMap<String, String> = BTreeMap::new();
 
@@ -296,7 +371,7 @@ pub async fn sync(
 
         // Включён ли мод. Обязательные файлы (ядро, конфиги) — всегда «включены».
         let enabled = if entry.optional {
-            optional_mod_enabled(entry, &choices)
+            optional_mod_enabled(entry, &choices, selected_profile.as_deref())
         } else {
             true
         };
@@ -417,12 +492,14 @@ pub async fn list_optional_mods(
     http: &reqwest::Client,
     data_dir: &Path,
     choices_file: &Path,
+    selected_profile_file: &Path,
     game_dir: &Path,
 ) -> Result<Vec<OptionalMod>, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Ok(Vec::new());
     };
     let choices = read_choices(data_dir, choices_file);
+    let selected_profile = read_selected_profile(&manifest, selected_profile_file);
 
     let mods = manifest
         .optional_client_mods()
@@ -430,7 +507,8 @@ pub async fn list_optional_mods(
             // Стабильный ключ: `mod_id`, а если его нет — путь файла. Так моды,
             // помеченные опциональными без явного modId, всё равно попадают в список.
             let mod_id = mod_choice_key(entry);
-            let enabled = optional_mod_enabled(entry, &choices);
+            let locked = !profile_gate_open(entry, selected_profile.as_deref());
+            let enabled = !locked && optional_mod_enabled(entry, &choices, selected_profile.as_deref());
             // Имя/описание: приоритет у манифеста. Если их там нет — пробуем
             // достать из метаданных самого jar (он всегда скачан, пусть и как
             // `.dis`). В последнюю очередь — имя файла.
@@ -457,15 +535,17 @@ pub async fn list_optional_mods(
                 size: entry.size,
                 conflicts_with,
                 profiles: entry.profiles.clone(),
+                locked,
             }
         })
         .collect();
     Ok(mods)
 }
 
-/// Сериализует чтение-модификацию-запись `mod-choices.json`: set_mod_enabled
-/// и set_mod_profile — async-команды, и без лока два быстрых переключения
-/// перетирали бы друг друга (lost update).
+/// Сериализует чтение-модификацию-запись `mod-choices.json` и
+/// `selected-profile.json`: set_mod_enabled и select_mod_profile —
+/// async-команды, и без лока два быстрых переключения перетирали бы
+/// друг друга (lost update).
 static CHOICES_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Включает/выключает опциональный мод. Сохраняет выбор и, если файл уже
@@ -475,10 +555,31 @@ pub async fn set_mod_enabled(
     http: &reqwest::Client,
     data_dir: &Path,
     choices_file: &Path,
+    selected_profile_file: &Path,
     game_dir: &Path,
     mod_id: String,
     enabled: bool,
 ) -> Result<(), String> {
+    // Профильный гейт: мод, недоступный в выбранном профиле, руками не
+    // переключается — сначала нужно выбрать профиль, которому он принадлежит.
+    // Недоступный манифест не мешает сохранению выбора (см. комментарий ниже),
+    // гейт тогда просто не проверяется — sync() выправит состояние при запуске.
+    let manifest = crate::backend::fetch_manifest(http, data_dir)
+        .await
+        .ok()
+        .flatten();
+    if let Some(manifest) = &manifest {
+        let selected = resolve_selected_profile(manifest, selected_profile_file);
+        if let Some(entry) = manifest
+            .optional_client_mods()
+            .find(|m| mod_choice_key(m) == mod_id)
+        {
+            if !profile_gate_open(entry, selected.as_deref()) {
+                return Err("Мод недоступен в выбранном профиле".to_string());
+            }
+        }
+    }
+
     // Выбор сохраняем всегда — даже если сервер недоступен.
     {
         let _guard = CHOICES_LOCK.lock().unwrap();
@@ -490,13 +591,15 @@ pub async fn set_mod_enabled(
     // Пытаемся применить переименование сразу. Путь берём из манифеста (не
     // доверяем фронту). Если манифест недоступен — переименование произойдёт
     // при следующем запуске в sync().
-    if let Ok(Some(manifest)) = crate::backend::fetch_manifest(http, data_dir).await {
-        let entry = manifest
+    if let Some(manifest) = manifest {
+        let selected = resolve_selected_profile(&manifest, selected_profile_file);
+        if let Some(entry) = manifest
             .optional_client_mods()
-            .find(|m| mod_choice_key(m) == mod_id);
-        if let Some(entry) = entry {
+            .find(|m| mod_choice_key(m) == mod_id)
+        {
+            let effective = enabled && profile_gate_open(entry, selected.as_deref());
             if let Some(rel) = sanitize_rel_path(&entry.path) {
-                apply_enabled_state(game_dir, &rel, enabled);
+                apply_enabled_state(game_dir, &rel, effective);
             }
         }
     }
@@ -504,19 +607,36 @@ pub async fn set_mod_enabled(
 }
 
 /// Переименовывает файл мода под текущее состояние, если он уже скачан.
-fn apply_enabled_state(game_dir: &Path, rel: &Path, enabled: bool) {
+/// Возвращает true, если состояние на диске реально изменилось.
+fn apply_enabled_state(game_dir: &Path, rel: &Path, enabled: bool) -> bool {
     let normal = game_dir.join(rel);
     let disabled = disabled_variant(&normal);
     if enabled {
         // Делаем активным: `name.jar.dis` -> `name.jar`.
         if !normal.exists() && disabled.exists() {
-            let _ = std::fs::rename(&disabled, &normal);
+            match std::fs::rename(&disabled, &normal) {
+                Ok(()) => true,
+                Err(e) => {
+                    tracing::warn!("Не удалось включить {}: {e}", normal.display());
+                    false
+                }
+            }
+        } else {
+            false
         }
     } else {
         // Выключаем: `name.jar` -> `name.jar.dis`.
         if normal.exists() {
             remove_if_exists(&disabled);
-            let _ = std::fs::rename(&normal, &disabled);
+            match std::fs::rename(&normal, &disabled) {
+                Ok(()) => true,
+                Err(e) => {
+                    tracing::warn!("Не удалось выключить {}: {e}", normal.display());
+                    false
+                }
+            }
+        } else {
+            false
         }
     }
 }
@@ -820,5 +940,118 @@ fn write_choices(path: &Path, choices: &BTreeMap<String, bool>) {
             }
         }
         Err(e) => tracing::warn!("Не удалось сериализовать выбор модов: {e}"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mod_entry(mod_id: &str, profiles: &[&str], enabled_by_default: bool) -> protocol::FileEntry {
+        protocol::FileEntry {
+            path: format!("mods/{mod_id}.jar"),
+            url: format!("https://example.com/{mod_id}.jar"),
+            sha1: "0000000000000000000000000000000000000000".to_string(),
+            size: 1,
+            side: protocol::Side::Client,
+            kind: protocol::FileKind::Mod,
+            overwrite: true,
+            optional: true,
+            enabled_by_default,
+            mod_id: Some(mod_id.to_string()),
+            display_name: None,
+            description: None,
+            conflicts_with: Vec::new(),
+            profiles: profiles.iter().map(|s| s.to_string()).collect(),
+        }
+    }
+
+    fn manifest(profiles: &[(&str, &str)], mods: Vec<protocol::FileEntry>) -> protocol::Manifest {
+        protocol::Manifest {
+            name: "Test".to_string(),
+            version: "1.0".to_string(),
+            loader: protocol::LoaderInfo {
+                minecraft: "1.21.1".to_string(),
+                kind: protocol::LoaderKind::NeoForge,
+                version: "21.1".to_string(),
+            },
+            files: mods,
+            external_mod_policy: None,
+            mod_profiles: profiles
+                .iter()
+                .map(|(key, name)| protocol::ModProfile {
+                    key: key.to_string(),
+                    name: name.to_string(),
+                    description: None,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn gate_blocks_mods_from_other_profiles() {
+        let perf = mod_entry("sodium", &["performance"], true);
+        let quality = mod_entry("complementary", &["quality"], true);
+        let common = mod_entry("fabric-api", &[], true);
+
+        // Выбран performance: его моды доступны, чужие заблокированы.
+        assert!(profile_gate_open(&perf, Some("performance")));
+        assert!(!profile_gate_open(&quality, Some("performance")));
+        assert!(profile_gate_open(&common, Some("performance")));
+
+        // «Общий» мод открыт всегда, даже без выбранного профиля.
+        assert!(profile_gate_open(&common, None));
+        // Мод с тегами без выбранного профиля заблокирован.
+        assert!(!profile_gate_open(&perf, None));
+    }
+
+    #[test]
+    fn enabled_respects_gate_then_choices_then_default() {
+        let perf = mod_entry("sodium", &["performance"], true);
+        let mut choices = BTreeMap::new();
+
+        // Гейт закрыт — выключен независимо от choices/default.
+        assert!(!optional_mod_enabled(&perf, &choices, Some("quality")));
+
+        // Гейт открыт: choices побеждают default.
+        choices.insert("sodium".to_string(), false);
+        assert!(!optional_mod_enabled(&perf, &choices, Some("performance")));
+        choices.insert("sodium".to_string(), true);
+        assert!(optional_mod_enabled(&perf, &choices, Some("performance")));
+
+        // Нет choices — берём enabled_by_default.
+        choices.clear();
+        let off_by_default = mod_entry("voxy", &["performance"], false);
+        assert!(optional_mod_enabled(&perf, &choices, Some("performance")));
+        assert!(!optional_mod_enabled(&off_by_default, &choices, Some("performance")));
+    }
+
+    #[test]
+    fn resolve_selected_profile_falls_back_to_first() {
+        let m = manifest(
+            &[("performance", "Производительность"), ("quality", "Качество")],
+            vec![mod_entry("sodium", &["performance"], true)],
+        );
+        let dir = std::env::temp_dir().join("stardust_test_profiles");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Нет файла — первый профиль манифеста.
+        let file = dir.join("selected-profile.json");
+        assert_eq!(resolve_selected_profile(&m, &file).as_deref(), Some("performance"));
+
+        // Неизвестный ключ — тоже первый профиль (не падаем).
+        std::fs::write(&file, "deprecated-key").unwrap();
+        assert_eq!(resolve_selected_profile(&m, &file).as_deref(), Some("performance"));
+
+        // Валидный ключ используется как есть.
+        std::fs::write(&file, "quality").unwrap();
+        assert_eq!(resolve_selected_profile(&m, &file).as_deref(), Some("quality"));
+
+        // Манифест без профилей — None.
+        let no_profiles = manifest(&[], vec![mod_entry("sodium", &[], true)]);
+        assert_eq!(resolve_selected_profile(&no_profiles, &file), None);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

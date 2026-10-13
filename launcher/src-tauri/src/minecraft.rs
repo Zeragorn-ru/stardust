@@ -173,6 +173,7 @@ pub async fn launch(
             http,
             &data_dir,
             &crate::paths::mod_choices_file(&app),
+            &crate::paths::selected_profile_file(&app),
             &game_dir,
             concurrency,
             manifest.as_ref(),

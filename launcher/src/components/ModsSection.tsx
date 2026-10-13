@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ModProfileInfo, OptionalMod } from "../types";
-import {
-  listModProfiles,
-  listOptionalMods,
-  setModEnabled,
-  setModProfile,
-} from "../api";
+import { listModProfiles, listOptionalMods, selectModProfile, setModEnabled } from "../api";
 import { formatBytes } from "../format";
 
 function normalizeId(id: string): string {
@@ -28,7 +23,7 @@ export default function ModsSection() {
   const [filter, setFilter] = useState("");
   // modId-ы, по которым идёт переключение (блокируем повторные клики).
   const [pending, setPending] = useState<Set<string>>(new Set());
-  // Ключ профиля, который сейчас переключается.
+  // Ключ профиля, который сейчас выбирается.
   const [pendingProfile, setPendingProfile] = useState<string | null>(null);
 
   const loadMods = useCallback(async () => {
@@ -72,8 +67,8 @@ export default function ModsSection() {
   }
 
   async function toggle(mod: OptionalMod) {
-    // Не спорим с идущим переключением профиля (см. toggleProfile).
-    if (pendingProfile !== null) return;
+    // Не спорим с идущим переключением профиля (см. selectProfile).
+    if (pendingProfile !== null || mod.locked) return;
     const next = !mod.enabled;
     // Оптимистично обновляем UI.
     setMods((prev) =>
@@ -84,8 +79,6 @@ export default function ModsSection() {
     setPending((prev) => new Set(prev).add(mod.modId));
     try {
       await setModEnabled(mod.modId, next);
-      // Состояние профиля могло измениться — пересчитаем.
-      void listModProfiles().then(setProfiles).catch(() => undefined);
     } catch {
       // Откатываем при ошибке.
       setMods((prev) =>
@@ -104,44 +97,40 @@ export default function ModsSection() {
     }
   }
 
-  async function toggleProfile(profile: ModProfileInfo) {
-    // Мьютекс: пока идёт переключение профиля, блокируем и другие профили,
-    // и индивидуальные моды — их запись в choices-файл перетёрла бы
-    // параллельную запись профиля (lost update), а откат по снимку
-    // затирал бы чужие оптимистичные изменения.
-    if (pendingProfile !== null || pending.size > 0) return;
-    const next = !profile.active;
-    // Снимок состояния модов профиля до переключения — для точного отката
-    // (индивидуально выключенные моды не должны «включаться» при откате).
+  async function selectProfile(profile: ModProfileInfo) {
+    // Мьютекс: пока идёт выбор профиля, блокируем и другие профили, и
+    // индивидуальные моды — их запись в choices-файл перетёрла бы параллельную
+    // запись профиля (lost update), а откат по снимку затирал бы чужие
+    // оптимистичные изменения.
+    if (pendingProfile !== null || pending.size > 0 || profile.selected) return;
+    // Снимок состояния модов до переключения — для точного отката.
     const modsSnapshot = mods ?? [];
-    // Оптимистично: помечаем профиль и все его моды.
+    const profilesSnapshot = profiles ?? [];
+    // Оптимистично: помечаем выбранный профиль и пересчитываем моды по гейту.
     setPendingProfile(profile.key);
     setProfiles((prev) =>
       prev
-        ? prev.map((p) => (p.key === profile.key ? { ...p, active: next } : p))
+        ? prev.map((p) => ({ ...p, selected: p.key === profile.key }))
         : prev,
     );
     setMods((prev) =>
       prev
-        ? prev.map((m) =>
-            m.profiles.some((k) => k.toLowerCase() === profile.key.toLowerCase())
-              ? { ...m, enabled: next }
-              : m,
-          )
+        ? prev.map((m) => {
+            const inProfile =
+              m.profiles.length === 0 ||
+              m.profiles.some(
+                (k) => k.toLowerCase() === profile.key.toLowerCase(),
+              );
+            return inProfile ? m : { ...m, locked: true, enabled: false };
+          })
         : prev,
     );
     try {
-      await setModProfile(profile.key, next);
+      await selectModProfile(profile.key);
     } catch {
-      // Откат к снимку: каждый мод возвращается к своему значению.
+      // Откат к снимку: профили и моды возвращаются к прежнему состоянию.
       setMods(modsSnapshot);
-      setProfiles((prev) =>
-        prev
-          ? prev.map((p) =>
-              p.key === profile.key ? { ...p, active: profile.active } : p,
-            )
-          : prev,
-      );
+      setProfiles(profilesSnapshot);
       return;
     } finally {
       setPendingProfile(null);
@@ -216,21 +205,26 @@ export default function ModsSection() {
       </p>
 
       {(profiles ?? []).length > 0 && (
-        <div className="mod-profiles stagger-item" role="group" aria-label="Профили модов">
+        <div
+          className="mod-profiles stagger-item"
+          role="radiogroup"
+          aria-label="Профиль модов"
+        >
           {(profiles ?? []).map((p) => {
             // Любая идущая операция профиля/модов блокирует все карточки —
-            // см. мьютекс в toggleProfile.
+            // см. мьютекс в selectProfile.
             const busy = pendingProfile !== null;
             return (
               <button
                 type="button"
                 key={p.key}
-                className={
-                  "mod-profile" + (p.active ? " mod-profile--on" : "")
-                }
-                aria-pressed={p.active}
+                role="radio"
+                aria-checked={p.selected}
                 disabled={busy}
-                onClick={() => void toggleProfile(p)}
+                className={
+                  "mod-profile" + (p.selected ? " mod-profile--on" : "")
+                }
+                onClick={() => void selectProfile(p)}
               >
                 <span className="mod-profile__head">
                   <span className="mod-profile__name">{p.name}</span>
@@ -243,7 +237,11 @@ export default function ModsSection() {
                   <span className="mod-profile__desc">{p.description}</span>
                 )}
                 <span className="mod-profile__state" aria-hidden>
-                  {busy ? "…" : p.active ? "включён" : "выключен"}
+                  {busy
+                    ? "…"
+                    : p.selected
+                      ? "выбран"
+                      : "нажмите, чтобы выбрать"}
                 </span>
               </button>
             );
@@ -287,6 +285,12 @@ export default function ModsSection() {
                   ))}
                 </span>
               )}
+              {mod.locked && (
+                <span className="muted mods-section__locked-note">
+                  Недоступен в выбранном профиле — выберите профиль{" "}
+                  {mod.profiles.map(profileName).join(" / ")}.
+                </span>
+              )}
               {conflicts.length > 0 && (
                 <span className="mods-section__conflict" role="alert">
                   Конфликт с{" "}
@@ -299,9 +303,19 @@ export default function ModsSection() {
               type="button"
               role="switch"
               aria-checked={mod.enabled}
+              aria-disabled={mod.locked}
               aria-label={`${mod.enabled ? "Выключить" : "Включить"} мод: ${mod.name}`}
-              disabled={busy}
-              className={"switch" + (mod.enabled ? " switch--on" : "")}
+              disabled={busy || mod.locked}
+              title={
+                mod.locked
+                  ? "Мод недоступен в выбранном профиле"
+                  : undefined
+              }
+              className={
+                "switch" +
+                (mod.enabled ? " switch--on" : "") +
+                (mod.locked ? " switch--locked" : "")
+              }
               onClick={() => toggle(mod)}
             >
               <span className="switch__knob" />

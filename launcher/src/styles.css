@@ -2293,6 +2293,23 @@ button,
     font-weight: 400;
 }
 
+/* Мод недоступен в выбранном профиле: тумблер заблокирован. */
+.mods-section__locked-note {
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.switch--locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.switch--locked:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
 .mods-section__conflict {
     display: block;
     margin-top: 6px;
