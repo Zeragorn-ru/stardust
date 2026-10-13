@@ -21,16 +21,27 @@ pub fn run() {
     use tauri::Manager;
 
     // Логи пишутся рядом с бинарём: <exe_dir>/logs/launcher.log (ротация по дням).
+    // Файловый аппендер требует записываемый каталог: в песочницах (Gear Lever/
+    // Flatpak, AppImage FHS) каталог рядом с бинарём бывает read-only, и
+    // rolling::daily паникует при создании каталога. Проверяем записываемость
+    // сами и при read-only логируем в stdout — лаунчер должен стартовать даже
+    // там, где файловые логи невозможны.
     let log_dir = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("logs");
-    let file_appender = tracing_appender::rolling::daily(&log_dir, "launcher.log");
-    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-    // The worker must live for the entire process. Dropping the guard at the
-    // end of setup can leave launcher logs buffered and the file empty.
-    let _log_guard: &'static _ = Box::leak(Box::new(guard));
+    let writable = std::fs::create_dir_all(&log_dir).is_ok()
+        && std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_dir.join(".write-test"))
+            .map(|f| {
+                drop(f);
+                let _ = std::fs::remove_file(log_dir.join(".write-test"));
+                true
+            })
+            .unwrap_or(false);
 
     let default_level = if cfg!(debug_assertions) {
         "launcher=debug"
@@ -42,10 +53,24 @@ pub fn run() {
 
     use tracing_subscriber::prelude::*;
 
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
-        .init();
+    if writable {
+        let file_appender = tracing_appender::rolling::daily(&log_dir, "launcher.log");
+        let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+        // The worker must live for the entire process. Dropping the guard at
+        // the end of setup can leave launcher logs buffered and the file
+        // empty.
+        let _log_guard: &'static _ = Box::leak(Box::new(guard));
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
+            .init();
+    } else {
+        // Каталог read-only (песочница): stdout без ротации.
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tracing_subscriber::fmt::layer())
+            .init();
+    }
 
     let builder = tauri::Builder::default()
         // single-instance обязан регистрироваться первым. При попытке открыть

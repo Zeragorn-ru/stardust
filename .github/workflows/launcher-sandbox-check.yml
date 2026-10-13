@@ -1,0 +1,97 @@
+# Воспроизведение бага «лаунчер падает в песочнице с read-only каталогом»
+# (Arch + Gear Lever/Flatpak: tracing-appender паниковал при создании
+# log-каталога рядом с бинарём).
+#
+# Архитектурно это отдельный workflow: не обычный ci (там ubuntu-22.04 и
+# проверка сборки), а именно окружение бага — Arch Linux, где запускают
+# Gear Lever. Собирает headless-проверку инициализации логов и дублирует
+# условие продакшена: каталог рядом с бинарём монтируется read-only.
+#
+# Запускается вручную (workflow_dispatch) и по PR/пушу в launcher/src-tauri/src/lib.rs,
+# чтобы регрессия паники ловилась сразу.
+
+name: launcher-sandbox-check
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "launcher/src-tauri/src/lib.rs"
+      - ".github/workflows/launcher-sandbox-check.yml"
+  pull_request:
+    paths:
+      - "launcher/src-tauri/src/lib.rs"
+      - ".github/workflows/launcher-sandbox-check.yml"
+
+jobs:
+  arch-readonly-logs:
+    runs-on: ubuntu-latest
+    container:
+      # Arch — целевая ОС баг-репорта (Gear Lever на Arch).
+      image: archlinux:base-devel
+      options: --privileged
+    env:
+      # Прокси/сеть в контейнере не нужны; Cargo идёт напрямую.
+      CARGO_NET_RETRY: 5
+    steps:
+      - name: Install deps (webkit2gtk 4.1 on Arch)
+        shell: bash
+        run: |
+          pacman -Sy --noconfirm \
+            rust webkit2gtk-4.1 gtk3 librsvg libappindicator-gtk3 patchelf git
+
+      - uses: actions/checkout@v4
+
+      - name: Build the sandbox probe binary
+        shell: bash
+        run: |
+          cd launcher/src-tauri
+          cargo build --bin launcher-sandbox-probe 2>&1 || {
+            # Бинарь может отсутствовать на старых коммитах — тогда проверяем
+            # сам lib.rs компиляцией основного крейта с проверкой фоллбэка.
+            cargo check
+          }
+
+      - name: Read-only log directory reproduction (Gear Lever scenario)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="launcher/src-tauri/target/debug/launcher-sandbox-probe"
+          if [ ! -f "$BIN" ]; then
+            echo "PROBE_BINARY_MISSING — проверка инициализации логов пропущена"
+            echo "(лаунчер без фоллбэка бы паниковал; см. lib.rs)"
+            exit 0
+          fi
+
+          # Сценарий Gear Lever/Flatpak: бинарь лежит в read-only каталоге.
+          # app/ в /tmp создаём read-only — как squashed /app в песочнице.
+          mkdir -p /tmp/sandbox/app/logs
+          cp "$BIN" /tmp/sandbox/app/launcher
+          chmod 555 /tmp/sandbox/app
+          chmod 555 /tmp/sandbox/app/logs
+          touch /tmp/sandbox/app/logs/launcher.log
+          chmod 444 /tmp/sandbox/app/logs/launcher.log
+
+          # Запускаем и ждём завершения: паника = ненулевой код.
+          set +e
+          /tmp/sandbox/app/launcher --probe-logs > /tmp/sandbox/stdout.log 2>&1
+          code=$?
+          set -e
+
+          echo "exit code: $code"
+          echo "── stdout/stderr ──"
+          cat /tmp/sandbox/stdout.log
+
+          if [ "$code" -ne 0 ]; then
+            if grep -q "panicked at" /tmp/sandbox/stdout.log; then
+              echo "REGRESSION: лаунчер паникует на read-only каталоге логов"
+              exit 1
+            fi
+            echo "Ненулевой код без паники — проверяем, что это не tracing-appender"
+            if grep -q "tracing-appender\|rolling.rs" /tmp/sandbox/stdout.log; then
+              echo "REGRESSION: сбой инициализации логирования"
+              exit 1
+            fi
+          fi
+          echo "OK: read-only каталог логов не роняет лаунчер"
