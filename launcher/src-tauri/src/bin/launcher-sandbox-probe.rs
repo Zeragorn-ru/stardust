@@ -15,22 +15,7 @@ fn main() {
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("logs");
 
-    // Тот же критерий записываемости, что в lib.rs: каталог создаётся
-    // И тестовая запись в него проходит.
-    let writable = std::fs::create_dir_all(&log_dir).is_ok()
-        && std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_dir.join(".write-test"))
-            .map(|f| {
-                drop(f);
-                let _ = std::fs::remove_file(log_dir.join(".write-test"));
-                true
-            })
-            .unwrap_or(false);
-
     println!("log_dir: {}", log_dir.display());
-    println!("log dir writable: {writable}");
 
     let default_level = if cfg!(debug_assertions) {
         "launcher=debug"
@@ -42,22 +27,38 @@ fn main() {
 
     use tracing_subscriber::prelude::*;
 
-    if writable {
-        // Файловый путь — тоже не должен паниковать.
-        let appender = tracing_appender::rolling::daily(&log_dir, "launcher.log");
-        let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
-            .init();
-    } else {
-        // Read-only: stdout, без ротации — главный сценарий пробы.
-        tracing_subscriber::registry()
-            .with(env_filter)
-            .with(tracing_subscriber::fmt::layer())
-            .init();
+    // Тот же подход, что в lib.rs: builder вместо rolling::daily — build()
+    // возвращает Err (а не паникует), если каталог read-only. Тестовый файл
+    // .write-test не используем: открытие УЖЕ существующего файла
+    // create+append не требует права записи на каталог, и оставшийся с
+    // прошлого запуска файл давал ложный «writable».
+    match tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("launcher.log")
+        .build(&log_dir)
+    {
+        Ok(appender) => {
+            println!("log dir writable: true");
+            let (non_blocking, guard) = tracing_appender::non_blocking(appender);
+            // Guard живёт до конца main: событие ниже должно успеть уйти
+            // в файл (worker флешит при drop).
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
+                .init();
+            tracing::info!("sandbox probe initialized");
+            drop(guard);
+        }
+        Err(_) => {
+            println!("log dir writable: false");
+            // Read-only: stdout, без ротации — главный сценарий пробы.
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(tracing_subscriber::fmt::layer())
+                .init();
+            tracing::info!("sandbox probe initialized");
+        }
     }
 
-    tracing::info!("sandbox probe initialized");
     println!("probe ok");
 }
