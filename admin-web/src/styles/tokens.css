@@ -1,0 +1,59 @@
+/* Единый источник дизайн-токенов админки (desktop и mobile).
+   Подключается первой строкой src/styles.css, поэтому переменные
+   доступны обоим шеллам (mobile/main.tsx импортирует styles.css
+   раньше mobile.css). Второго :root с токенами в проекте быть не
+   должно — все цвета/радиусы/размеры идут отсюда. */
+
+:root {
+    /* Многослойные поверхности: от самого глубокого фона до поднятых панелей. */
+    --bg: #030406;
+    --bg-elev: #07090d;
+    --panel: #0b0e13;
+    --panel-2: #10141b;
+    --panel-3: #151b24;
+    --border: #1b2330;
+    --border-strong: #2b3748;
+
+    --text: #f4f7fb;
+    --muted: #8792a3;
+    --faint: #7d8593;
+
+    /* Основной акцент — cyan; --accent-2 — вторая brand-нота (purple),
+       используется в градиентах, но НЕ как hover-вариант primary. */
+    --accent: #73d7ff;
+    --accent-2: #9d7cff;
+    --accent-soft: rgba(115, 215, 255, 0.12);
+    --danger: #ff5d6c;
+    --danger-soft: rgba(255, 93, 108, 0.13);
+    --ok: #5ff0a7;
+    --ok-soft: rgba(95, 240, 167, 0.12);
+    --warn: #ffd166;
+
+    /* Шкала радиусов: 8 / 12 / 20 (пропорция к 12/20). */
+    --radius-sm: 8px;
+    --radius: 12px;
+    --radius-lg: 20px;
+    --radius-pill: 999px;
+
+    /* Шкала типографики — вместо захардкоженных размеров в правилах. */
+    --fs-xs: 11px;
+    --fs-sm: 12px;
+    --fs-md: 13px;
+    --fs-base: 14px;
+    --fs-lg: 16px;
+    --fs-xl: 18px;
+    --fs-2xl: 24px;
+    --fs-hero: clamp(26px, 3vw, 36px);
+
+    --control-h: 38px;
+
+    --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.04), 0 14px 40px rgba(0, 0, 0, 0.22);
+    --shadow-md: 0 18px 50px rgba(0, 0, 0, 0.34);
+    --shadow-lg: 0 28px 90px rgba(0, 0, 0, 0.58);
+
+    /* Кольцо фокуса для клавиатурной навигации — акцентное, не синее. */
+    --ring: 0 0 0 3px rgba(115, 215, 255, 0.4);
+
+    --ease: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+    color-scheme: dark;
+}

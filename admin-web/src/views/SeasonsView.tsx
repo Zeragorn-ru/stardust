@@ -243,7 +243,7 @@ export function SeasonsView({ mobile = false }: { mobile?: boolean }) {
     <div className={`view seasons-view${mobile ? " seasons-view--mobile" : ""}`}>
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Сезоны и релизы</span>
+          <span className="eyebrow">Мониторинг</span>
           <h1>Сезоны</h1>
           <p className="muted">Архив статистики игроков по сезонам и выкат релизов лаунчера в стабильный канал.</p>
         </div>
@@ -397,7 +397,7 @@ export function SeasonsView({ mobile = false }: { mobile?: boolean }) {
 
         {githubTokenMissing && (
           <p className="muted seasons-hint">
-            GitHub-токен не настроен: задайте его в разделе «Интеграции», чтобы переводить релизы
+            GitHub-токен не настроен: задайте его в разделе «Настройки», чтобы переводить релизы
             в стабильный канал без лимитов GitHub API.
           </p>
         )}

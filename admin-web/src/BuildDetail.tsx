@@ -1,159 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// Детали сборки (десктоп): шапка с действиями + файловый менеджер.
+//
+// Вся логика действий (активация, клон, удаление, SFTP-синхронизация,
+// деплой мода, проверки, правки) — в ui/buildActions.ts (план 3.2);
+// здесь только десктопная раскладка.
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, ApiError } from "./api";
-import type { SyncStatus } from "./api";
-import type {
-  BuildCheckResult,
-  BuildDetail as BuildDetailData,
-  CreateBuildInput,
-  DepsCheckResult,
-} from "./types";
+import type { BuildDetail as BuildDetailData, BuildHeader } from "./types";
 import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
-import { useToast, useConfirm } from "./ui/feedback";
-import { useBodyScrollLock } from "./ui/useBodyScrollLock";
-import { IconCheck, IconClose, IconCopy, IconDownload, IconStar, IconSync, IconPencil, IconTrash } from "./ui/icons";
+import { EmptyPanel, ErrorPanel, LoadPanel } from "./ui/EmptyState";
+import {
+  ActiveBuildBadge,
+  EditBuildModal,
+  useBuildActions,
+} from "./ui/buildActions";
+import {
+  IconCheck,
+  IconClose,
+  IconCopy,
+  IconDownload,
+  IconPencil,
+  IconSync,
+  IconTrash,
+} from "./ui/icons";
 import { CheckResults } from "./ui/CheckResults";
-
-const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
-
-function EditBuildModal({
-  initial,
-  onSave,
-  onClose,
-}: {
-  initial: CreateBuildInput;
-  onSave: (input: CreateBuildInput) => Promise<void>;
-  onClose: () => void;
-}) {
-  useBodyScrollLock();
-  const confirm = useConfirm();
-  const [form, setForm] = useState(initial);
-  const [busy, setBusy] = useState(false);
-
-  // Dirty и busy в ref: обработчики Escape/клика по подложке видят
-  // актуальное значение без пересоздания подписок.
-  const dirty =
-    form.name !== initial.name ||
-    form.version !== initial.version ||
-    form.loaderKind !== initial.loaderKind ||
-    form.mcVersion !== initial.mcVersion ||
-    form.loaderVersion !== initial.loaderVersion;
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
-  const busyRef = useRef(busy);
-  busyRef.current = busy;
-
-  async function tryClose() {
-    if (busyRef.current) return;
-    if (dirtyRef.current) {
-      const ok = await confirm({
-        title: "Есть несохранённые изменения",
-        body: "Закрыть без сохранения?",
-        confirmText: "Закрыть",
-        danger: true,
-      });
-      if (!ok) return;
-    }
-    onClose();
-  }
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") void tryClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  function set<K extends keyof CreateBuildInput>(k: K, v: CreateBuildInput[K]) {
-    setForm((f) => ({ ...f, [k]: v }));
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      await onSave(form);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const valid =
-    form.name.trim() && form.version.trim() && form.mcVersion.trim();
-
-  return (
-    <div className="modal-backdrop" onClick={() => void tryClose()}>
-      <form
-        className="modal modal-wide"
-        onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h3>Редактировать сборку</h3>
-        <div className="row">
-          <div className="field">
-            <label>Название</label>
-            <input
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              autoFocus
-              placeholder="Моя сборка"
-            />
-          </div>
-          <div className="field">
-            <label>Версия сборки</label>
-            <input
-              value={form.version}
-              onChange={(e) => set("version", e.target.value)}
-              placeholder="1.0.0"
-            />
-          </div>
-        </div>
-        <div className="row">
-          <div className="field">
-            <label>Загрузчик</label>
-            <select
-              value={form.loaderKind}
-              onChange={(e) => set("loaderKind", e.target.value)}
-            >
-              {LOADERS.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Версия Minecraft</label>
-            <input
-              value={form.mcVersion}
-              onChange={(e) => set("mcVersion", e.target.value)}
-              placeholder="1.21.1"
-            />
-          </div>
-          <div className="field">
-            <label>Версия загрузчика</label>
-            <input
-              value={form.loaderVersion}
-              onChange={(e) => set("loaderVersion", e.target.value)}
-              placeholder="напр. 21.1.72"
-            />
-          </div>
-        </div>
-        <div className="modal-actions">
-          <button type="button" onClick={() => void tryClose()} disabled={busy}>
-            Отмена
-          </button>
-          <button className="primary" type="submit" disabled={busy || !valid}>
-            {busy ? "Сохранение…" : "Сохранить"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
 
 export function BuildDetail({
   buildId,
@@ -162,19 +34,26 @@ export function BuildDetail({
   buildId: number;
   onChanged: () => void;
 }) {
-  const toast = useToast();
-  const confirm = useConfirm();
   const navigate = useNavigate();
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [busyClone, setBusyClone] = useState(false);
+  const [editing, setEditing] = useState(false);
+  // Какая сборка сейчас активная — для подсказки «Мод обновляется в
+  // активной сборке — открыть её» на неактивных сборках.
+  const [activeBuild, setActiveBuild] = useState<{ id: number; name: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      setDetail(await api.getBuild(buildId));
+      const [d, builds] = await Promise.all([
+        api.getBuild(buildId),
+        api.listBuilds().catch(() => [] as BuildHeader[]),
+      ]);
+      setDetail(d);
+      const active = builds.find((b) => b.isActive);
+      setActiveBuild(active ? { id: active.id, name: active.name } : null);
     } catch (err) {
       // 404 — сборки нет, прочие ошибки — повторимая сетевая проблема.
       const notFound = err instanceof ApiError && err.status === 404;
@@ -196,282 +75,52 @@ export function BuildDetail({
     load();
   }, [load]);
 
-  const [syncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const lastSyncState = useRef<SyncStatus["state"] | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [deploying, setDeploying] = useState(false);
-  const [deployStatus, setDeployStatus] = useState<{
-    state: string;
-    phase: string;
-    version: string | null;
-    error: string | null;
-  } | null>(null);
-  // Опрос статуса деплоя мода: живёт в ref, чтобы пережить unmount и
-  // не превращаться в утечку, если уйти со страницы до терминального статуса.
-  const deployPollRef = useRef<number | null>(null);
-  const deployPollErrors = useRef(0);
-
-  function stopDeployPoll() {
-    if (deployPollRef.current != null) {
-      window.clearInterval(deployPollRef.current);
-      deployPollRef.current = null;
-    }
-  }
-
-  useEffect(() => stopDeployPoll, []);
-
-  // adoptFinished=false — режим начальной загрузки: бэкенд хранит последний
-  // терминальный статус вечно, поэтому при заходе на страницу подхватываем
-  // только реально идущую синхронизацию — завершённая часы назад не должна
-  // встречать админа при каждом визите. Результат, наблюдённый опросом в
-  // текущем визите, остаётся видимым до ухода со страницы.
-  const loadSyncStatus = useCallback(
-    async (adoptFinished = true) => {
-      const status = await api.syncToPanelStatus(buildId);
-      setSyncStatus(
-        adoptFinished || status.state === "running" ? status : null,
-      );
-      setSyncing(status.state === "running");
-      return status;
+  const actions = useBuildActions(buildId, {
+    detail,
+    // Правки и активация меняют манифест — перечитываем и детали, и хаб.
+    onChanged: async () => {
+      await load();
+      onChanged();
     },
-    [buildId],
-  );
-
-  useEffect(() => {
-    // При монтировании — без терминальных статусов с прошлых визитов.
-    loadSyncStatus(false).catch(() => undefined);
-  }, [loadSyncStatus]);
-
-  useEffect(() => {
-    if (syncStatus?.state !== "running") return;
-    const timer = window.setInterval(async () => {
-      try {
-        const status = await loadSyncStatus();
-        const prev = lastSyncState.current;
-        if (prev === "running" && status.state === "success") {
-          toast.success(
-            `SFTP-синхронизация завершена: ${status.uploaded} файлов · удалено: ${status.deleted} · пропущено: ${status.skipped}`,
-          );
-        }
-        if (prev === "running" && status.state === "error") {
-          toast.error(status.error ?? "SFTP-синхронизация завершилась ошибкой");
-        }
-        lastSyncState.current = status.state;
-      } catch {
-        // Следующий polling-проход повторит попытку.
-      }
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [loadSyncStatus, syncStatus?.state, toast]);
-
-  // --- Проверки ---
-  const [checkResults, setCheckResults] = useState<{
-    build: BuildCheckResult | null;
-    deps: DepsCheckResult | null;
-    loading: boolean;
-  }>({ build: null, deps: null, loading: false });
-
-  async function runChecks() {
-    setCheckResults((s) => ({ ...s, loading: true }));
-    try {
-      const [build, deps] = await Promise.all([
-        api.buildCheck(buildId),
-        api.depsCheck(buildId),
-      ]);
-      setCheckResults({ build, deps, loading: false });
-      const total = build.problems.length + deps.problems.length;
-      if (total === 0) {
-        toast.success("Проверки пройдены");
-      } else {
-        toast.error(`Найдено проблем: ${total}`);
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось выполнить проверку",
-      );
-      setCheckResults((s) => ({ ...s, loading: false }));
-    }
-  }
-
-  async function cloneBuild() {
-    if (!detail) return;
-    setBusyClone(true);
-    try {
-      const res = await api.cloneBuild(buildId);
-      toast.success(`Создана копия «${detail.name}»`);
-      window.dispatchEvent(new Event("builds-updated"));
-      navigate(`/builds/${res.id}`);
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось клонировать сборку",
-      );
-    } finally {
-      setBusyClone(false);
-    }
-  }
-
-  async function removeBuild() {
-    if (!detail) return;
-    const ok = await confirm({
-      title: `Удалить сборку «${detail.name}»?`,
-      body: "Будут удалены все её файлы из манифеста. Действие необратимо.",
-      confirmText: "Удалить",
-      danger: true,
-    });
-    if (!ok) return;
-    try {
-      await api.deleteBuild(buildId);
-      toast.success("Сборка удалена");
-      window.dispatchEvent(new Event("builds-updated"));
-      navigate("/builds");
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось удалить сборку",
-      );
-    }
-  }
-
-  async function saveEdit(input: CreateBuildInput) {
-    try {
-      await api.updateBuild(buildId, input);
-      toast.success("Сборка обновлена");
-      setEditing(false);
-      await load();
-      onChanged();
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось сохранить",
-      );
-    }
-  }
-
-  async function activate() {
-    if (!detail) return;
-    const ok = await confirm({
-      title: `Сделать сборку «${detail.name}» активной?`,
-      body: `Все игроки при следующем запуске скачают именно её (v${detail.version}, ${detail.files.length} файлов).`,
-      confirmText: "Сделать активной",
-    });
-    if (!ok) return;
-    try {
-      await api.activateBuild(buildId);
-      toast.success("Сборка активирована");
-      await load();
-      onChanged();
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось активировать",
-      );
-    }
-  }
-
-  async function syncToPanel() {
-    setSyncing(true);
-    let startedInBackground = false;
-    try {
-      const res = await api.syncToPanel(buildId);
-      if (res.inProgress) {
-        startedInBackground = true;
-        lastSyncState.current = "running";
-        await loadSyncStatus();
-        toast.success("SFTP-синхронизация запущена в фоне");
-      } else {
-        toast.success(
-          `Синхронизировано: ${res.uploaded} файлов · удалено: ${res.deleted} · пропущено: ${res.skipped}`,
-        );
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Ошибка синхронизации",
-      );
-    } finally {
-      if (!startedInBackground) setSyncing(false);
-    }
-  }
-
-  async function deployMod() {
-    // Мод всегда попадает в АКТИВНУЮ сборку (так работает бэкенд), поэтому
-    // честно предупреждаем, когда открыта другая.
-    const active = detail?.isActive ?? true;
-    const ok = await confirm({
-      title: "Добавить мод в сборку?",
-      body: active
-        ? "Будет скачан последний релиз stardust-mod из GitHub и добавлен в эту сборку. При следующей синхронизации мод попадёт на сервер."
-        : "Мод добавляется только в АКТИВНУЮ сборку, а открыта другая. Переключитесь на активную, чтобы обновить мод в ней.",
-      confirmText: active ? "Добавить" : "Всё равно открыть активную",
-    });
-    if (!ok) return;
-
-    setDeploying(true);
-    setDeployStatus(null);
-    deployPollErrors.current = 0;
-    try {
-      await api.deployMod();
-      stopDeployPoll();
-      deployPollRef.current = window.setInterval(async () => {
-        try {
-          const s = await api.getDeployModStatus();
-          deployPollErrors.current = 0;
-          setDeployStatus(s);
-          if (s.state === "success" || s.state === "error") {
-            stopDeployPoll();
-            setDeploying(false);
-            if (s.state === "success") {
-              toast.success(`Мод ${s.version ?? "?"} добавлен в сборку. Синхронизируйте сервер.`);
-              await load();
-              onChanged();
-            } else {
-              toast.error(`Ошибка деплоя: ${s.error ?? "неизвестная ошибка"}`);
-            }
-          }
-        } catch {
-          // Одиночный сетевой сбой не должен убивать опрос: даём 5 попыток.
-          deployPollErrors.current += 1;
-          if (deployPollErrors.current >= 5) {
-            stopDeployPoll();
-            setDeploying(false);
-            toast.error("Не удалось получить статус загрузки мода");
-          }
-        }
-      }, 2000);
-    } catch (err) {
-      setDeploying(false);
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось запустить деплой мода",
-      );
-    }
-  }
+    onDeleted: () => navigate("/builds"),
+    onNavigate: (id) => navigate(`/builds/${id}`),
+  });
 
   const files = detail?.files ?? [];
-
   const totalSize = useMemo(
     () => files.reduce((s, f) => s + f.sizeBytes, 0),
     [files],
   );
-  const syncPercent = syncStatus?.total
-    ? Math.min(100, Math.round((syncStatus.current / syncStatus.total) * 100))
+  const syncPercent = actions.syncStatus?.total
+    ? Math.min(
+        100,
+        Math.round((actions.syncStatus.current / actions.syncStatus.total) * 100),
+      )
     : 0;
 
-  if (loading)
-    return (
-      <div className="panel muted">
-        <span className="spinner" />
-        Загрузка…
-      </div>
-    );
+  if (loading) return <LoadPanel>Загрузка сборки…</LoadPanel>;
+
   if (!detail) {
     if (loadError) {
       return (
-        <div className="panel">
-          <p className="muted">{loadError}</p>
-          <button className="secondary" onClick={() => void load()}>
-            Повторить
-          </button>
-        </div>
+        <ErrorPanel title="Не удалось загрузить сборку" onRetry={() => void load()}>
+          {loadError}
+        </ErrorPanel>
       );
     }
-    return null;
+    // 404: как в MobileBuildDetail — явная панель вместо пустого экрана.
+    return (
+      <EmptyPanel
+        title="Сборка не найдена"
+        action={
+          <button className="secondary" onClick={() => navigate("/builds")}>
+            К списку сборок
+          </button>
+        }
+      >
+        Возможно, она была удалена.
+      </EmptyPanel>
+    );
   }
 
   return (
@@ -481,58 +130,82 @@ export function BuildDetail({
           <div className="detail-title">
             <h2>{detail.name}</h2>
             <span className="detail-version muted">v{detail.version}</span>
-            {detail.isActive ? (
-              <span className="badge active">
-                <IconStar size={12} /> активная
-              </span>
-            ) : (
-              <button className="link-btn activate-btn" onClick={activate}>
+            {/* Активация — полноценная primary-кнопка в тулбаре; бейдж — состояние. */}
+            {detail.isActive && <ActiveBuildBadge />}
+          </div>
+          <div className="detail-actions-toolbar">
+            {!detail.isActive && (
+              <button
+                className="primary compact"
+                onClick={() => void actions.activate()}
+                title="Сделать сборку активной — её скачают все игроки"
+              >
                 Сделать активной
               </button>
             )}
-          </div>
-          <div className="detail-actions-toolbar">
-            <button className="secondary compact" onClick={() => setEditing(true)} title="Редактировать параметры сборки">
+            <button
+              className="secondary compact"
+              onClick={() => setEditing(true)}
+              title="Редактировать параметры сборки"
+            >
               <IconPencil size={14} /> Редактировать
             </button>
             <button
               className="secondary compact"
-              disabled={busyClone}
-              onClick={cloneBuild}
+              disabled={actions.busyClone}
+              onClick={() => void actions.cloneBuild()}
               title="Создать копию сборки со всеми файлами"
             >
               <IconCopy size={14} /> Клонировать
             </button>
             <button
               className="secondary compact"
-              disabled={syncing}
-              onClick={syncToPanel}
+              disabled={actions.syncing}
+              onClick={() => void actions.syncToPanel()}
               title="Загрузить серверные файлы сборки на сервер по SFTP"
             >
-              <IconSync size={14} className={syncing ? "spin" : ""} />
-              {syncing ? "Синхронизация…" : "Синхр. по SFTP"}
+              <IconSync size={14} className={actions.syncing ? "spin" : ""} />
+              {actions.syncing ? "Синхронизация…" : "Синхр. по SFTP"}
             </button>
+            {detail.isActive ? (
+              <button
+                className="secondary compact"
+                disabled={actions.deploying}
+                onClick={() => void actions.deployMod()}
+                title="Скачать мод из GitHub и добавить в сборку"
+              >
+                <IconDownload size={14} />
+                {actions.deploying ? "Загрузка мода…" : "Обновить stardust-mod"}
+              </button>
+            ) : (
+              // Мод добавляется только в активную сборку — на неактивной
+              // показываем пассивную строку-ссылку на неё (план 3.2).
+              <span className="detail-hint-link">
+                Мод обновляется в активной сборке —{" "}
+                <a
+                  href={activeBuild ? `#/builds/${activeBuild.id}` : "#/builds"}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate(activeBuild ? `/builds/${activeBuild.id}` : "/builds");
+                  }}
+                >
+                  открыть её
+                </a>
+              </span>
+            )}
             <button
               className="secondary compact"
-              disabled={deploying}
-              onClick={deployMod}
-              title="Скачать мод из GitHub и добавить в сборку"
-            >
-              <IconDownload size={14} />
-              {deploying ? "Загрузка мода…" : "Обновить stardust-mod"}
-            </button>
-            <button
-              className="secondary compact"
-              disabled={checkResults.loading}
-              onClick={runChecks}
+              disabled={actions.checkResults.loading}
+              onClick={() => void actions.runChecks()}
               title="Выполнить проверку файлов и зависимостей сборок"
             >
               <IconCheck size={14} />
-              {checkResults.loading ? "Проверка…" : "Проверить"}
+              {actions.checkResults.loading ? "Проверка…" : "Проверить"}
             </button>
             <button
               className="danger compact"
-              onClick={removeBuild}
+              disabled={actions.busyDelete}
+              onClick={() => void actions.removeBuild()}
               title="Удалить сборку"
             >
               <IconTrash size={14} /> Удалить
@@ -542,17 +215,20 @@ export function BuildDetail({
 
         <div className="detail-meta-row">
           <span className="meta-item">
-            <span className="meta-label">Загрузчик:</span> <strong>{detail.loaderKind}</strong>
+            <span className="meta-label">Загрузчик:</span>{" "}
+            <strong>{detail.loaderKind}</strong>
           </span>
           <span className="meta-sep">·</span>
           <span className="meta-item">
-            <span className="meta-label">Minecraft:</span> <strong>{detail.mcVersion}</strong>
+            <span className="meta-label">Minecraft:</span>{" "}
+            <strong>{detail.mcVersion}</strong>
           </span>
           {detail.loaderVersion && (
             <>
               <span className="meta-sep">·</span>
               <span className="meta-item">
-                <span className="meta-label">Версия загрузчика:</span> <strong>{detail.loaderVersion}</strong>
+                <span className="meta-label">Версия загрузчика:</span>{" "}
+                <strong>{detail.loaderVersion}</strong>
               </span>
             </>
           )}
@@ -562,78 +238,102 @@ export function BuildDetail({
           </span>
           <span className="meta-sep">·</span>
           <span className="meta-item">
-            <span className="meta-label">Общий размер:</span> <strong>{formatSize(totalSize)}</strong>
+            <span className="meta-label">Общий размер:</span>{" "}
+            <strong>{formatSize(totalSize)}</strong>
           </span>
         </div>
       </div>
 
-      {syncStatus && syncStatus.state !== "idle" && (
-        <div className={`panel sync-progress sync-progress--${syncStatus.state}`}>
+      {actions.syncStatus && actions.syncStatus.state !== "idle" && (
+        <div
+          className={`panel sync-progress sync-progress--${actions.syncStatus.state}`}
+        >
           <div className="sync-progress__head">
             <strong>
-              {syncStatus.state === "running"
+              {actions.syncStatus.state === "running"
                 ? "SFTP-синхронизация"
-                : syncStatus.state === "success"
+                : actions.syncStatus.state === "success"
                   ? "SFTP-синхронизация завершена"
                   : "SFTP-синхронизация с ошибкой"}
             </strong>
             <span className="muted">{syncPercent}%</span>
           </div>
           <div className="progress sync-progress__bar">
-            <div className="progress-bar" style={{ width: `${syncPercent}%` }} />
+            <div
+              className="progress-bar"
+              style={{ width: `${syncPercent}%` }}
+            />
           </div>
           <div className="sync-progress__meta">
-            <span>{syncStatus.phase || "Ожидание"}</span>
+            <span>{actions.syncStatus.phase || "Ожидание"}</span>
             <span>
-              {syncStatus.current}/{syncStatus.total || 1} · загружено {syncStatus.uploaded} · удалено {syncStatus.deleted} · пропущено {syncStatus.skipped}
+              {actions.syncStatus.current}/{actions.syncStatus.total || 1} ·
+              загружено {actions.syncStatus.uploaded} · удалено{" "}
+              {actions.syncStatus.deleted} · пропущено {actions.syncStatus.skipped}
             </span>
           </div>
-          {syncStatus.error && <div className="q-err">{syncStatus.error}</div>}
+          {actions.syncStatus.error && (
+            <div className="q-err">{actions.syncStatus.error}</div>
+          )}
         </div>
       )}
 
-      {deployStatus && (
-        <div className={`panel sync-progress sync-progress--${deployStatus.state === "success" ? "success" : deployStatus.state === "error" ? "error" : "running"}`}>
+      {actions.deployStatus && (
+        <div
+          className={`panel sync-progress sync-progress--${
+            actions.deployStatus.state === "success"
+              ? "success"
+              : actions.deployStatus.state === "error"
+                ? "error"
+                : "running"
+          }`}
+        >
           <div className="sync-progress__head">
             <strong>
-              {deployStatus.state === "running"
+              {actions.deployStatus.state === "running"
                 ? "Загрузка мода"
-                : deployStatus.state === "success"
+                : actions.deployStatus.state === "success"
                   ? "Мод добавлен в сборку"
                   : "Ошибка загрузки мода"}
             </strong>
           </div>
           <div className="sync-progress__meta">
-            <span>{deployStatus.phase}</span>
-            {deployStatus.version && <span>Версия: {deployStatus.version}</span>}
+            <span>{actions.deployStatus.phase}</span>
+            {actions.deployStatus.version && (
+              <span>Версия: {actions.deployStatus.version}</span>
+            )}
           </div>
-          {deployStatus.error && <div className="q-err">{deployStatus.error}</div>}
+          {actions.deployStatus.error && (
+            <div className="q-err">{actions.deployStatus.error}</div>
+          )}
         </div>
       )}
 
-      {checkResults.loading && (
+      {actions.checkResults.loading && (
         <div className="panel checks-loading">
-          <span className="spinner" /> Выполняется проверка файлов и зависимостей сборки...
+          <span className="spinner" /> Выполняется проверка файлов и зависимостей
+          сборки...
         </div>
       )}
 
-      {(checkResults.build || checkResults.deps) && !checkResults.loading && (
-        <div className="panel check-results-panel">
-          <div className="check-results-header">
-            <strong>
-              <IconCheck size={14} /> Результаты проверки
-            </strong>
-            <button
-              className="icon-only close-btn"
-              title="Скрыть результаты"
-              onClick={() => setCheckResults({ build: null, deps: null, loading: false })}
-            >
-              <IconClose size={14} />
-            </button>
+      {(actions.checkResults.build || actions.checkResults.deps) &&
+        !actions.checkResults.loading && (
+          <div className="panel check-results-panel">
+            <div className="check-results-header">
+              <strong>
+                <IconCheck size={14} /> Результаты проверки
+              </strong>
+              <button
+                className="icon-only close-btn"
+                title="Скрыть результаты"
+                onClick={actions.clearCheckResults}
+              >
+                <IconClose size={14} />
+              </button>
+            </div>
+            <CheckResults state={actions.checkResults} />
           </div>
-          <CheckResults state={checkResults} />
-        </div>
-      )}
+        )}
 
       <div className="panel">
         <FileManager
@@ -653,7 +353,10 @@ export function BuildDetail({
             mcVersion: detail.mcVersion,
             loaderVersion: detail.loaderVersion,
           }}
-          onSave={saveEdit}
+          onSave={async (input) => {
+            const ok = await actions.saveEdit(input);
+            if (ok) setEditing(false);
+          }}
           onClose={() => setEditing(false)}
         />
       )}

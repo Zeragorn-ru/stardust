@@ -1,3 +1,7 @@
+// Вход в десктопную админку. Логика прежняя; карточка переведена на рецепт
+// m-login-card/m-brand-mark (план 3.9) — первый экран соответствует
+// приложению, легаси brand-dot со старым синим свечением упразднён.
+
 import { useState } from "react";
 import { api, ApiError } from "./api";
 
@@ -23,11 +27,12 @@ export function Login({ onLoggedIn }: { onLoggedIn: (username: string) => void }
 
   return (
     <div className="login-wrap">
-      <form className="panel login-card" onSubmit={submit}>
+      <form className="login-card" onSubmit={submit}>
         <div className="login-brand">
-          <span className="brand-dot" />
-          <span>Вход в админку</span>
+          <span className="login-brand-mark"><span /></span>
+          <span>StarDust</span>
         </div>
+        <p className="muted login-card__sub">Вход в панель управления</p>
         {error && <div className="error" role="alert">{error}</div>}
         <div className="field">
           <label htmlFor="u">Логин</label>

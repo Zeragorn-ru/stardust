@@ -1,11 +1,12 @@
 import { useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { CreateBuildInput } from "./types";
-import { useToast, useConfirm } from "./ui/feedback";
+import { useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import { useDialogFocus } from "./ui/useDialogFocus";
-
-const LOADERS = ["neoforge", "forge", "fabric", "quilt", "vanilla"];
+import { useDirtyGuard } from "./ui/useDirtyGuard";
+import { Field, FieldInput, fieldTouchedError } from "./ui/Field";
+import { LOADERS } from "./ui/buildActions";
 
 export function CreateBuildForm({
   onCreated,
@@ -15,7 +16,6 @@ export function CreateBuildForm({
   onClose: () => void;
 }) {
   const toast = useToast();
-  const confirm = useConfirm();
   const dialogRef = useRef<HTMLFormElement>(null);
   useBodyScrollLock();
   const [form, setForm] = useState<CreateBuildInput>({
@@ -35,29 +35,18 @@ export function CreateBuildForm({
     mcVersion: false,
   });
 
-  // Dirty в ref: закрытие по подложке/Escape проверяет актуальное значение.
+  // Dirty-guard: Escape и клик по подложке спрашивают подтверждение
+  // вместо молчаливой потери введённого (общий хук, план 4.4).
   const dirty =
     Boolean(form.name.trim() || form.version.trim() || form.mcVersion.trim() || form.loaderVersion.trim()) ||
     form.loaderKind !== "neoforge";
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
-  const busyRef = useRef(busy);
-  busyRef.current = busy;
 
-  async function tryClose() {
-    if (busyRef.current) return;
-    if (dirtyRef.current) {
-      const ok = await confirm({
-        title: "Есть несохранённые изменения",
-        body: "Закрыть форму без создания сборки?",
-        confirmText: "Закрыть",
-        danger: true,
-      });
-      if (!ok) return;
-    }
-    onClose();
-  }
-
+  const tryClose = useDirtyGuard({
+    isDirty: dirty,
+    isBusy: busy,
+    onClose,
+    body: "Закрыть форму без создания сборки?",
+  });
   useDialogFocus(dialogRef, () => void tryClose());
 
   function set<K extends keyof CreateBuildInput>(
@@ -106,71 +95,77 @@ export function CreateBuildForm({
       >
         <h3 id="create-build-title">Новая сборка</h3>
         <div className="row">
-          <div className="field">
-            <label>Название</label>
-            <input
-              value={form.name}
-              onChange={(e) => set("name", e.target.value)}
-              onBlur={() => setTouched((t) => ({ ...t, name: true }))}
-              autoFocus
-              placeholder="Моя сборка"
-              aria-invalid={touched.name && !form.name.trim() || undefined}
-            />
-            {touched.name && !form.name.trim() && (
-              <p className="input-error">Заполните название</p>
+          <Field
+            label="Название"
+            error={fieldTouchedError(touched.name, !form.name.trim() ? "Заполните название" : null)}
+          >
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={form.name}
+                onChange={(e) => set("name", e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, name: true }))}
+                autoFocus
+                placeholder="Моя сборка"
+              />
             )}
-          </div>
-          <div className="field">
-            <label>Версия сборки</label>
-            <input
-              value={form.version}
-              onChange={(e) => set("version", e.target.value)}
-              onBlur={() => setTouched((t) => ({ ...t, version: true }))}
-              placeholder="напр. 1.0.0"
-              aria-invalid={touched.version && !form.version.trim() || undefined}
-            />
-            {touched.version && !form.version.trim() && (
-              <p className="input-error">Заполните версию сборки</p>
+          </Field>
+          <Field
+            label="Версия сборки"
+            error={fieldTouchedError(touched.version, !form.version.trim() ? "Заполните версию сборки" : null)}
+          >
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={form.version}
+                onChange={(e) => set("version", e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, version: true }))}
+                placeholder="напр. 1.0.0"
+              />
             )}
-          </div>
+          </Field>
         </div>
         <div className="row">
-          <div className="field">
-            <label>Загрузчик</label>
-            <select
-              value={form.loaderKind}
-              onChange={(e) => set("loaderKind", e.target.value)}
-            >
-              {LOADERS.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Версия Minecraft</label>
-            <input
-              value={form.mcVersion}
-              onChange={(e) => set("mcVersion", e.target.value)}
-              onBlur={() => setTouched((t) => ({ ...t, mcVersion: true }))}
-              placeholder="напр. 1.21.1"
-              aria-invalid={
-                touched.mcVersion && !form.mcVersion.trim() || undefined
-              }
-            />
-            {touched.mcVersion && !form.mcVersion.trim() && (
-              <p className="input-error">Заполните версию Minecraft</p>
+          <Field label="Загрузчик">
+            {(control) => (
+              <select
+                id={control.id}
+                aria-describedby={control.describedBy}
+                value={form.loaderKind}
+                onChange={(e) => set("loaderKind", e.target.value)}
+              >
+                {LOADERS.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
             )}
-          </div>
-          <div className="field">
-            <label>Версия загрузчика</label>
-            <input
-              value={form.loaderVersion}
-              onChange={(e) => set("loaderVersion", e.target.value)}
-              placeholder="напр. 21.1.72"
-            />
-          </div>
+          </Field>
+          <Field
+            label="Версия Minecraft"
+            error={fieldTouchedError(touched.mcVersion, !form.mcVersion.trim() ? "Заполните версию Minecraft" : null)}
+          >
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={form.mcVersion}
+                onChange={(e) => set("mcVersion", e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, mcVersion: true }))}
+                placeholder="напр. 1.21.1"
+              />
+            )}
+          </Field>
+          <Field label="Версия загрузчика">
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={form.loaderVersion}
+                onChange={(e) => set("loaderVersion", e.target.value)}
+                placeholder="напр. 21.1.72"
+              />
+            )}
+          </Field>
         </div>
         <div className="modal-actions">
           <button type="button" onClick={() => void tryClose()} disabled={busy}>

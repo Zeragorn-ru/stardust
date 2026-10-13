@@ -2,8 +2,18 @@
 //
 // Навигация переехала с локального состояния вкладок на реальные маршруты
 // (react-router): теперь у каждого экрана свой URL, работают «назад/вперёд»,
-// открытая сборка адресуется ссылкой `/builds/:id`. Слой данных (api/типы) и
+// открытая сборка адресуется ссылкой `/builds/:id`, редакторы новостей и
+// гайдов — `/news/:id|new` и `/guides/:id|new`. Слой данных (api/типы) и
 // проверенная логика управления файлами переиспользуются как есть.
+//
+// Роутер — data-роутер (createBrowserRouter в main.tsx): он нужен для
+// useBlocker — dirty-guard маршрутов-редакторов перехватывает уход по
+// сайдбару/Back и спрашивает подтверждение, а не молча стирает черновик.
+//
+// Сайдбар и заголовок топбара рендерятся из единой таблицы ui/navConfig —
+// рассинхронизация имён/иконок между сайдбаром и топбаром невозможна.
+// Свёрнутое состояние сайдбара запоминается в localStorage (как выбор
+// интерфейса и фильтры аккаунтов) и переживает перезагрузку страницы.
 
 import { useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
@@ -21,8 +31,28 @@ import { GuidesView } from "../views/GuidesView";
 import { LogsView } from "../views/LogsView";
 import { ExternalModsView } from "../views/ExternalModsView";
 import { SeasonsView } from "../views/SeasonsView";
-import { IconArchive, IconBox, IconChart, IconFile, IconLogout, IconSettings, IconSmartphone, IconStar, IconUsers } from "../ui/icons";
+import { NAV, NAV_GROUPS, navItem, subrouteTitle } from "../ui/navConfig";
+import { IconLogout, IconSmartphone } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
+
+const SIDEBAR_STORAGE_KEY = "stardust.admin.sidebar.collapsed";
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return localStorage.getItem(SIDEBAR_STORAGE_KEY) === "1";
+  } catch {
+    // Приватный режим/заблокированное хранилище — просто стартуем развёрнутым.
+    return false;
+  }
+}
+
+function writeSidebarCollapsed(collapsed: boolean) {
+  try {
+    localStorage.setItem(SIDEBAR_STORAGE_KEY, collapsed ? "1" : "0");
+  } catch {
+    // Не запоминаем — это только удобство, не данные.
+  }
+}
 
 export function DesktopApp() {
   return (
@@ -56,9 +86,15 @@ function Gate() {
 function Shell() {
   const { username, logout } = useAuth();
   const location = useLocation();
-  const section = location.pathname.split("/")[1] || "overview";
-  const sectionMeta = sectionDetails(section);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const sectionMeta = sectionDetails(location.pathname);
+  const [sidebarOpen, setSidebarOpen] = useState(!readSidebarCollapsed());
+
+  function toggleSidebar() {
+    setSidebarOpen((open) => {
+      writeSidebarCollapsed(open);
+      return !open;
+    });
+  }
 
   return (
     <div className={`app${sidebarOpen ? "" : " sidebar-collapsed"}`}>
@@ -76,75 +112,33 @@ function Shell() {
             type="button"
             aria-label={sidebarOpen ? "Свернуть меню" : "Развернуть меню"}
             aria-expanded={sidebarOpen}
-            onClick={() => setSidebarOpen((open) => !open)}
+            onClick={toggleSidebar}
           >
             <span />
             <span />
             <span />
           </button>
         </div>
+        {/* Единая таблица навигации (ui/navConfig): группы и пункты
+            рендерятся в порядке из таблицы, имена/иконки совпадают с
+            мобильным drawer и топбаром по построению. */}
         <nav className="nav">
-          <span className="nav-group">Обзор</span>
-          <NavLink
-            to="/overview"
-            className={({ isActive }) =>
-              `nav-item${isActive ? " active" : ""}`
-            }
-          >
-            <IconChart /> <span className="nav-label">Обзор</span>
-          </NavLink>
-          <span className="nav-group">Инфраструктура</span>
-          <NavLink
-            to="/builds"
-            className={({ isActive }) =>
-              `nav-item${isActive ? " active" : ""}`
-            }
-          >
-            <IconBox /> <span className="nav-label">Сборки</span>
-          </NavLink>
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              `nav-item${isActive ? " active" : ""}`
-            }
-          >
-            <IconSettings /> <span className="nav-label">Интеграции</span>
-          </NavLink>
-          <span className="nav-group">Операции</span>
-          <NavLink
-            to="/accounts"
-            className={({ isActive }) =>
-              `nav-item${isActive ? " active" : ""}`
-            }
-          >
-            <IconUsers /> <span className="nav-label">Аккаунты</span>
-          </NavLink>
-          <NavLink
-            to="/customization"
-            className={({ isActive }) =>
-              `nav-item${isActive ? " active" : ""}`
-            }
-          >
-            <IconStar /> <span className="nav-label">Кастомизация</span>
-          </NavLink>
-          <NavLink
-            to="/news"
-            className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-          >
-            <IconStar /> <span className="nav-label">Новости</span>
-          </NavLink>
-          <NavLink to="/guides" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
-            <IconFile /> <span className="nav-label">Гайды</span>
-          </NavLink>
-          <NavLink to="/logs" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
-            <IconFile /> <span className="nav-label">Логи</span>
-          </NavLink>
-          <NavLink to="/mods" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
-            <IconBox /> <span className="nav-label">Внешние моды</span>
-          </NavLink>
-          <NavLink to="/seasons" className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}>
-            <IconArchive /> <span className="nav-label">Сезоны</span>
-          </NavLink>
+          {NAV_GROUPS.map((group) => (
+            <section key={group} aria-label={group}>
+              <span className="nav-group">{group}</span>
+              {NAV.filter((item) => item.group === group).map((item) => (
+                <NavLink
+                  key={item.tab}
+                  to={item.route}
+                  className={({ isActive }) =>
+                    `nav-item${isActive ? " active" : ""}`
+                  }
+                >
+                  {item.icon(16)} <span className="nav-label">{item.label}</span>
+                </NavLink>
+              ))}
+            </section>
+          ))}
         </nav>
         <div className="sidebar-foot">
           {username && (
@@ -186,8 +180,12 @@ function Shell() {
             <Route path="/builds/:id" element={<BuildsPage />} />
             <Route path="/accounts" element={<AccountsView />} />
             <Route path="/customization" element={<CustomizationView />} />
+            {/* Редакторы новостей/гайдов — маршруты (план 3.6): NewsView и
+                GuidesView сами различают индекс и подмаршрут по useParams. */}
             <Route path="/news" element={<NewsView />} />
+            <Route path="/news/:id" element={<NewsView />} />
             <Route path="/guides" element={<GuidesView />} />
+            <Route path="/guides/:id" element={<GuidesView />} />
             <Route path="/logs" element={<LogsView />} />
             <Route path="/mods" element={<ExternalModsView />} />
             <Route path="/seasons" element={<SeasonsView />} />
@@ -200,57 +198,22 @@ function Shell() {
   );
 }
 
-function sectionDetails(section: string): { title: string; description: string } {
-  switch (section) {
-    case "builds":
-      return {
-        title: "Сборки и файлы",
-        description: "Релизы, содержимое сборок и проверка клиентских артефактов.",
-      };
-    case "accounts":
-      return {
-        title: "Игроки и доступ",
-        description: "Поиск, модерация, Telegram-связка и статусы аккаунтов.",
-      };
-    case "customization":
-      return {
-        title: "Косметика",
-        description: "Бейджи, градиенты и элементы идентичности игроков.",
-      };
-    case "settings":
-      return {
-        title: "Инфраструктура",
-        description: "Telegram, SFTP и backend-конфигурация без потери контекста.",
-      };
-    case "news":
-      return {
-        title: "Новости",
-        description: "Публикации и закреплённые объявления для лаунчера.",
-      };
-    case "guides":
-      return {
-        title: "Гайды",
-        description: "Публичная база знаний для игроков и новичков.",
-      };
-    case "logs":
-      return {
-        title: "Логи сервера",
-        description: "Запуски, входы, выходы и аварийные завершения Minecraft.",
-      };
-    case "mods":
-      return {
-        title: "Внешние моды",
-        description: "Разрешённые моды и правила очистки перед запуском клиента.",
-      };
-    case "seasons":
-      return {
-        title: "Сезоны и релизы",
-        description: "Архив статистики игроков по сезонам и выкат релизов лаунчера в стабильный канал.",
-      };
-    default:
-      return {
-        title: "Панель управления",
-        description: "Ключевые статусы платформы и быстрые операционные действия.",
-      };
-  }
+/**
+ * Заголовок и описание текущего раздела для топбара (план 2.1/2.5).
+ *
+ * Канонические имена берутся из NAV — секция switch с четырьмя вариантами
+ * одного имени («Интеграции»/«Инфраструктура»/«Система») упразднена. Для
+ * подмаршрутов (`/builds/:id`, `/builds/new`, а в будущем `/news/:id|new`,
+ * `/guides/:id|new`) вместо индексного названия подставляется заголовок
+ * подмаршрута. Описание подмаршрута наследуется от раздела: топбар остаётся
+ * контекстным, а не дублирует заголовок, который экран рисует сам.
+ */
+function sectionDetails(pathname: string): { title: string; description: string } {
+  const section = pathname.split("/")[1] || "overview";
+  const item = navItem(section);
+  const sub = subrouteTitle(pathname);
+  return {
+    title: sub ?? (item.tab === "overview" ? "Панель управления" : item.label),
+    description: item.description,
+  };
 }

@@ -4,7 +4,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError } from "../api";
-import { useToast } from "../ui/feedback";
+import { useConfirm, useToast } from "../ui/feedback";
+import { useContextMenu } from "../ui/ContextMenu";
+import { activateBuildFromList } from "../ui/buildActions";
 import { IconBox, IconPlus, IconStar } from "../ui/icons";
 import { BuildDetail } from "../BuildDetail";
 import { CreateBuildForm } from "../CreateBuildForm";
@@ -71,7 +73,11 @@ export function BuildsPage() {
             onChanged={load}
           />
         ) : (
-          <BuildsHub builds={builds} onCreate={() => navigate("/builds/new")} />
+          <BuildsHub
+            builds={builds}
+            onCreate={() => navigate("/builds/new")}
+            onActivated={() => void load()}
+          />
         )}
       </div>
 
@@ -88,18 +94,26 @@ export function BuildsPage() {
   );
 }
 
-function BuildsHub({ builds, onCreate }: { builds: BuildHeader[]; onCreate: () => void }) {
+function BuildsHub({
+  builds,
+  onCreate,
+  onActivated,
+}: {
+  builds: BuildHeader[];
+  onCreate: () => void;
+  onActivated: () => void;
+}) {
   const active = builds.find((b) => b.isActive);
   return (
     <div className="builds-hub">
+      {/* Третий уровень заголовков упразднён (план 2.5): топбар уже
+          показывает «Сборки» + описание раздела, поэтому хаб ограничивается
+          счётчиком и кнопкой создания — eyebrow и subtitle дублировали
+          topbar. */}
       <header className="view-head page-head">
-        <div>
-          <span className="eyebrow">Сборки модов</span>
-          <h1>Сборки</h1>
-          <p className="muted">
-            {builds.length} сборок · {active ? `активна «${active.name}»` : "активная сборка не выбрана"}
-          </p>
-        </div>
+        <p className="muted">
+          {builds.length} сборок · {active ? `активна «${active.name}»` : "активная сборка не выбрана"}
+        </p>
         <button className="primary" onClick={onCreate}>
           <IconPlus size={15} /> Создать сборку
         </button>
@@ -117,35 +131,87 @@ function BuildsHub({ builds, onCreate }: { builds: BuildHeader[]; onCreate: () =
       ) : (
         <div className="build-card-grid">
           {builds.map((build) => (
-            // Вся карточка — ссылка (клавиатура/Enter работают нативно через <a>).
-            <Link
+            <BuildCard
               key={build.id}
-              className={`build-card${build.isActive ? " build-card--active" : ""}`}
-              to={`/builds/${build.id}`}
-              aria-label={`Открыть сборку ${build.name}`}
-            >
-              <div className="build-card-orb"><IconBox size={18} /></div>
-              <div className="build-card-main">
-                <div className="build-card-title">
-                  <strong>{build.name}</strong>
-                  {/* Бейдж активной сборки — она отдаётся лаунчеру клиентам. */}
-                  {build.isActive && (
-                    <span className="badge active" title="сборка отдаётся лаунчеру">
-                      <IconStar size={11} /> активная
-                    </span>
-                  )}
-                </div>
-                <span className="muted">v{build.version}</span>
-              </div>
-              <div className="build-card-meta">
-                <span>{build.loaderKind}</span>
-                <span>MC {build.mcVersion}</span>
-                {build.loaderVersion && <span>{build.loaderVersion}</span>}
-              </div>
-            </Link>
+              build={build}
+              onActivated={onActivated}
+            />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function BuildCard({
+  build,
+  onActivated,
+}: {
+  build: BuildHeader;
+  onActivated: () => void;
+}) {
+  const navigate = useNavigate();
+  const confirm = useConfirm();
+  const toast = useToast();
+  const menu = useContextMenu();
+
+  // «Сделать активной» в контекстном меню карточки (план 3.2): раньше
+  // вход в активацию был только через детали сборки.
+  function openMenu(e: React.MouseEvent) {
+    menu(e, {
+      title: build.name,
+      items: [
+        {
+          label: "Открыть",
+          onSelect: () => navigate(`/builds/${build.id}`),
+        },
+        {
+          label: "Сделать активной",
+          disabled: build.isActive,
+          icon: <IconStar size={14} />,
+          onSelect: () => {
+            void activateBuildFromList(
+              build.id,
+              build.name,
+              confirm,
+              toast,
+              { version: build.version },
+            ).then((ok) => {
+              if (ok) onActivated();
+            });
+          },
+        },
+      ],
+    });
+  }
+
+  return (
+    // Вся карточка — ссылка (клавиатура/Enter работают нативно через <a>);
+    // правый клик открывает контекстное меню с активацией.
+    <Link
+      className={`build-card${build.isActive ? " build-card--active" : ""}`}
+      to={`/builds/${build.id}`}
+      aria-label={`Открыть сборку ${build.name}`}
+      onContextMenu={openMenu}
+    >
+      <div className="build-card-orb"><IconBox size={18} /></div>
+      <div className="build-card-main">
+        <div className="build-card-title">
+          <strong>{build.name}</strong>
+          {/* Бейдж активной сборки — она отдаётся лаунчеру клиентам. */}
+          {build.isActive && (
+            <span className="badge active" title="сборка отдаётся лаунчеру">
+              <IconStar size={11} /> активная
+            </span>
+          )}
+        </div>
+        <span className="muted">v{build.version}</span>
+      </div>
+      <div className="build-card-meta">
+        <span>{build.loaderKind}</span>
+        <span>MC {build.mcVersion}</span>
+        {build.loaderVersion && <span>{build.loaderVersion}</span>}
+      </div>
+    </Link>
   );
 }

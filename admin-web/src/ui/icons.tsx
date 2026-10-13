@@ -123,6 +123,14 @@ export const IconCornerUp = svg(
   </>,
 );
 
+// Стрелка-назад для маршрутов-редакторов (план 3.6): /news/:id, /guides/:id.
+export const IconArrowLeft = svg(
+  <>
+    <line x1="19" y1="12" x2="5" y2="12" />
+    <polyline points="12 19 5 12 12 5" />
+  </>,
+);
+
 export const IconPencil = svg(
   <>
     <path d="M12 20h9" />
@@ -249,5 +257,31 @@ export const IconArchive = svg(
     <rect x="2" y="3" width="20" height="5" rx="1" />
     <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
     <path d="M10 12h4" />
+  </>,
+);
+
+// Иконки навигации (план 2.2): уникальные знаки для разделов, которые
+// раньше делили одну иконку с соседями (новости/кастомизация — звезда,
+// гайды/логи — файл, сборки/внешние моды — коробка).
+// IconShield для внешних модов уже существует выше.
+
+export const IconMegaphone = svg(
+  <>
+    <path d="m3 11 18-5v12L3 13v-2z" />
+    <path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />
+  </>,
+);
+
+export const IconBookOpen = svg(
+  <>
+    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+  </>,
+);
+
+export const IconTerminal = svg(
+  <>
+    <polyline points="4 17 10 11 4 5" />
+    <line x1="12" y1="19" x2="20" y2="19" />
   </>,
 );

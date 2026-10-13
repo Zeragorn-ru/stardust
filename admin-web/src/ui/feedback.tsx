@@ -68,14 +68,25 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const nextId = useRef(1);
+  // Дедуп одинаковых ошибок подряд: фоновый опрос может падать каждые
+  // 30 секунд, и каждая итерация раньше порождала новый toast — экран
+  // заливало одинаковыми плашками. Повтор показываем не раньше, чем
+  // предыдущий исчез И показывался другой тост между ними.
+  const lastError = useRef<{ text: string; id: number } | null>(null);
 
   const dismiss = useCallback((id: number) => {
     setToasts((list) => list.filter((t) => t.id !== id));
+    const last = lastError.current;
+    if (last && last.id === id) lastError.current = null;
   }, []);
 
   const push = useCallback(
     (kind: ToastKind, text: string) => {
       const id = nextId.current++;
+      // Подавляем только ошибки: они повторяются из polling-циклов;
+      // успеха/инфо подряд одинаковых не бывает.
+      if (kind === "error" && lastError.current?.text === text) return;
+      if (kind === "error") lastError.current = { text, id };
       setToasts((list) => [...list, { id, kind, text }]);
       // Ошибки висят дольше, чтобы успеть прочитать.
       const ttl = kind === "error" ? 6000 : 3500;

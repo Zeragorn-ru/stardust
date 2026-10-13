@@ -20,6 +20,9 @@ import {
 import { useConfirm, useToast } from "./ui/feedback";
 import { useContextMenu } from "./ui/ContextMenu";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
+import { useDialogFocus } from "./ui/useDialogFocus";
+import { useDirtyGuard } from "./ui/useDirtyGuard";
+import { Field } from "./ui/Field";
 import {
   IconChevronRight,
   IconClose,
@@ -157,6 +160,18 @@ export function FileManager({
   // Файл, чьи свойства открыты в выезжающей панели справа.
   const [editingProps, setEditingProps] = useState<BuildFile | null>(null);
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Прогресс массовой операции: «N из M» для BulkBar.
+  const [bulkProgress, setBulkProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  // Частичный сбой массовой операции: выделение сводится к неудавшимся,
+  // рядом со списком путей и серверных сообщений — кнопка «Повторить».
+  const [bulkFailures, setBulkFailures] = useState<
+    { file: BuildFile; error: string }[] | null
+  >(null);
+  // Последняя массовая операция — для повтора неудавшихся строк.
+  const lastBulkAction = useRef<((f: BuildFile) => Promise<void>) | null>(null);
   // Активный диалог создания: папка или файл.
   const [creating, setCreating] = useState<"folder" | "file" | null>(null);
   // Папка, чей архив сейчас готовится на сервере (для подписи «Готовлю архив…»).
@@ -232,6 +247,7 @@ export function FileManager({
   // выделение: невидимые строки не должны попадать под BulkBar-патчи.
   useEffect(() => {
     setSelected(new Set());
+    setBulkFailures(null);
     anchorIdx.current = null;
   }, [query, filters]);
 
@@ -383,6 +399,23 @@ export function FileManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, selected]);
 
+  // Состояние сегмент-кнопок BulkBar: признак «у всех выбранных файлов
+  // значение поля равно этому» — для aria-pressed и подсветки active.
+  const selCommon = useMemo(() => {
+    const sel = files.filter((f) => selected.has(f.id));
+    const every = (pred: (f: BuildFile) => boolean) =>
+      sel.length > 0 && sel.every(pred);
+    return {
+      side: sel.length > 0 ? (sel.every((f) => f.side === sel[0].side) ? sel[0].side : null) : null,
+      kind: sel.length > 0 ? (sel.every((f) => f.kind === sel[0].kind) ? sel[0].kind : null) : null,
+      optional: every((f) => f.optional),
+      enabledByDefault: every((f) => f.enabledByDefault),
+      overwrite: every((f) => f.overwrite),
+      disabled: every((f) => f.disabled),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files, selected]);
+
   /** Переключить членство всех выделенных файлов в профиле. */
   function bulkToggleProfile(key: string) {
     const sel = files.filter((f) => selected.has(f.id));
@@ -392,6 +425,64 @@ export function FileManager({
     void bulkPatchProfiles(sel, key, patchProfiles, allHave);
   }
 
+  /**
+   * Общий прогон массовой операции: последовательные запросы с прогрессом
+   * «N из M» в BulkBar. При частичном сбое выделяются только неудавшиеся
+   * файлы (к ним прикладывается серверное сообщение), BulkBar показывает
+   * кнопку «Повторить для N неудавшихся» — по образцу
+   * FileUpload.uploadAll(true).
+   */
+  async function runBulk(
+    sel: BuildFile[],
+    action: (f: BuildFile) => Promise<void>,
+  ): Promise<BuildFile[]> {
+    if (sel.length === 0) {
+      // Новый прогон обнуляет итоги прошлого (даже пустой no-op).
+      setBulkFailures(null);
+      return [];
+    }
+    setBulkBusy(true);
+    setBulkProgress({ done: 0, total: sel.length });
+    const failedFiles: { file: BuildFile; error: string }[] = [];
+    let done = 0;
+    for (const f of sel) {
+      try {
+        await action(f);
+      } catch (err) {
+        failedFiles.push({
+          file: f,
+          error: err instanceof ApiError ? err.message : "Ошибка запроса",
+        });
+      }
+      done++;
+      setBulkProgress({ done, total: sel.length });
+    }
+    setBulkBusy(false);
+    setBulkProgress(null);
+    // Успешные строки выпадают из выделения; остаются только неудавшиеся —
+    // их видно в списке и можно повторить одним кликом.
+    if (failedFiles.length > 0) {
+      const failedIds = new Set(failedFiles.map((x) => x.file.id));
+      setSelected((cur) => new Set([...cur].filter((id) => failedIds.has(id))));
+      setBulkFailures(failedFiles);
+    } else {
+      setBulkFailures(null);
+    }
+    lastBulkAction.current = action;
+    return failedFiles.map((x) => x.file);
+  }
+
+  /** Повторить последнюю массовую операцию для неудавшихся строк. */
+  async function retryBulkFailed() {
+    const action = lastBulkAction.current;
+    if (!action || !bulkFailures || bulkFailures.length === 0) return;
+    await runBulk(
+      bulkFailures.map((x) => x.file),
+      action,
+    );
+    onChanged();
+  }
+
   async function bulkPatchProfiles(
     sel: BuildFile[],
     key: string,
@@ -399,81 +490,75 @@ export function FileManager({
     removing: boolean,
   ) {
     if (sel.length === 0) return;
-    setBulkBusy(true);
-    let failed = 0;
-    for (const f of sel) {
-      // Файлы вне профиля и «добавляем» — патчим только членство.
-      const nextProfiles = patchProfiles(f.profiles);
-      if (nextProfiles.length === f.profiles.length && nextProfiles.every((k) => f.profiles.includes(k))) {
-        continue;
-      }
-      try {
-        await api.updateFile(f.id, { profiles: nextProfiles });
-      } catch {
-        failed++;
-      }
-    }
-    setBulkBusy(false);
+    // Файлы вне профиля и «добавляем» — патчим только членство.
+    const targets = sel.filter((f) => {
+      const next = patchProfiles(f.profiles);
+      return !(next.length === f.profiles.length && next.every((k) => f.profiles.includes(k)));
+    });
+    const failed = await runBulk(targets, async (f) => {
+      await api.updateFile(f.id, { profiles: patchProfiles(f.profiles) });
+    });
     const profileName = modProfiles.find((p) => p.key === key)?.name ?? key;
-    if (failed) toast.error(`Не удалось обновить файлов: ${failed}`);
-    else
+    const applied = targets.length - failed.length;
+    if (failed.length) {
+      toast.error(
+        `${profileName}: применено к ${applied}, не удалось: ${failed.length}`,
+      );
+    } else if (targets.length > 0) {
       toast.success(
         removing
-          ? `${profileName}: убрано из ${sel.length} файл(ов)`
-          : `${profileName}: добавлено ${sel.length} файл(ов)`,
+          ? `${profileName}: убрано из ${targets.length} файл(ов)`
+          : `${profileName}: добавлено ${targets.length} файл(ов)`,
       );
+    }
     onChanged();
   }
 
   async function bulkPatch(patch: Partial<BuildFile>, label: string) {
-    const ids = [...selected];
-    if (ids.length === 0) return;
-    setBulkBusy(true);
-    let failed = 0;
-    for (const id of ids) {
-      try {
-        await api.updateFile(id, {
-          side: patch.side,
-          kind: patch.kind,
-          optional: patch.optional,
-          enabledByDefault: patch.enabledByDefault,
-          overwrite: patch.overwrite,
-          disabled: patch.disabled,
-          profiles: patch.profiles,
-        });
-      } catch {
-        failed++;
-      }
+    const sel = files.filter((f) => selected.has(f.id));
+    if (sel.length === 0) return;
+    const failed = await runBulk(sel, async (f) => {
+      await api.updateFile(f.id, {
+        side: patch.side,
+        kind: patch.kind,
+        optional: patch.optional,
+        enabledByDefault: patch.enabledByDefault,
+        overwrite: patch.overwrite,
+        disabled: patch.disabled,
+        profiles: patch.profiles,
+      });
+    });
+    if (failed.length) {
+      toast.error(
+        `${label}: применено к ${sel.length - failed.length}, не удалось: ${failed.length}`,
+      );
+    } else {
+      toast.success(`${label}: ${sel.length} файл(ов)`);
     }
-    setBulkBusy(false);
-    if (failed) toast.error(`Не удалось обновить файлов: ${failed}`);
-    else toast.success(`${label}: ${ids.length} файл(ов)`);
     onChanged();
   }
 
   async function bulkDelete() {
-    const ids = [...selected];
-    if (ids.length === 0) return;
+    const sel = files.filter((f) => selected.has(f.id));
+    if (sel.length === 0) return;
     const ok = await confirm({
       title: "Удалить выбранные файлы?",
-      body: `Будет удалено файлов: ${ids.length}`,
+      body: `Будет удалено файлов: ${sel.length}`,
       confirmText: "Удалить всё",
       danger: true,
     });
     if (!ok) return;
-    setBulkBusy(true);
-    let failed = 0;
-    for (const id of ids) {
-      try {
-        await api.deleteFile(id);
-      } catch {
-        failed++;
-      }
+    const failed = await runBulk(sel, async (f) => {
+      await api.deleteFile(f.id);
+    });
+    if (failed.length) {
+      toast.error(
+        `Удалено файлов: ${sel.length - failed.length}, не удалось: ${failed.length}`,
+      );
+    } else {
+      clearSelection();
+      toast.success(`Удалено файлов: ${sel.length}`);
     }
-    setBulkBusy(false);
-    clearSelection();
-    if (failed) toast.error(`Не удалось удалить файлов: ${failed}`);
-    else toast.success(`Удалено файлов: ${ids.length}`);
     onChanged();
   }
 
@@ -656,11 +741,12 @@ export function FileManager({
         </button>
         <button
           type="button"
-          className="icon-only"
-          title="Скопировать ссылку на manifest"
+          className="secondary icon-btn fm-manifest-btn"
+          aria-label="Скопировать ссылку на manifest"
           onClick={() => copyPublicLink("/manifest", "Ссылка на manifest")}
         >
           <IconCopy size={15} />
+          <span className="fm-manifest-btn__label">manifest</span>
         </button>
         <div className="search">
           <IconSearch />
@@ -878,6 +964,9 @@ export function FileManager({
         <BulkBar
           count={selected.size}
           busy={bulkBusy}
+          progress={bulkProgress}
+          failures={bulkFailures}
+          common={selCommon}
           modProfiles={modProfiles}
           selectedProfiles={profilesOfSelected}
           onToggleProfile={bulkToggleProfile}
@@ -908,7 +997,11 @@ export function FileManager({
             )
           }
           onDelete={bulkDelete}
-          onClear={clearSelection}
+          onClear={() => {
+            setBulkFailures(null);
+            clearSelection();
+          }}
+          onRetryFailed={() => void retryBulkFailed()}
         />
       )}
 
@@ -1140,6 +1233,9 @@ export function FileManager({
 function BulkBar({
   count,
   busy,
+  progress,
+  failures,
+  common,
   modProfiles,
   selectedProfiles,
   onSide,
@@ -1151,9 +1247,23 @@ function BulkBar({
   onToggleProfile,
   onDelete,
   onClear,
+  onRetryFailed,
 }: {
   count: number;
   busy: boolean;
+  /** Прогресс массовой операции «N из M»; null — операция не идёт. */
+  progress: { done: number; total: number } | null;
+  /** Неудавшиеся строки последней массовой операции (частичный сбой). */
+  failures: { file: BuildFile; error: string }[] | null;
+  /** Значения, общие для всех выделенных файлов (aria-pressed кнопок). */
+  common: {
+    side: string | null;
+    kind: string | null;
+    optional: boolean;
+    enabledByDefault: boolean;
+    overwrite: boolean;
+    disabled: boolean;
+  };
   modProfiles: ModProfile[];
   /** Профили, отмеченные у ВСЕХ выделенных файлов (для «вкл/выкл»-чипов). */
   selectedProfiles: Set<string>;
@@ -1167,12 +1277,22 @@ function BulkBar({
   onToggleProfile: (key: string) => void;
   onDelete: () => void;
   onClear: () => void;
+  /** Повторить операцию для неудавшихся строк последнего прогона. */
+  onRetryFailed: () => void;
 }) {
   return (
     <div className="fm-bulk">
       <div className="fm-bulk-count">
         <span className="fm-bulk-badge">{count}</span>
         <span>выбрано</span>
+        {progress && (
+          <span
+            className="fm-bulk-progress muted"
+            aria-live="polite"
+          >
+            {progress.done} из {progress.total}
+          </span>
+        )}
       </div>
 
       <div className="fm-bulk-controls">
@@ -1182,7 +1302,9 @@ function BulkBar({
             {SIDES.map((s) => (
               <button
                 key={s}
-                className="seg-btn"
+                type="button"
+                className={`seg-btn${common.side === s ? " active" : ""}`}
+                aria-pressed={common.side === s}
                 disabled={busy}
                 onClick={() => onSide(s)}
               >
@@ -1198,7 +1320,9 @@ function BulkBar({
             {KINDS.map((k) => (
               <button
                 key={k}
-                className="seg-btn"
+                type="button"
+                className={`seg-btn${common.kind === k ? " active" : ""}`}
+                aria-pressed={common.kind === k}
                 disabled={busy}
                 onClick={() => onKind(k)}
               >
@@ -1212,14 +1336,18 @@ function BulkBar({
           <span className="fm-bulk-label">Опциональный</span>
           <div className="seg">
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${common.optional ? " active" : ""}`}
+              aria-pressed={common.optional}
               disabled={busy}
               onClick={() => onOptional(true)}
             >
               да
             </button>
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${!common.optional ? " active" : ""}`}
+              aria-pressed={!common.optional}
               disabled={busy}
               onClick={() => onOptional(false)}
             >
@@ -1232,14 +1360,18 @@ function BulkBar({
           <span className="fm-bulk-label">По умолч.</span>
           <div className="seg">
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${common.enabledByDefault ? " active" : ""}`}
+              aria-pressed={common.enabledByDefault}
               disabled={busy}
               onClick={() => onEnabled(true)}
             >
               вкл
             </button>
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${!common.enabledByDefault ? " active" : ""}`}
+              aria-pressed={!common.enabledByDefault}
               disabled={busy}
               onClick={() => onEnabled(false)}
             >
@@ -1252,14 +1384,18 @@ function BulkBar({
           <span className="fm-bulk-label">Перезапись</span>
           <div className="seg">
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${common.overwrite ? " active" : ""}`}
+              aria-pressed={common.overwrite}
               disabled={busy}
               onClick={() => onOverwrite(true)}
             >
               да
             </button>
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${!common.overwrite ? " active" : ""}`}
+              aria-pressed={!common.overwrite}
               disabled={busy}
               onClick={() => onOverwrite(false)}
             >
@@ -1296,14 +1432,18 @@ function BulkBar({
           <span className="fm-bulk-label">Отключён</span>
           <div className="seg">
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${common.disabled ? " active" : ""}`}
+              aria-pressed={common.disabled}
               disabled={busy}
               onClick={() => onDisabled(true)}
             >
               да
             </button>
             <button
-              className="seg-btn"
+              type="button"
+              className={`seg-btn${!common.disabled ? " active" : ""}`}
+              aria-pressed={!common.disabled}
               disabled={busy}
               onClick={() => onDisabled(false)}
             >
@@ -1322,6 +1462,32 @@ function BulkBar({
           Снять
         </button>
       </div>
+
+      {/* Частичный сбой: выделены только неудавшиеся строки; список с
+          серверными сообщениями и кнопка повтора (как «Повторить ошибки»
+          в FileUpload). */}
+      {failures && failures.length > 0 && !busy && (
+        <div className="fm-bulk-failures" role="alert">
+          <div className="fm-bulk-failures-head">
+            <strong>Не удалось применить к {failures.length}</strong>
+            <button
+              type="button"
+              className="secondary fm-bulk-retry"
+              onClick={onRetryFailed}
+            >
+              Повторить для {failures.length} неудавш{pluralRu(failures.length, "егося", "ихся", "ихся")}
+            </button>
+          </div>
+          <ul className="fm-bulk-failures-list">
+            {failures.map((x) => (
+              <li key={x.file.id}>
+                <span className="mono" title={x.file.path}>{x.file.path}</span>
+                <span className="fm-bulk-failure-msg">{x.error}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
@@ -1402,24 +1568,19 @@ function PromptDialog({
 }) {
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock();
 
-  useEffect(() => {
-    inputRef.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        // Введённое имя не выбрасываем молча — подтверждаем, как в drawer.
-        if (value.trim()) {
-          const ok = window.confirm(`«${value.trim()}» не сохранено. Закрыть?`);
-          if (!ok) return;
-        }
-        onCancel();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, value]);
+  // Введённое имя не выбрасываем молча: Escape и клик по подложке
+  // идут через tryClose — общий dirty-guard с useConfirm (план 3.8/4.1;
+  // window.confirm в iOS standalone-PWA не отображается вовсе).
+  const tryClose = useDirtyGuard({
+    isDirty: () => Boolean(value.trim()),
+    isBusy: submitting,
+    onClose: onCancel,
+    body: "Введённое имя будет потеряно.",
+  });
+  useDialogFocus(dialogRef, () => void tryClose());
 
   // Асинхронный submit с busy-состоянием: быстрый двойной Enter/клик
   // не должен запустить второй запрос на создание.
@@ -1435,29 +1596,34 @@ function PromptDialog({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop" onClick={() => void tryClose()}>
       <div
+        ref={dialogRef}
         className="modal"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="fm-prompt-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3>{title}</h3>
-        <label className="fm-prompt-field">
-          <span className="muted">{label}</span>
-          <input
-            ref={inputRef}
-            value={value}
-            placeholder={placeholder}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void submit();
-            }}
-          />
-        </label>
-        {hint && <p className="muted fm-prompt-hint">{hint}</p>}
+        <h3 id="fm-prompt-title">{title}</h3>
+        <Field label={label} hint={hint}>
+          {(control) => (
+            <input
+              id={control.id}
+              aria-describedby={control.describedBy}
+              className="fm-edit-input"
+              value={value}
+              placeholder={placeholder}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void submit();
+              }}
+            />
+          )}
+        </Field>
         <div className="modal-actions">
-          <button onClick={onCancel} disabled={submitting}>
+          <button onClick={() => void tryClose()} disabled={submitting}>
             Отмена
           </button>
           <button
@@ -1788,26 +1954,33 @@ function ModProfilesDialog({
   const [busy, setBusy] = useState(false);
   // Редактируемый профиль: форма становится upsert этого профиля.
   const [editingProfile, setEditingProfile] = useState<ModProfile | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        // Вложенный оверлей (confirm удаления и т.п.) обрабатывает Escape
-        // сам — иначе вслед за ним срабатывал бы этот хендлер и окно
-        // закрывалось бы целиком.
-        if (document.querySelector(".modal-backdrop, .fm-drawer-backdrop")) return;
-        // Черновик формы не теряем молча.
-        const dirty = key.trim() || name.trim() || description.trim();
-        if (dirty && !editingProfile) {
-          const ok = window.confirm("Черновик профиля не сохранён. Закрыть?");
-          if (!ok) return;
-        }
-        onClose();
+  // Черновик формы не теряем молча: Escape и клик по подложке — через
+  // общий dirty-guard (useConfirm вместо window.confirm — план 4.1;
+  // в iOS standalone-PWA нативный confirm не отображается).
+  // Правка существующего профиля не считается черновиком: escape из
+  // неё просто сбрасывает форму к пустой, как «Отменить правку».
+  const draftDirty = () =>
+    !editingProfile && Boolean(key.trim() || name.trim() || description.trim());
+
+  const tryClose = useDirtyGuard({
+    isDirty: draftDirty,
+    isBusy: busy,
+    onClose: () => {
+      if (editingProfile) {
+        setEditingProfile(null);
+        setKey("");
+        setName("");
+        setDescription("");
+        return;
       }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose, key, name, description, editingProfile]);
+      onClose();
+    },
+    title: "Есть несохранённые изменения",
+    body: "Черновик профиля не сохранён. Закрыть?",
+  });
+  useDialogFocus(dialogRef, () => void tryClose());
 
   /** Сколько файлов помечено профилем. */
   const members = (k: string): number =>
@@ -1834,6 +2007,7 @@ function ModProfilesDialog({
         description: description.trim() || undefined,
         sortOrder: editingProfile?.sortOrder ?? profiles.length,
       });
+      toast.success("Профиль сохранён");
       setKey("");
       setName("");
       setDescription("");
@@ -1874,12 +2048,14 @@ function ModProfilesDialog({
   }
 
   return (
-    <div className="modal-backdrop" onClick={() => onClose()}>
+    <div className="modal-backdrop" onClick={() => void tryClose()}>
       <div
+        ref={dialogRef}
         className="modal modal-wide fm-profiles-modal"
         role="dialog"
         aria-modal="true"
         aria-label="Профили модов"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <h3>Профили модов</h3>
@@ -1927,27 +2103,49 @@ function ModProfilesDialog({
 
           <div className="fm-profile-new">
             <strong>{editingProfile ? `Правка «${editingProfile.name}»` : "Новый профиль"}</strong>
-            <input
-              className="fm-edit-input"
-              placeholder="ключ (латиницей), напр. performance"
-              value={key}
-              disabled={editingProfile !== null}
-              title={editingProfile ? "Ключ нельзя менять: по нему файлы помечены профилем" : undefined}
-              onChange={(e) => setKey(e.target.value)}
-            />
-            <input
-              className="fm-edit-input"
-              placeholder="Название, напр. Производительность"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <input
-              className="fm-edit-input"
-              placeholder="Описание (необязательно)"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-            {keyHint && <span className="fm-profile-new__error">{keyHint}</span>}
+            <Field
+              label="Ключ"
+              hint={editingProfile ? "Ключ нельзя менять: по нему файлы помечены профилем" : "латиница, цифры и дефис, напр. performance"}
+              error={keyHint}
+            >
+              {(control) => (
+                <input
+                  id={control.id}
+                  aria-describedby={control.describedBy}
+                  aria-invalid={control.invalid || undefined}
+                  className="fm-edit-input"
+                  placeholder="ключ (латиницей), напр. performance"
+                  value={key}
+                  disabled={editingProfile !== null}
+                  title={editingProfile ? "Ключ нельзя менять: по нему файлы помечены профилем" : undefined}
+                  onChange={(e) => setKey(e.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Название">
+              {(control) => (
+                <input
+                  id={control.id}
+                  aria-describedby={control.describedBy}
+                  className="fm-edit-input"
+                  placeholder="Название, напр. Производительность"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              )}
+            </Field>
+            <Field label="Описание">
+              {(control) => (
+                <input
+                  id={control.id}
+                  aria-describedby={control.describedBy}
+                  className="fm-edit-input"
+                  placeholder="Описание (необязательно)"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              )}
+            </Field>
             <div className="fm-profile-new__buttons">
               {editingProfile && (
                 <button
@@ -2009,7 +2207,6 @@ function FileSettingsDrawer({
   const [saving, setSaving] = useState(false);
 
   useBodyScrollLock();
-  const confirm = useConfirm();
 
   // При выборе другого файла подставляем его значения.
   useEffect(() => {
@@ -2030,7 +2227,7 @@ function FileSettingsDrawer({
     [...profileKeys].sort().join("\u0000") !== [...file.profiles].sort().join("\u0000");
 
   // Dirty относительно исходного файла (в форме — нормализованные значения,
-  // как в save()). В ref — чтобы Escape/клик по подложке видели актуальное.
+  // как в save()). Хук читает его на момент закрытия, а не из замыкания.
   const dirty =
     side !== file.side ||
     kind !== file.kind ||
@@ -2042,33 +2239,16 @@ function FileSettingsDrawer({
     (displayName.trim() || null) !== (file.displayName ?? null) ||
     (description.trim() || null) !== (file.description ?? null) ||
     profilesDiffers;
-  const dirtyRef = useRef(dirty);
-  dirtyRef.current = dirty;
-  const savingRef = useRef(saving);
-  savingRef.current = saving;
 
-  async function tryClose() {
-    if (savingRef.current) return;
-    if (dirtyRef.current) {
-      const ok = await confirm({
-        title: "Есть несохранённые изменения",
-        body: "Закрыть свойства файла без сохранения?",
-        confirmText: "Закрыть",
-        danger: true,
-      });
-      if (!ok) return;
-    }
-    onClose();
-  }
+  const tryClose = useDirtyGuard({
+    isDirty: dirty,
+    isBusy: saving,
+    onClose,
+    body: "Закрыть свойства файла без сохранения?",
+  });
 
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") void tryClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const drawerRef = useRef<HTMLElement>(null);
+  useDialogFocus(drawerRef, () => void tryClose());
 
   async function save() {
     setSaving(true);
@@ -2098,9 +2278,12 @@ function FileSettingsDrawer({
   return (
     <div className="fm-drawer-backdrop" onClick={() => void tryClose()}>
       <aside
+        ref={drawerRef}
         className="fm-drawer fm-properties-sheet"
         role="dialog"
         aria-modal="true"
+        aria-label="Свойства файла"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="fm-drawer-head fm-drawer-head--hero">
@@ -2131,7 +2314,9 @@ function FileSettingsDrawer({
                 {SIDES.map((s) => (
                   <button
                     key={s}
+                    type="button"
                     className={`seg-btn${side === s ? " active" : ""}`}
+                    aria-pressed={side === s}
                     onClick={() => setSide(s)}
                   >
                     {sideLabel(s)}
@@ -2146,7 +2331,9 @@ function FileSettingsDrawer({
                 {KINDS.map((k) => (
                   <button
                     key={k}
+                    type="button"
                     className={`seg-btn${kind === k ? " active" : ""}`}
+                    aria-pressed={kind === k}
                     onClick={() => setKind(k)}
                   >
                     {k}

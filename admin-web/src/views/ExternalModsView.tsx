@@ -1,12 +1,23 @@
-// Экран «Внешние моды»: allowlist разрешённых хешей (заполняется из журнала
-// в LogsView) и правила блокировки, по которым лаунчер удаляет совпавшие
-// JAR-файлы из папки mods до запуска игры. Опасные действия — только через
-// useConfirm, результаты действий — тостами.
+// Экран «Внешние моды»: allowlist разрешённых хешей и правила блокировки,
+// по которым лаунчер удаляет совпавшие JAR-файлы из папки mods до запуска
+// игры. Опасные действия — только через useConfirm, результаты действий —
+// тостами.
+//
+// Форма allow (план 3.7): allowlist пополняется не только из модалки
+// деталей лога — хеш можно вписать прямо здесь. Валидация
+// /^[a-f0-9]{64}$/i — inline, до сабмита; пустое состояние allowlist
+// ссылается на /logs?type=external_mods, откуда берутся хеши.
 
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { ExternalModAllowlistEntry, ExternalModBlockRule } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
+import { Field, FieldInput, fieldTouchedError } from "../ui/Field";
+import { LoadPanel } from "../ui/EmptyState";
+
+// Валидация хеша — та же, что на бэкенде (64 hex-символа).
+const SHA_RE = /^[a-f0-9]{64}$/i;
 
 // Короткое человекочитаемое описание правила — для диалога подтверждения и
 // aria-label кнопки удаления. Хеш усекаем, чтобы не тащить 64 символа в подпись.
@@ -17,7 +28,7 @@ function describeRule(rule: ExternalModBlockRule): string {
   return parts.join(" или ");
 }
 
-export function ExternalModsView() {
+export function ExternalModsView({ mobile = false }: { mobile?: boolean }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [allowlist, setAllowlist] = useState<ExternalModAllowlistEntry[]>([]);
@@ -27,6 +38,13 @@ export function ExternalModsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Поля формы allow: хеш + подпись (modId/jarName), по которой запись
+  // опознают в списке и в отчётах лаунчера.
+  const [allowHash, setAllowHash] = useState("");
+  const [allowName, setAllowName] = useState("");
+  const [allowTouched, setAllowTouched] = useState({ hash: false, name: false });
+  const [allowing, setAllowing] = useState(false);
 
   const load = useCallback(async () => {
     // Флаг ставим и на повторных вызовах, чтобы «Повторить» давал видимый
@@ -70,6 +88,26 @@ export function ExternalModsView() {
       toast.error(reason instanceof ApiError ? reason.message : "Не удалось добавить правило");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function addAllow(event: React.FormEvent) {
+    event.preventDefault();
+    const hash = allowHash.trim().toLowerCase();
+    const name = allowName.trim();
+    if (!SHA_RE.test(hash) || !name) return;
+    setAllowing(true);
+    try {
+      await api.allowExternalMod({ modId: name, jarName: name, sha256: hash });
+      setAllowHash("");
+      setAllowName("");
+      setAllowTouched({ hash: false, name: false });
+      toast.success(`Мод «${name}» разрешён`);
+      await load();
+    } catch (reason) {
+      toast.error(reason instanceof ApiError ? reason.message : "Не удалось разрешить мод");
+    } finally {
+      setAllowing(false);
     }
   }
 
@@ -124,6 +162,10 @@ export function ExternalModsView() {
     }
   }
 
+  const hashError = allowHash.trim() !== "" && !SHA_RE.test(allowHash.trim())
+    ? "Хеш — 64 hex-символа (a–f, 0–9)"
+    : null;
+
   return (
     <div className="view external-mods-view">
       <header className="view-head page-head">
@@ -147,16 +189,72 @@ export function ExternalModsView() {
           </div>
         </div>
         <form className="external-mod-rule-form" onSubmit={addRule}>
-          <label>
-            SHA-256
-            <input value={sha256} onChange={(event) => setSha256(event.target.value)} placeholder="64 символа хеша" inputMode="text" />
-          </label>
-          <label>
-            Слово в имени JAR
-            <input value={nameSubstring} onChange={(event) => setNameSubstring(event.target.value)} placeholder="например, voxy" />
-          </label>
+          <Field label="SHA-256" inputId="block-sha">
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={sha256}
+                onChange={(event) => setSha256(event.target.value)}
+                placeholder="64 символа хеша"
+                inputMode="text"
+              />
+            )}
+          </Field>
+          <Field label="Слово в имени JAR" inputId="block-name">
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={nameSubstring}
+                onChange={(event) => setNameSubstring(event.target.value)}
+                placeholder="например, voxy"
+              />
+            )}
+          </Field>
           <button className="primary" type="submit" disabled={saving || (!sha256.trim() && !nameSubstring.trim())}>
             {saving ? "Добавление…" : "Заблокировать"}
+          </button>
+        </form>
+      </section>
+
+      {/* Форма allow (план 3.7): пополняет allowlist прямо с экрана, а не
+          только из модалки деталей лога. Хеш валидируется inline. */}
+      <section className="panel panel-flat">
+        <div className="section-head">
+          <div>
+            <span className="eyebrow">Разрешить мод</span>
+            <h2>Разрешить по SHA-256</h2>
+          </div>
+        </div>
+        <form className="external-mod-rule-form" onSubmit={addAllow}>
+          <Field
+            label="SHA-256"
+            inputId="allow-sha"
+            error={fieldTouchedError(allowTouched.hash, hashError)}
+          >
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={allowHash}
+                onChange={(event) => setAllowHash(event.target.value)}
+                onBlur={() => setAllowTouched((t) => ({ ...t, hash: true }))}
+                placeholder="хеш из отчёта о сторонних модах"
+                inputMode="text"
+              />
+            )}
+          </Field>
+          <Field label="Имя мода / JAR" inputId="allow-name">
+            {(control) => (
+              <FieldInput
+                control={control}
+                value={allowName}
+                onChange={(event) => setAllowName(event.target.value)}
+                onBlur={() => setAllowTouched((t) => ({ ...t, name: true }))}
+                placeholder="например, voxy"
+              />
+            )}
+          </Field>
+          <button className="primary" type="submit" disabled={allowing || !SHA_RE.test(allowHash.trim()) || !allowName.trim()}>
+            {allowing ? "Добавление…" : "Разрешить"}
           </button>
         </form>
       </section>
@@ -174,11 +272,19 @@ export function ExternalModsView() {
               <span className="badge">{allowlist.length}</span>
             </div>
             {loading ? (
-              <p className="muted"><span className="spinner" /> Загрузка…</p>
+              <LoadPanel aria-label="Загрузка разрешённых модов" />
             ) : allowlist.length === 0 ? (
               <div className="external-mod-empty">
                 <strong>Разрешённых модов пока нет</strong>
-                <p className="muted">Разрешения выдаются из журнала: откройте событие «Сторонние моды» и нажмите «Разрешить hash» — мод появится в этом списке и перестанет считаться посторонним.</p>
+                <p className="muted">
+                  {/* На десктопе — SPA-ссылка в роутер; на мобильном (без
+                      роутера) — обычный переход на /m/?tab=logs&type=. */}
+                  Хеш можно взять из событий{" "}
+                  {mobile
+                    ? <a href="/m/?tab=logs&type=external_mods">«Сторонние моды» в журнале</a>
+                    : <Link to="/logs?type=external_mods">«Сторонние моды» в журнале</Link>}{" "}
+                  — или вписать его в форму «Разрешить по SHA-256» выше.
+                </p>
               </div>
             ) : (
               <div className="external-mod-list">
@@ -207,7 +313,7 @@ export function ExternalModsView() {
               <span className="badge">{rules.length}</span>
             </div>
             {loading ? (
-              <p className="muted"><span className="spinner" /> Загрузка…</p>
+              <LoadPanel aria-label="Загрузка правил блокировки" />
             ) : rules.length === 0 ? (
               <div className="external-mod-empty">
                 <strong>Правил блокировки пока нет</strong>

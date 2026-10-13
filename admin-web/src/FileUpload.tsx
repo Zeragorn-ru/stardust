@@ -9,7 +9,8 @@ import { api, ApiError } from "./api";
 import type { UploadMeta } from "./types";
 import { formatSize, baseName, slugifyModId } from "./format";
 import { KINDS, SIDES, guessKind } from "./fileUtils";
-import { useToast } from "./ui/feedback";
+import { useToast, useConfirm } from "./ui/feedback";
+import { Field } from "./ui/Field";
 import { IconUpload } from "./ui/icons";
 
 // Куда по умолчанию кладётся файл в зависимости от типа.
@@ -115,6 +116,7 @@ export const FileUpload = forwardRef<
   ref,
 ) {
   const toast = useToast();
+  const confirm = useConfirm();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -498,11 +500,22 @@ export const FileUpload = forwardRef<
           <div className="queue-actions">
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
+                // Настройки строк очереди не выбрасываем молча: ask через
+                // styled useConfirm (в iOS standalone-PWA window.confirm
+                // не отображается — план 3.8/4.1).
                 const dirty = items.some(
                   (it) => it.status !== "done" && (it.optional || it.modId.trim() || it.displayName.trim() || it.profiles.length > 0),
                 );
-                if (dirty && !window.confirm("Убрать все файлы очереди вместе с введёнными настройками?")) return;
+                if (
+                  dirty &&
+                  !(await confirm({
+                    title: "Очистить очередь?",
+                    body: "Убрать все файлы очереди вместе с введёнными настройками?",
+                    confirmText: "Очистить",
+                    danger: true,
+                  }))
+                ) return;
                 setItems([]);
               }}
               disabled={busy}
@@ -643,41 +656,50 @@ function QueueRow({
       {open && (
         <div className="q-body">
           <div className="row">
-            <div className="field">
-              <label>Тип</label>
-              <select
-                value={item.kind}
-                onChange={(e) => changeKind(e.target.value)}
-              >
-                {KINDS.map((k) => (
-                  <option key={k} value={k}>
-                    {k}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Сторона</label>
-              <select
-                value={item.side}
-                onChange={(e) => onPatch({ side: e.target.value })}
-              >
-                {SIDES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Field label="Тип">
+              {(control) => (
+                <select
+                  id={control.id}
+                  aria-describedby={control.describedBy}
+                  value={item.kind}
+                  onChange={(e) => changeKind(e.target.value)}
+                >
+                  {KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field label="Сторона">
+              {(control) => (
+                <select
+                  id={control.id}
+                  aria-describedby={control.describedBy}
+                  value={item.side}
+                  onChange={(e) => onPatch({ side: e.target.value })}
+                >
+                  {SIDES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
           </div>
-          <div className="field">
-            <label>Путь в .minecraft</label>
-            <input
-              value={item.path}
-              onChange={(e) => onPatch({ path: e.target.value })}
-              placeholder="mods/sodium.jar"
-            />
-          </div>
+          <Field label="Путь в .minecraft">
+            {(control) => (
+              <input
+                id={control.id}
+                aria-describedby={control.describedBy}
+                value={item.path}
+                onChange={(e) => onPatch({ path: e.target.value })}
+                placeholder="mods/sodium.jar"
+              />
+            )}
+          </Field>
           <div className="row">
             <label className="checkbox-row">
               <input
@@ -718,61 +740,78 @@ function QueueRow({
             )}
           </div>
           <div className="row">
-            <div className="field">
-              <label>Отображаемое имя</label>
-              <input
-                value={item.displayName}
-                onChange={(e) => onPatch({ displayName: e.target.value })}
-                placeholder="напр. Sodium"
-              />
-            </div>
-            {item.optional && (
-              <div className="field">
-                <label>mod id (для запоминания выбора игрока)</label>
+            <Field label="Отображаемое имя">
+              {(control) => (
                 <input
-                  value={item.modId}
-                  onChange={(e) => onPatch({ modId: e.target.value })}
+                  id={control.id}
+                  aria-describedby={control.describedBy}
+                  value={item.displayName}
+                  onChange={(e) => onPatch({ displayName: e.target.value })}
+                  placeholder="напр. Sodium"
                 />
-              </div>
+              )}
+            </Field>
+            {item.optional && (
+              <Field
+                label="mod id (для запоминания выбора игрока)"
+                hint="Обычно modid или slug; по нему лаунчер запоминает выбор игрока."
+              >
+                {(control) => (
+                  <input
+                    id={control.id}
+                    aria-describedby={control.describedBy}
+                    value={item.modId}
+                    onChange={(e) => onPatch({ modId: e.target.value })}
+                  />
+                )}
+              </Field>
             )}
           </div>
           {modProfiles.length > 0 && (
-            <div className="field">
-              <label>Профили модов</label>
-              <div className="fm-profile-chips">
-                {modProfiles.map((p) => {
-                  const on = item.profiles.includes(p.key);
-                  return (
-                    <button
-                      key={p.key}
-                      type="button"
-                      className={`fm-profile-chip${on ? " on" : ""}`}
-                      disabled={disabled}
-                      aria-pressed={on}
-                      title={p.description ?? undefined}
-                      onClick={() =>
-                        onPatch({
-                          profiles: on
-                            ? item.profiles.filter((k) => k !== p.key)
-                            : [...item.profiles, p.key],
-                        })
-                      }
-                    >
-                      {p.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            <Field label="Профили модов">
+              {(control) => (
+                <div
+                  id={control.id}
+                  className="fm-profile-chips"
+                  aria-describedby={control.describedBy}
+                >
+                  {modProfiles.map((p) => {
+                    const on = item.profiles.includes(p.key);
+                    return (
+                      <button
+                        key={p.key}
+                        type="button"
+                        className={`fm-profile-chip${on ? " on" : ""}`}
+                        disabled={disabled}
+                        aria-pressed={on}
+                        title={p.description ?? undefined}
+                        onClick={() =>
+                          onPatch({
+                            profiles: on
+                              ? item.profiles.filter((k) => k !== p.key)
+                              : [...item.profiles, p.key],
+                          })
+                        }
+                      >
+                        {p.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Field>
           )}
-          <div className="field">
-            <label>Описание</label>
-            <input
-              value={item.description}
-              onChange={(e) => onPatch({ description: e.target.value })}
-              placeholder="Короткое описание (необязательно)"
-            />
-          </div>
+          <Field label="Описание">
+            {(control) => (
+              <input
+                id={control.id}
+                aria-describedby={control.describedBy}
+                value={item.description}
+                onChange={(e) => onPatch({ description: e.target.value })}
+                placeholder="Короткое описание (необязательно)"
+              />
+            )}
+          </Field>
         </div>
       )}
     </div>

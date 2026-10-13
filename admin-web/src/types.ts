@@ -125,6 +125,10 @@ export interface BackupStatus {
   startedAt?: string | null;
   finishedAt?: string | null;
   lastRunAt?: string | null;
+  /** Ключ последнего загруженного объекта (data-…tar.gz). */
+  lastObject?: string | null;
+  /** Размер последнего архива в байтах. */
+  lastSizeBytes?: number | null;
 }
 
 export interface PlayerStats {

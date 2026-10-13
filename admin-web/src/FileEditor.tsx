@@ -9,6 +9,7 @@ import type { BuildFile } from "./types";
 import { baseName, formatSize } from "./format";
 import { useConfirm, useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
+import { useDialogFocus } from "./ui/useDialogFocus";
 
 // Расширения, которые мы считаем текстовыми и предлагаем редактировать.
 const TEXT_EXT = new Set([
@@ -67,6 +68,7 @@ export function FileEditor({
   // поэтому неудачу показываем ещё и панелью с «Повторить» у кнопок.
   const [saveError, setSaveError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   // Ручной перезапуск загрузки после ошибки: увеличиваем ключ — эффект
   // перечитывает содержимое.
   const [reloadKey, setReloadKey] = useState(0);
@@ -138,19 +140,13 @@ export function FileEditor({
     onClose();
   }
 
-  // Escape закрывает редактор (с подтверждением, если есть изменения).
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        void tryClose();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // tryClose стабилен по поведению (читает dirty через ref).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Фокус-ловушка диалога (план 9): Tab-цикл внутри редактора, Escape —
+  // закрытие с dirty-проверкой, возврат фокуса на элемент до открытия.
+  // Стабильная обёртка: хук читает колбэк через ref и не перевязывает эффект.
+  const tryCloseRef = useRef(tryClose);
+  tryCloseRef.current = tryClose;
+  const onEscape = useRef(() => void tryCloseRef.current());
+  useDialogFocus(dialogRef, onEscape.current);
 
   // Ctrl/Cmd+S сохраняет из любой точки редактора — фокус может стоять на
   // кнопках, а не в тексте, поэтому слушаем ключи на самом диалоге.
@@ -162,10 +158,12 @@ export function FileEditor({
     }
   }
 
-  // Tab вставляет отступ, а не уводит фокус.
+  // Tab вставляет отступ, а не уводит фокус. stopPropagation не даёт
+  // фокус-ловушке диалога перехватить Tab и увести фокус из текста.
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Tab") {
       e.preventDefault();
+      e.stopPropagation();
       const ta = e.currentTarget;
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
@@ -180,10 +178,12 @@ export function FileEditor({
   return (
     <div className="modal-backdrop file-editor-backdrop" onClick={tryClose}>
       <div
+        ref={dialogRef}
         className="modal modal-editor file-editor"
         role="dialog"
         aria-modal="true"
         aria-labelledby="file-editor-title"
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={onDialogKeyDown}
       >

@@ -1,3 +1,7 @@
+/* Токены дизайн-системы — единственный :root, подключается первым,
+   чтобы переменные были доступны всем правилам ниже. */
+@import "./styles/tokens.css";
+
 @font-face {
     font-family: 'Minecraft';
     src: url('/fonts/macsMinecraft-Regular.woff2') format('woff2');
@@ -14,60 +18,13 @@
     font-display: swap;
 }
 
-:root {
-    /* Layered surfaces — deepest background up to raised panels. */
-    --bg: #0f1115;
-    --bg-elev: #14161a;
-    --panel: #1b1e24;
-    --panel-2: #23272f;
-    --panel-3: #2b303a;
-    --border: #2e333c;
-    --border-strong: #3a414c;
-
-    --text: #e8eaee;
-    --muted: #98a0ac;
-    --faint: #6b7280;
-
-    --accent: #4c8bf5;
-    --accent-2: #3b6fd4;
-    --accent-soft: rgba(76, 139, 245, 0.14);
-    --danger: #e5534b;
-    --danger-soft: rgba(229, 83, 75, 0.13);
-    --ok: #3fb950;
-    --ok-soft: rgba(63, 185, 80, 0.16);
-    --warn: #d8a23a;
-
-    /* Spacing scale (4px base). */
-    --sp-1: 4px;
-    --sp-2: 8px;
-    --sp-3: 12px;
-    --sp-4: 16px;
-    --sp-5: 20px;
-    --sp-6: 24px;
-
-    /* Radius scale. */
-    --radius-sm: 6px;
-    --radius: 9px;
-    --radius-lg: 14px;
-    --radius-pill: 999px;
-
-    /* Elevation. */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.5);
-
-    /* Focus ring (keyboard navigation). */
-    --ring: 0 0 0 3px rgba(76, 139, 245, 0.4);
-
-    --ease: 0.16s cubic-bezier(0.4, 0, 0.2, 1);
-    color-scheme: dark;
-}
-
-/* Visible, consistent focus ring for keyboard users across all controls. */
+/* Видимое единое кольцо фокуса для клавиатурных пользователей.
+   border-radius не задаём: box-shadow повторяет собственный радиус
+   элемента, а принудительный радиус «сплющивал» 12px-кнопки и
+   999px-чипы в 8px-прямоугольник. */
 :focus-visible {
     outline: none;
     box-shadow: var(--ring);
-    border-radius: var(--radius-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -83,12 +40,12 @@
 .telemetry-top-row > .telemetry-panel { margin-top: 20px; }
 .telemetry-cards-row { display: flex; gap: 16px; margin-top: 20px; }
 .telemetry-cards-row .telemetry-panel { margin-top: 0; flex: 1; }
-.telemetry-card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.telemetry-card-label { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-panel .card-header { align-items: flex-start; }
 .telemetry-summary { display: grid; grid-template-columns: minmax(260px, .85fr) 1px minmax(0, 1.5fr); gap: 24px; align-items: stretch; }
 .telemetry-online-metrics { display: flex; align-items: center; gap: 34px; }
 .telemetry-online-metric { min-width: 110px; }
-.telemetry-online-metric > span, .telemetry-online-metric > small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.telemetry-online-metric > span, .telemetry-online-metric > small { display: block; color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-online-metric > strong { display: block; margin-top: 5px; color: var(--accent); font-size: 30px; line-height: 1; }
 .telemetry-online-metric > small { margin-top: 5px; color: var(--faint); text-transform: none; letter-spacing: 0; }
 .telemetry-summary-divider { width: 1px; background: var(--border); }
@@ -96,24 +53,23 @@
 .telemetry-recent-events .telemetry-card-label { margin-bottom: 2px; }
 .telemetry-recent-events .telemetry-event { padding: 7px 9px; }
 .telemetry-chart-card { margin-top: 16px; }
-.telemetry-metrics { display: flex; gap: 18px; flex-wrap: wrap; }
-.telemetry-metrics { display: flex; gap: 24px; }
+.telemetry-metrics { display: flex; gap: 24px; flex-wrap: wrap; }
 .telemetry-metric-block { display: flex; flex-direction: column; gap: 2px; min-width: 160px; }
-.telemetry-metric-block small { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; text-align: left; }
+.telemetry-metric-block small { font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .08em; text-align: left; }
 .telemetry-metrics-row { display: flex; justify-content: space-between; }
 .telemetry-metrics-row span { min-width: 48px; text-align: center; font-size: 22px; font-weight: 600; }
 .telemetry-metrics-labels { display: flex; justify-content: space-between; }
 .telemetry-metrics-labels span { min-width: 48px; text-align: center; font-size: 10px; color: var(--faint); }
 .telemetry-metric { min-width: 78px; }
-.telemetry-metric small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.telemetry-metric small { display: block; color: var(--muted); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .08em; }
 .telemetry-metric strong { display: block; font-size: 22px; margin-top: 4px; }
-.telemetry-metric em { color: var(--muted); font-size: 11px; font-style: normal; font-weight: 500; }
+.telemetry-metric em { color: var(--muted); font-size: var(--fs-xs); font-style: normal; font-weight: 500; }
 .telemetry-metric-sub { display: block; color: var(--faint); font-size: 10px; margin-top: 2px; }
-.telemetry-chart-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: linear-gradient(180deg, rgba(76,139,245,.07), transparent); padding: 6px 12px 8px; }
+.telemetry-chart-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent); padding: 6px 12px 8px; }
 .telemetry-chart { display: block; min-width: 640px; width: 100%; height: 220px; cursor: pointer; }
-.telemetry-axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 11px; }
+.telemetry-axis { display: flex; justify-content: space-between; color: var(--faint); font-size: var(--fs-xs); }
 .telemetry-events { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 14px; }
-.telemetry-event { display: flex; align-items: center; gap: 7px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--muted); font-size: 12px; }
+.telemetry-event { display: flex; align-items: center; gap: 7px; padding: 9px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--muted); font-size: var(--fs-sm); }
 .telemetry-event strong { color: var(--text); }
 .telemetry-event time { margin-left: auto; color: var(--faint); }
 .telemetry-event-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
@@ -130,11 +86,11 @@
 .log-card--quit { border-left-color: var(--muted); }
 .log-card--client_crash, .log-card--server_crash { border-left-color: var(--danger); }
 .log-card__topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.log-card__type { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.log-card__topline time, .log-card__user, .log-card__details { color: var(--muted); font-size: 12px; }
+.log-card__type { color: var(--accent); font-size: var(--fs-xs); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.log-card__topline time, .log-card__user, .log-card__details { color: var(--muted); font-size: var(--fs-sm); }
 .log-card__summary { font-size: 15px; }
 .log-card__details { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.log-card__open { margin-top: 2px; color: var(--accent); font-size: 12px; font-weight: 700; text-align: start; }
+.log-card__open { margin-top: 2px; color: var(--accent); font-size: var(--fs-sm); font-weight: 700; text-align: start; }
 .logs-list .log-card {
     width: 100%;
     align-items: start;
@@ -155,7 +111,7 @@
 .log-file small { color: var(--accent); }
 .log-mod-row > div { display: grid; gap: 4px; min-width: 0; }
 .log-mod-row small { color: var(--muted); overflow-wrap: anywhere; }
-.log-mod-row code { font-size: 11px; }
+.log-mod-row code { font-size: var(--fs-xs); }
 .log-json { max-height: 300px; overflow: auto; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--muted); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .logs-empty { display: grid; gap: 10px; justify-items: start; padding: 24px; }
 .logs-empty p { margin: 0; }
@@ -195,7 +151,7 @@ body {
         sans-serif;
     background: var(--bg);
     color: var(--text);
-    font-size: 14px;
+    font-size: var(--fs-base);
 }
 
 button {
@@ -237,9 +193,10 @@ button.primary {
     box-shadow: var(--shadow-sm);
 }
 
+/* Hover primary не меняет цвет/бордер — только яркость, чтобы не
+   выдавать фиолетовую вспышку --accent-2 на cyan-интерфейсе. */
 button.primary:hover:not(:disabled) {
-    background: var(--accent-2);
-    border-color: var(--accent-2);
+    filter: brightness(1.08);
 }
 
 button.danger {
@@ -309,13 +266,27 @@ select:focus {
 
 label {
     display: block;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted);
     margin-bottom: 4px;
 }
 
 .field {
     margin-bottom: 12px;
+}
+
+/* Компоненты Field/FieldError (ui/Field.tsx): подсказка и ошибка поля,
+   связываются с контролом через aria-describedby. */
+.field-hint {
+    margin: 2px 0 6px;
+    font-size: var(--fs-sm);
+    color: var(--faint);
+}
+
+.field-error {
+    margin: 6px 0 0;
+    font-size: var(--fs-sm);
+    color: var(--danger);
 }
 
 .row {
@@ -369,18 +340,13 @@ label {
     align-items: center;
     gap: 10px;
     font-weight: 700;
-    font-size: 16px;
+    font-size: var(--fs-lg);
     letter-spacing: -0.01em;
     padding: 6px 8px 16px;
 }
 
-.brand-dot {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--accent), #9d6bff);
-    box-shadow: 0 0 12px rgba(76, 139, 245, 0.6);
-}
+/* Легаси brand-dot удалён (план 3.9): вход и сайдбар используют общий
+   знак — brand-mark / login-brand-mark. */
 
 .nav {
     display: flex;
@@ -426,65 +392,8 @@ label {
     background: var(--accent);
 }
 
-/* --- Sidebar sub navigation for builds --- */
-.sidebar-sub-nav {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding-left: 12px;
-    margin-top: 2px;
-    margin-bottom: 8px;
-    border-left: 1px solid var(--border);
-    margin-left: 20px;
-}
-
-.sub-nav-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 6px 8px;
-    font-size: 13px;
-    color: var(--muted);
-    text-decoration: none;
-    border-radius: var(--radius-sm);
-    min-width: 0;
-}
-
-.sub-nav-item:hover {
-    background: var(--panel-2);
-    color: var(--text);
-}
-
-.sub-nav-item.active {
-    background: var(--panel-3);
-    color: var(--text);
-    font-weight: 500;
-}
-
-.sub-nav-text {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.sub-nav-star {
-    color: var(--warn);
-    flex-shrink: 0;
-}
-
-.sub-nav-add-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--accent);
-    cursor: pointer;
-}
-
-.sub-nav-add-btn:hover {
-    color: var(--accent-2);
-}
+/* Мёртвый блок поднавигации сборок в сайдбаре (sidebar-sub-nav /
+   sub-nav-item) удалён: потребителей в JSX нет. */
 
 .sidebar-foot {
     margin-top: auto;
@@ -499,7 +408,7 @@ label {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted);
     padding: 0 8px;
 }
@@ -513,7 +422,7 @@ label {
     place-items: center;
     background: var(--accent-soft);
     color: var(--accent);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 700;
 }
 
@@ -543,10 +452,9 @@ label {
     margin-bottom: 14px;
 }
 
-.view-head h1 {
-    margin: 0;
-    font-size: 20px;
-}
+/* .view-head h1 удалён: все заголовки шапок идут через page-head h1
+   (clamp-типографика redesign-блока), дублирующее правило 20px его
+   перекрывало. */
 
 .view-head p {
     margin: 4px 0 0;
@@ -606,15 +514,14 @@ label {
     align-items: end;
 }
 
-.accounts-filter-toolbar {
-    display: none;
-}
+/* .accounts-filter-toolbar удалён (план 3.3): панель фильтров и чипы
+   активных фильтров всегда видимы — тумблер свёрнутого режима не нужен. */
 
 .accounts-filter-panel label {
     display: grid;
     gap: 6px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 700;
 }
 
@@ -646,7 +553,7 @@ label {
 
 .filter-summary span {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .account-stats-warning {
@@ -665,10 +572,13 @@ label {
 
 .account-stats-warning span {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 /* --- Login --- */
+/* Десктопный вход — рецепт m-login-card/m-brand-mark (план 3.9): тот же
+   язык поверхностей, что и во всём приложении; легаси brand-dot со старым
+   синим свечением удалён. */
 .login-wrap {
     min-height: 100vh;
     display: grid;
@@ -678,8 +588,15 @@ label {
 
 .login-card {
     width: 100%;
-    max-width: 360px;
-    box-shadow: var(--shadow-lg);
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018));
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    box-shadow: var(--shadow-md);
 }
 
 .login-brand {
@@ -687,9 +604,31 @@ label {
     align-items: center;
     gap: 10px;
     font-weight: 700;
-    font-size: 18px;
+    font-size: var(--fs-xl);
     letter-spacing: -0.01em;
-    margin-bottom: 18px;
+}
+
+.login-brand-mark {
+    width: 36px;
+    height: 36px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: linear-gradient(135deg, rgba(115, 215, 255, 0.16), rgba(157, 124, 255, 0.18));
+}
+
+.login-brand-mark span {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 16px #73d7ff, 0 0 26px #9d7cff;
+}
+
+.login-card__sub {
+    margin: -6px 0 0;
 }
 
 .block {
@@ -697,7 +636,7 @@ label {
     justify-content: center;
 }
 
-/* --- Builds master-detail --- */
+/* --- Сборки: раскладка хаба --- */
 .builds-layout-compact {
     display: flex;
     flex-direction: column;
@@ -709,85 +648,9 @@ label {
     width: 100%;
 }
 
-.builds-layout {
-    display: grid;
-    grid-template-columns: 290px 1fr;
-    gap: 16px;
-    align-items: start;
-}
-
-.builds-aside {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 12px;
-    position: sticky;
-    top: 0;
-}
-
-.build-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.build-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 10px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    cursor: pointer;
-}
-
-.build-item:hover {
-    border-color: var(--accent-2);
-}
-
-.build-item:hover .build-item-actions {
-    opacity: 1;
-}
-
-.build-item-actions {
-    display: flex;
-    gap: 4px;
-    opacity: 0;
-    transition: opacity var(--ease);
-}
-
-.build-item.selected {
-    border-color: var(--accent);
-    box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.build-item-main {
-    min-width: 0;
-}
-
-.build-item-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.build-item-title strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.build-item .meta {
-    color: var(--muted);
-    font-size: 12px;
-    display: block;
-    margin-top: 2px;
-}
+/* Мёртвый master-detail (builds-aside/build-list/build-item) удалён:
+   единственный потребитель — хаб сборок — давно использует
+   builds-layout-compact. */
 
 .empty-state {
     display: grid;
@@ -797,6 +660,24 @@ label {
     border-radius: var(--radius-lg);
     color: var(--muted);
     background: var(--bg-elev);
+}
+
+/* Компоненты EmptyState (ui/EmptyState.tsx): LoadPanel / EmptyPanel /
+   ErrorPanel / StaleBanner — единый вид пустых состояний экранов. */
+.empty-state-panel {
+    display: grid;
+    gap: 10px;
+    justify-items: start;
+    padding: 24px;
+    margin-bottom: 16px;
+}
+
+.empty-state-panel button {
+    width: fit-content;
+}
+
+.empty-state-panel p {
+    margin: 0;
 }
 
 .spinner {
@@ -851,12 +732,12 @@ label {
 
 .detail-title h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: var(--fs-xl);
     font-weight: 600;
 }
 
 .detail-version {
-    font-size: 14px;
+    font-size: var(--fs-base);
 }
 
 .detail-actions-toolbar {
@@ -871,9 +752,30 @@ label {
     align-items: center;
     gap: 5px;
     padding: 5px 10px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     height: 30px;
     border-radius: var(--radius-sm);
+}
+
+/* Пассивная подсказка вместо кнопки «Обновить stardust-mod» на
+   неактивной сборке (план 3.2): мод добавляется только в активную,
+   поэтому ведём на неё, а не молча прячем действие. */
+.detail-hint-link {
+    display: inline-flex;
+    align-items: center;
+    font-size: var(--fs-md);
+    color: var(--muted);
+    padding: 0 4px;
+}
+
+.detail-hint-link a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.detail-hint-link a:hover {
+    border-bottom-color: var(--accent);
 }
 
 .detail-meta-row {
@@ -881,7 +783,7 @@ label {
     align-items: center;
     flex-wrap: wrap;
     gap: 8px 12px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text);
     border-top: 1px solid var(--border);
     padding-top: 10px;
@@ -903,7 +805,7 @@ label {
     gap: 8px;
     padding: 14px 18px;
     margin-bottom: 16px;
-    font-size: 14px;
+    font-size: var(--fs-base);
     color: var(--muted);
 }
 
@@ -924,7 +826,7 @@ label {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 14px;
+    font-size: var(--fs-base);
     color: var(--warn);
 }
 
@@ -944,7 +846,7 @@ label {
 
 /* --- Badges --- */
 .badge {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 2px 8px;
     border-radius: 999px;
     background: var(--border);
@@ -961,7 +863,7 @@ label {
 }
 
 .badge.admin {
-    background: rgba(76, 139, 245, 0.18);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
     color: var(--accent);
 }
 
@@ -1000,7 +902,7 @@ label {
 
 .check-section h4 {
     margin: 0 0 8px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--muted);
 }
 
@@ -1010,6 +912,66 @@ label {
 }
 
 /* --- Settings --- */
+/* Секционный лейаут настроек (план 2.4/3.4): плоская сетка карточек
+   разложена по смысловым секциям с якорной поднавигацией и scroll-spy. */
+.settings-subnav {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 0;
+    margin-bottom: 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(3, 4, 6, 0.86);
+    backdrop-filter: blur(14px);
+}
+
+.settings-subnav-item {
+    display: inline-flex;
+    align-items: center;
+    padding: 7px 14px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        color var(--ease),
+        background var(--ease),
+        border-color var(--ease);
+}
+
+.settings-subnav-item:hover {
+    color: var(--text);
+    background: var(--panel-3);
+}
+
+.settings-subnav-item.active {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.settings-sections {
+    display: grid;
+    gap: 34px;
+}
+
+.settings-section-title {
+    margin: 0 0 2px;
+    font-size: var(--fs-xl);
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+
+.settings-section > .muted {
+    margin: 0 0 16px;
+}
+
 .settings-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -1038,7 +1000,7 @@ label {
 
 .settings-card-head p {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .settings-status {
@@ -1058,14 +1020,14 @@ label {
     background: var(--accent-soft);
     color: var(--accent);
     border: 1px solid var(--border);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
     text-decoration: none;
     transition: background 0.15s ease;
 }
 
 .btn-download:hover {
-    background: rgba(76, 139, 245, 0.22);
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .avatar {
@@ -1076,7 +1038,7 @@ label {
     place-items: center;
     background: var(--panel-2);
     border: 1px solid var(--border);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 700;
     color: var(--accent);
 }
@@ -1091,7 +1053,7 @@ label {
     border-radius: 8px;
     background: var(--panel-2);
     color: var(--accent);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 800;
 }
 
@@ -1109,7 +1071,7 @@ label {
 .skin-head.placeholder {
     display: inline-grid;
     place-items: center;
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 700;
     color: #fff;
     overflow: hidden;
@@ -1174,7 +1136,7 @@ td {
     text-align: left;
     padding: 8px 10px;
     border-bottom: 1px solid var(--border);
-    font-size: 13px;
+    font-size: var(--fs-md);
     vertical-align: top;
 }
 
@@ -1213,7 +1175,7 @@ td.num {
 }
 
 .tag {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 1px 7px;
     border-radius: 4px;
     background: var(--border);
@@ -1221,7 +1183,7 @@ td.num {
 }
 
 .tag.kind-mod {
-    background: rgba(76, 139, 245, 0.16);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
     color: var(--accent);
 }
 
@@ -1300,7 +1262,7 @@ td.num {
 .dropzone:hover,
 .dropzone.over {
     border-color: var(--accent);
-    background: rgba(76, 139, 245, 0.06);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
     color: var(--text);
 }
 
@@ -1336,7 +1298,7 @@ td.num {
     flex-wrap: wrap;
     margin-top: 14px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .queue-summary span {
@@ -1401,12 +1363,12 @@ td.num {
 
 .q-err {
     color: var(--danger);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .q-ok {
     color: var(--ok);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 /* Предупреждение о перезаписи существующего файла в свёрнутой строке. */
@@ -1435,7 +1397,7 @@ td.num {
     text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
 }
 
@@ -1495,7 +1457,7 @@ td.num {
 
 .sync-progress__meta {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .sync-progress__meta span:first-child {
@@ -1528,7 +1490,7 @@ td.num {
     outline: 2px dashed var(--accent);
     outline-offset: 4px;
     border-radius: var(--radius);
-    background: rgba(76, 139, 245, 0.04);
+    background: color-mix(in srgb, var(--accent) 4%, transparent);
 }
 
 .fm-toolbar {
@@ -1536,6 +1498,18 @@ td.num {
     align-items: center;
     gap: 12px;
     flex-wrap: wrap;
+}
+
+/* «Скопировать ссылку на manifest» — иконка+подпись в тулбаре (план 3.8):
+   раньше действие было спрятано в tooltip и ПКМ по пустому месту.
+   Подпись прячется на мобильном (media-блок в mobile.css оставляет иконку). */
+.fm-manifest-btn__label {
+    font-size: var(--fs-sm);
+    color: var(--muted);
+}
+
+.fm-manifest-btn:hover .fm-manifest-btn__label {
+    color: var(--text);
 }
 
 .breadcrumbs {
@@ -1593,15 +1567,14 @@ td.num {
     align-items: center;
     gap: 8px;
     padding: 7px 8px;
+    /* Рестайл по плану 3.8: полупрозрачная поверхность, тонкая рамка,
+       радиус из токена, без тяжёлой тени — строка списка, не карточка. */
     border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 16px;
-    background: rgba(8, 11, 16, 0.78);
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.025);
     transition:
         background 140ms ease,
-        border-color 140ms ease,
-        transform 140ms ease,
-        box-shadow 140ms ease;
+        border-color 140ms ease;
 }
 
 .fm-row.file {
@@ -1622,9 +1595,7 @@ td.num {
 
 .fm-row:hover {
     border-color: rgba(115, 215, 255, 0.18);
-    background: rgba(12, 16, 24, 0.92);
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22);
-    transform: translateY(-1px);
+    background: rgba(115, 215, 255, 0.045);
 }
 
 .fm-row--disabled {
@@ -1681,13 +1652,14 @@ td.num {
     color: var(--muted);
 }
 
+/* Радиусы вложенных иконок — из того же токена, что и строка (план 3.8). */
 .fm-icon.folder {
     color: var(--accent);
     width: 34px;
     height: 34px;
     padding: 8px;
     border: 1px solid rgba(95, 240, 167, 0.14);
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     background: rgba(95, 240, 167, 0.08);
 }
 
@@ -1697,7 +1669,7 @@ td.num {
     height: 34px;
     padding: 8px;
     border: 1px solid rgba(115, 215, 255, 0.14);
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     background: rgba(115, 215, 255, 0.08);
 }
 
@@ -1735,7 +1707,7 @@ td.num {
 .fm-file-subline,
 .fm-file-note {
     overflow: hidden;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted);
 }
 
@@ -1771,21 +1743,21 @@ td.num {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .fm-meta {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     white-space: nowrap;
 }
 
 .fm-sha {
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .fm-size {
     margin-left: auto;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     white-space: nowrap;
     color: var(--muted);
 }
@@ -1813,7 +1785,7 @@ td.num {
     width: 34px;
     height: 34px;
     min-height: 34px;
-    border-radius: 12px;
+    border-radius: var(--radius-sm);
     background: rgba(255, 255, 255, 0.03);
 }
 
@@ -1839,9 +1811,10 @@ td.num {
     border-color: var(--accent);
 }
 
+/* Выделение/edited — на cyan-акценте (план 3.8). */
 .fm-row.file.editing {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 9%, rgba(8, 11, 16, 0.9));
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: color-mix(in srgb, var(--accent) 8%, rgba(255, 255, 255, 0.025));
 }
 
 /* Свойства файла: shadcn-like sheet по центру, mobile превращает его в bottom sheet. */
@@ -1952,7 +1925,7 @@ td.num {
 }
 
 .fm-drawer-hero-name {
-    font-size: 16px;
+    font-size: var(--fs-lg);
     line-height: 1.2;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1960,7 +1933,7 @@ td.num {
 }
 
 .fm-drawer-hero-path {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1968,7 +1941,7 @@ td.num {
 }
 
 .fm-drawer-hero-meta {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     margin-top: 2px;
 }
 
@@ -1989,7 +1962,7 @@ td.num {
 
 .fm-edit-hint {
     display: block;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     line-height: 1.4;
     margin-top: 2px;
 }
@@ -2001,7 +1974,7 @@ td.num {
 }
 
 .fm-drawer-eyebrow {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -2035,11 +2008,11 @@ td.num {
 }
 
 .fm-properties-section-head strong {
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .fm-properties-section-head span {
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .fm-drawer-field {
@@ -2087,7 +2060,7 @@ td.num {
 }
 
 .fm-edit-label {
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .fm-edit-input {
@@ -2096,20 +2069,22 @@ td.num {
     background: var(--panel-2);
     color: inherit;
     padding: 5px 8px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     min-width: 160px;
 }
 
+/* Единый паттерн фокуса полей: accent-бордер + кольцо (как у input/select). */
 .fm-edit-input:focus {
     outline: none;
     border-color: var(--accent);
+    box-shadow: var(--ring);
 }
 
 .fm-edit-check {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     cursor: pointer;
     user-select: none;
 }
@@ -2140,7 +2115,7 @@ td.num {
     background: transparent;
     border-color: transparent;
     padding: 2px 6px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted);
 }
 
@@ -2168,7 +2143,7 @@ td.num {
 
 .fm-upload-target {
     font-weight: 400;
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -2182,7 +2157,7 @@ td.num {
     border-radius: var(--radius);
     background: var(--panel-2);
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
     white-space: nowrap;
     transition:
@@ -2215,6 +2190,13 @@ td.num {
     box-shadow: 0 0 6px var(--accent);
 }
 
+/* Чипы активных фильтров аккаунтов (план 3.3): тот же словарь .fm-chips,
+   что и в FileManager, — переиспользуем классы, добавляя только отступ
+   до панели фильтров под ними. */
+.accounts-chips {
+    margin-bottom: 10px;
+}
+
 .fm-chips {
     display: flex;
     align-items: center;
@@ -2229,9 +2211,9 @@ td.num {
     padding: 4px 10px;
     border-radius: var(--radius-pill);
     background: var(--accent-soft);
-    border: 1px solid rgba(76, 139, 245, 0.25);
+    border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
     color: var(--accent);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
 }
 
@@ -2246,7 +2228,7 @@ td.num {
     border-radius: 50%;
     background: transparent;
     color: var(--accent);
-    font-size: 14px;
+    font-size: var(--fs-base);
     line-height: 1;
     cursor: pointer;
     opacity: 0.7;
@@ -2255,7 +2237,7 @@ td.num {
 
 .fm-chip-x:hover {
     opacity: 1;
-    background: rgba(76, 139, 245, 0.18);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .fm-chip-reset {
@@ -2292,7 +2274,7 @@ td.num {
 }
 
 .fm-filter-label {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -2315,7 +2297,7 @@ td.num {
     border: 1px solid var(--border);
     background: var(--panel-2);
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     cursor: pointer;
     transition:
@@ -2502,7 +2484,7 @@ td.num {
 
 .input-error {
     margin: 4px 0 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--danger);
 }
 
@@ -2568,9 +2550,10 @@ td.num {
     transform: translateY(-1px) rotate(-45deg);
 }
 
+/* Выделение/edited — на cyan-акценте (план 3.8). */
 .fm-row.file.selected {
-    background: rgba(76, 139, 245, 0.1);
-    border-color: var(--accent-2);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .fm-selectall {
@@ -2581,7 +2564,7 @@ td.num {
     border: 1px solid rgba(255, 255, 255, 0.065);
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.025);
-    font-size: 13px;
+    font-size: var(--fs-md);
     cursor: pointer;
     user-select: none;
 }
@@ -2606,7 +2589,7 @@ td.num {
     gap: 18px;
     padding: 12px 16px;
     margin-bottom: 12px;
-    border: 1px solid var(--accent-2);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
     border-radius: var(--radius);
     background: rgba(8, 11, 16, 0.94);
     backdrop-filter: blur(18px) saturate(1.12);
@@ -2620,7 +2603,7 @@ td.num {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--muted);
     white-space: nowrap;
 }
@@ -2636,7 +2619,7 @@ td.num {
     background: var(--accent);
     color: #fff;
     font-weight: 600;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .fm-bulk-controls {
@@ -2653,7 +2636,7 @@ td.num {
 }
 
 .fm-bulk-label {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--muted);
@@ -2675,6 +2658,64 @@ td.num {
 .fm-bulk-actions .ghost:hover:not(:disabled) {
     color: var(--text);
     border-color: var(--border);
+}
+
+/* Прогресс и частичный сбой массовых операций (план 3.8). */
+.fm-bulk-progress {
+    font-variant-numeric: tabular-nums;
+    min-width: 3.5em;
+}
+
+.fm-bulk-failures {
+    flex-basis: 100%;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: var(--radius-sm);
+    background: var(--danger-soft);
+}
+
+.fm-bulk-failures-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    color: var(--danger);
+}
+
+.fm-bulk-retry {
+    flex: 0 0 auto;
+}
+
+.fm-bulk-failures-list {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 168px;
+    overflow: auto;
+}
+
+.fm-bulk-failures-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: var(--fs-sm);
+}
+
+.fm-bulk-failures-list .mono {
+    overflow-wrap: anywhere;
+}
+
+.fm-bulk-failure-msg {
+    color: var(--muted);
+    flex: 1 1 200px;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 /* --- Меню «Создать» --- */
@@ -2715,12 +2756,14 @@ td.num {
     color: var(--accent);
 }
 
-/* --- Диалог ввода имени --- */
+/* --- Диалог ввода имени ---
+   Два дублирующихся правила объединены в одно; margin-bottom — значение
+   из позднего блока (эффективное в старом каскаде). */
 .fm-prompt-field {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin: 0;
+    margin-bottom: 12px;
 }
 
 .fm-prompt-field input {
@@ -2729,7 +2772,7 @@ td.num {
 
 .fm-prompt-hint {
     margin: 10px 0 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 /* --- Редактор текстовых файлов --- */
@@ -2772,7 +2815,7 @@ td.num {
 }
 
 .editor-title .mono {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2784,7 +2827,7 @@ td.num {
     flex: 1;
     resize: vertical;
     padding: 12px 14px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.5;
     tab-size: 2;
     background: var(--bg);
@@ -2798,6 +2841,7 @@ td.num {
 .editor-area:focus {
     outline: none;
     border-color: var(--accent);
+    box-shadow: var(--ring);
 }
 
 .editor-status {
@@ -2806,7 +2850,7 @@ td.num {
 }
 
 .editor-hint {
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 /* --- Responsive --- */
@@ -2853,12 +2897,6 @@ td.num {
         max-height: none;
         padding: 18px 16px;
     }
-    .builds-layout {
-        grid-template-columns: 1fr;
-    }
-    .builds-aside {
-        position: static;
-    }
     .view-head {
         flex-wrap: wrap;
     }
@@ -2880,9 +2918,6 @@ td.num {
     .content {
         padding: 14px 12px;
     }
-    .view-head h1 {
-        font-size: 18px;
-    }
 
     /* Крупнее цели для пальца. */
     button {
@@ -2900,16 +2935,11 @@ td.num {
     .view-head .search {
         flex-basis: 100%;
     }
+    /* Панель фильтров всегда видимой сделал план 3.3 (чипы .fm-chips
+       над таблицей + открытая панель): свёрнутый режим с кнопкой-тумблером
+       удалён вместе с accounts-filter-toggle. */
     .accounts-filter-panel {
         grid-template-columns: 1fr;
-        display: none;
-    }
-    .accounts-filter-panel.is-open {
-        display: grid;
-    }
-    .accounts-filter-toolbar {
-        display: block;
-        margin-bottom: 10px;
     }
     .accounts-filter-panel button {
         justify-content: center;
@@ -2957,14 +2987,14 @@ td.num {
     table td[data-label]::before {
         content: attr(data-label);
         color: var(--muted);
-        font-size: 11px;
+        font-size: var(--fs-xs);
         text-transform: uppercase;
         letter-spacing: 0.04em;
         flex: none;
     }
     /* Длинный UUID переносим, чтобы не рвал вёрстку. */
     table td.mono[data-label] {
-        font-size: 12px;
+        font-size: var(--fs-sm);
         word-break: break-all;
         text-align: right;
     }
@@ -3034,11 +3064,13 @@ td.num {
         flex-basis: 100%;
     }
 
-    /* Тосты — на всю ширину снизу. */
+    /* Тосты — на всю ширину снизу, но выше FAB и нижних баров:
+       full-width плашка z-index 1000 перекрывала FAB «Создать сборку»
+       на 6 секунд при ошибке сохранения. */
     .toast-stack {
         left: 12px;
         right: 12px;
-        bottom: 12px;
+        bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     }
     .toast {
         max-width: none;
@@ -3073,7 +3105,7 @@ td.num {
 
 .pc-head__uuid {
     margin-top: 2px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     overflow-wrap: anywhere;
@@ -3081,7 +3113,7 @@ td.num {
 
 .pc-close {
     flex: 0 0 auto;
-    font-size: 18px;
+    font-size: var(--fs-xl);
     line-height: 1;
 }
 
@@ -3100,7 +3132,7 @@ td.num {
     border: none;
     background: transparent;
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 500;
     border-radius: var(--radius-sm);
     cursor: pointer;
@@ -3149,7 +3181,7 @@ td.num {
     place-items: center;
     padding: 20px;
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--fs-md);
     text-align: center;
 }
 
@@ -3191,7 +3223,7 @@ td.num {
 
 .pc-skin-note {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     line-height: 1.45;
 }
 
@@ -3202,7 +3234,7 @@ td.num {
 
 .pc-info-table td {
     padding: 6px 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
     border-bottom: 1px solid var(--border);
 }
 
@@ -3225,7 +3257,7 @@ td.num {
 }
 
 .pc-section-title {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.4px;
@@ -3249,7 +3281,7 @@ td.num {
     border-radius: var(--radius-sm);
     cursor: pointer;
     transition: background var(--ease);
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .pc-check:hover {
@@ -3265,7 +3297,7 @@ td.num {
 
 .pc-check-emoji {
     font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-    font-size: 16px;
+    font-size: var(--fs-lg);
     font-variant-emoji: text;
     width: 22px;
     text-align: center;
@@ -3283,25 +3315,44 @@ td.num {
     flex: 1;
 }
 
-.pc-active-dot {
+/* «Сделать активным» — подписанная кнопка с aria-pressed: хит-зона 24×24
+   (план 9), внутри неё видимый кружок 10×10. */
+.pc-active-toggle {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background var(--ease);
+}
+
+.pc-active-toggle:hover,
+.pc-active-toggle:focus-visible {
+    background: var(--panel-3);
+}
+
+.pc-active-toggle__dot {
     width: 10px;
     height: 10px;
-    min-width: 10px;
-    min-height: 10px;
     border-radius: 50%;
     border: 1.5px solid var(--border-strong);
     background: transparent;
-    cursor: pointer;
-    padding: 0;
-    gap: 0;
     transition: background var(--ease), border-color var(--ease);
 }
 
-.pc-active-dot:hover {
+.pc-active-toggle:hover .pc-active-toggle__dot {
     border-color: var(--accent);
 }
 
-.pc-active-dot.active {
+.pc-active-toggle.active .pc-active-toggle__dot {
     background: var(--accent);
     border-color: var(--accent);
 }
@@ -3313,7 +3364,7 @@ td.num {
     padding: 10px 12px;
     background: var(--panel-2);
     border-radius: var(--radius);
-    font-size: 14px;
+    font-size: var(--fs-base);
     overflow: hidden;
 }
 
@@ -3338,7 +3389,7 @@ td.num {
     border: 1px solid var(--border);
     background: var(--panel-2);
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--fs-md);
     border-radius: var(--radius);
     cursor: pointer;
     transition: background var(--ease), border-color var(--ease);
@@ -3394,34 +3445,8 @@ td.num {
     }
 }
 
-/* --- 2026 desktop redesign: obsidian control room --- */
-:root {
-    --bg: #030406;
-    --bg-elev: #07090d;
-    --panel: #0b0e13;
-    --panel-2: #10141b;
-    --panel-3: #151b24;
-    --border: #1b2330;
-    --border-strong: #2b3748;
-    --text: #f4f7fb;
-    --muted: #8792a3;
-    --faint: #596475;
-    --accent: #73d7ff;
-    --accent-2: #9d7cff;
-    --accent-soft: rgba(115, 215, 255, 0.12);
-    --danger: #ff5d6c;
-    --danger-soft: rgba(255, 93, 108, 0.13);
-    --ok: #5ff0a7;
-    --ok-soft: rgba(95, 240, 167, 0.12);
-    --warn: #ffd166;
-    --radius: 12px;
-    --radius-lg: 20px;
-    --control-h: 38px;
-    --shadow-sm: 0 1px 0 rgba(255, 255, 255, 0.04), 0 14px 40px rgba(0, 0, 0, 0.22);
-    --shadow-md: 0 18px 50px rgba(0, 0, 0, 0.34);
-    --shadow-lg: 0 28px 90px rgba(0, 0, 0, 0.58);
-}
-
+/* --- 2026 desktop redesign: obsidian control room ---
+   Токены redesign-блока переехали в styles/tokens.css (единственный :root). */
 body {
     background:
         radial-gradient(circle at 12% 8%, rgba(115, 215, 255, 0.09), transparent 26rem),
@@ -3450,7 +3475,7 @@ button,
     border: 1px solid rgba(255, 255, 255, 0.1);
     background: linear-gradient(135deg, #6bd7ff, #8a7cff 58%, #c084fc);
     color: #020304;
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 800;
     line-height: 1;
     white-space: nowrap;
@@ -3498,7 +3523,7 @@ button,
 .sd-button[data-size="sm"] {
     min-height: 32px;
     padding: 0 11px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .sd-button[data-size="icon"] {
@@ -3526,7 +3551,7 @@ button,
 
 .sd-card-title {
     margin: 0;
-    font-size: 16px;
+    font-size: var(--fs-lg);
     letter-spacing: -0.02em;
 }
 
@@ -3558,7 +3583,7 @@ button,
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.06);
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 750;
     line-height: 1;
     white-space: nowrap;
@@ -3597,7 +3622,7 @@ button,
 .sd-table {
     width: 100%;
     border-spacing: 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .sd-table-row {
@@ -3617,7 +3642,7 @@ button,
 .sd-table-head {
     height: 42px;
     color: var(--faint);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 750;
     letter-spacing: 0.08em;
     text-transform: uppercase;
@@ -3689,7 +3714,7 @@ input[type="radio"] {
 
 .brand-redesigned small {
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 500;
     margin-top: 4px;
     text-transform: uppercase;
@@ -3718,6 +3743,25 @@ input[type="radio"] {
 
 .nav {
     gap: 6px;
+}
+
+/* Пункты сгруппированы в секции по группам навигации (navConfig):
+   подпись группы и её пункты живут в одной секции. Вертикальный ритм
+   сохранён прежним: между секциями 16px, подпись→пункт и пункт→пункт
+   6px — все отступы теперь на gap секции и margin между секциями. */
+.nav > section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.nav > section + section {
+    margin-top: 16px;
+}
+
+.nav > section .nav-group {
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 .nav-group {
@@ -3881,7 +3925,7 @@ input[type="radio"] {
 
 .topbar-eyebrow {
     color: var(--faint);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     text-transform: uppercase;
     letter-spacing: 0.16em;
     margin-bottom: 4px;
@@ -3889,7 +3933,7 @@ input[type="radio"] {
 
 .topbar-description {
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     line-height: 1.45;
 }
 
@@ -3903,7 +3947,7 @@ input[type="radio"] {
     border-radius: 999px;
     color: var(--text);
     text-decoration: none;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 700;
     background: rgba(255, 255, 255, 0.03);
 }
@@ -3918,7 +3962,7 @@ input[type="radio"] {
     padding: 0 12px;
     color: var(--muted);
     background: rgba(255, 255, 255, 0.03);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .status-dot {
@@ -3966,7 +4010,7 @@ input[type="radio"] {
     align-items: center;
     min-height: 18px;
     color: var(--accent);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.16em;
@@ -4024,8 +4068,8 @@ input[type="radio"] {
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.03);
-    color: var(--text-soft);
-    font-size: 12px;
+    color: var(--muted);
+    font-size: var(--fs-sm);
     font-weight: 650;
 }
 
@@ -4037,52 +4081,9 @@ input[type="radio"] {
     margin-bottom: 22px;
 }
 
-.overview-action-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-    margin-bottom: 22px;
-}
-
-.overview-action-card {
-    min-height: 92px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 22px;
-    color: var(--text);
-    text-decoration: none;
-    background:
-        radial-gradient(circle at 88% 16%, rgba(115, 215, 255, 0.08), transparent 9rem),
-        rgba(255, 255, 255, 0.026);
-    transition: transform var(--ease), border-color var(--ease), background var(--ease);
-}
-
-.overview-action-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(115, 215, 255, 0.22);
-    background: rgba(115, 215, 255, 0.045);
-}
-
-.overview-action-card div {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.overview-action-card strong,
-.overview-action-card small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.overview-action-card small {
-    color: var(--muted);
-}
+/* Блок overview-quick-actions удалён (план 3.1): три конкурирующие группы
+   ссылок на одни маршруты (hero-пилюли, CardAction «Открыть», квик-экшены)
+   заменены двумя первыми — карточки-ссылки дублировали навигацию. */
 
 .settings-status-row {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -4243,17 +4244,6 @@ input[type="radio"] {
     .overview-view .overview-columns > .sd-card {
         min-width: 0;
     }
-
-    .overview-view .overview-quick-actions {
-        gap: 12px;
-        margin-bottom: 0;
-    }
-
-    .overview-view .overview-action-card {
-        min-height: 76px;
-        padding: 14px 16px;
-        border-radius: 16px;
-    }
 }
 
 .overview-columns {
@@ -4412,7 +4402,7 @@ input[type="radio"] {
 }
 
 .build-card-title strong {
-    font-size: 18px;
+    font-size: var(--fs-xl);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -4433,7 +4423,7 @@ input[type="radio"] {
     border-radius: 999px;
     color: var(--muted);
     background: rgba(255, 255, 255, 0.045);
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .empty-state-redesigned {
@@ -4484,24 +4474,9 @@ input[type="radio"] {
     padding: 8px;
 }
 
-table {
-    border-spacing: 0;
-}
-
-th,
-td {
-    height: 48px;
-    vertical-align: middle;
-    border-bottom-color: rgba(255, 255, 255, 0.06);
-}
-
-th {
-    height: 42px;
-    color: var(--faint);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-size: 11px;
-}
+/* Глобальный редизайн-блок table/th/td удалён: он дублировал .sd-table
+   (3597–3624) правило-в-право; заголовки таблиц AccountsView теперь
+   проходят через Table/TableHead из ui/shadcn.tsx. */
 
 .clickable-row {
     cursor: pointer;
@@ -4522,7 +4497,7 @@ th {
 
 .row-arrow {
     color: var(--faint);
-    font-size: 14px;
+    font-size: var(--fs-base);
 }
 
 .search {
@@ -4561,7 +4536,7 @@ th {
     border-radius: 999px;
     color: var(--badge-color);
     background: color-mix(in srgb, var(--badge-color) 13%, transparent);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 800;
     line-height: 1;
     white-space: nowrap;
@@ -4584,7 +4559,7 @@ th {
     display: inline-flex;
     align-items: center;
     min-height: 32px;
-    font-size: 24px;
+    font-size: var(--fs-2xl);
     line-height: 1;
     letter-spacing: -0.03em;
     background: linear-gradient(90deg, var(--grad-start), var(--grad-end));
@@ -4675,17 +4650,9 @@ th {
     grid-template-columns: auto minmax(0, 1fr);
 }
 
-.fm-prompt-field {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-bottom: 12px;
-}
-
 @media (max-width: 1120px) {
     .ops-grid,
     .settings-status-row,
-    .overview-action-grid,
     .overview-columns,
     .cosmetics-grid {
         grid-template-columns: 1fr 1fr;
@@ -4721,7 +4688,6 @@ th {
 
     .ops-grid,
     .settings-status-row,
-    .overview-action-grid,
     .overview-columns,
     .cosmetics-grid {
         grid-template-columns: 1fr;
@@ -4738,9 +4704,28 @@ th {
 .news-admin-list { display: grid; gap: 12px; }
 .news-admin-card { display: flex; gap: 18px; align-items: flex-start; justify-content: space-between; }
 .news-admin-card__body { min-width: 0; }
-.news-admin-card h2 { margin: 6px 0; font-size: 18px; }
-.news-admin-card__meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 12px; }
+.news-admin-card h2 { margin: 6px 0; font-size: var(--fs-xl); }
+.news-admin-card__meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: var(--fs-sm); }
 .news-admin-card__pinned { color: #d99628; }
+
+/* Заголовок карточки — кнопка (план 3.6): открывает редактор, как вся
+   карточка в списке сборок; визуально не отличается от текста. */
+.news-admin-card__title {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    width: 100%;
+    cursor: pointer;
+}
+
+.news-admin-card__title:hover {
+    color: var(--accent);
+    background: transparent;
+    border-color: transparent;
+}
 .news-admin-card__excerpt { display: -webkit-box; margin: 0; overflow: hidden; white-space: pre-wrap; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .news-admin-card__actions { display: flex; gap: 8px; flex: none; }
 .news-empty { display: grid; gap: 10px; padding: 24px; }
@@ -4751,14 +4736,174 @@ th {
 .news-editor__head .eyebrow { margin-bottom: 4px; }
 .news-editor textarea { width: 100%; min-height: 220px; resize: vertical; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .news-editor .field label { display: flex; justify-content: space-between; gap: 12px; }
-.news-editor .field label span { color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
-.news-editor__body-field small { display: block; margin-top: 7px; font-size: 12px; line-height: 1.45; }
-.news-editor__pin { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); font-size: 13px; }
+.news-editor .field label span { color: var(--faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.news-editor__body-field small { display: block; margin-top: 7px; font-size: var(--fs-sm); line-height: 1.45; }
+.news-editor__pin { display: flex; gap: 10px; align-items: flex-start; color: var(--muted); font-size: var(--fs-md); }
 .news-editor__pin input { margin-top: 3px; }
 .news-editor__pin strong, .news-editor__pin small { display: block; }
-.news-editor__pin strong { color: var(--text); font-size: 13px; }
-.news-editor__pin small { margin-top: 3px; font-size: 12px; }
+.news-editor__pin strong { color: var(--text); font-size: var(--fs-md); }
+.news-editor__pin small { margin-top: 3px; font-size: var(--fs-sm); }
 .news-editor__close { display: none; }
+
+/* --- Маршруты-редакторы новостей/гайдов (план 3.6) --- */
+/* Широкая страница: поля слева, живой Markdown-превью справа. На узком
+   экране превью уходит под поля (media-блок ниже). */
+.route-editor {
+    display: grid;
+    gap: 16px;
+}
+
+.route-editor__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+.route-editor__head h2 {
+    margin: 0;
+    flex: 1;
+    min-width: 200px;
+    font-size: 22px;
+    letter-spacing: -0.03em;
+}
+
+.route-editor__back {
+    flex: none;
+}
+
+.route-editor__hint {
+    font-size: var(--fs-sm);
+}
+
+.route-editor__form {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+}
+
+.route-editor__fields {
+    min-width: 0;
+}
+
+.route-editor__body-field textarea {
+    min-height: 420px;
+    font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+    resize: vertical;
+}
+
+.route-editor__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.route-editor__preview {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow: auto;
+    display: grid;
+    gap: 0;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-lg);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.route-editor__preview-head {
+    display: grid;
+    gap: 3px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.route-editor__preview-head strong {
+    font-size: var(--fs-xs);
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+}
+
+/* Живой Markdown-превью (ui/Markdown.tsx). */
+.md-preview {
+    display: grid;
+    gap: 10px;
+    font-size: var(--fs-base);
+    line-height: 1.6;
+    color: var(--text);
+    overflow-wrap: anywhere;
+}
+
+.md-preview h1,
+.md-preview h2,
+.md-preview h3 {
+    margin: 6px 0 0;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+}
+
+.md-preview h1 { font-size: 22px; }
+.md-preview h2 { font-size: var(--fs-xl); }
+.md-preview h3 { font-size: var(--fs-lg); }
+
+.md-preview p {
+    margin: 0;
+}
+
+.md-preview ul,
+.md-preview ol {
+    margin: 0;
+    padding-left: 22px;
+}
+
+.md-preview code {
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    background: rgba(115, 215, 255, 0.1);
+    color: var(--accent);
+}
+
+.md-preview a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.md-preview__empty {
+    margin: 0;
+}
+
+@media (max-width: 960px) {
+    .route-editor__form {
+        grid-template-columns: 1fr;
+    }
+
+    .route-editor__preview {
+        position: static;
+        max-height: none;
+    }
+}
+
+/* Тумблер и панель превью в мобильной модалке редактора. */
+.news-editor__preview-toggle {
+    margin-top: 8px;
+}
+
+.news-editor__mobile-preview {
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.02);
+    max-height: 40vh;
+    overflow: auto;
+}
 
 .external-mods-warning {
     display: grid;
@@ -4835,7 +4980,7 @@ th {
 
 .external-mod-row__main code {
     color: var(--accent);
-    font-size: 11px;
+    font-size: var(--fs-xs);
 }
 
 .external-mod-row__actions {
@@ -4941,8 +5086,7 @@ th {
 }
 
 @media (min-width: 1121px) {
-    .overview-view .overview-columns .sd-card,
-    .overview-view .overview-action-card {
+    .overview-view .overview-columns .sd-card {
         transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, box-shadow 140ms ease;
     }
 
@@ -4960,8 +5104,7 @@ th {
 
 @media (prefers-reduced-motion: reduce) {
     .telemetry-chart,
-    .overview-view .overview-columns .sd-card,
-    .overview-view .overview-action-card {
+    .overview-view .overview-columns .sd-card {
         transition: none;
     }
 }
@@ -4981,17 +5124,17 @@ th {
     gap: 4px;
     padding: 5px 12px;
     border-radius: 999px;
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.03);
     color: var(--muted);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s, color 0.15s;
 }
 
 .fm-profile-chip:hover {
-    border-color: var(--glass-border-strong);
+    border-color: var(--border-strong);
     color: var(--text);
 }
 
@@ -5004,7 +5147,7 @@ th {
 /* Диалог управления профилями сборки. */
 .fm-profiles-modal .fm-profiles-sub {
     margin: 2px 0 14px;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .fm-profiles-list {
@@ -5015,7 +5158,7 @@ th {
 }
 
 .fm-profiles-empty {
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.5;
 }
 
@@ -5026,7 +5169,7 @@ th {
     gap: 12px;
     padding: 10px 14px;
     border-radius: var(--radius-sm);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border);
     background: rgba(22, 25, 40, 0.45);
 }
 
@@ -5038,11 +5181,11 @@ th {
 }
 
 .fm-profile-row__text strong {
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .fm-profile-row__text span {
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .fm-profile-new {
@@ -5050,11 +5193,11 @@ th {
     flex-direction: column;
     gap: 8px;
     padding-top: 14px;
-    border-top: 1px solid var(--glass-border);
+    border-top: 1px solid var(--border);
 }
 
 .fm-profile-new strong {
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .fm-profile-new .primary {
@@ -5062,8 +5205,14 @@ th {
     margin-top: 4px;
 }
 
+/* Поля ui/Field внутри формы профиля: контейнер уже задаёт gap, поэтому
+   собственный margin поля не нужен — иначе межстрочные дыры. */
+.fm-profile-new .field {
+    margin-bottom: 0;
+}
+
 .fm-profile-new__error {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: #ff8d7a;
 }
 
@@ -5086,7 +5235,7 @@ th {
 
 .context-menu__title {
     padding: 6px 10px 4px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 700;
     color: var(--muted);
     white-space: nowrap;
@@ -5110,7 +5259,7 @@ th {
     border-radius: 4px;
     background: transparent;
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--fs-md);
     text-align: left;
     cursor: pointer;
     transition: background 0.1s;
@@ -5148,26 +5297,21 @@ th {
 }
 
 .context-menu__hint {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     flex: none;
 }
 
-/* Кнопка меню у папки — видна как kebab рядом с удалением. */
+/* Кнопка меню у папки — постоянно видна на десктопе (план 3.8): ключевое
+   действие «Скачать папку» не должно прятаться за ховером, тем более что
+   соседняя иконка удаления видна всегда — приоритет выправлен. */
 .fm-folder-menu {
-    opacity: 0;
+    opacity: 0.75;
     transition: opacity 0.15s;
 }
 
 .fm-row:hover .fm-folder-menu,
 .fm-folder-menu:focus-visible {
     opacity: 1;
-}
-
-/* Мобильная: всегда видна. */
-@media (max-width: 720px) {
-    .fm-folder-menu {
-        opacity: 1;
-    }
 }
 
 .fm-profile-row__actions {
@@ -5191,7 +5335,7 @@ th {
     font-family: inherit;
     padding: 2px 8px;
     border-radius: 999px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     transition: background 0.12s;
 }
 
@@ -5216,7 +5360,7 @@ th {
 /* Приглушённая подсказка под таблицами: explain-текст операции. */
 .seasons-hint {
     margin: 12px 0 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     line-height: 1.5;
 }
 

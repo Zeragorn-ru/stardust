@@ -13,6 +13,20 @@
     overflow-x: hidden;
 }
 
+/* iOS приближает страницу при фокусе на поле с шрифтом меньше 16px.
+   Единое правило для всех полей мобильного шелла: .m-login рендерится до
+   .m-app (экран входа), поэтому охватываем его явным селектором. Точечные
+   дубли для .fm-upload и news-editor удалены, визуально мельче поле не
+   делаем — только iOS-зум решается font-size. */
+.m-app input,
+.m-app select,
+.m-app textarea,
+.m-login input,
+.m-login select,
+.m-login textarea {
+    font-size: var(--fs-lg);
+}
+
 .m-content {
     flex: 1;
     padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
@@ -92,7 +106,7 @@
 .m-telemetry-players span {
     overflow: hidden;
     color: var(--text);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
@@ -144,7 +158,7 @@
     gap: 6px;
     min-width: 0;
     color: var(--muted);
-    font-size: 11px;
+    font-size: var(--fs-xs);
 }
 
 .m-telemetry-event strong {
@@ -166,6 +180,36 @@
 
 .m-telemetry-chart-wrap {
     overflow: hidden;
+}
+
+/* Чарт мобильного обзора на общих классах .telemetry-chart-wrap/.telemetry-chart
+   (план 3.1): десктопные min-width/высоту перекрываем под узкий экран,
+   инлайн-стили удалены из MobileOverview. */
+.m-telemetry-chart-wrap .telemetry-chart-wrap {
+    padding: 0 8px 6px;
+}
+
+.m-telemetry-chart-wrap .telemetry-chart {
+    min-width: 0;
+    height: 120px;
+    cursor: default;
+}
+
+.m-telemetry-chart-wrap .telemetry-axis {
+    font-size: 10px;
+}
+
+/* Пустые состояния (LoadPanel/ErrorPanel) и StaleBanner в мобильном
+   обзоре: тап-цель 44px и карточный ритм экрана, как у остальных
+   m-section-card (общие стили живут в styles.css). */
+.m-screen.m-overview .empty-state-panel,
+.m-screen.m-overview .logs-stale {
+    border-radius: 18px;
+}
+
+.m-screen.m-overview .empty-state-panel button,
+.m-screen.m-overview .logs-stale button {
+    min-height: 44px;
 }
 
 @media (max-width: 520px) {
@@ -291,6 +335,18 @@
     gap: 8px;
 }
 
+/* «Назад» из деталей сборки в липкой шапке (план 5, шаг 8): та же цель
+   44×44, что у гамбургера, — кнопка не уезжает при прокрутке. */
+.m-shell-back {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    flex: none;
+    padding: 0;
+    border-color: rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.045);
+}
+
 .m-shell-link {
     height: 34px;
     display: inline-flex;
@@ -302,7 +358,7 @@
     color: var(--muted);
     background: rgba(255, 255, 255, 0.035);
     text-decoration: none;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 800;
 }
 
@@ -384,6 +440,34 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+    /* С подписями групп список стал выше: на низких экранах прокручиваем,
+       а не выдавливаем фут drawer за край. */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Группы навигации в drawer — те же рубрики, что в десктопном сайдбаре
+   (ui/navConfig): подпись группы + её пункты в одной секции. */
+.m-drawer-nav > section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.m-drawer-nav > section + section {
+    margin-top: 14px;
+}
+
+.m-drawer-group {
+    display: block;
+    margin: 0 12px 0;
+    color: var(--faint);
+    font-size: 10px;
+    font-weight: 850;
+    letter-spacing: 0.16em;
+    line-height: 1;
+    text-transform: uppercase;
 }
 
 .m-drawer-item {
@@ -399,7 +483,7 @@
     background: transparent;
     color: var(--muted);
     text-decoration: none;
-    font-size: 14px;
+    font-size: var(--fs-base);
     font-weight: 750;
     line-height: 1.15;
 }
@@ -430,7 +514,7 @@
     white-space: nowrap;
     padding: 0 12px 4px;
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 800;
 }
 
@@ -483,7 +567,7 @@
     border: 0;
     background: transparent;
     color: var(--accent);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 850;
 }
 
@@ -547,7 +631,7 @@
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.035);
     color: var(--text);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 750;
 }
 
@@ -603,14 +687,14 @@
 
 .m-section-head h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: var(--fs-xl);
 }
 
 .m-section-head a {
     color: var(--accent);
     text-decoration: none;
     font-weight: 800;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .m-service-row,
@@ -753,7 +837,7 @@
 }
 
 .m-card .meta {
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .m-card-actions {
@@ -785,8 +869,10 @@
     justify-content: center;
 }
 
+/* Нажатие FAB — без фиолетовой вспышки --accent-2: градиент
+   сохраняется, меняется только яркость (как у primary на десктопе). */
 .m-fab:active {
-    background: var(--accent-2);
+    filter: brightness(1.08);
 }
 
 /* --- Детали сборки --- */
@@ -911,7 +997,7 @@
 }
 
 .m-checks-head button {
-    font-size: 13px;
+    font-size: var(--fs-md);
     padding: 6px 10px;
 }
 
@@ -953,6 +1039,48 @@
 .m-screen-reuse .cosmetics-grid,
 .m-screen-reuse .overview-columns {
     grid-template-columns: 1fr;
+}
+
+/* Панель фильтров аккаунтов на мобильном (план 3.3): чипы и поля в
+   колонку, тап-таргеты 44px. Панель всегда открыта — тумблер удалён. */
+.m-screen-reuse .accounts-filter-panel {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px;
+}
+
+.m-screen-reuse .accounts-filter-panel select,
+.m-screen-reuse .accounts-filter-panel button {
+    min-height: 44px;
+}
+
+.m-screen-reuse .fm-chip {
+    min-height: 32px;
+}
+
+/* Якорная поднавигация настроек (план 3.4): горизонтальная прокрутка
+   одной строкой под липкой шапкой, тап-таргеты 44px. */
+.m-screen-reuse .settings-subnav {
+    top: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 14px;
+    padding: 8px 0;
+}
+
+.m-screen-reuse .settings-subnav::-webkit-scrollbar {
+    display: none;
+}
+
+.m-screen-reuse .settings-subnav-item {
+    flex: 0 0 auto;
+    min-height: 44px;
+    white-space: nowrap;
+}
+
+.m-screen-reuse .settings-sections {
+    gap: 24px;
 }
 
 .m-screen-reuse .metric-card {
@@ -1060,7 +1188,7 @@
     justify-content: center;
     gap: 6px;
     padding: 9px 14px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text);
     text-decoration: none;
     background: rgba(255, 255, 255, 0.035);
@@ -1096,17 +1224,9 @@
 
 /* --- Недостающие утилиты, общие для мобильных экранов --- */
 
-/* Вторичная кнопка: как обычная, но с явным «тихим» фоном. На десктопе её
-   нет, а мобильные действия-в-ряд читаются лучше с единым стилем. */
-button.secondary {
-    background: rgba(255, 255, 255, 0.035);
-    border-color: rgba(255, 255, 255, 0.08);
-}
-
-button.secondary:hover:not(:disabled) {
-    background: var(--panel-3);
-    border-color: var(--border-strong);
-}
+/* Вторичная кнопка больше не переопределяется здесь: styles.css (правка
+   3640) определяет button.secondary глобально, а hover-состояние — общий
+   button:hover:not(:disabled) из базового словаря кнопок. */
 
 /* Кнопка с иконкой и подписью (в отличие от .icon-only — без обрезки до квадрата). */
 .icon-btn {
@@ -1155,14 +1275,14 @@ button.secondary:hover:not(:disabled) {
 
 .m-screen .news-view--mobile .news-view__head p {
     margin: 5px 0 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
 }
 
 .m-screen .news-view--mobile .news-view__create {
     min-height: 44px;
     flex: none;
     padding: 0 13px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     white-space: nowrap;
 }
 
@@ -1184,12 +1304,12 @@ button.secondary:hover:not(:disabled) {
 
 .m-screen .news-view--mobile .news-admin-card__meta {
     gap: 6px 9px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
 }
 
 .m-screen .news-view--mobile .news-admin-card__excerpt {
     -webkit-line-clamp: 3;
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.45;
 }
 
@@ -1255,7 +1375,7 @@ button.secondary:hover:not(:disabled) {
     color: var(--accent);
     background: rgba(115, 215, 255, 0.08);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 800;
 }
 
@@ -1275,7 +1395,6 @@ button.secondary:hover:not(:disabled) {
     min-height: 150px;
     flex: 1;
     resize: none;
-    font-size: 16px;
     -webkit-user-select: text;
     user-select: text;
 }
@@ -1661,7 +1780,7 @@ button.secondary:hover:not(:disabled) {
 }
 
 .m-screen .file-editor .editor-title strong {
-    font-size: 16px;
+    font-size: var(--fs-lg);
 }
 
 .m-screen .editor-head-meta {
@@ -1669,7 +1788,7 @@ button.secondary:hover:not(:disabled) {
     flex: none;
     align-items: center;
     gap: 8px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
 }
 
 .m-screen .editor-head-meta > .muted {
@@ -1706,7 +1825,7 @@ button.secondary:hover:not(:disabled) {
     border-radius: 11px;
     background: rgba(255, 255, 255, 0.045);
     color: var(--text);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 750;
 }
 
@@ -1722,7 +1841,6 @@ button.secondary:hover:not(:disabled) {
     resize: none;
     padding: 14px;
     border-radius: 14px;
-    font-size: 16px;
     line-height: 1.55;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -1744,7 +1862,7 @@ button.secondary:hover:not(:disabled) {
 
 .m-screen .file-editor .editor-hint {
     max-width: 38%;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     line-height: 1.35;
 }
 
@@ -1809,7 +1927,7 @@ button.secondary:hover:not(:disabled) {
         border-radius: 10px;
         color: var(--muted);
         background: rgba(255, 255, 255, 0.035);
-        font-size: 12px;
+        font-size: var(--fs-sm);
         font-weight: 750;
     }
 
@@ -1883,7 +2001,7 @@ button.secondary:hover:not(:disabled) {
     min-height: 108px;
     padding: 18px 16px;
     border-radius: 18px;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .m-screen .fm-upload .dropzone svg {
@@ -1947,7 +2065,7 @@ button.secondary:hover:not(:disabled) {
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.035);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 750;
 }
 
@@ -1999,7 +2117,7 @@ button.secondary:hover:not(:disabled) {
     min-height: 44px;
     align-items: center;
     gap: 10px;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 .m-screen .fm-upload .checkbox-row input {
@@ -2008,17 +2126,11 @@ button.secondary:hover:not(:disabled) {
     height: 18px;
 }
 
-/* iOS приближает страницу при фокусе на поле с шрифтом меньше 16px. */
-.m-screen .fm-upload input,
-.m-screen .fm-upload select {
-    font-size: 16px;
-}
-
 /* Чипы профилей модов: тап-цель заметно крупнее десктопной. */
 .m-screen .fm-upload .fm-profile-chip {
     min-height: 36px;
     padding: 0 14px;
-    font-size: 13px;
+    font-size: var(--fs-md);
 }
 
 /* «Применить ко всем»: на десктопе блок не стилизован вовсе (родной
@@ -2034,7 +2146,7 @@ button.secondary:hover:not(:disabled) {
     min-height: 44px;
     padding: 12px;
     color: var(--muted);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 750;
     cursor: pointer;
 }
@@ -2092,5 +2204,86 @@ button.secondary:hover:not(:disabled) {
 
 /* Пустая ячейка «Действие» у архивных сезонов: прячем с карточки. */
 .m-screen-seasons td[data-label="Действие"]:empty {
+    display: none;
+}
+
+/* --- Внешние моды (план 3.7): единственный экран, не имевший адаптации --- */
+/* Экран уже обёрнут в .m-screen (MobileApp); здесь — тач-таргеты 44px,
+   форма в колонку и усечённые хеши, чтобы строка не растягивалась. */
+.m-screen .external-mods-view .view-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.m-screen .external-mods-view .view-head h1 {
+    font-size: 30px;
+}
+
+.m-screen .external-mod-rule-form {
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.m-screen .external-mod-rule-form button {
+    min-height: 44px;
+    width: 100%;
+    justify-content: center;
+}
+
+.m-screen .external-mods-columns {
+    grid-template-columns: 1fr;
+}
+
+.m-screen .external-mod-row__actions button {
+    min-height: 44px;
+    flex: 1;
+}
+
+/* Хеш в 64 символа ломает строку: усекаем с полным значением в title. */
+.m-screen .external-mod-row__main code {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* --- Вкладки-фильтры журнала (план 3.7) --- */
+.m-screen .logs-tabs {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-bottom: 14px;
+}
+
+.m-screen .logs-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.m-screen .logs-tabs .seg-btn {
+    flex: 0 0 auto;
+    min-height: 44px;
+    white-space: nowrap;
+    padding: 8px 14px;
+}
+
+/* Подпись кнопки manifest в тулбаре на мобильном: тулбар и так в колонку,
+   оставляем только иконку. */
+.m-screen .fm-manifest-btn__label {
+    display: none;
+}
+
+/* Мобильный предпросмотр в модалке редактора: textarea уступает место
+   панели превью (план 3.6 — модалка full-screen с превью). */
+.news-editor-backdrop--mobile .news-editor__mobile-preview {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow: auto;
+}
+
+.news-editor-backdrop--mobile .news-editor__body-field:has(.news-editor__mobile-preview) textarea {
     display: none;
 }

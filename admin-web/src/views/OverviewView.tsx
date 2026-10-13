@@ -1,54 +1,54 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
 import { formatTelemetryTime } from "../format";
-import { IconBox, IconSettings, IconSync, IconUsers } from "../ui/icons";
+import { IconBox, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
+import { useAsyncData } from "../ui/useAsyncData";
+import { ErrorPanel, LoadPanel, StaleBanner } from "../ui/EmptyState";
 import { Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
+
+/** Сводные данные обзора: основная тройка запросов + необязательная телеметрия. */
+interface OverviewData {
+  builds: BuildHeader[];
+  accounts: Account[];
+  settings: Settings;
+  telemetry: ServerTelemetry | null;
+}
 
 export function OverviewView() {
   const toast = useToast();
-  const [builds, setBuilds] = useState<BuildHeader[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [telemetry, setTelemetry] = useState<ServerTelemetry | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const [nextBuilds, nextAccounts, nextSettings] = await Promise.all([
-          api.listBuilds(),
-          api.listAccounts(),
-          api.getSettings(),
-        ]);
-        if (cancelled) return;
-        setBuilds(nextBuilds);
-        setAccounts(nextAccounts);
-        setSettings(nextSettings);
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : "Не удалось загрузить обзор");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-      try {
-        const nextTelemetry = await api.getServerTelemetry();
-        if (!cancelled) setTelemetry(nextTelemetry);
-      } catch {
-        /* telemetry optional — mod may not be connected yet */
-      }
+  // Периодическая загрузка через общий хук (план 3.1): опрос раз в 30 с
+  // останавливается на скрытой вкладке, при возврате данные догружаются
+  // сразу, а фоновый сбой показывается StaleBanner'ом с «Повторить»
+  // вместо toast.error каждые 30 секунд.
+  const fetcher = useCallback(async (): Promise<OverviewData> => {
+    const [builds, accounts, settings] = await Promise.all([
+      api.listBuilds(),
+      api.listAccounts(),
+      api.getSettings(),
+    ]);
+    // Телеметрия опциональна: мод может быть ещё не подключён — её сбой
+    // не должен ронять весь обзор.
+    let telemetry: ServerTelemetry | null = null;
+    try {
+      telemetry = await api.getServerTelemetry();
+    } catch {
+      /* телеметрия недоступна — карточки просто скроются */
     }
-    load();
-    const timer = window.setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [toast]);
+    return { builds, accounts, settings, telemetry };
+  }, []);
+
+  const { data, loading, refreshing, error, reload } = useAsyncData(fetcher, { pollMs: 30_000 });
+
+  const builds = data?.builds ?? [];
+  const accounts = data?.accounts ?? [];
+  const settings = data?.settings ?? null;
+  const telemetry = data?.telemetry ?? null;
 
   const activeBuild = builds.find((b) => b.isActive) ?? null;
   const totals = useMemo(() => ({
@@ -57,11 +57,15 @@ export function OverviewView() {
     linked: accounts.filter((a) => a.telegramLinked).length,
   }), [accounts]);
 
+  // Единственный обработчик синхронизации (план 3.1): после успеха
+  // подтягиваем данные — счётчики обзора отражают синхронизацию без
+  // перезахода на экран.
   async function syncStats() {
     setSyncing(true);
     try {
       const res = await api.syncStats();
       toast.success(`Статистика обновлена: ${res.updated} игроков`);
+      reload();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Ошибка синхронизации");
     } finally {
@@ -101,88 +105,73 @@ export function OverviewView() {
         </div>
       </section>
 
-      <section className="ops-grid">
-        <MetricCard label="Сборки" value={loading ? "..." : builds.length} hint={activeBuild ? `Активна: ${activeBuild.name}` : "Активная сборка не выбрана"} tone="blue" />
-        <MetricCard label="Аккаунты" value={loading ? "..." : accounts.length} hint={`${totals.admins} админ(ов), ${totals.banned} в бане`} tone="green" />
-        <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "подключен" : "отключен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
-        <MetricCard label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "не настроен"} hint={settings?.sftpHost || "Подключение не настроено"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
-      </section>
+      {loading ? (
+        <LoadPanel>Загружаем сводку…</LoadPanel>
+      ) : !data ? (
+        <ErrorPanel title="Не удалось загрузить обзор" onRetry={reload} busy={refreshing}>
+          {error}
+        </ErrorPanel>
+      ) : (
+        <>
+          {error && (
+            // Фоновое обновление не удалось, но данные на экране есть:
+            // причина и «Повторить» лентой, список остаётся на месте.
+            <StaleBanner onRetry={reload} busy={refreshing}>{error}</StaleBanner>
+          )}
 
-      <TelemetryPanel telemetry={telemetry} />
+          <section className="ops-grid">
+            <MetricCard label="Сборки" value={builds.length} hint={activeBuild ? `Активна: ${activeBuild.name}` : "Активная сборка не выбрана"} tone="blue" />
+            <MetricCard label="Аккаунты" value={accounts.length} hint={`${totals.admins} админ(ов), ${totals.banned} в бане`} tone="green" />
+            <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "подключен" : "отключен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
+            <MetricCard label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "не настроен"} hint={settings?.sftpHost || "Подключение не настроено"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+          </section>
 
-      <section className="overview-columns">
-        <Card className="panel-flat">
-          <CardHeader>
-            <div>
-              <span className="eyebrow">Поставка сборки</span>
-              <CardTitle>Сборки</CardTitle>
-              <CardDescription>Последние сборки и активный релиз.</CardDescription>
-            </div>
-            <CardAction><Link className="link-action" to="/builds">Открыть</Link></CardAction>
-          </CardHeader>
-          <CardContent className="compact-list">
-            {builds.slice(0, 5).map((build) => (
-              <Link key={build.id} className="compact-row" to={`/builds/${build.id}`}>
-                <span className="row-icon"><IconBox size={15} /></span>
-                <span className="compact-row-main">
-                  <strong>{build.name}</strong>
-                  <small>{build.loaderKind} · MC {build.mcVersion} · v{build.version}</small>
-                </span>
-                {build.isActive && <span className="badge active">активная</span>}
-              </Link>
-            ))}
-            {!loading && builds.length === 0 && <p className="muted">Сборок пока нет.</p>}
-          </CardContent>
-        </Card>
+          <TelemetryPanel telemetry={telemetry} />
 
-        <Card className="panel-flat">
-          <CardHeader>
-            <div>
-              <span className="eyebrow">Статус сервисов</span>
-              <CardTitle>Сервисы</CardTitle>
-              <CardDescription>Auth, Telegram и серверная статистика.</CardDescription>
-            </div>
-            <CardAction><Link className="link-action" to="/accounts">Открыть</Link></CardAction>
-          </CardHeader>
-          <CardContent className="compact-list">
-            <InfoLine icon={<IconUsers size={15} />} label="Auth / аккаунты" value={`${accounts.length} игроков`} />
-             <InfoLine icon={<IconUsers size={15} />} label="Telegram привязан" value={`${totals.linked}/${accounts.length}`} />
-            <InfoLine icon={<IconUsers size={15} />} label="Администраторы" value={String(totals.admins)} />
-            <InfoLine icon={<IconUsers size={15} />} label="Баны" value={String(totals.banned)} />
-            <Link className="compact-row compact-row--cta" to="/settings">
-              <span className="row-icon"><IconSettings size={15} /></span>
-              <span className="compact-row-main">
-                <strong>Инфраструктура</strong>
-                <small>Telegram, SFTP, authlib-injector</small>
-              </span>
-            </Link>
-          </CardContent>
-        </Card>
-      </section>
+          <section className="overview-columns">
+            <Card className="panel-flat">
+              <CardHeader>
+                <div>
+                  <span className="eyebrow">Поставка сборки</span>
+                  <CardTitle>Сборки</CardTitle>
+                  <CardDescription>Последние сборки и активный релиз.</CardDescription>
+                </div>
+                <CardAction><Link className="link-action" to="/builds">Открыть</Link></CardAction>
+              </CardHeader>
+              <CardContent className="compact-list">
+                {builds.slice(0, 5).map((build) => (
+                  <Link key={build.id} className="compact-row" to={`/builds/${build.id}`}>
+                    <span className="row-icon"><IconBox size={15} /></span>
+                    <span className="compact-row-main">
+                      <strong>{build.name}</strong>
+                      <small>{build.loaderKind} · MC {build.mcVersion} · v{build.version}</small>
+                    </span>
+                    {build.isActive && <span className="badge active">активная</span>}
+                  </Link>
+                ))}
+                {builds.length === 0 && <p className="muted">Сборок пока нет.</p>}
+              </CardContent>
+            </Card>
 
-      <section className="overview-action-grid overview-quick-actions">
-        <Link className="overview-action-card" to={activeBuild ? `/builds/${activeBuild.id}` : "/builds"}>
-          <span className="row-icon"><IconBox size={16} /></span>
-          <div>
-            <strong>{activeBuild ? "Открыть активную сборку" : "Перейти к сборкам"}</strong>
-            <small>{activeBuild ? `${activeBuild.loaderKind} · MC ${activeBuild.mcVersion}` : "Проверить релизы, файлы и версии"}</small>
-          </div>
-        </Link>
-        <Link className="overview-action-card" to="/accounts">
-          <span className="row-icon"><IconUsers size={16} /></span>
-          <div>
-            <strong>Проверить игроков</strong>
-            <small>{totals.linked}/{accounts.length} аккаунтов связаны с Telegram</small>
-          </div>
-        </Link>
-        <Link className="overview-action-card" to="/settings">
-          <span className="row-icon"><IconSettings size={16} /></span>
-          <div>
-            <strong>Открыть инфраструктуру</strong>
-            <small>Telegram, SFTP и authlib-injector в одном разделе</small>
-          </div>
-        </Link>
-      </section>
+            <Card className="panel-flat">
+              <CardHeader>
+                <div>
+                  <span className="eyebrow">Статус сервисов</span>
+                  <CardTitle>Сервисы</CardTitle>
+                  <CardDescription>Статистика аккаунтов, привязок и модерации.</CardDescription>
+                </div>
+                <CardAction><Link className="link-action" to="/accounts">Открыть</Link></CardAction>
+              </CardHeader>
+              <CardContent className="compact-list">
+                <InfoLine icon={<IconUsers size={15} />} label="Auth / аккаунты" value={`${accounts.length} игроков`} />
+                <InfoLine icon={<IconUsers size={15} />} label="Telegram привязан" value={`${totals.linked}/${accounts.length}`} />
+                <InfoLine icon={<IconUsers size={15} />} label="Администраторы" value={String(totals.admins)} />
+                <InfoLine icon={<IconUsers size={15} />} label="Баны" value={String(totals.banned)} />
+              </CardContent>
+            </Card>
+          </section>
+        </>
+      )}
     </div>
   );
 }

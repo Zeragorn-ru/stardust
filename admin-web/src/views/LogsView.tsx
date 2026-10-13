@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { ServerLogEntry, ServerLogSummary } from "../types";
 import { formatTelemetryTime } from "../format";
@@ -15,6 +16,12 @@ const labels: Record<string, string> = {
   server_crash: "Краш сервера",
 };
 
+/** Вкладки-фильтры по eventType (план 3.7): «Все» + известные типы. */
+const FILTER_TABS: Array<{ value: string; label: string }> = [
+  { value: "all", label: "Все события" },
+  ...Object.entries(labels).map(([value, label]) => ({ value, label })),
+];
+
 export function LogsView({ mobile = false }: { mobile?: boolean }) {
   const [logs, setLogs] = useState<ServerLogSummary[]>([]);
   const [averageOnline, setAverageOnline] = useState<number | null>(null);
@@ -24,6 +31,36 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+
+  // Глубокая ссылка ?type=external_mods (план 3.7): фильтр живёт в query,
+  // поэтому ссылкой можно поделиться и она переживает перезагрузку.
+  // Мобильный шелл — вне data-роутера: useSearchParams там недоступен,
+  // поэтому на mobile читаем window.location.search напрямую.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [mobileType, setMobileType] = useState<string>(() =>
+    new URLSearchParams(window.location.search).get("type") ?? "all",
+  );
+  const typeFilter = mobile
+    ? mobileType
+    : searchParams.get("type") ?? "all";
+
+  const setTypeFilter = useCallback((value: string) => {
+    if (mobile) {
+      setMobileType(value);
+      return;
+    }
+    setSearchParams((params) => {
+      if (value === "all") params.delete("type");
+      else params.set("type", value);
+      return params;
+    });
+  }, [mobile, setSearchParams]);
+
+  // Фильтрация локальная: журнал уже загружен целиком, вкладка меняет
+  // только видимый срез — без повторного запроса.
+  const visibleLogs = typeFilter === "all"
+    ? logs
+    : logs.filter((log) => log.eventType === typeFilter);
 
   const load = useCallback(async () => {
     // Защита от наложения запросов: интервал, возврат на вкладку и ручное
@@ -103,6 +140,23 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
         </section>
       )}
 
+      {/* Вкладки-фильтры по eventType (план 3.7). На фильтре считаем,
+          сколько событий в срезе, чтобы пустая вкладка была предсказуема. */}
+      <div className="logs-tabs seg" role="tablist" aria-label="Фильтр по типу события">
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={typeFilter === tab.value}
+            className={`seg-btn${typeFilter === tab.value ? " active" : ""}`}
+            onClick={() => setTypeFilter(tab.value)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {loading ? <p className="muted"><span className="spinner" /> Загрузка…</p> : error && logs.length === 0 ? (
         <section className="panel panel-flat logs-empty" role="alert">
           <strong>{error}</strong>
@@ -115,6 +169,12 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
           <p className="muted">События появятся после первого запуска клиента или входа игрока и подтянутся автоматически.</p>
           <button className="secondary" type="button" onClick={() => void load()} disabled={refreshing}>Проверить сейчас</button>
         </section>
+      ) : visibleLogs.length === 0 ? (
+        <section className="panel panel-flat logs-empty">
+          <strong>Событий этого типа пока нет</strong>
+          <p className="muted">На вкладке «Все события» видно весь журнал целиком.</p>
+          <button className="secondary" type="button" onClick={() => setTypeFilter("all")}>Показать все</button>
+        </section>
       ) : (
         <>
           {error && (
@@ -126,7 +186,7 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
             </div>
           )}
           <section className="logs-list">
-            {logs.map((log) => (
+            {visibleLogs.map((log) => (
               <button
                 className={`panel panel-flat log-card log-card--${log.eventType}`}
                 key={log.id}

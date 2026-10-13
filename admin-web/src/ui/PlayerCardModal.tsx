@@ -1,36 +1,86 @@
 // Модальное окно карточки игрока с вкладками: Общее, Бейджи, Действия.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, Badge, Gradient, PlayerStats } from "../types";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { useDialogFocus } from "../ui/useDialogFocus";
 import { SkinHead } from "../ui/SkinHead";
 import { useConfirm, useToast } from "./feedback";
+import { Button } from "./shadcn";
+import { useDirtyGuard } from "./useDirtyGuard";
 import { PlayerSkinTab } from "./PlayerSkinTab";
 import { formatDateTime, formatPlaytime } from "../format";
 import { normalizeMinecraftText } from "../minecraftText";
 
 type Tab = "info" | "skin" | "badges" | "actions";
 
+// Порядок вкладок — единственный источник для tablist и стрелочной
+// навигации (Left/Right/Home/End, план 9).
+const TAB_ENTRIES = [
+  ["info", "Общее"],
+  ["skin", "Скин"],
+  ["badges", "Бейджи"],
+  ["actions", "Действия"],
+] as const satisfies readonly [Tab, string][];
+const TAB_KEYS = TAB_ENTRIES.map(([key]) => key) as readonly Tab[];
+
 interface Props {
   account: Account;
   /** true, если карточка открыта на самом себе — блокируем снятие прав. */
   isSelf?: boolean;
+  /** Уже загруженная статистика игрока (план 3.3: не рефетчить в InfoTab). */
+  stats?: PlayerStats;
   onClose: () => void;
   onUpdated: (account: Account) => void;
   onDeleted: (uuid: string) => void;
 }
 
-export function PlayerCardModal({ account, isSelf = false, onClose, onUpdated, onDeleted }: Props) {
+export function PlayerCardModal({ account, isSelf = false, stats, onClose, onUpdated, onDeleted }: Props) {
   const [tab, setTab] = useState<Tab>("info");
-  const onCloseRef = useRef(onClose);
   const dialogRef = useRef<HTMLDivElement>(null);
-  onCloseRef.current = onClose;
   useBodyScrollLock();
-  useDialogFocus(dialogRef, () => onCloseRef.current());
+
+  // Правки в вкладках Actions/Badges не должны теряться от случайного
+  // Escape/подложки: карточка в целом закрывается через tryClose (план 4.4).
+  // Сами вкладки хранят локальные черновики — см. dirty-колбэки ниже.
+  const [infoDirty, setInfoDirty] = useState(false);
+  const tryClose = useDirtyGuard({
+    isDirty: infoDirty,
+    onClose,
+    body: "Изменения в карточке игрока не сохранены.",
+  });
+
+  // Смена вкладки размонтирует редактируемую вкладку: её черновик уже
+  // не спасти закрытием карточки, поэтому сигнал dirty сбрасываем.
+  function switchTab(next: Tab) {
+    setInfoDirty(false);
+    setTab(next);
+  }
+
+  // Клавиатурная навигация tablist: Left/Right/Home/End перебирают
+  // вкладки без выхода из контейнера, Tab уводит фокус дальше по диалогу.
+  function onTabsKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    const keys = TAB_KEYS;
+    const idx = keys.indexOf(tab);
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      switchTab(keys[(idx + 1) % keys.length]);
+    } else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      switchTab(keys[(idx - 1 + keys.length) % keys.length]);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      switchTab(keys[0]);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      switchTab(keys[keys.length - 1]);
+    }
+  }
+
+  useDialogFocus(dialogRef, () => void tryClose());
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={() => void tryClose()}>
       <div
         ref={dialogRef}
         className="modal modal-wide player-card-modal"
@@ -49,44 +99,60 @@ export function PlayerCardModal({ account, isSelf = false, onClose, onUpdated, o
               {account.uuid}
             </div>
           </div>
-          <button className="icon-only pc-close" onClick={onClose} aria-label="Закрыть">
+          <button className="icon-only pc-close" onClick={() => void tryClose()} aria-label="Закрыть">
             ×
           </button>
         </div>
 
-        {/* Вкладки */}
-        <div className="pc-tabs">
-          {([
-            ["info", "Общее"],
-            ["skin", "Скин"],
-            ["badges", "Бейджи"],
-            ["actions", "Действия"],
-          ] as const).map(([key, label]) => (
-            <button
-              key={key}
-              className={"pc-tab" + (tab === key ? " active" : "")}
-              onClick={() => setTab(key)}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Вкладки — tablist: стрелки/Home/End перебирают вкладки,
+            неактивные уходят из tab-порядка (классический паттерн ARIA). */}
+        <div
+          className="pc-tabs"
+          role="tablist"
+          aria-label="Разделы карточки игрока"
+          onKeyDown={onTabsKeyDown}
+        >
+          {TAB_ENTRIES.map(([key, label]) => {
+            const selected = tab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`pc-tab-${key}`}
+                aria-selected={selected}
+                aria-controls="pc-tabpanel"
+                tabIndex={selected ? 0 : -1}
+                className={"pc-tab" + (selected ? " active" : "")}
+                onClick={() => switchTab(key)}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Контент */}
-        <div className="pc-body">
+        {/* Контент — единая панель вкладок (role=tabpanel). */}
+        <div
+          className="pc-body"
+          role="tabpanel"
+          id="pc-tabpanel"
+          aria-labelledby={`pc-tab-${tab}`}
+        >
           {tab === "info" && (
-            <InfoTab account={account} />
+            <InfoTab account={account} stats={stats} />
           )}
           {tab === "skin" && (
             <PlayerSkinTab account={account} onUpdated={onUpdated} />
           )}
           {tab === "badges" && (
-            <BadgesTab account={account} />
+            <BadgesTab account={account} onDirtyChange={setInfoDirty} />
           )}
           {tab === "actions" && (
             <ActionsTab
               account={account}
               isSelf={isSelf}
+              onDirtyChange={setInfoDirty}
               onClose={onClose}
               onUpdated={onUpdated}
               onDeleted={onDeleted}
@@ -100,13 +166,7 @@ export function PlayerCardModal({ account, isSelf = false, onClose, onUpdated, o
 
 // ─── Вкладка «Общее» ───
 
-function InfoTab({ account }: { account: Account }) {
-  const [stats, setStats] = useState<PlayerStats | null>(null);
-
-  useEffect(() => {
-    api.getAccountStats(account.uuid).then(setStats).catch(() => {});
-  }, [account.uuid]);
-
+function InfoTab({ account, stats }: { account: Account; stats?: PlayerStats }) {
   return (
     <div className="pc-info">
       <table className="pc-info-table">
@@ -151,7 +211,7 @@ function InfoTab({ account }: { account: Account }) {
               </td>
             </tr>
           )}
-          {stats && (
+          {stats ? (
             <>
               <tr>
                 <td className="muted">Время в игре</td>
@@ -166,6 +226,11 @@ function InfoTab({ account }: { account: Account }) {
                 </td>
               </tr>
             </>
+          ) : (
+            <tr>
+              <td className="muted">Статистика</td>
+              <td className="muted">недоступна</td>
+            </tr>
           )}
         </tbody>
       </table>
@@ -177,8 +242,11 @@ function InfoTab({ account }: { account: Account }) {
 
 function BadgesTab({
   account,
+  onDirtyChange,
 }: {
   account: Account;
+  /** Сообщает карточке, есть ли несохранённые правки (dirty-guard). */
+  onDirtyChange: (dirty: boolean) => void;
 }) {
   const toast = useToast();
   const [data, setData] = useState<{
@@ -188,6 +256,7 @@ function BadgesTab({
     ownedGradientIds: number[];
     activeBadgeId: number | null;
     activeGradientId: number | null;
+    pristine: { ownedBadgeIds: number[]; ownedGradientIds: number[]; activeBadgeId: number | null; activeGradientId: number | null };
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -198,13 +267,20 @@ function BadgesTab({
     setError(null);
     try {
       const c = await api.getAccountCustomization(account.uuid);
-      setData({
-        availableBadges: c.availableBadges,
-        availableGradients: c.availableGradients,
+      const pristine = {
         ownedBadgeIds: c.ownedBadgeIds ?? (c.activeBadgeId != null ? [c.activeBadgeId] : []),
         ownedGradientIds: c.ownedGradientIds ?? (c.activeGradientId != null ? [c.activeGradientId] : []),
         activeBadgeId: c.activeBadgeId,
         activeGradientId: c.activeGradientId,
+      };
+      setData({
+        availableBadges: c.availableBadges,
+        availableGradients: c.availableGradients,
+        ownedBadgeIds: pristine.ownedBadgeIds,
+        ownedGradientIds: pristine.ownedGradientIds,
+        activeBadgeId: pristine.activeBadgeId,
+        activeGradientId: pristine.activeGradientId,
+        pristine,
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось загрузить кастомизацию");
@@ -214,6 +290,21 @@ function BadgesTab({
   }, [account.uuid]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Dirty для карточки: черновики галочек/активных пунктов против серверных.
+  const dirty = useMemo(() => {
+    if (!data) return false;
+    const same = (a: number[], b: number[]) =>
+      a.length === b.length && a.every((x) => b.includes(x));
+    return (
+      !same(data.ownedBadgeIds, data.pristine.ownedBadgeIds) ||
+      !same(data.ownedGradientIds, data.pristine.ownedGradientIds) ||
+      data.activeBadgeId !== data.pristine.activeBadgeId ||
+      data.activeGradientId !== data.pristine.activeGradientId
+    );
+  }, [data]);
+
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
 
   async function toggleBadge(id: number) {
     if (!data) return;
@@ -293,14 +384,18 @@ function BadgesTab({
                   <span className="pc-check-label">{b.label}</span>
                   {owned && (
                     <button
-                      className={"pc-active-dot" + (active ? " active" : "")}
+                      type="button"
+                      className={"pc-active-toggle" + (active ? " active" : "")}
+                      aria-pressed={active}
                       title={active ? "Активный бейдж" : "Сделать активным"}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setData({ ...data, activeBadgeId: active ? null : b.id });
                       }}
-                    />
+                    >
+                      <span className="pc-active-toggle__dot" aria-hidden="true" />
+                    </button>
                   )}
                 </label>
               );
@@ -333,14 +428,18 @@ function BadgesTab({
                   <span className="pc-check-label">{g.label}</span>
                   {owned && (
                     <button
-                      className={"pc-active-dot" + (active ? " active" : "")}
+                      type="button"
+                      className={"pc-active-toggle" + (active ? " active" : "")}
+                      aria-pressed={active}
                       title={active ? "Активный градиент" : "Сделать активным"}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setData({ ...data, activeGradientId: active ? null : g.id });
                       }}
-                    />
+                    >
+                      <span className="pc-active-toggle__dot" aria-hidden="true" />
+                    </button>
                   )}
                 </label>
               );
@@ -389,12 +488,15 @@ function BadgesTab({
 function ActionsTab({
   account,
   isSelf = false,
+  onDirtyChange,
   onClose,
   onUpdated,
   onDeleted,
 }: {
   account: Account;
   isSelf?: boolean;
+  /** Сообщает карточке, есть ли несохранённые правки (dirty-guard). */
+  onDirtyChange: (dirty: boolean) => void;
   onClose: () => void;
   onUpdated: (a: Account) => void;
   onDeleted: (uuid: string) => void;
@@ -409,6 +511,15 @@ function ActionsTab({
   const [banDuration, setBanDuration] = useState("1");
   const [banDurationUnit, setBanDurationUnit] = useState<"hours" | "days" | "weeks">("days");
 
+  // Черновики полей — сигнал карточке для dirty-guard (план 4.4).
+  const dirty =
+    username.trim() !== account.username ||
+    password.length > 0 ||
+    banReason.trim().length > 0 ||
+    banMode !== "forever" ||
+    banDuration !== "1";
+  useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
+
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim() || username.trim() === account.username) return;
@@ -417,7 +528,7 @@ function ActionsTab({
       onUpdated(await api.renameAccount(account.uuid, username.trim()));
       toast.success("Ник изменен");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");
     } finally {
       setBusy(false);
     }
@@ -432,7 +543,7 @@ function ActionsTab({
       toast.success("Пароль сброшен");
       setPassword("");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");
     } finally {
       setBusy(false);
     }
@@ -454,7 +565,7 @@ function ActionsTab({
       onUpdated(await api.setRole(account.uuid, makeAdmin ? "admin" : "user"));
       toast.success(makeAdmin ? "Права администратора выданы" : "Права администратора сняты");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");
     } finally {
       setBusy(false);
     }
@@ -484,7 +595,7 @@ function ActionsTab({
       setBanDuration("1");
       setBanDurationUnit("days");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");
     } finally {
       setBusy(false);
     }
@@ -502,7 +613,7 @@ function ActionsTab({
       onUpdated(await api.unbanAccount(account.uuid));
       toast.success("Бан снят");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");
     } finally {
       setBusy(false);
     }
@@ -523,7 +634,7 @@ function ActionsTab({
       toast.success("Аккаунт удален");
       onClose();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Ошибка");
+      toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");
     } finally {
       setBusy(false);
     }
@@ -588,6 +699,11 @@ function ActionsTab({
 
       {!account.banned && (
         <form onSubmit={handleBan} style={{ display: "grid", gap: 10, marginTop: 8 }}>
+          {account.isAdmin && (
+            <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+              Администратора нельзя забанить/удалить — сначала снимите права.
+            </p>
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <label className="checkbox-row" style={{ flex: "0 0 auto", margin: 0 }}>
               <input
@@ -650,23 +766,30 @@ function ActionsTab({
               style={{ width: "100%" }}
             />
           </div>
-          <button type="submit" disabled={busy || account.isAdmin} className="danger-solid" style={{ padding: "8px 14px", height: 38 }}>
+          {/* Destructive-словарь — tinted sd-button (план 1.2):
+              danger-solid остаётся только внутри ConfirmDialog. */}
+          <Button type="submit" variant="destructive" disabled={busy || account.isAdmin} style={{ height: 38, flex: "none" }}>
             Забанить
-          </button>
+          </Button>
           </div>
         </form>
       )}
 
       {/* Удаление аккаунта */}
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 12 }}>
-        <button
-          className="danger-solid"
+        {account.isAdmin && (
+          <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+            Администратора нельзя забанить/удалить — сначала снимите права.
+          </p>
+        )}
+        <Button
+          variant="destructive"
           disabled={busy || account.isAdmin}
           onClick={doDelete}
-          style={{ width: "100%", justifyContent: "center" }}
+          style={{ width: "100%" }}
         >
           Удалить аккаунт
-        </button>
+        </Button>
       </div>
     </div>
   );

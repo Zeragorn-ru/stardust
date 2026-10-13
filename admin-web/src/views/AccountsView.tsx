@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, PlayerStats } from "../types";
 import { useToast } from "../ui/feedback";
 import { IconCopy, IconSearch, IconSync } from "../ui/icons";
 import { PlayerCardModal } from "../ui/PlayerCardModal";
+import { EmptyPanel, ErrorPanel, LoadPanel } from "../ui/EmptyState";
 import { formatDateTime, formatPlaytime } from "../format";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
 
@@ -77,11 +78,44 @@ function readAccountFilterPreferences(): Partial<AccountFilterPreferences> {
   }
 }
 
+const ROLE_LABELS: Record<RoleFilter, string> = {
+  all: "Все",
+  admin: "Админы",
+  user: "Игроки",
+};
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: "Все",
+  active: "Активные",
+  banned: "В бане",
+};
+
+const TELEGRAM_LABELS: Record<TelegramFilter, string> = {
+  all: "Все",
+  linked: "Привязан",
+  unlinked: "Не привязан",
+};
+
+const ACTIVITY_LABELS: Record<ActivityFilter, string> = {
+  all: "Все",
+  joined: "Заходили",
+  never: "Без входов",
+};
+
+const SORT_LABELS: Record<AccountSort, string> = {
+  username: "По имени",
+  role: "Админы сверху",
+  playtime: "По времени в игре",
+  lastJoined: "По последнему входу",
+};
+
 export function AccountsView() {
   const toast = useToast();
   const initialFilters = useMemo(() => readAccountFilterPreferences(), []);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState(initialFilters.query ?? "");
   const [roleFilter, setRoleFilter] = useState<RoleFilter>(initialFilters.roleFilter ?? "all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(initialFilters.statusFilter ?? "all");
@@ -91,7 +125,6 @@ export function AccountsView() {
   const [selfUuid, setSelfUuid] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [accountStats, setAccountStats] = useState<Record<string, PlayerStats>>({});
   const [statsErrorCount, setStatsErrorCount] = useState(0);
 
@@ -112,36 +145,44 @@ export function AccountsView() {
     }
   }
 
+  // Двухфазная загрузка (план 3.3): список аккаунтов рендерится сразу,
+  // статистика каждого догружается в фоне (ячейки «…» до её прихода).
+  // TODO: batched-эндпоинт статистики одним запросом — вне скоупа UI-плана.
+  const firstLoadDone = useRef(false);
   const load = useCallback(async () => {
+    // Повторный вызов (после сбоя, кнопкой «Повторить» или после
+    // синхронизации) — это фоновой рефреш, экран уже отрисован.
+    if (firstLoadDone.current) setRefreshing(true);
     try {
       const nextAccounts = await api.listAccounts();
       setAccounts(nextAccounts);
-
-      const statsEntries = await Promise.allSettled(
-        nextAccounts.map(async (account) => [
-          account.uuid,
-          await api.getAccountStats(account.uuid),
-        ] as const),
-      );
-      const nextStats: Record<string, PlayerStats> = {};
-      let failedStats = 0;
-      for (const result of statsEntries) {
-        if (result.status === "fulfilled") {
-          nextStats[normalizeUuid(result.value[0])] = result.value[1];
-        } else {
-          failedStats += 1;
-        }
-      }
-      setAccountStats(nextStats);
-      setStatsErrorCount(failedStats);
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось загрузить аккаунты",
-      );
-    } finally {
+      setListError(null);
       setLoading(false);
+      firstLoadDone.current = true;
+
+      setStatsErrorCount(0);
+      await Promise.all(
+        nextAccounts.map(async (account) => {
+          try {
+            const stats = await api.getAccountStats(account.uuid);
+            setAccountStats((cur) => ({
+              ...cur,
+              [normalizeUuid(account.uuid)]: stats,
+            }));
+          } catch {
+            setStatsErrorCount((cur) => cur + 1);
+          }
+        }),
+      );
+    } catch (err) {
+      // Сбой загрузки списка — это не «Аккаунтов пока нет» (план 3.3):
+      // показываем ErrorPanel с причиной и «Повторить».
+      setListError(err instanceof ApiError ? err.message : "Не удалось загрузить аккаунты");
+      setLoading(false);
+    } finally {
+      setRefreshing(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -202,6 +243,8 @@ export function AccountsView() {
 
   const adminCount = accounts.filter((a) => a.isAdmin).length;
   const bannedCount = accounts.filter((a) => a.banned).length;
+  // Чипы показываем для всего, что реально влияет на выборку: сортировка
+  // состав меняет, но показывает порядок — тоже видимая настройка.
   const filtersActive = Boolean(query.trim()) || roleFilter !== "all" || statusFilter !== "all" || telegramFilter !== "all" || activityFilter !== "all" || sortBy !== "username";
 
   function resetFilters() {
@@ -213,11 +256,35 @@ export function AccountsView() {
     setSortBy("username");
   }
 
+  function resetQuery() {
+    setQuery("");
+  }
+
+  function resetRole() {
+    setRoleFilter("all");
+  }
+
+  function resetStatus() {
+    setStatusFilter("all");
+  }
+
+  function resetTelegram() {
+    setTelegramFilter("all");
+  }
+
+  function resetActivity() {
+    setActivityFilter("all");
+  }
+
+  function resetSort() {
+    setSortBy("username");
+  }
+
   return (
     <div className="view accounts-view">
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Каталог игроков</span>
+          <span className="eyebrow">Игроки</span>
           <h1>Аккаунты</h1>
           <p className="muted">
             {accounts.length} всего · {adminCount} админ(ов) · {bannedCount} в бане
@@ -246,18 +313,56 @@ export function AccountsView() {
         <div className="metric-card metric-card--red"><span>Баны</span><strong>{bannedCount}</strong><small>ограниченный доступ</small></div>
       </div>
 
-      <div className="accounts-filter-toolbar">
-        <Button
-          className="accounts-filter-toggle"
-          variant="secondary"
-          onClick={() => setFiltersOpen((open) => !open)}
-          aria-expanded={filtersOpen}
-          aria-controls="accounts-filters"
-        >
-          Фильтры{filtersActive ? " · применены" : ""}
-        </Button>
+      {/* Активные фильтры всегда видимы над таблицей (план 3.3): раньше
+          сохранённое в localStorage состояние было спрятано за свёрнутой
+          панелью, и отфильтрованный список выглядел как «Аккаунтов нет».
+          Чипы по образцу .fm-chips из FileManager: «×» снимает один
+          фильтр, «Сбросить все» — весь набор. */}
+      <div className="fm-chips accounts-chips" aria-label="Активные фильтры">
+        {query.trim() !== "" && (
+          <span className="fm-chip">
+            Поиск: {query.trim()}
+            <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: поиск" onClick={resetQuery}>×</button>
+          </span>
+        )}
+        {roleFilter !== "all" && (
+          <span className="fm-chip">
+            Роль: {ROLE_LABELS[roleFilter]}
+            <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: роль" onClick={resetRole}>×</button>
+          </span>
+        )}
+        {statusFilter !== "all" && (
+          <span className="fm-chip">
+            Статус: {STATUS_LABELS[statusFilter]}
+            <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: статус" onClick={resetStatus}>×</button>
+          </span>
+        )}
+        {telegramFilter !== "all" && (
+          <span className="fm-chip">
+            Telegram: {TELEGRAM_LABELS[telegramFilter]}
+            <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: Telegram" onClick={resetTelegram}>×</button>
+          </span>
+        )}
+        {activityFilter !== "all" && (
+          <span className="fm-chip">
+            Активность: {ACTIVITY_LABELS[activityFilter]}
+            <button type="button" className="fm-chip-x" aria-label="Убрать фильтр: активность" onClick={resetActivity}>×</button>
+          </span>
+        )}
+        {sortBy !== "username" && (
+          <span className="fm-chip">
+            Сортировка: {SORT_LABELS[sortBy]}
+            <button type="button" className="fm-chip-x" aria-label="Сбросить сортировку" onClick={resetSort}>×</button>
+          </span>
+        )}
+        {filtersActive && (
+          <button className="fm-chip fm-chip-reset" type="button" onClick={resetFilters}>
+            Сбросить все
+          </button>
+        )}
       </div>
-      <div id="accounts-filters" className={`panel panel-flat accounts-filter-panel${filtersOpen ? " is-open" : ""}`}>
+
+      <div className="panel panel-flat accounts-filter-panel">
         <div className="filter-summary"><strong>{filtered.length}</strong><span>показано из {accounts.length}</span></div>
         <label>
           Роль
@@ -315,16 +420,21 @@ export function AccountsView() {
 
       <div className="panel panel-flat table-panel">
         {loading ? (
-          <p className="muted">
-            <span className="spinner" />
-            Загрузка…
-          </p>
+          <LoadPanel>Загрузка аккаунтов…</LoadPanel>
+        ) : listError ? (
+          <ErrorPanel title="Не удалось загрузить аккаунты" onRetry={load} busy={refreshing}>
+            {listError}
+          </ErrorPanel>
         ) : filtered.length === 0 ? (
-          <p className="muted">
-            {accounts.length === 0
-              ? "Аккаунтов пока нет."
-              : "Ничего не найдено."}
-          </p>
+          accounts.length === 0 ? (
+            <EmptyPanel title="Аккаунтов пока нет">
+              Игроки появятся после первой регистрации или входа через лаунчер.
+            </EmptyPanel>
+          ) : (
+            <EmptyPanel title="Ничего не найдено">
+              Под текущие фильтры не подходит ни один аккаунт — ослабьте условия или сбросьте фильтры.
+            </EmptyPanel>
+          )
         ) : (
           <Table>
             <TableHeader>
@@ -397,10 +507,14 @@ export function AccountsView() {
                       </span>
                     </TableCell>
                     <TableCell data-label="В игре">
-                      <span className="account-stat-value">{formatPlaytime(stats?.playtimeSeconds)}</span>
+                      <span className="account-stat-value">
+                        {stats ? formatPlaytime(stats.playtimeSeconds) : "…"}
+                      </span>
                     </TableCell>
                     <TableCell data-label="Последний вход">
-                      <span className="account-stat-value">{formatLastJoin(stats?.lastJoinedAt)}</span>
+                      <span className="account-stat-value">
+                        {stats ? formatLastJoin(stats.lastJoinedAt) : "…"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span className="row-arrow">→</span>
@@ -417,6 +531,8 @@ export function AccountsView() {
         <PlayerCardModal
           account={selectedAccount}
           isSelf={selfUuid !== null && selfUuid === normalizeUuid(selectedAccount.uuid)}
+          // Статистика уже загружена таблицей — InfoTab не рефетчит (план 3.3).
+          stats={accountStats[normalizeUuid(selectedAccount.uuid)]}
           onClose={() => setSelectedAccount(null)}
           onUpdated={(updated) => {
             setAccounts((prev) => prev.map((a) => (a.uuid === updated.uuid ? updated : a)));

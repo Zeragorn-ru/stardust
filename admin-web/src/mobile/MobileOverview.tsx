@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
 import { parseDate } from "../format";
 import { useToast } from "../ui/feedback";
+import { useAsyncData } from "../ui/useAsyncData";
+import { ErrorPanel, LoadPanel, StaleBanner } from "../ui/EmptyState";
 import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
 
 type MobileTab = "overview" | "builds" | "accounts" | "customization" | "settings";
@@ -12,47 +14,41 @@ type MobileOverviewProps = {
   onOpenBuild: (buildId: number) => void;
 };
 
+/** Сводные данные обзора: основная тройка запросов + необязательная телеметрия. */
+interface OverviewData {
+  builds: BuildHeader[];
+  accounts: Account[];
+  settings: Settings;
+  telemetry: ServerTelemetry | null;
+}
+
 export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) {
   const toast = useToast();
-  const [builds, setBuilds] = useState<BuildHeader[]>([]);
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [telemetry, setTelemetry] = useState<ServerTelemetry | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const [nextBuilds, nextAccounts, nextSettings] = await Promise.all([
-          api.listBuilds(),
-          api.listAccounts(),
-          api.getSettings(),
-        ]);
-        if (cancelled) return;
-        setBuilds(nextBuilds);
-        setAccounts(nextAccounts);
-        setSettings(nextSettings);
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : "Не удалось загрузить обзор");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-      try {
-        const nextTelemetry = await api.getServerTelemetry();
-        if (!cancelled) setTelemetry(nextTelemetry);
-      } catch {
-        /* telemetry optional */
-      }
+  // Тот же общий хук, что и в десктопном обзоре (план 3.1): опрос
+  // останавливается на скрытой вкладке, при возврате — немедленный догруз.
+  const fetcher = useCallback(async (): Promise<OverviewData> => {
+    const [builds, accounts, settings] = await Promise.all([
+      api.listBuilds(),
+      api.listAccounts(),
+      api.getSettings(),
+    ]);
+    let telemetry: ServerTelemetry | null = null;
+    try {
+      telemetry = await api.getServerTelemetry();
+    } catch {
+      /* телеметрия опциональна */
     }
-    load();
-    const timer = window.setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [toast]);
+    return { builds, accounts, settings, telemetry };
+  }, []);
+
+  const { data, loading, refreshing, error, reload } = useAsyncData(fetcher, { pollMs: 30_000 });
+
+  const builds = data?.builds ?? [];
+  const accounts = data?.accounts ?? [];
+  const settings = data?.settings ?? null;
+  const telemetry = data?.telemetry ?? null;
 
   const activeBuild = builds.find((b) => b.isActive) ?? null;
   const stats = useMemo(() => ({
@@ -66,6 +62,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
     try {
       const res = await api.syncStats();
       toast.success(`Статистика обновлена: ${res.updated} игроков`);
+      reload();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Ошибка синхронизации");
     } finally {
@@ -85,14 +82,28 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         </div>
       </section>
 
-      <div className="m-metric-grid">
-        <Metric label="Сборки" value={loading ? "..." : String(builds.length)} hint={activeBuild?.name ?? "активная не выбрана"} tone="blue" />
-        <Metric label="Игроки" value={loading ? "..." : String(accounts.length)} hint={`${stats.admins} админ · ${stats.banned} бан`} tone="green" />
-       <Metric label="Telegram" value={settings?.telegramTokenSet ? "подключён" : "не настроен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
-       <Metric label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "настроить"} hint={settings?.sftpHost || "хост не задан"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
-      </div>
+      {loading ? (
+        <LoadPanel>Загружаем сводку…</LoadPanel>
+      ) : !data ? (
+        <ErrorPanel title="Не удалось загрузить обзор" onRetry={reload} busy={refreshing}>
+          {error}
+        </ErrorPanel>
+      ) : (
+        <>
+          {error && (
+            // Фоновый сбой при непустых данных: причина и «Повторить»,
+            // список и карточки остаются на экране.
+            <StaleBanner onRetry={reload} busy={refreshing}>{error}</StaleBanner>
+          )}
 
-      {telemetry && telemetry.samples.length > 0 && (() => {
+          <div className="m-metric-grid">
+            <Metric label="Сборки" value={String(builds.length)} hint={activeBuild?.name ?? "активная не выбрана"} tone="blue" />
+            <Metric label="Игроки" value={String(accounts.length)} hint={`${stats.admins} админ · ${stats.banned} бан`} tone="green" />
+           <Metric label="Telegram" value={settings?.telegramTokenSet ? "подключён" : "не настроен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
+           <Metric label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "настроить"} hint={settings?.sftpHost || "хост не задан"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+          </div>
+
+          {telemetry && telemetry.samples.length > 0 && (() => {
         const threeHoursAgo = Date.now() - 3 * 60 * 60 * 1000;
         const samples = telemetry.samples.filter((sample) => {
           const recordedAt = parseDate(sample.recordedAt)?.getTime();
@@ -157,9 +168,11 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                   <h2>График онлайна</h2>
                 </div>
               </div>
+              {/* Чарт на общих классах .telemetry-chart-wrap/.telemetry-chart
+                  (план 3.1): инлайн-стили со старым синим градиентом убраны. */}
               <div className="m-telemetry-chart-wrap">
-                <div style={{ overflowX: "auto", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "linear-gradient(180deg, rgba(76,139,245,.07), transparent)", padding: "0 8px 6px" }}>
-                  <svg viewBox={`0 0 ${w} ${h}`} style={{ display: "block", width: "100%", height: 120 }}>
+                <div className="telemetry-chart-wrap">
+                  <svg className="telemetry-chart telemetry-chart--mobile" viewBox={`0 0 ${w} ${h}`}>
                     <defs>
                       <linearGradient id="m-online-fill" x1="0" x2="0" y1="0" y2="1">
                         <stop offset="0" stopColor="var(--accent)" stopOpacity=".34" />
@@ -169,7 +182,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                     <polyline points={`0,${h} ${pathPoints} ${w},${h}`} fill="url(#m-online-fill)" stroke="none" />
                     <polyline points={pathPoints} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <div style={{ display: "flex", justifyContent: "space-between", color: "var(--faint)", fontSize: 10 }}><span>3ч назад</span><span>сейчас</span></div>
+                  <div className="telemetry-axis"><span>3ч назад</span><span>сейчас</span></div>
                 </div>
               </div>
             </section>
@@ -177,7 +190,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         );
       })()}
 
-      <section className="m-section-card">
+          <section className="m-section-card">
         <div className="m-section-head">
           <div>
              <span className="m-eyebrow">Поставка сборки</span>
@@ -213,14 +226,14 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         </button>
         <button className="m-wide-action" type="button" onClick={() => onOpenTab("customization")}>
           <span className="m-row-icon"><IconBox size={16} /></span>
-          <span className="m-row-main"><strong>Косметика</strong><small>Бейджи и градиенты ника</small></span>
+          <span className="m-row-main"><strong>Кастомизация</strong><small>Бейджи и градиенты ника</small></span>
         </button>
       </section>
 
       <section className="m-section-card">
         <div className="m-section-head">
           <div>
-            <span className="m-eyebrow">Веб-приложение для iOS</span>
+            <span className="m-eyebrow">Быстрый доступ</span>
             <h2>Частые сценарии</h2>
           </div>
         </div>
@@ -230,11 +243,13 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
             <small>Открыть релизы, файлы и активную версию</small>
           </button>
           <button className="m-journey-card" type="button" onClick={() => onOpenTab("settings")}>
-            <strong>Интеграции</strong>
+            <strong>Настройки</strong>
             <small>Проверить Telegram, SFTP и backend-настройки</small>
           </button>
         </div>
       </section>
+        </>
+      )}
     </div>
   );
 }

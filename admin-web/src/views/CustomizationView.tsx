@@ -7,12 +7,16 @@ import type { Badge, Gradient } from "../types";
 import { useToast, useConfirm } from "../ui/feedback";
 import { useBodyScrollLock } from "../ui/useBodyScrollLock";
 import { useDialogFocus } from "../ui/useDialogFocus";
+import { useDirtyGuard } from "../ui/useDirtyGuard";
+import { Field, FieldInput } from "../ui/Field";
 import { IconPlus, IconTrash, IconPencil } from "../ui/icons";
 
 /** Валидный hex-цвет: #rgb или #rrggbb. */
 function isHexColor(value: string): boolean {
   return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value.trim());
 }
+
+const HEX_ERROR = "Формат: #rgb или #rrggbb";
 
 export function CustomizationView() {
   const toast = useToast();
@@ -111,8 +115,8 @@ export function CustomizationView() {
     <div className="view customization-view">
       <header className="view-head page-head">
         <div>
-          <span className="eyebrow">Студия кастомизации</span>
-          <h1>Кастомизация ника</h1>
+          <span className="eyebrow">Игроки</span>
+          <h1>Кастомизация</h1>
           <p className="muted">Бейджи и градиенты, которые увидят игроки в TAB и лаунчере.</p>
         </div>
       </header>
@@ -264,11 +268,25 @@ function BadgeModal({
   const [color, setColor] = useState(initial?.color ?? "#ffffff");
   const [busy, setBusy] = useState(false);
   const dialogRef = useRef<HTMLFormElement>(null);
-  useDialogFocus(dialogRef, onClose);
+
+  // Мягкая валидация hex: подсказка после выхода из поля, не сразу.
+  const [colorTouched, setColorTouched] = useState(false);
+  const colorValid = isHexColor(color);
+  const colorError = colorTouched && !colorValid ? HEX_ERROR : undefined;
+
+  // Dirty-guard: правки бейджа не теряются от Escape/подложки (план 3.5/4.4).
+  const dirty =
+    emoji !== (initial?.emoji ?? "") ||
+    label !== (initial?.label ?? "") ||
+    description !== (initial?.description ?? "") ||
+    color.trim() !== (initial?.color ?? "#ffffff");
+
+  const tryClose = useDirtyGuard({ isDirty: dirty, isBusy: busy, onClose });
+  useDialogFocus(dialogRef, () => void tryClose());
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!emoji.trim() || !label.trim() || !description.trim() || !color.trim()) return;
+    if (!emoji.trim() || !label.trim() || !description.trim() || !colorValid) return;
     setBusy(true);
     try {
       await onSave(emoji.trim(), label.trim(), description.trim(), color.trim());
@@ -281,46 +299,62 @@ function BadgeModal({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={() => void tryClose()}>
       <form ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="badge-dialog-title" tabIndex={-1} onSubmit={submit} onClick={(e) => e.stopPropagation()}>
         <h3 id="badge-dialog-title">{initial ? "Редактировать бейдж" : "Создать бейдж"}</h3>
-        <div className="field">
-          <label>Эмодзи</label>
-          <input
-            value={emoji}
-            onChange={(e) => setEmoji(e.target.value)}
-            placeholder="напр. ⭐"
-            autoFocus
-            required
-          />
-        </div>
-        <div className="field">
-          <label>Название</label>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="напр. VIP"
-            required
-          />
-        </div>
-        <div className="field">
-          <label>Цвет (hex)</label>
-          <input
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            placeholder="#ffffff"
-            required
-          />
-        </div>
-        <div className="field">
-          <label>Описание</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Что означает этот бейдж" required />
-        </div>
+        <Field label="Эмодзи">
+          {(control) => (
+            <FieldInput
+              control={control}
+              value={emoji}
+              onChange={(e) => setEmoji(e.target.value)}
+              placeholder="напр. ⭐"
+              autoFocus
+              required
+            />
+          )}
+        </Field>
+        <Field label="Название">
+          {(control) => (
+            <FieldInput
+              control={control}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="напр. VIP"
+              required
+            />
+          )}
+        </Field>
+        <Field label="Цвет (hex)" error={colorError}>
+          {(control) => (
+            <FieldInput
+              control={control}
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              onBlur={() => setColorTouched(true)}
+              placeholder="#ffffff"
+              required
+            />
+          )}
+        </Field>
+        <Field label="Описание">
+          {(control) => (
+            <textarea
+              id={control.id}
+              aria-describedby={control.describedBy}
+              aria-invalid={control.invalid || undefined}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Что означает этот бейдж"
+              required
+            />
+          )}
+        </Field>
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={() => void tryClose()} disabled={busy}>
             Отмена
           </button>
-          <button className="primary" type="submit" disabled={busy || !emoji.trim() || !label.trim() || !description.trim() || !isHexColor(color)}>
+          <button className="primary" type="submit" disabled={busy || !emoji.trim() || !label.trim() || !description.trim() || !colorValid}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
@@ -345,11 +379,27 @@ function GradientModal({
   const [colorEnd, setColorEnd] = useState(initial?.colorEnd ?? "#ff8800");
   const [busy, setBusy] = useState(false);
   const dialogRef = useRef<HTMLFormElement>(null);
-  useDialogFocus(dialogRef, onClose);
+
+  // Мягкая валидация hex: подсказка после выхода из поля, не сразу.
+  const [colorsTouched, setColorsTouched] = useState(false);
+  const startValid = isHexColor(colorStart);
+  const endValid = isHexColor(colorEnd);
+  const startError = colorsTouched && !startValid ? HEX_ERROR : undefined;
+  const endError = colorsTouched && !endValid ? HEX_ERROR : undefined;
+
+  // Dirty-guard: правки градиента не теряются от Escape/подложки (план 3.5/4.4).
+  const dirty =
+    label !== (initial?.label ?? "") ||
+    description !== (initial?.description ?? "") ||
+    colorStart.trim() !== (initial?.colorStart ?? "#ff0000") ||
+    colorEnd.trim() !== (initial?.colorEnd ?? "#ff8800");
+
+  const tryClose = useDirtyGuard({ isDirty: dirty, isBusy: busy, onClose });
+  useDialogFocus(dialogRef, () => void tryClose());
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!label.trim() || !description.trim() || !colorStart.trim() || !colorEnd.trim()) return;
+    if (!label.trim() || !description.trim() || !startValid || !endValid) return;
     setBusy(true);
     try {
       await onSave(label.trim(), description.trim(), colorStart.trim(), colorEnd.trim());
@@ -362,46 +412,63 @@ function GradientModal({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={() => void tryClose()}>
       <form ref={dialogRef} className="modal" role="dialog" aria-modal="true" aria-labelledby="gradient-dialog-title" tabIndex={-1} onSubmit={submit} onClick={(e) => e.stopPropagation()}>
         <h3 id="gradient-dialog-title">{initial ? "Редактировать градиент" : "Создать градиент"}</h3>
-        <div className="field">
-          <label>Название</label>
-          <input
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="напр. Огненный"
-            autoFocus
-            required
-          />
-        </div>
-        <div className="field">
-          <label>Цвет начала (hex)</label>
-          <input
-            value={colorStart}
-            onChange={(e) => setColorStart(e.target.value)}
-            placeholder="#ff0000"
-            required
-          />
-        </div>
-        <div className="field">
-          <label>Описание</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Как выглядит эта покраска" required />
-        </div>
-        <div className="field">
-          <label>Цвет конца (hex)</label>
-          <input
-            value={colorEnd}
-            onChange={(e) => setColorEnd(e.target.value)}
-            placeholder="#ff8800"
-            required
-          />
-        </div>
+        <Field label="Название">
+          {(control) => (
+            <FieldInput
+              control={control}
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="напр. Огненный"
+              autoFocus
+              required
+            />
+          )}
+        </Field>
+        <Field label="Цвет начала (hex)" error={startError}>
+          {(control) => (
+            <FieldInput
+              control={control}
+              value={colorStart}
+              onChange={(e) => setColorStart(e.target.value)}
+              onBlur={() => setColorsTouched(true)}
+              placeholder="#ff0000"
+              required
+            />
+          )}
+        </Field>
+        <Field label="Описание">
+          {(control) => (
+            <textarea
+              id={control.id}
+              aria-describedby={control.describedBy}
+              aria-invalid={control.invalid || undefined}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Как выглядит эта покраска"
+              required
+            />
+          )}
+        </Field>
+        <Field label="Цвет конца (hex)" error={endError}>
+          {(control) => (
+            <FieldInput
+              control={control}
+              value={colorEnd}
+              onChange={(e) => setColorEnd(e.target.value)}
+              onBlur={() => setColorsTouched(true)}
+              placeholder="#ff8800"
+              required
+            />
+          )}
+        </Field>
         <div className="modal-actions">
-          <button type="button" onClick={onClose}>
+          <button type="button" onClick={() => void tryClose()} disabled={busy}>
             Отмена
           </button>
-          <button className="primary" type="submit" disabled={busy || !label.trim() || !description.trim() || !isHexColor(colorStart) || !isHexColor(colorEnd)}>
+          <button className="primary" type="submit" disabled={busy || !label.trim() || !description.trim() || !startValid || !endValid}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
