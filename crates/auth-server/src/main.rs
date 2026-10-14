@@ -1371,9 +1371,12 @@ async fn stats_get(
 }
 
 /// `POST /api/stats/session` — лаунчер сообщает о завершившейся игровой
-/// сессии. Накапливает относительное время игры (SFTP-цикл задаёт абсолютное
-/// значение из Minecraft-статистики, здесь — сумма сессий лаунчера) и пишет
-/// событие в журнал.
+/// сессии. Пишет событие в журнал, но НЕ прибавляет время игры:
+/// единственный источник `playtime_seconds` — абсолют из Minecraft-статистики
+/// по SFTP (GREATEST, см. `refresh_playtime_once`). Раньше сессии
+/// прибавлялись поверх (двойной учёт): после возвращения эндпоинта 09.10.2026
+/// очередь неотправленных сессий за лето дренировалась на уже посчитанные
+/// SFTP-абсолютом часы, и у активных игроков время выросло в 2–4 раза.
 async fn stats_record_session(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -1386,10 +1389,6 @@ async fn stats_record_session(
             "Недопустимая длительность сессии",
         ));
     }
-    state
-        .store
-        .add_playtime(&account.uuid, req.duration_seconds)
-        .await?;
     state
         .store
         .record_server_log(

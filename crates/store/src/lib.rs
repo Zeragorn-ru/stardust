@@ -1443,22 +1443,6 @@ impl Store {
         Ok(())
     }
 
-    /// Добавляет время завершившейся сессии лаунчера к накопленному
-    /// (в отличие от `set_playtime_absolute`, которая задаёт абсолют из
-    /// Minecraft-статистики по SFTP).
-    pub async fn add_playtime(&self, uuid: &str, seconds: i64) -> Result<(), StoreError> {
-        sqlx::query(
-            "UPDATE accounts
-             SET playtime_seconds = playtime_seconds + $2
-             WHERE uuid = $1",
-        )
-        .bind(normalize_uuid(uuid))
-        .bind(seconds)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     /// Устанавливает абсолютные значения статистики Minecraft.
     pub async fn set_player_stats_absolute(
         &self,
