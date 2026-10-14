@@ -79,8 +79,25 @@ export default function ModsSection() {
     [profiles],
   );
 
-  // Разворачиваемый блок состава выбранного пресета.
+  // Разворачиваемый блок состава выбранного пресета. Высота панели
+  // анимируется точным значением (замер scrollHeight), а не «с запасом»:
+  // анимация max-height до выдуманного потолка даёт мёртвый хвост и
+  // дёрганый ритм. Замер обновляется при смене пресета (состав другой).
   const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const disclosureRef = useRef<HTMLDivElement>(null);
+  const [disclosureHeight, setDisclosureHeight] = useState<number | null>(null);
+  const selectedProfileKey = selectedProfile?.key ?? null;
+
+  useEffect(() => {
+    const el = disclosureRef.current;
+    if (!el) return;
+    const measure = () => setDisclosureHeight(el.scrollHeight);
+    measure();
+    // Содержимое приходит из тех же данных, но шрифты/чипы могут
+    // доехать позже — переснимаем после отрисовки кадра.
+    const raf = requestAnimationFrame(measure);
+    return () => cancelAnimationFrame(raf);
+  }, [selectedProfileKey, disclosureOpen]);
 
   // Клавиатура рейла: стрелки двигают ФОКУС по radio-кнопкам с
   // заворотом (как нативный radiogroup), выбор — только Enter/Space
@@ -530,10 +547,16 @@ export default function ModsSection() {
                 <span aria-hidden>{disclosureOpen ? "▾" : "▸"}</span> Состав и описание
               </button>
               <div
+                ref={disclosureRef}
                 className="preset-disclosure__panel"
                 id="preset-disclosure-panel"
                 role="region"
                 aria-label={`Состав и описание пресета ${selectedProfile.name}`}
+                style={
+                  disclosureOpen && disclosureHeight != null
+                    ? { maxHeight: `${disclosureHeight}px` }
+                    : undefined
+                }
               >
                 {(() => {
                   const exclusive = presetExclusiveMods(selectedProfile.key);
