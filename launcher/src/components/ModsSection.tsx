@@ -15,18 +15,6 @@ function pluralRu(n: number, one: string, few: string, many: string): string {
   return many;
 }
 
-/**
- * Заголовки-исходы для известных пресетов: игрок выбирает желание, а не
- * формальное имя профиля. Неизвестные ключи не ломают UI — фолбэк на name.
- * Ключи покрывают и опечатку «perfomance» (она так живёт в прод-манифесте),
- * и корректное «performance» — чтобы исход не пропал при исправлении сборки.
- */
-const PRESET_OUTCOME: Record<string, string> = {
-  perfomance: "Чтобы летало",
-  performance: "Чтобы летало",
-  quality: "Красивая картинка",
-};
-
 export default function ModsSection() {
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
   const [profiles, setProfiles] = useState<ModProfileInfo[] | null>(null);
@@ -91,10 +79,8 @@ export default function ModsSection() {
     [profiles],
   );
 
-  // Разворачиваемый блок состава: peekKey = чей состав показываем
-  // (null = выбранного; клик по «Показать:» смотрит чужой, не переключая).
+  // Разворачиваемый блок состава выбранного пресета.
   const [disclosureOpen, setDisclosureOpen] = useState(false);
-  const [peekKey, setPeekKey] = useState<string | null>(null);
 
   // Клавиатура рейла: стрелки двигают ФОКУС по radio-кнопкам с
   // заворотом (как нативный radiogroup), выбор — только Enter/Space
@@ -189,9 +175,6 @@ export default function ModsSection() {
     setPendingProfile(profile.key);
     setProfileError(null);
     setSwitchingNote(null);
-    // Если подсматривали чужой состав, а потом выбрали его — сбрасываем
-    // peek, панель снова показывает выбранный без лишней кнопки.
-    setPeekKey(null);
     // Оптимистично: помечаем выбранный профиль и пересчитываем моды по гейту.
     setProfiles((prev) =>
       prev
@@ -458,22 +441,19 @@ export default function ModsSection() {
         загружаются игрой — включение применится при следующем запуске.
       </p>
 
-      {/* Шаг 01 — пресет: sticky-блок, сегмент-рейл + разворачиваемый
-          состав. ВАЖНО: классы .customize-tab* заимствованы у табов
-          кастомизации — там role=tab, здесь role=radio; семантика
-          задаётся атрибутами на кнопках, не «чините» на tablist. */}
+      {/* Пресет: sticky-блок, сегмент-рейл + разворачиваемый состав.
+          ВАЖНО: классы .customize-tab* заимствованы у табов кастомизации —
+          там role=tab, здесь role=radio; семантика задаётся атрибутами
+          на кнопках, не «чините» на tablist. */}
       {hasProfiles && (
         <section className="new-preset-step stagger-item">
           {!singleProfile && (
             <header className="new-preset-step__head">
-              <span className="new-preset-step__num" aria-hidden>01</span>
-              <div className="new-preset-step__headtext">
-                <h3 className="new-preset-step__title">Пресет</h3>
-                <p className="new-preset-step__sub">
-                  Выберите один — моды настроятся сами, отдельные можно
-                  поменять ниже
-                </p>
-              </div>
+              <h3 className="new-preset-step__title">Пресет</h3>
+              <p className="new-preset-step__sub">
+                Выберите один — моды настроятся сами, отдельные можно
+                поменять ниже
+              </p>
             </header>
           )}
           {singleProfile ? (
@@ -515,9 +495,7 @@ export default function ModsSection() {
                   }
                   onClick={() => void selectProfile(p)}
                 >
-                  <span className="customize-tab__label">
-                    {PRESET_OUTCOME[p.key.toLowerCase()] ?? p.name}
-                  </span>
+                  <span className="customize-tab__label">{p.name}</span>
                   <span className="customize-tab__sub">
                     {pendingProfile === p.key
                       ? "Переключение…"
@@ -536,9 +514,9 @@ export default function ModsSection() {
               />
             </div>
           )}
-          {/* Разворачиваемый состав: имя, описание, «по умолчанию»,
-              эксклюзивные моды чипами. Клик по «Показать:» смотрит
-              чужой состав, не переключая пресет. */}
+          {/* Разворачиваемый состав выбранного пресета: имя, «по
+              умолчанию», описание, эксклюзивные моды чипами. Меняется
+              сам при смене пресета. */}
           {selectedProfile && (
             <div className={"preset-disclosure" + (disclosureOpen ? " preset-disclosure--open" : "")}>
               <button
@@ -547,10 +525,7 @@ export default function ModsSection() {
                 aria-expanded={disclosureOpen}
                 aria-controls="preset-disclosure-panel"
                 disabled={pendingProfile !== null}
-                onClick={() => {
-                  setDisclosureOpen((v) => !v);
-                  setPeekKey(null);
-                }}
+                onClick={() => setDisclosureOpen((v) => !v)}
               >
                 <span aria-hidden>{disclosureOpen ? "▾" : "▸"}</span> Состав и описание
               </button>
@@ -558,61 +533,21 @@ export default function ModsSection() {
                 className="preset-disclosure__panel"
                 id="preset-disclosure-panel"
                 role="region"
-                aria-label="Состав и описание пресета"
+                aria-label={`Состав и описание пресета ${selectedProfile.name}`}
               >
                 {(() => {
-                  const shown =
-                    (profiles ?? []).find(
-                      (p) =>
-                        p.key.toLowerCase() ===
-                        (peekKey ?? selectedProfile?.key ?? "").toLowerCase(),
-                    ) ?? selectedProfile;
-                  if (!shown) return null;
-                  const exclusive = presetExclusiveMods(shown.key);
-                  const rest = (profiles ?? []).filter(
-                    (p) => p.key !== selectedProfile?.key,
-                  );
+                  const exclusive = presetExclusiveMods(selectedProfile.key);
                   return (
                     <>
                       <p className="preset-disclosure__name">
-                        {shown.name}
-                        {shown.key === (profiles ?? [])[0]?.key && (
+                        {selectedProfile.name}
+                        {selectedProfile.key === (profiles ?? [])[0]?.key && (
                           <span className="new-preset__default">по умолчанию</span>
                         )}
                       </p>
-                      {shown.description && (
-                        <p className="preset-disclosure__desc">{shown.description}</p>
+                      {selectedProfile.description && (
+                        <p className="preset-disclosure__desc">{selectedProfile.description}</p>
                       )}
-                      {rest.length > 0 && (
-                        <p className="preset-disclosure__peek">
-                          Показать:
-                          {rest.map((p) => (
-                            <button
-                              key={p.key}
-                              type="button"
-                              className="new-preset-link"
-                              disabled={pendingProfile !== null}
-                              aria-current={peekKey === p.key ? "true" : undefined}
-                              onClick={() => setPeekKey(p.key)}
-                            >
-                              {PRESET_OUTCOME[p.key.toLowerCase()] ?? p.name}
-                            </button>
-                          ))}
-                          {peekKey != null && (
-                            <button
-                              type="button"
-                              className="new-preset-link"
-                              disabled={pendingProfile !== null}
-                              onClick={() => setPeekKey(null)}
-                            >
-                              выбранный
-                            </button>
-                          )}
-                        </p>
-                      )}
-                      <p className="preset-disclosure__label">
-                        Только в этом пресете:
-                      </p>
                       {exclusive.length > 0 ? (
                         <p className="preset-disclosure__chips">
                           {exclusive.slice(0, 8).map((m) => (
@@ -648,12 +583,9 @@ export default function ModsSection() {
         </section>
       )}
 
-      {/* Шаг 02 — моды как следствие выбора пресета. */}
+      {/* Моды как следствие выбора пресета. */}
       <section className="new-mods-step">
         <header className="new-mods-step__head" role="status" aria-live="polite">
-          <span className="new-preset-step__num" aria-hidden>
-            {hasProfiles && !singleProfile ? "02" : "·"}
-          </span>
           <h3 className="new-mods-step__title">Моды</h3>
           {selectedProfile && (
             <span
