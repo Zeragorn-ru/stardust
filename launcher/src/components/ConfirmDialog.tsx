@@ -95,12 +95,22 @@ export default function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
+        aria-describedby={body ? "confirm-dialog-body" : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="modal__header">
           <h2>{title}</h2>
+          <button
+            type="button"
+            className="btn btn--icon"
+            onClick={() => finish(false)}
+            disabled={busy}
+            aria-label="Закрыть"
+          >
+            ✕
+          </button>
         </header>
-        {body && <p className="confirm-modal__body">{body}</p>}
+        {body && <p className="confirm-modal__body" id="confirm-dialog-body">{body}</p>}
         <footer className="modal__footer">
           <button
             type="button"

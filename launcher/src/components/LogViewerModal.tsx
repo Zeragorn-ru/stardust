@@ -136,7 +136,7 @@ export default function LogViewerModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div
         className="modal log-viewer-modal"
         role="dialog"
@@ -146,7 +146,6 @@ export default function LogViewerModal({
       >
         <header className="modal__header log-viewer-modal__header">
           <div>
-            <span className="log-viewer-modal__eyebrow">Логи</span>
             <h2>{title}</h2>
           </div>
           <button

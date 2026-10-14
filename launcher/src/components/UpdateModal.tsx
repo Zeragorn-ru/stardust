@@ -133,7 +133,17 @@ export default function UpdateModal({ update, onDismiss, closing, autoInstall = 
   const phaseIcon = phaseKey ? PHASE_ICONS[phaseKey] ?? "•" : null;
 
   return (
-    <div className={"update-overlay" + (closing ? " update-overlay--closing" : "")} onClick={installing ? undefined : onDismiss}>
+    <div
+      className={"update-overlay" + (closing ? " update-overlay--closing" : "")}
+      onClick={
+        installing
+          ? undefined
+          : (e) => {
+              // Протащенное выделение release-notes не закрывает карточку.
+              if (e.target === e.currentTarget) onDismiss();
+            }
+      }
+    >
       <div
         className={"update-card" + (closing ? " update-card--closing" : "")}
         onClick={(e) => e.stopPropagation()}

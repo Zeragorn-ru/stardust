@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
 import { accountInfo, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen } from "../api";
 import { formatBytes } from "../format";
+import { useDelayedUnmount } from "../useDelayedUnmount";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
@@ -49,6 +50,9 @@ export default function MainScreen({
 }: Props) {
   const { skin } = useSkin();
   const [skinOpen, setSkinOpen] = useState(false);
+  // Exit-анимация кастомизации: DOM удерживается на время закрытия,
+  // классы --closing (см. модальный блок styles.css) успевают отыграть.
+  const customizeModal = useDelayedUnmount(skinOpen);
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -451,7 +455,7 @@ export default function MainScreen({
       </section>
 
       {playersOpen && (
-        <div className="modal-overlay" onClick={() => setPlayersOpen(false)}>
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setPlayersOpen(false); }}>
           <div
             className="modal players-modal"
             role="dialog"
@@ -461,7 +465,6 @@ export default function MainScreen({
           >
             <header className="modal__header players-modal__header">
               <div>
-                <span className="players-modal__eyebrow">Сервер</span>
                 <h2>Игроки онлайн</h2>
               </div>
               <span className="players-modal__count">
@@ -495,9 +498,10 @@ export default function MainScreen({
         </div>
       )}
 
-      {skinOpen && (
+      {customizeModal.shouldRender && (
         <CustomizeModal
           playerName={profile.name}
+          closing={!customizeModal.visible}
           onClose={() => setSkinOpen(false)}
           onNickSaved={() => {
             // Бейдж/градиент мог смениться — подтягиваем свежий профиль,

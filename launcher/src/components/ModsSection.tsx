@@ -91,6 +91,38 @@ export default function ModsSection() {
     [profiles],
   );
 
+  // Разворачиваемый блок состава: peekKey = чей состав показываем
+  // (null = выбранного; клик по «Показать:» смотрит чужой, не переключая).
+  const [disclosureOpen, setDisclosureOpen] = useState(false);
+  const [peekKey, setPeekKey] = useState<string | null>(null);
+
+  // Клавиатура рейла: стрелки двигают ФОКУС по radio-кнопкам с
+  // заворотом (как нативный radiogroup), выбор — только Enter/Space
+  // через нативный клик button: перебор стрелками не должен писать
+  // на диск при каждом нажатии.
+  const onRailKeyDown = (e: React.KeyboardEvent) => {
+    if (
+      e.key !== "ArrowLeft" &&
+      e.key !== "ArrowRight" &&
+      e.key !== "ArrowUp" &&
+      e.key !== "ArrowDown"
+    ) {
+      return;
+    }
+    const rail = e.currentTarget;
+    const buttons = Array.from(
+      rail.querySelectorAll<HTMLButtonElement>("button[role='radio']:not(:disabled)"),
+    );
+    if (buttons.length === 0) return;
+    e.preventDefault();
+    // Фокус вне кнопок (−1) ведёт себя как «до первого»: вперёд — на
+    // первый, назад — на последний (нативная семантика radiogroup).
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const dir = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1;
+    const next = (Math.max(currentIndex, 0) + dir + buttons.length) % buttons.length;
+    buttons[next].focus();
+  };
+
   /** Активные конфликты для мода: включённые моды из conflictsWith. */
   function activeConflicts(mod: OptionalMod): OptionalMod[] {
     if (!mod.enabled) return [];
@@ -157,6 +189,9 @@ export default function ModsSection() {
     setPendingProfile(profile.key);
     setProfileError(null);
     setSwitchingNote(null);
+    // Если подсматривали чужой состав, а потом выбрали его — сбрасываем
+    // peek, панель снова показывает выбранный без лишней кнопки.
+    setPeekKey(null);
     // Оптимистично: помечаем выбранный профиль и пересчитываем моды по гейту.
     setProfiles((prev) =>
       prev
@@ -313,22 +348,15 @@ export default function ModsSection() {
   const hasProfiles = (profiles ?? []).length > 0;
   const singleProfile = hasProfiles && (profiles ?? []).length === 1;
 
-  // Мини-состав для карточки пресета: до 3 эксклюзивных модов по modId.
-  const presetModsPreview = (profileKey: string): string[] => {
-    const selected = (profiles ?? []).find(
-      (x) => x.key.toLowerCase() === profileKey.toLowerCase(),
-    );
-    if (!selected) return [];
-    const exclusive = (mods ?? []).filter(
+  // Эксклюзивный состав пресета (тег только этого профиля) для
+  // disclosure-панели. Моды с несколькими тегами не эксклюзивны —
+  // они доступны в каждом из своих пресетов.
+  const presetExclusiveMods = (profileKey: string): OptionalMod[] =>
+    (mods ?? []).filter(
       (m) =>
-        m.profiles.length > 0 &&
-        m.profiles.some((k) => k.toLowerCase() === profileKey.toLowerCase()),
+        m.profiles.length === 1 &&
+        m.profiles[0].toLowerCase() === profileKey.toLowerCase(),
     );
-    return exclusive
-      .slice(0, 3)
-      .map((m) => m.name)
-      .filter(Boolean);
-  };
 
   /** Ряд мода (существующий .toggle-row) с новыми бейджами. */
   function renderRow(mod: OptionalMod) {
@@ -430,7 +458,10 @@ export default function ModsSection() {
         загружаются игрой — включение применится при следующем запуске.
       </p>
 
-      {/* Шаг 01 — пресет: sticky-рейл, выбор желания игрока. */}
+      {/* Шаг 01 — пресет: sticky-блок, сегмент-рейл + разворачиваемый
+          состав. ВАЖНО: классы .customize-tab* заимствованы у табов
+          кастомизации — там role=tab, здесь role=radio; семантика
+          задаётся атрибутами на кнопках, не «чините» на tablist. */}
       {hasProfiles && (
         <section className="new-preset-step stagger-item">
           {!singleProfile && (
@@ -439,7 +470,8 @@ export default function ModsSection() {
               <div className="new-preset-step__headtext">
                 <h3 className="new-preset-step__title">Пресет</h3>
                 <p className="new-preset-step__sub">
-                  Выберите один — моды настроятся сами
+                  Выберите один — моды настроятся сами, отдельные можно
+                  поменять ниже
                 </p>
               </div>
             </header>
@@ -457,61 +489,153 @@ export default function ModsSection() {
             </div>
           ) : (
             <div
-              className={"new-preset-rail" + (pendingProfile ? " new-preset-rail--busy" : "")}
+              className={
+                "customize-tabs preset-rail" + (pendingProfile ? " preset-rail--busy" : "")
+              }
+              style={{ "--tabs-n": (profiles ?? []).length } as React.CSSProperties}
               role="radiogroup"
               aria-label="Пресет модов"
+              onKeyDown={onRailKeyDown}
             >
-              {(profiles ?? []).map((p) => {
-                const preview = presetModsPreview(p.key);
-                return (
-                  <button
-                    type="button"
-                    key={p.key}
-                    role="radio"
-                    aria-checked={p.selected}
-                    disabled={pendingProfile !== null}
-                    className={"new-preset" + (p.selected ? " new-preset--on" : "")}
-                    onClick={() => void selectProfile(p)}
-                  >
-                    <span className="new-preset__dot" aria-hidden />
-                    <span className="new-preset__name">
-                      {PRESET_OUTCOME[p.key.toLowerCase()] ?? p.name}
-                    </span>
-                    <span className="new-preset__profile">{p.name}</span>
-                    {p.description && (
-                      <span
-                        className="new-preset__desc"
-                        title={p.description}
-                      >
-                        {p.description}
-                      </span>
-                    )}
-                    {preview.length > 0 && (
-                      <span className="new-preset__preview muted">
-                        {preview.join(" · ")}
-                      </span>
-                    )}
-                    <span className="new-preset__meta">
-                      {p.modCount > 0
+              {(profiles ?? []).map((p) => (
+                <button
+                  type="button"
+                  key={p.key}
+                  role="radio"
+                  aria-checked={p.selected}
+                  tabIndex={p.selected ? 0 : -1}
+                  disabled={pendingProfile !== null}
+                  className={
+                    "customize-tab customize-tab--stack" + (p.selected ? " is-active" : "")
+                  }
+                  title={
+                    p.key === (profiles ?? [])[0]?.key
+                      ? `${p.name} — по умолчанию`
+                      : p.name
+                  }
+                  onClick={() => void selectProfile(p)}
+                >
+                  <span className="customize-tab__label">
+                    {PRESET_OUTCOME[p.key.toLowerCase()] ?? p.name}
+                  </span>
+                  <span className="customize-tab__sub">
+                    {pendingProfile === p.key
+                      ? "Переключение…"
+                      : p.modCount > 0
                         ? `${p.modCount} ${pluralRu(p.modCount, "мод", "мода", "модов")}`
                         : "Только базовые моды"}
-                      {p.selected && (
-                        <span className="new-preset__state">включён</span>
-                      )}
-                      {p.key === (profiles ?? [])[0]?.key && (
-                        <span className="new-preset__default">по умолчанию</span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
+                  </span>
+                </button>
+              ))}
+              <span
+                className="customize-tabs__ink"
+                aria-hidden
+                style={
+                  { "--tabs-i": (profiles ?? []).findIndex((p) => p.selected) } as React.CSSProperties
+                }
+              />
             </div>
           )}
-          {/* Мирная подсказка: ручные тумблеры не ломают пресет. */}
-          {!singleProfile && (
-            <p className="muted new-preset-step__note">
-              Отдельные моды можно поменять ниже — пресет не сломается.
-            </p>
+          {/* Разворачиваемый состав: имя, описание, «по умолчанию»,
+              эксклюзивные моды чипами. Клик по «Показать:» смотрит
+              чужой состав, не переключая пресет. */}
+          {selectedProfile && (
+            <div className={"preset-disclosure" + (disclosureOpen ? " preset-disclosure--open" : "")}>
+              <button
+                type="button"
+                className="new-mods-step__group-toggle preset-disclosure__toggle"
+                aria-expanded={disclosureOpen}
+                aria-controls="preset-disclosure-panel"
+                disabled={pendingProfile !== null}
+                onClick={() => {
+                  setDisclosureOpen((v) => !v);
+                  setPeekKey(null);
+                }}
+              >
+                <span aria-hidden>{disclosureOpen ? "▾" : "▸"}</span> Состав и описание
+              </button>
+              <div
+                className="preset-disclosure__panel"
+                id="preset-disclosure-panel"
+                role="region"
+                aria-label="Состав и описание пресета"
+              >
+                {(() => {
+                  const shown =
+                    (profiles ?? []).find(
+                      (p) =>
+                        p.key.toLowerCase() ===
+                        (peekKey ?? selectedProfile?.key ?? "").toLowerCase(),
+                    ) ?? selectedProfile;
+                  if (!shown) return null;
+                  const exclusive = presetExclusiveMods(shown.key);
+                  const rest = (profiles ?? []).filter(
+                    (p) => p.key !== selectedProfile?.key,
+                  );
+                  return (
+                    <>
+                      <p className="preset-disclosure__name">
+                        {shown.name}
+                        {shown.key === (profiles ?? [])[0]?.key && (
+                          <span className="new-preset__default">по умолчанию</span>
+                        )}
+                      </p>
+                      {shown.description && (
+                        <p className="preset-disclosure__desc">{shown.description}</p>
+                      )}
+                      {rest.length > 0 && (
+                        <p className="preset-disclosure__peek">
+                          Показать:
+                          {rest.map((p) => (
+                            <button
+                              key={p.key}
+                              type="button"
+                              className="new-preset-link"
+                              disabled={pendingProfile !== null}
+                              aria-current={peekKey === p.key ? "true" : undefined}
+                              onClick={() => setPeekKey(p.key)}
+                            >
+                              {PRESET_OUTCOME[p.key.toLowerCase()] ?? p.name}
+                            </button>
+                          ))}
+                          {peekKey != null && (
+                            <button
+                              type="button"
+                              className="new-preset-link"
+                              disabled={pendingProfile !== null}
+                              onClick={() => setPeekKey(null)}
+                            >
+                              выбранный
+                            </button>
+                          )}
+                        </p>
+                      )}
+                      <p className="preset-disclosure__label">
+                        Только в этом пресете:
+                      </p>
+                      {exclusive.length > 0 ? (
+                        <p className="preset-disclosure__chips">
+                          {exclusive.slice(0, 8).map((m) => (
+                            <span key={m.modId} className="mods-section__profile-badge">
+                              {m.name}
+                            </span>
+                          ))}
+                          {exclusive.length > 8 && (
+                            <span className="preset-disclosure__more">
+                              + ещё {exclusive.length - 8}
+                            </span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="preset-disclosure__desc">
+                          Эксклюзивных модов нет — только общие.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
           )}
           {profileError && (
             <p className="form-msg form-msg--error" role="alert">{profileError}</p>
@@ -571,7 +695,7 @@ export default function ModsSection() {
         {others.length > 0 && (
           <div
             className={
-              "new-mods-step__group new-mods-step__group--other" +
+              "new-mods-step__group" +
               (!othersExpanded ? " new-mods-step__group--collapsed" : "")
             }
           >

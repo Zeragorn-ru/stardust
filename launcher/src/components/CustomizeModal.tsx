@@ -26,7 +26,13 @@ export default function CustomizeModal({ playerName, onClose, onNickSaved, closi
   }, []);
 
   return (
-    <div className={"modal-overlay" + (closing ? " modal-overlay--closing" : "")} onClick={onClose}>
+    <div
+      className={"modal-overlay" + (closing ? " modal-overlay--closing" : "")}
+      onClick={(e) => {
+        // Выделение, протащенное из диалога, не закрывает модалку.
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div
         className={"modal customize-modal" + (closing ? " modal--closing" : "")}
         onClick={(e) => e.stopPropagation()}
