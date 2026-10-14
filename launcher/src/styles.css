@@ -2492,12 +2492,6 @@ button,
     margin: 0;
 }
 
-.preset-disclosure__more {
-    font-size: 11px;
-    color: var(--text-dim);
-    align-self: center;
-}
-
 /* Шаг 02 — моды как следствие выбора. */
 .new-mods-step {
     display: flex;

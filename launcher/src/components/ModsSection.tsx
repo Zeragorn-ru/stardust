@@ -573,16 +573,11 @@ export default function ModsSection() {
                       )}
                       {exclusive.length > 0 ? (
                         <p className="preset-disclosure__chips">
-                          {exclusive.slice(0, 8).map((m) => (
+                          {exclusive.map((m) => (
                             <span key={m.modId} className="mods-section__profile-badge">
                               {m.name}
                             </span>
                           ))}
-                          {exclusive.length > 8 && (
-                            <span className="preset-disclosure__more">
-                              + ещё {exclusive.length - 8}
-                            </span>
-                          )}
                         </p>
                       ) : (
                         <p className="preset-disclosure__desc">
