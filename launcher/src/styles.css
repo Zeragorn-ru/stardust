@@ -2333,6 +2333,10 @@ button,
 /* Sticky-блок пресета: прилипает к верху прокрутки, моды проходят
    ПОД ним (включая раскрытый disclosure — он внутри блока). Фон
    сплошной подложки: надпись «Пресет» не висит на размытых модах. */
+/* Sticky без фона: блок прилипает и перекрывает прокрутку, но моды
+   видны и «протекают» за ним. Прошлая сплошная заливка закрывала
+   списком весь низ экрана; если прозрачность окажется нечитаемой —
+   вернуть var(--bg-deep) точечно. */
 .new-preset-step {
     position: sticky;
     top: 0;
@@ -2344,7 +2348,6 @@ button,
     margin: 0 -6px;
     padding-left: 6px;
     padding-right: 6px;
-    background: var(--bg-deep);
 }
 
 .new-preset-step__head {
@@ -2739,10 +2742,14 @@ button,
     font-weight: 600;
 }
 
+/* Описание мода: одна строка, длинное обрезается многоточием. */
 .toggle-row__desc {
     font-size: 12px;
     line-height: 1.4;
     max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Switch */
