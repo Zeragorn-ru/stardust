@@ -8,7 +8,7 @@ import { SeasonsView } from "../views/SeasonsView";
 export function MobileSeasons() {
   return (
     <div className="m-screen m-screen-reuse m-screen-seasons">
-      <SeasonsView mobile />
+      <SeasonsView />
     </div>
   );
 }

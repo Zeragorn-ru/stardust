@@ -95,10 +95,13 @@ struct AppState {
     season_archive_running: Mutex<bool>,
     /// Последний статус архивации сезона для polling из админки.
     season_archive_status: Mutex<SeasonArchiveStatus>,
-    /// Защита от параллельных продвижений релизов в stable.
-    promote_running: Mutex<bool>,
+    /// Защита от параллельных канальных задач: promote и set-latest оба
+    /// финально пишут latest.json алиасов, одновременно им нельзя.
+    release_task_running: Mutex<bool>,
     /// Последний статус продвижения релиза для polling из админки.
     promote_status: Mutex<PromoteStatus>,
+    /// Последний статус перестановки latest-тега для polling из админки.
+    set_latest_status: Mutex<SetLatestStatus>,
 }
 
 /// Закэшированный authlib-injector.jar с временем загрузки.
@@ -204,8 +207,9 @@ async fn main() {
         backup_status: Mutex::new(backup::Status::default()),
         season_archive_running: Mutex::new(false),
         season_archive_status: Mutex::new(SeasonArchiveStatus::default()),
-        promote_running: Mutex::new(false),
+        release_task_running: Mutex::new(false),
         promote_status: Mutex::new(PromoteStatus::default()),
+        set_latest_status: Mutex::new(SetLatestStatus::default()),
     });
 
     // Фоновая задача: синхронизация статистики с SFTP каждые 15 минут.
@@ -384,8 +388,12 @@ async fn main() {
         .route("/api/seasons/archive", post(archive_season))
         .route("/api/seasons/archive-status", get(season_archive_status))
         .route("/api/releases", get(list_releases))
+        .route("/api/launcher/channels", get(launcher_channels))
+        .route("/api/releases/build-runs", get(build_runs))
         .route("/api/releases/:tag/promote", post(promote_release))
         .route("/api/releases/promote-status", get(promote_status))
+        .route("/api/releases/:tag/set-latest", post(set_latest))
+        .route("/api/releases/set-latest-status", get(set_latest_status))
         // --- Публичное для лаунчера ---
         .route("/news", get(news_highlight))
         .route("/news/all", get(public_news))
@@ -2529,6 +2537,22 @@ struct PromoteStatus {
     finished_at: Option<String>,
 }
 
+/// Статус фонового перенаправления канала на релиз (polling из админки).
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SetLatestStatus {
+    /// `idle` | `running` | `success` | `error`.
+    state: SyncState,
+    /// Канал: `beta` | `stable`.
+    channel: Option<String>,
+    /// Тег, на который направляется канал.
+    tag: Option<String>,
+    phase: String,
+    error: Option<String>,
+    started_at: Option<String>,
+    finished_at: Option<String>,
+}
+
 /// `GET /api/seasons` — все сезоны, от новых к старым.
 async fn list_seasons(
     State(state): State<Shared>,
@@ -2671,6 +2695,12 @@ async fn update_season_archive_status(
 const GITHUB_REPO: &str = "Zeragorn-ru/stardust";
 /// Тег алиаса, из которого stable-клиенты качают latest.json.
 const STABLE_ALIAS_TAG: &str = "launcher-stable";
+/// Тег алиаса, из которого beta-клиенты качают latest.json.
+const BETA_ALIAS_TAG: &str = "launcher-beta";
+/// Имя workflow, который собирает релизы лаунчера по тегу.
+const LAUNCHER_WORKFLOW_NAME: &str = "launcher-release";
+/// Каналы апдейтера, известные админке.
+const UPDATE_CHANNELS: [&str; 2] = ["beta", "stable"];
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2679,6 +2709,333 @@ struct ReleaseDto {
     name: Option<String>,
     prerelease: bool,
     published_at: Option<String>,
+}
+
+/// Прогон workflow launcher-release по тегу — «собирается сейчас».
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BuildRunDto {
+    /// Тег, по которому запущен прогон (head_branch для тегового push).
+    tag: String,
+    /// `queued` | `running` | `success` | `failure` | `cancelled`.
+    state: String,
+    /// Идентификатор прогона для ссылки на GitHub.
+    run_id: i64,
+    /// RFC 3339 старта.
+    started_at: Option<String>,
+    /// Состояние платформ-leg матрицы (windows/linux/macos).
+    legs: Vec<BuildLegDto>,
+}
+
+/// Состояние одной платформы-leg матрицы сборки.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BuildLegDto {
+    /// `windows` | `linux` | `macos` (id матрицы).
+    platform: String,
+    /// `queued` | `running` | `success` | `failure` | `cancelled`.
+    state: String,
+}
+
+/// Нормализация статусов jobs/runs GitHub Actions в один вид.
+fn gh_actions_state(status: &str, conclusion: Option<&str>) -> String {
+    match (status, conclusion) {
+        ("completed", Some("success")) => "success".to_string(),
+        ("completed", Some("cancelled")) => "cancelled".to_string(),
+        ("completed", _) => "failure".to_string(),
+        ("in_progress", _) => "running".to_string(),
+        _ => "queued".to_string(),
+    }
+}
+
+/// Состояние канала апдейтера для «пульта каналов» в админке.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LauncherChannelDto {
+    /// `beta` | `stable`.
+    channel: String,
+    /// Тег, который канал раздаёт, или null — алиас ещё не создан.
+    tag: Option<String>,
+    /// RFC 3339 публикации последнего latest.json в алиасе.
+    updated_at: Option<String>,
+}
+
+/// Читает тег и время из latest.json алиаса канала. Отсутствие алиаса —
+/// не ошибка: канал ещё не настроен (null).
+async fn read_alias_channel(
+    state: &Shared,
+    token: &str,
+    channel: &str,
+) -> Result<LauncherChannelDto, String> {
+    let alias_tag = match channel {
+        "beta" => BETA_ALIAS_TAG,
+        "stable" => STABLE_ALIAS_TAG,
+        _ => return Err(format!("неизвестный канал {channel}")),
+    };
+    let dto = LauncherChannelDto {
+        channel: channel.to_string(),
+        tag: None,
+        updated_at: None,
+    };
+
+    let alias_url =
+        format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{alias_tag}");
+    let resp = github_api(state, reqwest::Method::GET, &alias_url, token, GH_ACCEPT_V3, None).await?;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(dto);
+    }
+    if !resp.status().is_success() {
+        return Err(format!(
+            "получение алиаса {alias_tag}: HTTP {} (проверьте GitHub токен)",
+            resp.status().as_u16()
+        ));
+    }
+    let alias: GitHubRelease = resp
+        .json()
+        .await
+        .map_err(|e| format!("парсинг алиаса {alias_tag}: {e}"))?;
+
+    // Время канала — время публикации latest.json (asset updated_at).
+    let Some(asset) = alias.assets.iter().find(|a| a.name == "latest.json") else {
+        return Ok(dto);
+    };
+    let latest_bytes = state
+        .http
+        .get(&asset.browser_download_url)
+        .send()
+        .await
+        .map_err(|e| format!("скачивание latest.json {alias_tag}: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("чтение latest.json {alias_tag}: {e}"))?;
+    let latest: serde_json::Value = serde_json::from_slice(&latest_bytes)
+        .map_err(|e| format!("latest.json {alias_tag} не парсится: {e}"))?;
+    // CI кладёт в latest.json версию без префикса v (set-version срезает его),
+    // а релизы в админке живут тегами vX.Y.Z — нормализуем к тегу.
+    let version = latest
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(|v| if v.starts_with('v') { v.to_string() } else { format!("v{v}") });
+
+    Ok(LauncherChannelDto {
+        channel: channel.to_string(),
+        tag: version,
+        updated_at: asset.updated_at.clone(),
+    })
+}
+
+/// `GET /api/launcher/channels` — состояние каналов апдейтера: какой тег
+/// раздаёт beta/stable и когда канал обновлялся. Для «пульта каналов».
+async fn launcher_channels(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<LauncherChannelDto>>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    let token = state
+        .store
+        .get_setting(SETTING_GITHUB_TOKEN)
+        .await
+        .map_err(|e| e.to_string())
+        .ok()
+        .flatten()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "GitHub токен не задан в настройках",
+        ))?;
+
+    let mut channels = Vec::with_capacity(UPDATE_CHANNELS.len());
+    for channel in UPDATE_CHANNELS {
+        let dto = read_alias_channel(&state, &token, channel)
+            .await
+            .map_err(internal)?;
+        channels.push(dto);
+    }
+    Ok(Json(channels))
+}
+
+/// `GET /api/releases/build-runs` — прогоняющиеся сейчас (или последние
+/// упавшие) сборки релизов лаунчера из GitHub Actions. Показывает теги,
+/// которые ещё не стали релизами: пока matrix собирается, релиза нет.
+async fn build_runs(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<BuildRunDto>>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Actions API требует авторизации даже для публичных репозиториев
+    // в некоторых режимах — берём токен, но без него не падаем: экран
+    // прогресса не критичен.
+    let token = state
+        .store
+        .get_setting(SETTING_GITHUB_TOKEN)
+        .await
+        .ok()
+        .flatten()
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty());
+
+    let runs_url = format!(
+        "https://api.github.com/repos/{GITHUB_REPO}/actions/runs?per_page=20"
+    );
+    let resp = match &token {
+        Some(token) => {
+            github_api(
+                &state,
+                reqwest::Method::GET,
+                &runs_url,
+                token,
+                GH_ACCEPT_ACTIONS,
+                None,
+            )
+            .await
+            .map_err(internal)?
+        }
+        None => state
+            .http
+            .get(&runs_url)
+            .header("Accept", GH_ACCEPT_ACTIONS)
+            .send()
+            .await
+            .map_err(|e| internal(format!("запрос прогонов сборки: {e}")))?,
+    };
+    if !resp.status().is_success() {
+        return Err(internal(format!(
+            "прогоны сборки: HTTP {} (проверьте GitHub токен)",
+            resp.status().as_u16()
+        )));
+    }
+
+    #[derive(Deserialize)]
+    struct WorkflowRun {
+        id: i64,
+        name: Option<String>,
+        head_branch: Option<String>,
+        event: String,
+        status: String,
+        conclusion: Option<String>,
+        created_at: Option<String>,
+    }
+    #[derive(Deserialize)]
+    struct RunsResponse {
+        workflow_runs: Vec<WorkflowRun>,
+    }
+    let runs: RunsResponse = resp
+        .json()
+        .await
+        .map_err(|e| internal(format!("парсинг прогонов сборки: {e}")))?;
+
+    // Нас интересуют теговые прогоны launcher-release. Берём все недавние,
+    // фильтр «живых» и упавших сделает фронтенд вместе с релизами.
+    let tag_runs: Vec<WorkflowRun> = runs
+        .workflow_runs
+        .into_iter()
+        .filter(|r| {
+            r.name.as_deref() == Some(LAUNCHER_WORKFLOW_NAME)
+                && r.event == "push"
+                && r.head_branch
+                    .as_deref()
+                    .is_some_and(|b| b.starts_with('v'))
+        })
+        .take(10)
+        .collect();
+
+    // Для каждого прогона — состояние jobs-легов матрицы. Ноги нужны и
+    // завершённым: упавшая сборка без ног не говорит, какая платформа
+    // сломалась.
+    let mut result: Vec<BuildRunDto> = Vec::new();
+    for run in tag_runs {
+        let legs = match fetch_run_jobs(&state, token.as_deref(), run.id).await {
+            Ok(legs) => legs,
+            Err(e) => {
+                // Ошибка jobs не должна ронять весь список.
+                tracing::warn!("build-runs: jobs прогона {}: {e}", run.id);
+                Vec::new()
+            }
+        };
+        result.push(BuildRunDto {
+            tag: run.head_branch.unwrap_or_default(),
+            state: gh_actions_state(&run.status, run.conclusion.as_deref()),
+            run_id: run.id,
+            started_at: run.created_at,
+            legs,
+        });
+    }
+
+    Ok(Json(result))
+}
+
+/// Jobs одного прогона launcher-release — леги матрицы windows/linux/macos.
+async fn fetch_run_jobs(
+    state: &Shared,
+    token: Option<&str>,
+    run_id: i64,
+) -> Result<Vec<BuildLegDto>, String> {
+    let jobs_url =
+        format!("https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{run_id}/jobs?per_page=20");
+    let resp = match token {
+        Some(token) => {
+            github_api(
+                state,
+                reqwest::Method::GET,
+                &jobs_url,
+                token,
+                GH_ACCEPT_ACTIONS,
+                None,
+            )
+            .await?
+        }
+        None => state
+            .http
+            .get(&jobs_url)
+            .header("Accept", GH_ACCEPT_ACTIONS)
+            .send()
+            .await
+            .map_err(|e| format!("запрос jobs: {e}"))?,
+    };
+    if !resp.status().is_success() {
+        return Err(format!("jobs: HTTP {}", resp.status().as_u16()));
+    }
+
+    #[derive(Deserialize)]
+    struct Job {
+        name: String,
+        status: String,
+        conclusion: Option<String>,
+    }
+    #[derive(Deserialize)]
+    struct JobsResponse {
+        jobs: Vec<Job>,
+    }
+    let jobs: JobsResponse = resp
+        .json()
+        .await
+        .map_err(|e| format!("парсинг jobs: {e}"))?;
+
+    // Имя job = «release (windows)» / «release (linux)» / «release (macos)».
+    Ok(jobs
+        .jobs
+        .into_iter()
+        .filter_map(|job| {
+            let platform = job
+                .name
+                .rsplit('(')
+                .next()?
+                .trim_end_matches(')')
+                .to_string();
+            // Job release матрицы; publish-updater-alias сюда не попадает
+            // (он в прогонах только после needs: release и с другим именем).
+            if !["windows", "linux", "macos"].contains(&platform.as_str()) {
+                return None;
+            }
+            Some(BuildLegDto {
+                platform,
+                state: gh_actions_state(&job.status, job.conclusion.as_deref()),
+            })
+        })
+        .collect())
 }
 
 /// `GET /api/releases` — релизы лаунчера (тег `v*`) из GitHub API,
@@ -2755,11 +3112,11 @@ async fn promote_release(
     }
 
     {
-        let mut running = state.promote_running.lock().await;
+        let mut running = state.release_task_running.lock().await;
         if *running {
             return Err(ApiError::new(
                 StatusCode::CONFLICT,
-                "Продвижение релиза уже выполняется",
+                "Канальная задача уже выполняется (перевод в стабильный или перестановка latest)",
             ));
         }
         *running = true;
@@ -2783,6 +3140,20 @@ async fn promote_release(
     let task_state = Arc::clone(&state);
     let task_tag = tag;
     tokio::spawn(async move {
+        // Паника внутри задачи не должна навсегда оставить guard
+        // «задача выполняется» — снимаем его при любом выходе.
+        struct ReleaseGuard(Shared);
+        impl Drop for ReleaseGuard {
+            fn drop(&mut self) {
+                tokio::spawn({
+                    let state = Arc::clone(&self.0);
+                    async move {
+                        *state.release_task_running.lock().await = false;
+                    }
+                });
+            }
+        }
+        let _guard = ReleaseGuard(task_state.clone());
         let result = do_promote_release(&task_state, &task_tag).await;
         let mut status = task_state.promote_status.lock().await;
         match result {
@@ -2803,7 +3174,7 @@ async fn promote_release(
                 .format(&Rfc3339)
                 .unwrap_or_default(),
         );
-        *task_state.promote_running.lock().await = false;
+        *task_state.release_task_running.lock().await = false;
     });
 
     Ok((
@@ -2817,14 +3188,233 @@ async fn update_promote_status(state: &Shared, update: impl FnOnce(&mut PromoteS
     update(&mut status);
 }
 
+/// `GET /api/releases/set-latest-status` — статус перестановки latest.
+async fn set_latest_status(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<SetLatestStatus>, ApiError> {
+    require_admin(&state, &headers).await?;
+    Ok(Json(state.set_latest_status.lock().await.clone()))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetLatestRequest {
+    /// `beta` | `stable`.
+    channel: String,
+}
+
+/// `POST /api/releases/:tag/set-latest` — направить канал апдейтера
+/// (beta/stable) на релиз с этим тегом: latest.json релиза копируется
+/// в алиас канала. Откат и переключение без снятия pre-release метки.
+/// Фоновая задача со статусом.
+async fn set_latest(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(tag): Path<String>,
+    Json(req): Json<SetLatestRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
+    require_admin(&state, &headers).await?;
+
+    // Тег должен выглядеть как релиз лаунчера (vX.Y.Z), а не как алиас.
+    if !tag.starts_with('v') || tag.contains("stable") || tag.contains("beta") {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            format!("Тег {tag} не является релизом лаунчера"),
+        ));
+    }
+    if !UPDATE_CHANNELS.contains(&req.channel.as_str()) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            format!("Неизвестный канал {} (ожидаются beta или stable)", req.channel),
+        ));
+    }
+
+    {
+        let mut running = state.release_task_running.lock().await;
+        if *running {
+            return Err(ApiError::new(
+                StatusCode::CONFLICT,
+                "Канальная задача уже выполняется (перевод в стабильный или перестановка latest)",
+            ));
+        }
+        *running = true;
+    }
+
+    {
+        let mut status = state.set_latest_status.lock().await;
+        *status = SetLatestStatus {
+            state: SyncState::Running,
+            channel: Some(req.channel.clone()),
+            tag: Some(tag.clone()),
+            phase: "Проверка релиза".to_string(),
+            started_at: Some(
+                OffsetDateTime::now_utc()
+                    .format(&Rfc3339)
+                    .unwrap_or_default(),
+            ),
+            ..Default::default()
+        };
+    }
+
+    let task_state = Arc::clone(&state);
+    let task_tag = tag;
+    let task_channel = req.channel;
+    tokio::spawn(async move {
+        // Паника внутри задачи не должна навсегда оставить guard
+        // «задача выполняется» — снимаем его при любом выходе.
+        struct ReleaseGuard(Shared);
+        impl Drop for ReleaseGuard {
+            fn drop(&mut self) {
+                tokio::spawn({
+                    let state = Arc::clone(&self.0);
+                    async move {
+                        *state.release_task_running.lock().await = false;
+                    }
+                });
+            }
+        }
+        let _guard = ReleaseGuard(task_state.clone());
+        let result = do_set_latest(&task_state, &task_channel, &task_tag).await;
+        let mut status = task_state.set_latest_status.lock().await;
+        match result {
+            Ok(()) => {
+                status.state = SyncState::Success;
+                status.phase = format!("Готово: канал {} на {}", task_channel, task_tag);
+                status.error = None;
+            }
+            Err(message) => {
+                status.state = SyncState::Error;
+                status.phase = "Ошибка".to_string();
+                status.error = Some(message.clone());
+                tracing::warn!("set-latest: {message}");
+            }
+        }
+        status.finished_at = Some(
+            OffsetDateTime::now_utc()
+                .format(&Rfc3339)
+                .unwrap_or_default(),
+        );
+        *task_state.release_task_running.lock().await = false;
+    });
+
+    Ok((
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({ "inProgress": true })),
+    ))
+}
+
+async fn update_set_latest_status(state: &Shared, update: impl FnOnce(&mut SetLatestStatus)) {
+    let mut status = state.set_latest_status.lock().await;
+    update(&mut status);
+}
+
+/// Перестановка latest канала: скачать latest.json из релиза тега,
+/// провалидировать платформы и опубликовать в алиас канала.
+async fn do_set_latest(state: &Shared, channel: &str, tag: &str) -> Result<(), String> {
+    update_set_latest_status(state, |s| s.phase = "Проверка релиза".to_string()).await;
+
+    // 1. Токен из настроек.
+    let token = state
+        .store
+        .get_setting(SETTING_GITHUB_TOKEN)
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .ok_or_else(|| "GitHub токен не задан в настройках".to_string())?;
+
+    // 2. Релиз по тегу.
+    let release_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{tag}");
+    let resp = github_api(state, reqwest::Method::GET, &release_url, &token, GH_ACCEPT_V3, None).await?;
+    if resp.status() == reqwest::StatusCode::NOT_FOUND {
+        return Err(format!("Релиз {tag} не найден на GitHub"));
+    }
+    if !resp.status().is_success() {
+        return Err(format!(
+            "получение релиза {tag}: HTTP {} (проверьте GitHub токен)",
+            resp.status().as_u16()
+        ));
+    }
+    let release: GitHubRelease = resp
+        .json()
+        .await
+        .map_err(|e| format!("парсинг релиза {tag}: {e}"))?;
+
+    // Stable-канал раздаёт только полноценные релизы: pre-release нужно
+    // сначала перевести в стабильный (фронтенд блокирует пилюлю, здесь —
+    // вторая линия обороны для прямых POST).
+    if channel == "stable" && release.prerelease {
+        return Err(format!(
+            "Релиз {tag} — pre-release: сначала переведите его в стабильный"
+        ));
+    }
+
+    // 3. latest.json из ассетов релиза.
+    update_set_latest_status(state, |s| s.phase = "Валидация latest.json".to_string()).await;
+    let latest_asset = release
+        .assets
+        .iter()
+        .find(|a| a.name == "latest.json")
+        .ok_or_else(|| {
+            format!("В релизе {tag} нет ассета latest.json — релиз неполный")
+        })?;
+
+    let latest_bytes = state
+        .http
+        .get(&latest_asset.browser_download_url)
+        .send()
+        .await
+        .map_err(|e| format!("скачивание latest.json: {e}"))?
+        .bytes()
+        .await
+        .map_err(|e| format!("чтение latest.json: {e}"))?
+        .to_vec();
+
+    // Валидация: платформы содержат все три семейства (как в CI alias job).
+    let latest: serde_json::Value = serde_json::from_slice(&latest_bytes)
+        .map_err(|e| format!("latest.json не парсится: {e}"))?;
+    let platforms = latest
+        .get("platforms")
+        .and_then(|p| p.as_object())
+        .ok_or_else(|| "latest.json не содержит объект platforms".to_string())?;
+    let families: std::collections::HashSet<&str> = platforms
+        .keys()
+        .map(|key| key.split('-').next().unwrap_or(""))
+        .collect();
+    for required in ["darwin", "linux", "windows"] {
+        if !families.contains(required) {
+            return Err(format!(
+                "latest.json неполный: нет семейства {required} (есть: {:?})",
+                families.iter().collect::<Vec<_>>()
+            ));
+        }
+    }
+
+    // 4. Публикация в алиас канала.
+    update_set_latest_status(state, |s| {
+        s.phase = format!("Публикация в канал {channel}")
+    })
+    .await;
+    publish_latest_to_alias(state, &token, channel, latest_bytes).await?;
+
+    tracing::info!("set-latest: канал {channel} направлен на {tag}");
+    Ok(())
+}
+
 /// Прогон GitHub-запроса с токеном. Токен уходит ТОЛЬКО на api.github.com /
 /// uploads.github.com (в URL-хосте проверяем), чтобы не утечь в чужой хост
 /// при редиректе или ошибке в URL.
+/// Прогон GitHub-запроса с токеном. Токен уходит ТОЛЬКО на api.github.com /
+/// uploads.github.com (в URL-хосте проверяем), чтобы не утечь в чужой хост
+/// при редиректе или ошибке в URL. `accept` — вариант media type
+/// (releases: v3+json, actions: vnd.github+json).
 async fn github_api(
     state: &Shared,
     method: reqwest::Method,
     url: &str,
     token: &str,
+    accept: &str,
     body: Option<serde_json::Value>,
 ) -> Result<reqwest::Response, String> {
     if !is_github_host(url) {
@@ -2833,7 +3423,7 @@ async fn github_api(
     let mut request = state
         .http
         .request(method, url)
-        .header("Accept", "application/vnd.github.v3+json")
+        .header("Accept", accept)
         .header("Authorization", format!("Bearer {token}"));
     if let Some(body) = body {
         request = request.json(&body);
@@ -2843,6 +3433,11 @@ async fn github_api(
         .await
         .map_err(|e| format!("запрос к GitHub API: {e}"))
 }
+
+/// Media type для REST API GitHub (releases и пр.).
+const GH_ACCEPT_V3: &str = "application/vnd.github.v3+json";
+/// Media type для Actions API GitHub.
+const GH_ACCEPT_ACTIONS: &str = "application/vnd.github+json";
 
 /// Проверяет, что URL ведёт на api.github.com или uploads.github.com.
 fn is_github_host(url: &str) -> bool {
@@ -2873,7 +3468,7 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
 
     // 2. Релиз по тегу.
     let release_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{tag}");
-    let resp = github_api(state, reqwest::Method::GET, &release_url, &token, None)
+    let resp = github_api(state, reqwest::Method::GET, &release_url, &token, GH_ACCEPT_V3, None)
         .await?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Err(format!("Релиз {tag} не найден на GitHub"));
@@ -2946,6 +3541,7 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
         reqwest::Method::PATCH,
         &patch_url,
         &token,
+        GH_ACCEPT_V3,
         Some(serde_json::json!({ "prerelease": false })),
     )
     .await?;
@@ -2956,21 +3552,37 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
         ));
     }
 
-    // 5. Алиас launcher-stable: найти или создать.
+    // 5. Публикация latest.json в алиас launcher-stable.
     update_promote_status(state, |s| {
         s.phase = "Публикация в launcher-stable".to_string()
     })
     .await;
+    publish_latest_to_alias(state, &token, "stable", latest_bytes).await?;
+
+    tracing::info!("promote-release: {tag} продвинут в stable ({STABLE_ALIAS_TAG})");
+    Ok(())
+}
+
+/// Публикация latest.json в алиас-канал апдейтера (launcher-beta /
+/// launcher-stable): найти алиас или создать, удалить старый latest.json
+/// (upload не перезаписывает) и загрузить новый. Общая для продвижения
+/// в stable и для перестановки latest канала.
+async fn publish_latest_to_alias(
+    state: &Shared,
+    token: &str,
+    channel: &str,
+    latest_bytes: Vec<u8>,
+) -> Result<(), String> {
+    let (alias_tag, alias_title) = match channel {
+        "beta" => (BETA_ALIAS_TAG, "StarDust Launcher (beta updater)"),
+        "stable" => (STABLE_ALIAS_TAG, "StarDust Launcher (stable updater)"),
+        _ => return Err(format!("неизвестный канал {channel}")),
+    };
+
+    // 1. Алиас: найти или создать.
     let alias_url =
-        format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{STABLE_ALIAS_TAG}");
-    let resp = github_api(
-        state,
-        reqwest::Method::GET,
-        &alias_url,
-        &token,
-        None,
-    )
-    .await?;
+        format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{alias_tag}");
+    let resp = github_api(state, reqwest::Method::GET, &alias_url, token, GH_ACCEPT_V3, None).await?;
     let alias_release: GitHubRelease = if resp.status() == reqwest::StatusCode::NOT_FOUND {
         // Создаём алиас (gh-style), ошибки статуса проверим ниже.
         let create_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases");
@@ -2978,17 +3590,18 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
             state,
             reqwest::Method::POST,
             &create_url,
-            &token,
+            token,
+            GH_ACCEPT_V3,
             Some(serde_json::json!({
-                "tag_name": STABLE_ALIAS_TAG,
-                "name": "StarDust Launcher (stable updater)",
-                "notes": "Stable updater metadata alias for launcher releases."
+                "tag_name": alias_tag,
+                "name": alias_title,
+                "notes": "Updater metadata alias for launcher releases."
             })),
         )
         .await?;
         if !resp.status().is_success() {
             return Err(format!(
-                "создание алиаса {STABLE_ALIAS_TAG}: HTTP {}",
+                "создание алиаса {alias_tag}: HTTP {}",
                 resp.status().as_u16()
             ));
         }
@@ -2998,31 +3611,25 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
     } else if !resp.status().is_success() {
         // Не 404 и не успех — обычно неверный токен (401/403).
         return Err(format!(
-            "получение алиаса {STABLE_ALIAS_TAG}: HTTP {} (проверьте GitHub токен)",
+            "получение алиаса {alias_tag}: HTTP {} (проверьте GitHub токен)",
             resp.status().as_u16()
         ));
     } else {
         resp.json()
             .await
-            .map_err(|e| format!("парсинг алиаса {STABLE_ALIAS_TAG}: {e}"))?
+            .map_err(|e| format!("парсинг алиаса {alias_tag}: {e}"))?
     };
-    let alias_id = alias_release.id.ok_or_else(|| {
-        format!("GitHub не вернул id алиаса {STABLE_ALIAS_TAG}")
-    })?;
+    let alias_id = alias_release
+        .id
+        .ok_or_else(|| format!("GitHub не вернул id алиаса {alias_tag}"))?;
 
-    // Удаляем старый latest.json с алиаса, если он есть (upload не перезаписывает).
+    // 2. Удаляем старый latest.json с алиаса, если он есть
+    //    (upload не перезаписывает).
     if let Some(old_asset) = alias_release.assets.iter().find(|a| a.name == "latest.json") {
         if let Some(asset_id) = old_asset.id {
             let delete_url =
                 format!("https://api.github.com/repos/{GITHUB_REPO}/releases/assets/{asset_id}");
-            let resp = github_api(
-                state,
-                reqwest::Method::DELETE,
-                &delete_url,
-                &token,
-                None,
-            )
-            .await?;
+            let resp = github_api(state, reqwest::Method::DELETE, &delete_url, token, GH_ACCEPT_V3, None).await?;
             // 404 = уже удалён кем-то другим, это не ошибка.
             if !resp.status().is_success() && resp.status() != reqwest::StatusCode::NOT_FOUND {
                 return Err(format!(
@@ -3033,28 +3640,31 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
         }
     }
 
-    // Загружаем новый latest.json.
+    // 3. Загружаем новый latest.json. Прямой POST на uploads.github.com
+    // (github_api не берёт байты-тело): хост проверяем тем же guard'ом.
     let upload_url = format!(
         "https://uploads.github.com/repos/{GITHUB_REPO}/releases/{alias_id}/assets?name=latest.json"
     );
+    if !is_github_host(&upload_url) {
+        return Err("внутренняя ошибка: загрузка не на GitHub".to_string());
+    }
     let resp = state
         .http
         .post(&upload_url)
-        .header("Accept", "application/vnd.github.v3+json")
+        .header("Accept", GH_ACCEPT_V3)
         .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/octet-stream")
         .body(latest_bytes)
         .send()
         .await
-        .map_err(|e| format!("загрузка latest.json в {STABLE_ALIAS_TAG}: {e}"))?;
+        .map_err(|e| format!("загрузка latest.json в {alias_tag}: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!(
-            "загрузка latest.json в {STABLE_ALIAS_TAG}: HTTP {}",
+            "загрузка latest.json в {alias_tag}: HTTP {}",
             resp.status().as_u16()
         ));
     }
 
-    tracing::info!("promote-release: {tag} продвинут в stable ({STABLE_ALIAS_TAG})");
     Ok(())
 }
 
@@ -3153,6 +3763,9 @@ struct GitHubAsset {
     id: Option<i64>,
     name: String,
     browser_download_url: String,
+    /// RFC 3339 публикации ассета (для «обновлён …» в каналах).
+    #[serde(default)]
+    updated_at: Option<String>,
 }
 
 async fn deploy_mod(

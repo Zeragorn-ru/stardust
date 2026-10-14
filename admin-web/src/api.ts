@@ -11,10 +11,12 @@ import type {
   BuildDetail,
   BuildFile,
   BuildHeader,
+  BuildRun,
   CreateBuildInput,
   DepsCheckResult,
   Gradient,
   Guide,
+  LauncherChannel,
   LauncherRelease,
   ModProfile,
   NewsPost,
@@ -23,6 +25,7 @@ import type {
   PromoteStatus,
   Season,
   SeasonArchiveStatus,
+  SetLatestStatus,
   Settings,
   ServerTelemetry,
   ServerLogsResponse,
@@ -614,6 +617,17 @@ export const api = {
     return request("GET", "/api/releases");
   },
 
+  // Состояние каналов апдейтера: какой тег раздаёт beta/stable.
+  getLauncherChannels(): Promise<LauncherChannel[]> {
+    return request("GET", "/api/launcher/channels");
+  },
+
+  // Прогоны сборки релизов в GitHub Actions — теги, ещё не ставшие
+  // релизами (progress matrix-leg'ов windows/linux/macos).
+  getBuildRuns(): Promise<BuildRun[]> {
+    return request("GET", "/api/releases/build-runs");
+  },
+
   // Переводит pre-release в полноценный релиз и обновляет latest.json
   // канала launcher-stable. Фоновая задача (202).
   promoteRelease(tag: string): Promise<{ inProgress: boolean }> {
@@ -622,6 +636,18 @@ export const api = {
 
   getPromoteStatus(): Promise<PromoteStatus> {
     return request("GET", "/api/releases/promote-status");
+  },
+
+  // Направляет канал апдейтера (beta/stable) на релиз с этим тегом:
+  // latest.json релиза копируется в алиас канала. Фоновая задача (202).
+  setLatest(tag: string, channel: string): Promise<{ inProgress: boolean }> {
+    return request("POST", `/api/releases/${encodeURIComponent(tag)}/set-latest`, {
+      channel,
+    });
+  },
+
+  getSetLatestStatus(): Promise<SetLatestStatus> {
+    return request("GET", "/api/releases/set-latest-status");
   },
 };
 

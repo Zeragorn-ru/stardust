@@ -5324,3 +5324,325 @@ input[type="radio"] {
 .seasons-view .sync-progress {
     margin-bottom: 14px;
 }
+
+/* --- Пульт релизов лаунчера (раздел 2 SeasonsView) --- */
+/* Три зоны с постоянными адресами: каналы апдейтера сверху (главный
+   вопрос «что раздаётся прямо сейчас»), CI-сборки тегов, ещё не
+   ставших релизами, и сами релизы. Прозаический футер и eyebrow
+   прежнего дизайна заменены этой структурой. */
+
+/* Полоса-предупреждение про токен: на всю ширину раздела. */
+.rel-token-warn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 14px;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 209, 102, 0.3);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 209, 102, 0.07);
+    color: var(--warn);
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+}
+
+/* Стенд каналов: две плиты, тег раздачи крупно. */
+.chan-board {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.chan-tile {
+    padding: 14px 16px 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--panel-2);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: inset 3px 0 0 var(--channel-color);
+}
+
+.chan-tile--beta {
+    --channel-color: var(--accent);
+}
+
+.chan-tile--stable {
+    --channel-color: var(--ok);
+}
+
+.chan-name {
+    font-size: var(--fs-sm);
+    font-weight: 650;
+    color: var(--muted);
+}
+
+.chan-tag {
+    font-size: var(--fs-2xl);
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+}
+
+.chan-tag--placeholder,
+.chan-tag--unset {
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    color: var(--faint);
+}
+
+.chan-meta {
+    font-size: var(--fs-sm);
+    color: var(--faint);
+    margin-top: 2px;
+}
+
+/* Живая фаза перестановки latest — внутри плиты канала. */
+.chan-task {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: var(--fs-sm);
+    color: var(--accent);
+}
+
+.chan-task--error {
+    color: var(--danger);
+    flex-wrap: wrap;
+}
+
+/* Заголовок зоны: тонкая линия, счётчик/ссылка справа. */
+.rel-zone-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 18px 0 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: var(--fs-base);
+    font-weight: 700;
+}
+
+/* Первая зона CI после стенда каналов: без верхней линии. */
+.chan-board + .rel-zone-head {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 4px;
+}
+
+.rel-zone-count {
+    font-size: var(--fs-sm);
+    font-weight: 400;
+    color: var(--faint);
+}
+
+.ci-actions-link {
+    font-size: var(--fs-sm);
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.ci-actions-link:hover {
+    color: var(--accent);
+}
+
+/* CI-строка: тег, статус, ноги matrix, ссылка на прогон. */
+.ci-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.025);
+    margin-bottom: 8px;
+}
+
+.ci-row--fail {
+    border-color: rgba(255, 93, 108, 0.4);
+    background: var(--danger-soft);
+}
+
+.ci-tag {
+    font-size: var(--fs-lg);
+}
+
+.ci-elapsed {
+    font-size: var(--fs-sm);
+    color: var(--faint);
+    margin-left: auto;
+}
+
+.ci-legs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Пилюля платформы-leg: цвет несёт состояние. */
+.ci-leg {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 9px;
+    border-radius: var(--radius-pill);
+    font-size: var(--fs-xs);
+    font-weight: 700;
+}
+
+.ci-leg--ok {
+    background: var(--ok-soft);
+    color: var(--ok);
+}
+
+.ci-leg--run {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.ci-leg--fail {
+    background: var(--danger-soft);
+    color: var(--danger);
+}
+
+.ci-leg--wait {
+    border: 1px dashed var(--border-strong);
+    color: var(--faint);
+}
+
+.ci-link {
+    font-size: var(--fs-sm);
+    color: var(--muted);
+}
+
+.ci-link:hover {
+    color: var(--accent);
+}
+
+/* Пустая строка зоны: приглашение, а не дыра. */
+.rel-empty {
+    margin: 0 0 8px;
+    padding: 12px 14px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--muted);
+    font-size: var(--fs-sm);
+}
+
+.rel-empty--error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    border-color: rgba(255, 93, 108, 0.4);
+    background: var(--danger-soft);
+}
+
+.rel-empty--error strong {
+    color: var(--danger);
+}
+
+/* Список релизов: строки вместо таблицы. */
+.rel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rel-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px 16px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.025);
+    transition: background 1.6s ease;
+}
+
+/* Свежий релиз: подсветка, затухающая к базе. */
+.rel-row--fresh {
+    background: var(--accent-soft);
+    transition: background 4s ease;
+}
+
+.rel-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.rel-tag {
+    font-size: var(--fs-lg);
+}
+
+.rel-date {
+    font-size: var(--fs-sm);
+    color: var(--muted);
+}
+
+.rel-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* Пилюля-переключатель канала: состояние «раздаёт», не кнопка-действие. */
+.latest-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border-strong);
+    background: transparent;
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.latest-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.latest-btn[data-channel="stable"]:hover:not(:disabled) {
+    border-color: var(--ok);
+    color: var(--ok);
+}
+
+.latest-btn.is-current[data-channel="beta"] {
+    background: var(--accent-soft);
+    border-color: rgba(115, 215, 255, 0.45);
+    color: var(--accent);
+    cursor: default;
+}
+
+.latest-btn.is-current[data-channel="stable"] {
+    background: var(--ok-soft);
+    border-color: rgba(95, 240, 167, 0.45);
+    color: var(--ok);
+    cursor: default;
+}
+
+.latest-btn.is-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+}

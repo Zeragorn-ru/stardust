@@ -2207,6 +2207,80 @@
     display: none;
 }
 
+/* --- Пульт релизов лаунчера на мобильном --- */
+
+/* Плиты каналов — в столбец, тег раздачи чуть крупнее базового. */
+.m-screen-seasons .chan-board {
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+
+.m-screen-seasons .chan-tag {
+    font-size: var(--fs-xl);
+}
+
+/* CI-строка и строка релиза — в колонку, действия на всю ширину.
+   Бейджи/пилюли не растягиваем: выравнивание по левому краю. */
+.m-screen-seasons .ci-row,
+.m-screen-seasons .rel-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.m-screen-seasons .ci-row > .sd-badge,
+.m-screen-seasons .ci-row > .ci-legs,
+.m-screen-seasons .ci-row > .ci-link,
+.m-screen-seasons .ci-row > strong,
+.m-screen-seasons .ci-row > .ci-elapsed {
+    align-self: flex-start;
+    width: auto;
+}
+
+.m-screen-seasons .ci-elapsed {
+    margin-left: 0;
+}
+
+/* Ссылка на прогон — тач-таргет 44px на всю ширину. */
+.m-screen-seasons .ci-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.m-screen-seasons .ci-legs {
+    gap: 8px;
+}
+
+.m-screen-seasons .ci-leg {
+    min-height: 32px;
+    padding: 0 11px;
+}
+
+/* Действия релиза: кнопка перевода на всю ширину, пилюли 44px пополам. */
+.m-screen-seasons .rel-actions {
+    justify-content: flex-start;
+}
+
+.m-screen-seasons .rel-actions .sd-button {
+    flex-basis: 100%;
+}
+
+.m-screen-seasons .latest-btn {
+    flex: 1 1 calc(50% - 4px);
+    min-height: 44px;
+    justify-content: center;
+}
+
+/* Предупреждение о токене переносится на узком экране. */
+.m-screen-seasons .rel-token-warn {
+    flex-wrap: wrap;
+}
+
 /* --- Внешние моды (план 3.7): единственный экран, не имевший адаптации --- */
 /* Экран уже обёрнут в .m-screen (MobileApp); здесь — тач-таргеты 44px,
    форма в колонку и усечённые хеши, чтобы строка не растягивалась. */

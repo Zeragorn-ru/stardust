@@ -107,9 +107,47 @@ export interface LauncherRelease {
   publishedAt: string | null;
 }
 
+/** Канал апдейтера: какой тег сейчас раздаёт (GET /api/launcher/channels). */
+export interface LauncherChannel {
+  /** `beta` | `stable`. */
+  channel: string;
+  /** Тег, который канал раздаёт, или null — канал ещё не настроен. */
+  tag: string | null;
+  /** RFC 3339 последнего обновления latest.json канала. */
+  updatedAt: string | null;
+}
+
+/** Прогон сборки релиза в GitHub Actions (GET /api/releases/build-runs). */
+export interface BuildRun {
+  tag: string;
+  /** `queued` | `running` | `success` | `failure` | `cancelled`. */
+  state: string;
+  runId: number;
+  startedAt: string | null;
+  legs: BuildLeg[];
+}
+
+/** Одна платформа-leg матрицы сборки. */
+export interface BuildLeg {
+  /** `windows` | `linux` | `macos`. */
+  platform: string;
+  state: string;
+}
+
 /** Статус фоновой задачи перевода релиза в стабильный. */
 export interface PromoteStatus {
   state: "idle" | "running" | "success" | "error";
+  tag: string | null;
+  phase: string;
+  error: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+/** Статус фоновой задачи перестановки latest-тега канала. */
+export interface SetLatestStatus {
+  state: "idle" | "running" | "success" | "error";
+  channel: string | null;
   tag: string | null;
   phase: string;
   error: string | null;
