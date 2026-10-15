@@ -200,6 +200,8 @@ jobs:
             RESOURCES="$APP_PATH/Contents/Resources"
             if [ ! -f "$RESOURCES/update-macos.sh" ]; then
               echo "::error::update-macos.sh не попал в .app (bundle.resources?)"
+              # Диагностика: что реально лежит в Resources.
+              find "$RESOURCES" -maxdepth 2 -type f | sed 's/^/  /' || true
               exit 1
             fi
             if ! cmp -s "$RESOURCES/update-macos.sh" scripts/ci/update-macos.sh; then
