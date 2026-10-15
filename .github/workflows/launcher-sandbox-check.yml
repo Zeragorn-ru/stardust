@@ -32,7 +32,8 @@ jobs:
     container:
       # Arch — целевая ОС баг-репорта (Gear Lever на Arch).
       image: archlinux:base-devel
-      options: --privileged
+      # privileged не нужен: pacman и cargo работают в обычном
+      # контейнере; лишние привилегии только расширяют поверхность атаки.
     env:
       # Прокси/сеть в контейнере не нужны; Cargo идёт напрямую.
       CARGO_NET_RETRY: 5

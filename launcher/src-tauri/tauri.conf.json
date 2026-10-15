@@ -56,7 +56,10 @@
       "nsis": {
         "installerHooks": "nsis/hooks.nsh"
       }
-    }
+    },
+    "resources": [
+      "resources/update-macos.sh"
+    ]
   },
   "plugins": {
     "updater": {

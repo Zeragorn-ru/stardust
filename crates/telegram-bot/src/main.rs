@@ -15,7 +15,6 @@
 use std::sync::Arc;
 
 use std::time::Duration;
-use tracing_subscriber::prelude::*;
 
 use store::{
     ChallengeAnswer, Store, CALLBACK_APPROVE, CALLBACK_BAN_HOUR, CALLBACK_DENY,
@@ -36,17 +35,40 @@ const OUTBOX_BATCH: i64 = 20;
 #[tokio::main]
 async fn main() {
     let log_dir = std::env::var("LOG_DIR").unwrap_or_else(|_| "logs".into());
-    let file_appender = tracing_appender::rolling::daily(&log_dir, "telegram-bot.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // rolling::daily паникует при незаписываемом каталоге (expect внутри
+    // конструктора). Builder возвращает Err — тогда логируем только в stdout:
+    // старт важнее файловых логов (как в лаунчере, см. lib.rs).
+    let stdout_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
+    let file_layer = tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("telegram-bot.log")
+        .build(&log_dir)
+        .map(|appender| {
+            let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
+            // Guard должен жить весь процесс, иначе хвост логов теряется.
+            std::mem::forget(_guard);
+            tracing_subscriber::fmt::layer().with_writer(non_blocking)
+        });
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "telegram_bot=info".into());
 
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
-        .init();
+    use tracing_subscriber::prelude::*;
+    match file_layer {
+        Ok(file_layer) => {
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .with(file_layer)
+                .init();
+        }
+        Err(_) => {
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .init();
+        }
+    }
 
     let database_url = std::env::var("DATABASE_URL")
         .expect("переменная окружения DATABASE_URL обязательна (строка подключения PostgreSQL)");
@@ -57,14 +79,23 @@ async fn main() {
     );
     tracing::info!("telegram-bot запущен; жду токен в настройках (settings)");
 
+    // Два клиента: для доставки короткий таймаут — sendMessage/getMe не
+    // должен провисать 45с; для long-poll getUpdates — запас поверх
+    // серверного timeout (LONG_POLL_SECS+15). Один общий клиент с 45с
+    // таймаутом рвал отправку сообщений при медленных ответах Telegram.
     let http = reqwest::Client::builder()
+        .user_agent(concat!("telegram-bot/", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("не удалось собрать HTTP-клиент доставки");
+    let http_poll = reqwest::Client::builder()
         .user_agent(concat!("telegram-bot/", env!("CARGO_PKG_VERSION")))
         .timeout(Duration::from_secs(LONG_POLL_SECS + 15))
         .build()
-        .expect("не удалось собрать HTTP-клиент");
+        .expect("не удалось собрать HTTP-клиент long-poll");
 
     let delivery = tokio::spawn(delivery_loop(store.clone(), http.clone()));
-    let updates = tokio::spawn(updates_loop(store.clone(), http.clone()));
+    let updates = tokio::spawn(updates_loop(store.clone(), http_poll.clone()));
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
@@ -76,13 +107,16 @@ async fn main() {
 }
 
 /// Текущий токен бота из БД (или None, если ещё не задан).
-async fn current_token(store: &Store) -> Option<String> {
+/// Текущий токен бота из БД: `Ok(Some)`/`Ok(None)`/`Err` — чтение не удалось.
+/// Ошибка БД НЕ трактуется как «токен удалён»: иначе updates_loop принимал бы
+/// её за смену токена, сбрасывал offset и повторно обрабатывал апдейты.
+async fn current_token(store: &Store) -> Result<Option<String>, String> {
     match store.get_setting(SETTING_TELEGRAM_TOKEN).await {
-        Ok(Some(t)) if !t.trim().is_empty() => Some(t.trim().to_string()),
-        Ok(_) => None,
+        Ok(Some(t)) if !t.trim().is_empty() => Ok(Some(t.trim().to_string())),
+        Ok(_) => Ok(None),
         Err(e) => {
             tracing::error!(?e, "не удалось прочитать токен из БД");
-            None
+            Err(e.to_string())
         }
     }
 }
@@ -94,7 +128,11 @@ async fn delivery_loop(store: Arc<Store>, http: reqwest::Client) {
     loop {
         tokio::time::sleep(OUTBOX_POLL).await;
 
-        let Some(token) = current_token(&store).await else {
+        // Ошибка чтения = подождать следующий цикл, старый токен не трогаем.
+        let Ok(token) = current_token(&store).await else {
+            continue;
+        };
+        let Some(token) = token else {
             continue; // токен ещё не задан — ждём
         };
 
@@ -247,17 +285,19 @@ async fn updates_loop(store: Arc<Store>, http: reqwest::Client) {
     let mut last_token_check = tokio::time::Instant::now();
 
     loop {
-        // Перечитываем токен периодически (и при первом запуске).
+        // Перечитываем токен периодически (и при первом запуске). Ошибка БД
+        // держит прежний токен: это не смена, а сбой чтения.
         if active_token.is_none() || last_token_check.elapsed() >= TOKEN_REFRESH {
-            let fresh = current_token(&store).await;
-            if fresh != active_token {
-                tracing::info!("токен бота изменился, перезапускаю поллинг");
-                offset = 0;
-                if let Some(token) = fresh.as_deref() {
-                    cache_bot_username(&store, &http, token).await;
+            if let Ok(fresh) = current_token(&store).await {
+                if fresh != active_token {
+                    tracing::info!("токен бота изменился, перезапускаю поллинг");
+                    offset = 0;
+                    if let Some(token) = fresh.as_deref() {
+                        cache_bot_username(&store, &http, token).await;
+                    }
                 }
+                active_token = fresh;
             }
-            active_token = fresh;
             last_token_check = tokio::time::Instant::now();
         }
 

@@ -28,7 +28,6 @@ mod yggdrasil;
 use std::sync::Arc;
 use std::time::Duration;
 
-use tracing_subscriber::prelude::*;
 
 use axum::{
     extract::{ConnectInfo, DefaultBodyLimit, Path, Query, State},
@@ -78,17 +77,40 @@ const SKIN_REFRESH_INTERVAL: Duration = Duration::from_secs(6 * 60 * 60); // 6 �
 #[tokio::main]
 async fn main() {
     let log_dir = std::env::var("LOG_DIR").unwrap_or_else(|_| "logs".into());
-    let file_appender = tracing_appender::rolling::daily(&log_dir, "auth-server.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // rolling::daily паникует при незаписываемом каталоге (expect внутри
+    // конструктора). Builder возвращает Err — тогда логируем только в stdout:
+    // старт важнее файловых логов (как в лаунчере, см. его lib.rs).
+    let stdout_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
+    let file_layer = tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("auth-server.log")
+        .build(&log_dir)
+        .map(|appender| {
+            let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
+            // Guard должен жить весь процесс, иначе хвост логов теряется.
+            std::mem::forget(_guard);
+            tracing_subscriber::fmt::layer().with_writer(non_blocking)
+        });
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "auth_server=info,tower_http=warn".into());
 
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
-        .init();
+    use tracing_subscriber::prelude::*;
+    match file_layer {
+        Ok(file_layer) => {
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .with(file_layer)
+                .init();
+        }
+        Err(_) => {
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .init();
+        }
+    }
 
     let http = reqwest::Client::builder()
         .user_agent("launcher-auth-server/0.1")
@@ -301,6 +323,29 @@ fn rate_limited(state: &Shared, ip: std::net::IpAddr) -> Result<(), ApiError> {
     }
 }
 
+/// Правила ника как в Minecraft: 3–16 символов, латиница/цифры/подчёркивание.
+/// Ник уходит в Yggdrasil и на MC-сервер — прочие символы там ломаются.
+/// Возвращает локализованную ошибку для ответа 400.
+fn validate_username(username: &str) -> Result<(), ApiError> {
+    let len = username.chars().count();
+    if !(3..=16).contains(&len) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Имя игрока: от 3 до 16 символов",
+        ));
+    }
+    if !username
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Имя игрока: только латинские буквы, цифры и _",
+        ));
+    }
+    Ok(())
+}
+
 async fn register(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -309,16 +354,19 @@ async fn register(
 ) -> Result<Json<AuthResponse>, ApiError> {
     rate_limited(&state, get_client_ip(&headers, addr))?;
     let username = creds.username.trim();
-    if username.len() < 3 {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Имя игрока: минимум 3 символа",
-        ));
-    }
+    validate_username(username)?;
     if creds.password.len() < 6 {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Пароль: минимум 6 символов",
+        ));
+    }
+    // argon2 хеширует всё, что дали: без потолка длины мегабайтный «пароль»
+    // из запроса лёг бы в CPU на каждом логине. 512 байт заведомо хватает.
+    if creds.password.len() > 512 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Пароль слишком длинный",
         ));
     }
     let profile = state.store.register(username, &creds.password).await?;
@@ -691,12 +739,7 @@ async fn change_username(
 ) -> Result<Json<PlayerProfile>, ApiError> {
     let account = current_account(&state, &headers).await?;
     let new_name = req.new_username.trim();
-    if new_name.len() < 3 {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Имя игрока: минимум 3 символа",
-        ));
-    }
+    validate_username(new_name)?;
     let profile = state.store.rename(&account.uuid, new_name).await?;
     Ok(Json(profile))
 }
@@ -1439,8 +1482,13 @@ struct ReportCrashRequest {
 async fn report_crash(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<ReportCrashRequest>,
 ) -> Result<StatusCode, ApiError> {
+    // Репорты несут мегабайты логов (лимит тела — 8 МБ) и пишутся в outbox
+    // + server_logs: без лимита один клиент замусоривает очередь Telegram
+    // и таблицу логов.
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let account = current_account(&state, &headers).await?;
     let username = &account.username;
 
@@ -1757,9 +1805,21 @@ async fn update_news_seen(
 /// GET /api/server/customization?players=Notch,Steve,...
 async fn server_customization(
     State(state): State<Shared>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<std::collections::HashMap<String, protocol::ServerPlayerCustomization>>, ApiError>
 {
+    // Публичный эндпоинт без авторизации: он ходит в БД по списку имён, поэтому
+    // нуждается в rate-limit не меньше, чем логин — иначе любой может дёргать
+    // его сколько угодно часто (N+1 запросов на каждый вызов).
+    let ip = get_client_ip(&headers, addr);
+    if state.store.check_rate_limit(ip, 30, 60) {
+        return Err(ApiError::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            "Слишком много запросов. Попробуйте позже.",
+        ));
+    }
     let names_str = params
         .get("players")
         .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "missing 'players' param"))?;
@@ -1768,6 +1828,15 @@ async fn server_customization(
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
         .collect();
+    // Лимит на размер списка: онлайн-сервер шлёт фактический список игроков,
+    // но без потолка произвольный запрос разворачивался в сотни SQL-запросов.
+    const MAX_NAMES: usize = 100;
+    if names.len() > MAX_NAMES {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            format!("Не больше {MAX_NAMES} имён за один запрос"),
+        ));
+    }
     if names.is_empty() {
         return Ok(Json(std::collections::HashMap::new()));
     }
@@ -1886,21 +1955,56 @@ async fn session_cleanup_loop(state: Shared) {
             Ok(_) => {}
             Err(e) => tracing::warn!("challenge cleanup failed: {e}"),
         }
+        // И старый outbox: тексты 2FA-кодов и логи игроков после отправки
+        // в БД больше не нужны, а строк добавляется много.
+        match state.store.purge_old_outbox().await {
+            Ok(n) if n > 0 => tracing::info!("удалено старых outbox-сообщений: {n}"),
+            Ok(_) => {}
+            Err(e) => tracing::warn!("outbox cleanup failed: {e}"),
+        }
     }
 }
 
-/// Минимальный обработчик SSH-клиента: принимаем любой ключ сервера.
-/// Хост задаётся администратором вручную — ответственность оператора.
-struct SftpHandler;
+/// Обработчик SSH-клиента с пиннингом ключа хоста. Отпечаток текущего
+/// Minecraft-сервера читается из настроек ДО подключения и сравнивается
+/// с предъявленным ключом: совпал — доверяем; не совпал при заполненном
+/// отпечатке — вероятный MITM, отклоняем. Пустой отпечаток = первое
+/// подключение: ключ принимается и запоминается (trust on first use).
+struct SftpHandler {
+    /// Ожидаемый SHA-256-отпечаток ключа хоста (None — первый коннект).
+    expected_fingerprint: Option<String>,
+    /// Куда `check_server_key` складывает отпечаток предъявленного ключа:
+    /// общий с вызывающим кодом Arc, т.к. хендлер уезжает в russh-Handle.
+    seen_fingerprint: Arc<tokio::sync::Mutex<Option<String>>>,
+}
 
 impl russh::client::Handler for SftpHandler {
     type Error = russh::Error;
 
     async fn check_server_key(
         &mut self,
-        _key: &russh::keys::ssh_key::PublicKey,
+        key: &russh::keys::ssh_key::PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(true)
+        let fp = key
+            .fingerprint(russh::keys::ssh_key::HashAlg::Sha256)
+            .to_string();
+        match &self.expected_fingerprint {
+            Some(known) if known == &fp => Ok(true),
+            Some(_) => {
+                let expected = self.expected_fingerprint.clone().unwrap_or_default();
+                tracing::error!(
+                    "[sftp] отпечаток ключа хоста изменился (ожидали {expected}, \
+                     предъявлен {fp}) — возможен MITM, подключение отклонено"
+                );
+                Err(russh::Error::UnknownKey)
+            }
+            None => {
+                if let Ok(mut g) = self.seen_fingerprint.try_lock() {
+                    *g = Some(fp);
+                }
+                Ok(true)
+            }
+        }
     }
 }
 
@@ -1924,6 +2028,13 @@ async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
     let username = get(store::SETTING_SFTP_USERNAME).await?;
     let password = get(store::SETTING_SFTP_PASSWORD).await?;
     let stats_path = get(store::SETTING_SFTP_STATS_PATH).await?;
+    // Пиннинг ключа хоста (см. SftpHandler): пусто — первый коннект, TOFU.
+    let pinned_fp = state
+        .store
+        .get_setting(store::SETTING_SFTP_HOST_FINGERPRINT)
+        .await
+        .map_err(|e| format!("db: {e}"))?
+        .filter(|s| !s.trim().is_empty());
 
     // host или host:port
     let (host_part, port) = match host.rsplit_once(':') {
@@ -1935,9 +2046,34 @@ async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
     };
 
     let config = Arc::new(russh::client::Config::default());
-    let mut ssh = russh::client::connect(config, (host_part.as_str(), port), SftpHandler)
-        .await
-        .map_err(|e| format!("ssh connect: {e}"))?;
+    // Отпечаток предъявленного ключа хендлер складывает в общий Arc: сам
+    // хендлер уезжает внутрь russh-Handle и наружу не возвращается.
+    let seen_fp: Arc<tokio::sync::Mutex<Option<String>>> = Arc::new(tokio::sync::Mutex::new(None));
+    let handler = SftpHandler {
+        expected_fingerprint: pinned_fp.clone(),
+        seen_fingerprint: seen_fp.clone(),
+    };
+    let mut ssh =
+        match russh::client::connect(config, (host_part.as_str(), port), handler).await {
+            Ok(handle) => handle,
+            Err(e) => return Err(format!("ssh connect: {e}")),
+        };
+    // Первый коннект к этому хосту — запоминаем отпечаток (TOFU), чтобы
+    // дальше отличать смену ключа (MITM) от легитимной перестановки сервера.
+    if pinned_fp.is_none() {
+        let fp = seen_fp.lock().await.clone();
+        if let Some(fp) = fp {
+            if let Err(e) = state
+                .store
+                .set_setting(store::SETTING_SFTP_HOST_FINGERPRINT, &fp)
+                .await
+            {
+                tracing::warn!("не удалось запиннить отпечаток SFTP-хоста: {e:?}");
+            } else {
+                tracing::info!("[sftp] отпечаток ключа хоста запиннен (TOFU)");
+            }
+        }
+    }
     let ok = ssh
         .authenticate_password(&username, &password)
         .await

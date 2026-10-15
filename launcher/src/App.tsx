@@ -373,8 +373,13 @@ export default function App() {
           onDismiss={() => {
             if (update) dismissedUpdateVersion.current = update.version;
             setUpdate(null);
-            updateForExit.current = null;
             setAutoInstallUpdate(false);
+            // updateForExit держит «прошлый» апдейт на время exit-анимации:
+            // сброс в том же тике размонтировал модалку мгновенно и анимация
+            // закрытия никогда не проигрывалась. 200 мс = delay хука.
+            setTimeout(() => {
+              updateForExit.current = null;
+            }, 200);
           }}
           closing={!updateModal.visible}
         />

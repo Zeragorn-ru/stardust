@@ -31,6 +31,11 @@ pub const SETTING_SFTP_USERNAME: &str = "sftp_username";
 pub const SETTING_SFTP_PASSWORD: &str = "sftp_password";
 /// Ключ настройки: путь к папке stats на Minecraft-сервере (например `/world/stats`).
 pub const SETTING_SFTP_STATS_PATH: &str = "sftp_stats_path";
+/// Ключ настройки: SHA-256-отпечаток SSH-ключа Minecraft-сервера (пиннинг,
+/// защита от MITM при SFTP-подключении). Заполняется автоматически при
+/// первом успешном подключении; смена ключа хоста блокирует статистику,
+/// пока отпечаток не сброшен.
+pub const SETTING_SFTP_HOST_FINGERPRINT: &str = "sftp_host_fingerprint";
 /// Базовая награда в монетах за одно подтверждённое достижение.
 pub const SETTING_ACHIEVEMENT_COIN_REWARD: &str = "achievement_coin_reward";
 /// Ключ настройки: токен GitHub (секрет, наружу не отдаём). Нужен для
@@ -647,8 +652,8 @@ impl Store {
         account_uuid.ok_or(StoreError::NotFound)
     }
 
-    /// Проверяет 6-значный код сброса пароля: challenge должен быть
-    /// подтверждён кнопкой в Telegram (`status = 'approved'`), код совпадать,
+    /// Проверяет 6-значный код сброса пароля: challenge должен относиться к
+    /// сбросу пароля, не истёк, не «отвергнут», код совпадать,
     /// IP — тем же, что при старте. Возвращает UUID аккаунта при успехе.
     pub async fn verify_reset_challenge(
         &self,
@@ -675,10 +680,14 @@ impl Store {
         let status: String = row.get("status");
         let stored_ip: Option<String> = row.get("client_ip");
 
+        // Требование status == 'approved' сюда не подходит: сообщение сброса
+        // пароля отправляется БЕЗ inline-кнопок (только 6-значный код), и
+        // 'approved' физически недостижим — confirm всегда отклонял валидный
+        // код. Подтверждением личности здесь служит сам код + совпадение IP.
         if expires_at <= now
             || purpose != CHALLENGE_PASSWORD_RESET
             || attempts >= MAX_2FA_ATTEMPTS
-            || status != "approved"
+            || status == "denied"
         {
             sqlx::query("DELETE FROM telegram_2fa_codes WHERE challenge = $1")
                 .bind(challenge)
@@ -912,6 +921,22 @@ impl Store {
         .execute(&self.pool)
         .await?;
         Ok(())
+    }
+
+    /// Удаляет отправленные и провалившиеся outbox-сообщения старше 30 дней:
+    /// сами сообщения (2FA-коды, тексты уведомлений) после отправки больше
+    /// не нужны, а копились бы в БД вечно — включая latest.log игроков
+    /// из document-уведомлений.
+    pub async fn purge_old_outbox(&self) -> Result<u64, StoreError> {
+        let changed = sqlx::query(
+            "DELETE FROM telegram_outbox
+             WHERE status IN ('sent', 'failed')
+               AND created_at < now() - interval '30 days'",
+        )
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        Ok(changed)
     }
 }
 

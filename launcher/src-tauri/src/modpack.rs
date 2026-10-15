@@ -367,8 +367,17 @@ pub async fn sync(
         }
     };
 
-    let choices = read_choices(data_dir, choices_file);
-    let selected_profile = read_selected_profile(manifest, selected_profile_file);
+    // Снимок выбора модов под тем же локом, что и set_mod_enabled/
+    // select_mod_profile: без этого переключение тумблера вклинивалось
+    // между чтением и переименованиями и срывало согласованность .jar/.dis.
+    // Лок держится только на чтение — сама синхронизация может идти минутами.
+    let (choices, selected_profile) = {
+        let _guard = CHOICES_LOCK.lock().unwrap();
+        (
+            read_choices(data_dir, choices_file),
+            read_selected_profile(manifest, selected_profile_file),
+        )
+    };
     let mut state = read_state(game_dir);
     let mut desired: BTreeMap<String, String> = BTreeMap::new();
 
@@ -713,6 +722,12 @@ fn remove_if_exists(path: &Path) {
     }
 }
 
+/// Проверяет файл против манифеста. Неразрушающая: несовпавший файл НЕ
+/// удаляется — вызовы в sync() идут до проверки overwrite-защиты (шаг 2),
+/// и удаление здесь стирало бы правки игрока раньше, чем защита успевала
+/// сработать. Заменой занимается загрузка: она пишет во временный файл и
+/// переименовывает поверх (minecraft.rs `download_to_counted`), а лишние
+//  дубли чистятся после успешной загрузки.
 fn file_matches(path: &Path, expected_sha1: &str, expected_size: u64) -> Result<bool, String> {
     if !path.exists() {
         return Ok(false);
@@ -726,7 +741,6 @@ fn file_matches(path: &Path, expected_sha1: &str, expected_size: u64) -> Result<
             "[modpack] размер {} не совпал: {actual_size} != {expected_size}, перекачиваем",
             path.display()
         );
-        let _ = std::fs::remove_file(path);
         return Ok(false);
     }
 
@@ -737,13 +751,9 @@ fn file_matches(path: &Path, expected_sha1: &str, expected_size: u64) -> Result<
                 "[modpack] SHA-1 {} не совпал: {actual} != {expected_sha1}, перекачиваем",
                 path.display()
             );
-            let _ = std::fs::remove_file(path);
             Ok(false)
         }
-        None => {
-            let _ = std::fs::remove_file(path);
-            Ok(false)
-        }
+        None => Ok(false),
     }
 }
 

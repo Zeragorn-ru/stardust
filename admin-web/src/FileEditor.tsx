@@ -107,7 +107,7 @@ export function FileEditor({
     setSaving(true);
     setSaveError(null);
     try {
-      await api.updateFileContent(file.id, text);
+      await api.updateFileContent(file.id, text, file.sha1);
       toast.success("Файл сохранён");
       setOriginal(text);
       onSaved();
@@ -117,6 +117,11 @@ export function FileEditor({
         ? err.message
         : "Не удалось сохранить";
       toast.error(message);
+      // Конфликт версий: файл менялся другим редактором — перечитываем
+      // содержимое, чтобы правки не потерялись молча.
+      if (err instanceof ApiError && err.status === 409) {
+        setReloadKey((k) => k + 1);
+      }
       // Не только тост: панель с «Повторить» у кнопок — тост гаснет через 6 с
       // и не даёт действия, а редактор остаётся открытым с несохранённым текстом.
       setSaveError(message);

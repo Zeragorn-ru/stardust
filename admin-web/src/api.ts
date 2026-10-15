@@ -73,10 +73,26 @@ export interface AccountSkin {
   model: SkinModel;
 }
 
+/// Кэш скинов: не больше этого числа записей (записи в Map идут в порядке
+/// вставки, так что «самые старые» — в начале). Каждый кэшированный скин —
+/// это Object URL на blob: без лимита они копятся до перезагрузки страницы.
+const SKIN_CACHE_LIMIT = 64;
+
 const accountSkinCache = new Map<
   string,
   AccountSkin | null | Promise<AccountSkin | null>
 >();
+
+/** Вытесняет старейшие записи, ревокая их Object URL. */
+function evictSkinCache(): void {
+  while (accountSkinCache.size > SKIN_CACHE_LIMIT) {
+    const entry = accountSkinCache.entries().next();
+    if (entry.done) break;
+    const [oldestUuid, oldest] = entry.value;
+    accountSkinCache.delete(oldestUuid);
+    if (oldest && !(oldest instanceof Promise)) URL.revokeObjectURL(oldest.url);
+  }
+}
 
 async function request<T>(
   method: string,
@@ -217,11 +233,21 @@ export const api = {
       xhr.open("POST", `/api/builds/${buildId}/files`);
       const token = getToken();
       if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
-
+      // Файлы сборки бывают до сотен МБ, поэтому таймаут — не на весь запрос,
+      // а на застой: 120 с без единого байта прогресса = «источник умер».
+      let stallTimer: ReturnType<typeof setTimeout> | undefined;
+      const STALL_TIMEOUT_MS = 120_000;
+      const armStall = () => {
+        clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => xhr.abort(), STALL_TIMEOUT_MS);
+      };
       xhr.upload.onprogress = (e) => {
+        armStall();
         if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
       };
+      armStall();
       xhr.onload = () => {
+        clearTimeout(stallTimer);
         const text = xhr.responseText;
         const data = text ? safeJson(text) : undefined;
         if (xhr.status >= 200 && xhr.status < 300) {
@@ -235,8 +261,12 @@ export const api = {
           reject(new ApiError(xhr.status, message));
         }
       };
-      xhr.onerror = () =>
+      xhr.onabort = () =>
+        reject(new ApiError(0, `Загрузка прервана: нет прогресса ${STALL_TIMEOUT_MS / 1000} с`));
+      xhr.onerror = () => {
+        clearTimeout(stallTimer);
         reject(new ApiError(0, "Сетевая ошибка при загрузке"));
+      };
       xhr.send(form);
     });
   },
@@ -289,8 +319,17 @@ export const api = {
     return resp.text();
   },
 
-  updateFileContent(fileId: number, content: string): Promise<BuildFile> {
-    return request("PUT", `/api/builds/files/${fileId}/content`, { content });
+  updateFileContent(
+    fileId: number,
+    content: string,
+    baseSha1?: string,
+  ): Promise<BuildFile> {
+    // baseSha1 — optimistic-concurrency: сервер отвергнет сохранение 409,
+    // если файл менялся после того, как редактор его открыл.
+    return request("PUT", `/api/builds/files/${fileId}/content`, {
+      content,
+      ...(baseSha1 ? { baseSha1 } : {}),
+    });
   },
 
   // Скачивает папку сборки одним zip-архивом: сервер собирает его на лету
@@ -490,7 +529,9 @@ export const api = {
     accountSkinCache.set(uuid, pending);
     try {
       const skin = await pending;
+      accountSkinCache.delete(uuid);
       accountSkinCache.set(uuid, skin);
+      evictSkinCache();
       return skin;
     } catch (error) {
       accountSkinCache.delete(uuid);

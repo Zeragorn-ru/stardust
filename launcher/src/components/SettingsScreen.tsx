@@ -261,8 +261,28 @@ export default function SettingsScreen({
     return () => window.clearTimeout(id);
   }, [settings, initialSettings, isDirty]);
 
+  // Кнопка «← Назад» должна проходить ту же проверку, что и Escape:
+  // иначе уход мышкой молча отбрасывает несохранённые изменения.
   function handleClose() {
-    onClose();
+    if (!isDirty && !javaDownloading && updateStatus !== "installing" && !relocating) {
+      onClose();
+      return;
+    }
+    void askConfirm({
+      title: "Покинуть настройки?",
+      body:
+        javaDownloading
+          ? "Загрузка Java продолжится в фоне, но индикатор пропадёт. Покинуть настройки?"
+          : updateStatus === "installing"
+            ? "Обновление лаунчера продолжится в фоне. Покинуть настройки?"
+            : relocating
+              ? "Перенос папки данных продолжается. Не закрывайте лаунчер. Покинуть настройки?"
+              : "Есть несохранённые изменения. Покинуть настройки?",
+      confirmText: "Покинуть",
+      danger: true,
+    }).then((ok) => {
+      if (ok) onClose();
+    });
   }
 
   // Escape — назад из настроек (с проверкой несохранённых изменений).
@@ -985,7 +1005,11 @@ export default function SettingsScreen({
                   <span
                     className="info-card__path info-card__path--link"
                     title={info.exeDir}
-                    onClick={() => openPath(info.exeDir)}
+                    onClick={() => {
+                      openPath(info.exeDir).catch((e) => {
+                        console.error("openPath:", e);
+                      });
+                    }}
                   >
                     {info.exeDir}
                   </span>

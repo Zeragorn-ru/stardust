@@ -272,6 +272,11 @@ fn write_token_file(app: &AppHandle, token: &str, profile_id: Option<&str>) -> R
             .mode(0o600)
             .open(&path)
             .map_err(|e| format!("не удалось сохранить токен: {e}"))?;
+        // mode() в OpenOptions действует только на СОЗДАНИЕ: файл, оставшийся
+        // от прошлых версий лаунчера с правами 0644, не сузился бы. Дожимаем
+        // chmod явно — токен в нём живёт до 30 дней.
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
         use std::io::Write;
         file.write_all(json.as_bytes())
             .map_err(|e| format!("не удалось сохранить токен: {e}"))?;
@@ -970,7 +975,13 @@ fn save_pending_session(
         launched_at: launched_at.to_string(),
         attempts: 0,
     });
-    let _ = std::fs::write(&path, serde_json::to_vec(&sessions).unwrap_or_default());
+    // Атомарно (tmp + rename): крах посреди прямой записи обнулял файл и
+    // очередь неотправленных сессий терялась целиком.
+    let bytes = serde_json::to_vec(&sessions).unwrap_or_default();
+    let tmp = path.with_extension("json.tmp");
+    if std::fs::write(&tmp, &bytes).is_ok() {
+        let _ = std::fs::rename(&tmp, &path);
+    }
 }
 
 /// Пытается отправить все сессии из очереди. Успешные удаляются.
@@ -1056,7 +1067,12 @@ async fn drain_pending_sessions(
     if remaining.is_empty() {
         let _ = std::fs::remove_file(&path);
     } else {
-        let _ = std::fs::write(&path, serde_json::to_vec(&remaining).unwrap_or_default());
+        // Атомарно, как в save_pending_session.
+        let bytes = serde_json::to_vec(&remaining).unwrap_or_default();
+        let tmp = path.with_extension("json.tmp");
+        if std::fs::write(&tmp, &bytes).is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
     }
 }
 
@@ -1501,11 +1517,15 @@ async fn download_java(
     // download_java делает remove_dir_all(runtime) — без лока он сносит рантайм
     // из-под запущенной игры/одновременного play_game. Тот же лок, что у
     // play_game/relocate: сериализуем разрушительные операции с данными.
-    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
+    let _guard = state.launch_lock.lock().await;
+    // Проверяем ПОСЛЕ захвата лока: проверка до него оставляла окно, в
+    // которое play_game успевал стартовать и открывал сессию с рантаймом,
+    // который мы через секунду удаляли бы.
+    if state.game.lock().unwrap().is_some()
+        || crate::game_guard::is_running(&paths::data_dir(&app))
     {
         return Err("Закройте Minecraft перед заменой Java".into());
     }
-    let _guard = state.launch_lock.lock().await;
     let data_dir = paths::data_dir(&app);
     // Отдельный канал: иначе Settings → «Скачать Java» залипает в глобальном
     // progress и блокирует кнопку «Играть» на главном экране.

@@ -358,6 +358,29 @@ impl Store {
             })
             .collect())
     }
+
+    /// Ретеншн телеметрии: срезы онлайн-статистики и события игроков
+    /// старше 30 дней, журналы сервера старше 90 дней. Без этой чистки
+    /// таблицы и ответы /api/server/telemetry растут бесконечно —
+    /// record_telemetry пишет новые строки каждое сердцебиение сервера.
+    pub async fn purge_old_telemetry(&self) -> Result<u64, StoreError> {
+        let mut changed = 0u64;
+        for (table, days) in [
+            ("server_telemetry_samples", 30i32),
+            ("server_player_events", 30),
+            ("server_logs", 90),
+        ] {
+            let sql = format!(
+                "DELETE FROM {table} WHERE recorded_at < now() - ($1 || ' days')::interval"
+            );
+            let res = sqlx::query(&sql)
+                .bind(days.to_string())
+                .execute(&self.pool)
+                .await?;
+            changed += res.rows_affected();
+        }
+        Ok(changed)
+    }
 }
 
 fn format_recorded_at(value: OffsetDateTime) -> String {

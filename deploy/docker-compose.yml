@@ -74,7 +74,13 @@ services:
       # Логи — ./logs/auth-server/.
       - ./logs/auth-server:/app/logs
     ports:
-      - "${AUTH_PORT:-8080}:8080"
+      # По умолчанию слушаем только на localhost: внешний TLS-прокси (за
+      # которым стоит AUTH_PUBLIC_URL) пробрасывает трафик сам. Публикация
+      # на 0.0.0.0 при TRUST_PROXY=1 — обход rate-limit подделкой
+      # X-Forwarded-For: сервер верит последнему элементу заголовка, а при
+      # прямом заходе его пишет сам клиент. Если auth нужен наружу без
+      # прокси — ставь AUTH_BIND_ADDR=0.0.0.0:8080 (и TRUST_PROXY=0).
+      - "${AUTH_BIND_ADDR:-127.0.0.1}:${AUTH_PORT:-8080}:8080"
     networks:
       - launcher-net
 
@@ -110,6 +116,10 @@ services:
       # Нужно для самого первого админа: регистрация всегда создаёт user.
       # Идемпотентно — можно оставить переменную навсегда.
       ADMIN_BOOTSTRAP: ${ADMIN_BOOTSTRAP:-}
+      # Origins веб-админки, с которых разрешён CORS. Без этого admin-server
+      # поднимается с CorsLayer::permissive() — любой сайт сможет дёргать
+      # API админки из браузера (с токеном из localStorage при XSS).
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://admin.zeragorn.xyz}
       RUST_LOG: ${ADMIN_RUST_LOG:-admin_server=info,tower_http=warn}
       LOG_DIR: /app/logs
       # Весь host data монтируется только для чтения: архив создаётся внутри

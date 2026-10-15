@@ -767,6 +767,27 @@ async fn ensure_libraries(
     download_libraries(progress, http, root, &version.libraries, concurrency).await
 }
 
+
+/// Путь библиотеки из доверенного JSON в безопасный относительный путь ФС.
+/// artifact.path приходит из version-JSON Mojang/NeoForge/манифеста сборки:
+/// при компрометации источника он мог бы содержать `..`/абсолютный путь и
+/// вывести запись (или распаковку zip) за пределы каталога libraries.
+fn library_rel_path(raw: &str) -> PathBuf {
+    let raw = raw.trim().replace('\\', "/");
+    let mut clean = PathBuf::new();
+    for comp in Path::new(&raw).components() {
+        if let std::path::Component::Normal(part) = comp {
+            clean.push(part);
+        }
+    }
+    // Некорректный путь не должен превращаться в «корень libraries»:
+    // пустой результат помечаем заведомо несуществующим именем.
+    if clean.as_os_str().is_empty() {
+        clean.push("_invalid_library_path");
+    }
+    clean
+}
+
 /// Скачивает произвольный список библиотек (vanilla или NeoForge),
 /// учитывая OS-rules и native-классификаторы. Загрузки идут параллельно с
 /// ограничением по числу одновременных соединений; прогресс этапа двигается по
@@ -784,7 +805,7 @@ async fn download_libraries(
         .filter(|lib| rules_allow(&lib.rules, &LaunchFeatures::default()))
     {
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
-            let path = root.join("libraries").join(&artifact.path);
+            let path = root.join("libraries").join(library_rel_path(&artifact.path));
             if !artifact.url.is_empty()
                 && !file_matches(&path, artifact.sha1.as_deref(), artifact.size)?
             {
@@ -800,7 +821,7 @@ async fn download_libraries(
         if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
             if let Some(native_key) = native_classifier(lib) {
                 if let Some(artifact) = classifiers.get(&native_key) {
-                    let path = root.join("libraries").join(&artifact.path);
+                    let path = root.join("libraries").join(library_rel_path(&artifact.path));
                     if !artifact.url.is_empty()
                         && !file_matches(&path, artifact.sha1.as_deref(), artifact.size)?
                     {
@@ -996,7 +1017,7 @@ fn extract_natives(
         if let Some(classifier) = native_classifier(lib) {
             if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
                 if let Some(artifact) = classifiers.get(&classifier) {
-                    let jar_path = root.join("libraries").join(&artifact.path);
+                    let jar_path = root.join("libraries").join(library_rel_path(&artifact.path));
                     if jar_path.exists() && extracted.insert(artifact.path.clone()) {
                         extract_zip(&jar_path, &dir)?;
                     }
@@ -1007,7 +1028,7 @@ fn extract_natives(
         // MC 1.21+: отдельные записи вида group:artifact:version:natives-macos.
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
             if native_artifact_for_current_os(&artifact.path, lib.name.as_deref()) {
-                let jar_path = root.join("libraries").join(&artifact.path);
+                let jar_path = root.join("libraries").join(library_rel_path(&artifact.path));
                 if jar_path.exists() && extracted.insert(artifact.path.clone()) {
                     extract_zip(&jar_path, &dir)?;
                 }
@@ -1061,7 +1082,7 @@ fn build_modloader_classpath(
             if let Some(key) = library_dedup_key(lib) {
                 seen.insert(key);
             }
-            paths.push(root.join("libraries").join(&artifact.path));
+            paths.push(root.join("libraries").join(library_rel_path(&artifact.path)));
         }
     }
     for lib in active_libraries(vanilla) {
@@ -1071,7 +1092,7 @@ fn build_modloader_classpath(
             }
         }
         if let Some(artifact) = lib.downloads.artifact.as_ref() {
-            paths.push(root.join("libraries").join(&artifact.path));
+            paths.push(root.join("libraries").join(library_rel_path(&artifact.path)));
         }
     }
     // vanilla-клиентский jar остаётся нужен (исключён из module-path через ignoreList).
@@ -1428,6 +1449,17 @@ async fn ensure_neoforge(
 ) -> Result<String, String> {
     progress.begin(Stage::NeoForgeInstall, "checking", "Проверяем NeoForge…");
     let neoforge_version = if let Some(v) = pinned_version {
+        // Версия попадает в пути ФС и URL (загрузка installer с
+        // maven.neoforged.net): слэш/точки-точки уводили бы запрос и запись
+        // за пределы intended. Разрешаем канонический формат вида «21.1.80».
+        let v = v.trim();
+        if v.is_empty()
+            || !v
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        {
+            return Err(format!("Некорректная версия NeoForge в манифесте: {v:?}"));
+        }
         v.to_string()
     } else {
         match std::env::var("LAUNCHER_NEOFORGE_VERSION")

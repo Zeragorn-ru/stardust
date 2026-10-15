@@ -321,12 +321,17 @@ export function useBuildActions(
           const s = await api.getDeployModStatus();
           deployPollErrors.current = 0;
           setDeployStatus(s);
-          if (s.state === "success" || s.state === "error") {
+          // idle — сервер перезапущен посреди задачи: статус сброшен в
+          // default. Не терминальное состояние само по себе, но задача
+          // уже не сообщит результат — гасим опрос, кнопка не залипает.
+          if (s.state === "success" || s.state === "error" || s.state === "idle") {
             stopDeployPoll();
             setDeploying(false);
             if (s.state === "success") {
               toast.success(`Мод ${s.version ?? "?"} добавлен в сборку. Синхронизируйте сервер.`);
               await onChangedRef.current?.();
+            } else if (s.state === "idle") {
+              toast.error("Статус деплоя мода потерян (сервер перезапущен?) — проверьте результат вручную");
             } else {
               toast.error(`Ошибка деплоя: ${s.error ?? "неизвестная ошибка"}`);
             }

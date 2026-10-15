@@ -187,16 +187,26 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
 
-      - name: "⑨ Bundle update script (macOS)"
+      # ⑨ (удалён): update-macos.sh кладётся в .app самим tauri через
+      # bundle.resources (launcher/src-tauri/resources/). Копирование сюда,
+      # ПОСЛЕ ⑧ signed build, ломало подпись .app — собранный образ
+      # уходил в релиз с повреждённым codesign. Проверка ниже страхует от
+      # рассинхрона копии в resources/ со scripts/ci/.
+      - name: "⑨ Verify bundled update script (macOS)"
         if: matrix.id == 'macos'
         run: |
           APP_PATH=$(find target -path '*/bundle/macos/*.app' -type d | head -1)
           if [ -n "$APP_PATH" ]; then
             RESOURCES="$APP_PATH/Contents/Resources"
-            mkdir -p "$RESOURCES"
-            cp scripts/ci/update-macos.sh "$RESOURCES/"
-            chmod +x "$RESOURCES/update-macos.sh"
-            echo "Bundled update-macos.sh in $RESOURCES"
+            if [ ! -f "$RESOURCES/update-macos.sh" ]; then
+              echo "::error::update-macos.sh не попал в .app (bundle.resources?)"
+              exit 1
+            fi
+            if ! cmp -s "$RESOURCES/update-macos.sh" scripts/ci/update-macos.sh; then
+              echo "::error::update-macos.sh в .app отличается от scripts/ci/ — синхронизируй launcher/src-tauri/resources/"
+              exit 1
+            fi
+            echo "update-macos.sh в .app совпадает со scripts/ci/"
           fi
 
       - name: "⑪ Collect bundles"

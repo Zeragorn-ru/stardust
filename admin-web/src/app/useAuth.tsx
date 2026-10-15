@@ -12,7 +12,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, getToken, setToken } from "../api";
+import { ApiError, api, getToken, setToken } from "../api";
 
 interface AuthState {
   /** null — ещё проверяем сохранённый токен; иначе известно, вошли или нет. */
@@ -47,10 +47,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUsername(me.username);
         setAuthed(true);
       })
-      .catch(() => {
+      .catch((err) => {
         if (!active) return;
-        setToken(null);
-        setAuthed(false);
+        // 401/403 — токен реально отозван: уходим на вход. Сетевой сбой или
+        // 5xx — НЕТ: выкидывание сохранённого токена по любой ошибке
+        // разлогинивало админа при каждом чихе сети/перезапуске сервера.
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          setToken(null);
+          setAuthed(false);
+        }
+        // Иначе: остаёмся в «неизвестно» (authed === null) — следующий
+        // запрос повторит проверку сам.
       });
     return () => {
       active = false;

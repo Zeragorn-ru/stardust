@@ -15,7 +15,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use tracing_subscriber::prelude::*;
 
 use axum::{
     extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, Query, State},
@@ -24,6 +23,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use axum::middleware::{self, Next};
 use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -43,7 +43,11 @@ use tower_http::services::ServeDir;
 mod backup;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
+/// Задаётся только на multipart-маршруте загрузки, не глобально.
 const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
+/// Общий лимит тела для всех остальных (JSON) маршрутов — включая
+/// анонимные /api/login и /files.
+const MAX_JSON_BODY_BYTES: usize = 16 * 1024 * 1024; // 16 МБ
 const MAX_NEWS_TITLE_CHARS: usize = 120;
 const MAX_NEWS_MARKDOWN_CHARS: usize = 12_000;
 const MAX_GUIDE_TITLE_CHARS: usize = 120;
@@ -124,17 +128,40 @@ struct InjectorMetadata {
 #[tokio::main]
 async fn main() {
     let log_dir = std::env::var("LOG_DIR").unwrap_or_else(|_| "logs".into());
-    let file_appender = tracing_appender::rolling::daily(&log_dir, "admin-server.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    // rolling::daily паникует при незаписываемом каталоге (expect внутри
+    // конструктора). Builder возвращает Err — тогда логируем только в stdout:
+    // старт важнее файловых логов (как в лаунчере, см. его lib.rs).
+    let stdout_layer = tracing_subscriber::fmt::layer().with_writer(std::io::stdout);
+    let file_layer = tracing_appender::rolling::RollingFileAppender::builder()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("admin-server.log")
+        .build(&log_dir)
+        .map(|appender| {
+            let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
+            // Guard должен жить весь процесс, иначе хвост логов теряется.
+            std::mem::forget(_guard);
+            tracing_subscriber::fmt::layer().with_writer(non_blocking)
+        });
 
     let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| "admin_server=info,tower_http=warn".into());
 
-    tracing_subscriber::registry()
-        .with(env_filter)
-        .with(tracing_subscriber::fmt::layer().with_writer(std::io::stdout))
-        .with(tracing_subscriber::fmt::layer().with_writer(non_blocking))
-        .init();
+    use tracing_subscriber::prelude::*;
+    match file_layer {
+        Ok(file_layer) => {
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .with(file_layer)
+                .init();
+        }
+        Err(_) => {
+            tracing_subscriber::registry()
+                .with(env_filter)
+                .with(stdout_layer)
+                .init();
+        }
+    }
 
     let database_url = std::env::var("DATABASE_URL")
         .expect("переменная окружения DATABASE_URL обязательна (строка подключения PostgreSQL)");
@@ -240,6 +267,20 @@ async fn main() {
         }
     });
 
+    // Ретеншн телеметрии: раз в сутки чистим срезы/события старше 30 дней
+    // и журналы старше 90 — иначе таблицы растут бесконечно.
+    let telemetry_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            match telemetry_state.store.purge_old_telemetry().await {
+                Ok(0) => {}
+                Ok(n) => tracing::info!("[telemetry] ретеншн: удалено {n} строк"),
+                Err(e) => tracing::warn!("[telemetry] ретеншн: {e}"),
+            }
+            tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
+        }
+    });
+
     let cors = {
         let allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
             .ok()
@@ -269,7 +310,7 @@ async fn main() {
         }
     };
 
-    let app = Router::new()
+    let router = Router::new()
         .route("/health", get(health))
         // --- Админка (нужен токен админа) ---
         .route("/api/login", post(login))
@@ -293,7 +334,12 @@ async fn main() {
         )
         .route("/api/builds/:id/activate", post(activate_build))
         .route("/api/builds/:id/clone", post(clone_build))
-        .route("/api/builds/:id/files", post(upload_file))
+        // Multipart-загрузка файлов сборки — единственный маршрут, которому
+        // нужен лимит в сотни МБ; см. MAX_UPLOAD_BYTES.
+        .route(
+            "/api/builds/:id/files",
+            post(upload_file).layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES)),
+        )
         .route("/api/builds/:id/folder-archive", get(folder_archive))
         .route(
             "/api/builds/:id/mod-profiles",
@@ -408,10 +454,21 @@ async fn main() {
             get(authlib_injector_metadata),
         )
         .route("/authlib-injector.jar", get(authlib_injector))
-        .nest_service("/files", ServeDir::new(modpack_dir))
-        .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
+        // /files раздаёт содержимое modpack_dir, но наружу должны выходить
+        // только контент-адресные блобы с hex-именем: known_hosts.json
+        // (SSH-отпечаток хоста панели) в том же каталоге публичным быть
+        // не должен.
+        .nest_service("/files", files_service(modpack_dir))
+        // Общий лимит тела для всех маршрутов. Раньше здесь стояло
+        // MAX_UPLOAD_BYTES (512 МБ) — и он накрывал в том числе /api/login
+        // и прочие JSON-эндпоинты: аноним мог слать мегабайты мусора,
+        // не проходя авторизацию (DoS-поверхность). Большой лимит нужен
+        // только multipart-загрузке — он задан прямо на её маршруте выше.
+        // 16 МБ хватает для JSON-тел (тексты, base64-скины ≤ ~350 КБ).
+        .layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
         .with_state(state)
         .layer(cors);
+    let app = router;
 
     let addr = std::env::var("ADMIN_BIND").unwrap_or_else(|_| "127.0.0.1:8081".into());
     let listener = tokio::net::TcpListener::bind(&addr)
@@ -1905,6 +1962,11 @@ async fn delete_mod_profile(
 #[derive(Deserialize)]
 struct UpdateContent {
     content: String,
+    /// SHA-1 версии, которую редактор видел при загрузке. При несовпадении с
+    /// текущей — 409: файл менялся после открытия, слепое сохранение затёрло бы
+    /// чужую правку (last-write-wins). Отсутствие поля = старый клиент.
+    #[serde(rename = "baseSha1", default)]
+    base_sha1: Option<String>,
 }
 
 /// Заменяет содержимое текстового файла. Пересчитывает sha1, пишет новые
@@ -1917,7 +1979,15 @@ async fn update_file_content(
 ) -> Result<Json<BuildFileDto>, ApiError> {
     require_admin(&state, &headers).await?;
 
-    state.store.build_file(file_id).await.map_err(map_store)?;
+    let current = state.store.build_file(file_id).await.map_err(map_store)?;
+    if let Some(base) = body.base_sha1.as_deref().filter(|b| !b.is_empty()) {
+        if !base.eq_ignore_ascii_case(&current.sha1) {
+            return Err(ApiError::new(
+                StatusCode::CONFLICT,
+                "Файл был изменён после того, как вы его открыли. Обновите редактор и перенесите правки.",
+            ));
+        }
+    }
 
     let bytes = body.content.into_bytes();
     let sha1 = sha1_hex(&bytes);
@@ -2017,19 +2087,25 @@ async fn update_sync_status(state: &Shared, update: impl FnOnce(&mut SyncStatus)
 const SYNC_MANIFEST: &str = ".stardust-sync.json";
 
 /// SSH client handler. Хранит known hosts в файле `known_hosts.json` рядом с
-/// modpack-dir. При первом подключении ключ хоста сохраняется; при последующих
-/// — проверяется. Если файл отсутствует или пуст — ключ принимается и
-/// записывается (первое подключение = доверие). Смена ключа хоста = ошибка
-/// (возможная MITM-атака).
+/// modpack-dir, отпечатки — по ключу `host:port` (смена хоста в настройках не
+/// ложно блокируется чужим отпечатком). При первом подключении ключ хоста
+/// сохраняется; при последующих — проверяется. Если файл отсутствует или пуст —
+/// ключ принимается и записывается (первое подключение = доверие). Смена ключа
+/// хоста = ошибка (возможная MITM-атака). Для совместимости старый формат
+/// `{"host_key": fp}` трактуется как отпечаток неизвестно какого хоста и
+/// игнорируется (перезапишется при первом коннекте).
 struct SftpHandler {
     /// Путь к файлу known_hosts.json.
     known_hosts_path: std::path::PathBuf,
+    /// Идентификатор подключаемого хоста (`host:port`).
+    host_id: String,
 }
 
 impl SftpHandler {
-    fn new(modpack_dir: &std::path::Path) -> Self {
+    fn new(modpack_dir: &std::path::Path, host_id: &str) -> Self {
         Self {
             known_hosts_path: modpack_dir.join("known_hosts.json"),
+            host_id: host_id.to_string(),
         }
     }
 
@@ -2063,7 +2139,7 @@ impl russh::client::Handler for SftpHandler {
 
         // Проверяем known hosts.
         let mut hosts = self.load_hosts();
-        let host_key = hosts.get("host_key");
+        let host_key = hosts.get(&self.host_id);
 
         match host_key {
             Some(known) if known == &key_str => {
@@ -2073,21 +2149,47 @@ impl russh::client::Handler for SftpHandler {
             Some(_mismatch) => {
                 // Ключ изменился — потенциальная MITM-атака.
                 tracing::error!(
-                    "[sftp] КЛЮЧ ХОСТА ИЗМЕНИЛСЯ! Возможна MITM-атака. \
+                    "[sftp] КЛЮЧ ХОСТА ИЗМЕНИЛСЯ для {}! Возможна MITM-атака. \
                      Удалите known_hosts.json и подключитесь заново, \
-                     если вы уверены в безопасности канала."
+                     если вы уверены в безопасности канала.",
+                    self.host_id
                 );
                 Err(russh::Error::UnknownKey)
             }
             None => {
                 // Первое подключение — сохраняем ключ.
                 tracing::info!("[sftp] Первое подключение, сохраняем ключ хоста");
-                hosts.insert("host_key".to_string(), key_str);
+                hosts.insert(self.host_id.clone(), key_str);
                 self.save_hosts(&hosts);
                 Ok(true)
             }
         }
     }
+}
+
+/// Публичная раздача `modpack_dir` под `/files`. Это тот же каталог, где
+/// живут служебные файлы (known_hosts.json с SSH-отпечатком хоста панели),
+/// поэтому отдаём наружу только имена, валидные как SHA-1-ключ контентного
+/// хранилища: 40 символов `[0-9a-f]`. Остальное — 404.
+fn files_service(modpack_dir: PathBuf) -> Router {
+    async fn guard(req: axum::extract::Request, next: Next) -> Response {
+        let path = req.uri().path();
+        // `/files/<name>` или `/files/<name>/...` (ServeDir может слать
+        // вложенные пути — их отсекаем той же проверкой сегмента).
+        let rest = path.trim_start_matches("/files/").trim_start_matches('/');
+        let name = rest.split('/').next().unwrap_or("");
+        let is_hex40 = name.len() == 40
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+        if !rest.is_empty() && !is_hex40 {
+            return (StatusCode::NOT_FOUND, "файл не найден").into_response();
+        }
+        next.run(req).await
+    }
+    Router::new()
+        .nest_service("/", ServeDir::new(modpack_dir))
+        .layer(middleware::from_fn(guard))
 }
 
 /// Удаляет known_hosts.json — сбрасывает отпечаток SSH-ключа сервера.
@@ -2258,7 +2360,7 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
     let mut session = russh::client::connect(
         config,
         (host_part.as_str(), port),
-        SftpHandler::new(&state.modpack_dir),
+        SftpHandler::new(&state.modpack_dir, &format!("{host_part}:{port}")),
     )
     .await
     .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
@@ -2693,6 +2795,21 @@ async fn update_season_archive_status(
 
 /// Репозиторий, в котором живут релизы лаунчера и алиасы апдейтера.
 const GITHUB_REPO: &str = "Zeragorn-ru/stardust";
+
+/// Строгая проверка тега релиза лаунчера. Тег попадает в path URL
+/// `api.github.com/repos/.../releases/tags/{tag}` с токеном, поэтому
+/// недостаточно `starts_with('v')`: точка и слэш позволяют уводить запрос
+/// на произвольный путь GitHub (dot-segment). Разрешаем ровно `vцифры.цифры.цифры`.
+fn tag_is_release(tag: &str) -> bool {
+    let rest = tag.strip_prefix('v').unwrap_or("");
+    let mut parts = rest.split('.');
+    let mut ok = !rest.is_empty();
+    for _ in 0..3 {
+        let seg = parts.next().unwrap_or("");
+        ok &= !seg.is_empty() && seg.bytes().all(|b| b.is_ascii_digit());
+    }
+    ok && parts.next().is_none()
+}
 /// Тег алиаса, из которого stable-клиенты качают latest.json.
 const STABLE_ALIAS_TAG: &str = "launcher-stable";
 /// Тег алиаса, из которого beta-клиенты качают latest.json.
@@ -2799,15 +2916,12 @@ async fn read_alias_channel(
     let Some(asset) = alias.assets.iter().find(|a| a.name == "latest.json") else {
         return Ok(dto);
     };
-    let latest_bytes = state
-        .http
-        .get(&asset.browser_download_url)
-        .send()
-        .await
-        .map_err(|e| format!("скачивание latest.json {alias_tag}: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("чтение latest.json {alias_tag}: {e}"))?;
+    let latest_bytes = fetch_release_asset(
+        state,
+        &asset.browser_download_url,
+        &format!("latest.json {alias_tag}"),
+    )
+    .await?;
     let latest: serde_json::Value = serde_json::from_slice(&latest_bytes)
         .map_err(|e| format!("latest.json {alias_tag} не парсится: {e}"))?;
     // CI кладёт в latest.json версию без префикса v (set-version срезает его),
@@ -2832,13 +2946,13 @@ async fn launcher_channels(
 ) -> Result<Json<Vec<LauncherChannelDto>>, ApiError> {
     require_admin(&state, &headers).await?;
 
+    // Сбой чтения БД — НЕ «токен не задан»: раньше map_err(...).ok() глотал
+    // ошибку хранилища и пользователь получал вводящую в заблуждение 400.
     let token = state
         .store
         .get_setting(SETTING_GITHUB_TOKEN)
         .await
-        .map_err(|e| e.to_string())
-        .ok()
-        .flatten()
+        .map_err(internal)?
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
         .ok_or_else(|| ApiError::new(
@@ -3039,7 +3153,8 @@ async fn fetch_run_jobs(
 }
 
 /// `GET /api/releases` — релизы лаунчера (тег `v*`) из GitHub API,
-/// от новых к старым, максимум 10. Без авторизации — публичный список.
+/// от новых к старым, максимум 10. Требует авторизации админа: список
+/// ходит в GitHub с токеном из настроек, когда он задан.
 async fn list_releases(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -3103,8 +3218,8 @@ async fn promote_release(
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     require_admin(&state, &headers).await?;
 
-    // Тег должен выглядеть как релиз лаунчера (vX.Y.Z), а не как алиас.
-    if !tag.starts_with('v') || tag.contains("stable") || tag.contains("beta") {
+    // Тег обязан быть строгим vX.Y.Z: он попадает в path URL GitHub с токеном.
+    if !tag_is_release(&tag) {
         return Err(ApiError::new(
             StatusCode::NOT_FOUND,
             format!("Тег {tag} не является релизом лаунчера"),
@@ -3174,7 +3289,9 @@ async fn promote_release(
                 .format(&Rfc3339)
                 .unwrap_or_default(),
         );
-        *task_state.release_task_running.lock().await = false;
+        // Guard снят при выходе из scope (Drop выше). Повторное снятие здесь
+        // гонит с Drop'ом и может снять guard уже СЛЕДУЮЩЕЙ канальной задачи,
+        // запущенной между Drop и этой строкой — защита слетала бы на ровном месте.
     });
 
     Ok((
@@ -3216,8 +3333,8 @@ async fn set_latest(
 ) -> Result<(StatusCode, Json<serde_json::Value>), ApiError> {
     require_admin(&state, &headers).await?;
 
-    // Тег должен выглядеть как релиз лаунчера (vX.Y.Z), а не как алиас.
-    if !tag.starts_with('v') || tag.contains("stable") || tag.contains("beta") {
+    // Тег обязан быть строгим vX.Y.Z: он попадает в path URL GitHub с токеном.
+    if !tag_is_release(&tag) {
         return Err(ApiError::new(
             StatusCode::NOT_FOUND,
             format!("Тег {tag} не является релизом лаунчера"),
@@ -3295,7 +3412,8 @@ async fn set_latest(
                 .format(&Rfc3339)
                 .unwrap_or_default(),
         );
-        *task_state.release_task_running.lock().await = false;
+        // Guard снят при выходе из scope (Drop выше); повторное снятие здесь
+        // могло снять guard следующей канальной задачи (гонка с Drop'ом).
     });
 
     Ok((
@@ -3360,16 +3478,8 @@ async fn do_set_latest(state: &Shared, channel: &str, tag: &str) -> Result<(), S
             format!("В релизе {tag} нет ассета latest.json — релиз неполный")
         })?;
 
-    let latest_bytes = state
-        .http
-        .get(&latest_asset.browser_download_url)
-        .send()
-        .await
-        .map_err(|e| format!("скачивание latest.json: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("чтение latest.json: {e}"))?
-        .to_vec();
+    let latest_bytes =
+        fetch_release_asset(state, &latest_asset.browser_download_url, "latest.json").await?;
 
     // Валидация: платформы содержат все три семейства (как в CI alias job).
     let latest: serde_json::Value = serde_json::from_slice(&latest_bytes)
@@ -3447,6 +3557,32 @@ fn is_github_host(url: &str) -> bool {
         .is_some_and(|h| h == "api.github.com" || h == "uploads.github.com")
 }
 
+/// Скачивает ассет релиза GitHub с проверкой HTTP-статуса: на сбой GitHub
+/// отвечает телом ошибки (HTML/JSON), которое без проверки попадало бы
+/// в парсер и дальше — например, «не парсится» вместо реальной причины.
+async fn fetch_release_asset(
+    state: &Shared,
+    url: &str,
+    what: &str,
+) -> Result<Vec<u8>, String> {
+    let resp = state
+        .http
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| format!("скачивание {what}: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!(
+            "{what}: GitHub вернул HTTP {}",
+            resp.status().as_u16()
+        ));
+    }
+    resp.bytes()
+        .await
+        .map(|b| b.to_vec())
+        .map_err(|e| format!("чтение {what}: {e}"))
+}
+
 /// Продвижение релиза лаунчера в stable. Шаги:
 /// 1) проверка релиза по тегу;
 /// 2) скачивание и валидация latest.json (все три семейства:
@@ -3495,16 +3631,8 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
             format!("В релизе {tag} нет ассета latest.json — релиз неполный")
         })?;
 
-    let latest_bytes = state
-        .http
-        .get(&latest_asset.browser_download_url)
-        .send()
-        .await
-        .map_err(|e| format!("скачивание latest.json: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("чтение latest.json: {e}"))?
-        .to_vec();
+    let latest_bytes =
+        fetch_release_asset(state, &latest_asset.browser_download_url, "latest.json").await?;
 
     // Валидация: платформы содержат все три семейства. Семейство — первый
     // токен ключа платформы, разделённый дефисами (как в CI alias job).
@@ -3878,12 +4006,19 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
             .filter(|r| r.tag_name.starts_with("mod-v"))
             .collect();
         mod_releases.sort_by(|a, b| {
-            let parse = |r: &GitHubRelease| -> Vec<u32> {
+            // Нечисловые сегменты тега обрабатываем явно: «1.2.3a» → ниже
+            // любой числовой версии (0 в паре с флагом), а не отбрасываем
+            // молча — filter_map превращал «v3» и «v3.10» в одинаковые
+            // векторы и порядок «последнего релиза» становился произвольным.
+            let parse = |r: &GitHubRelease| -> Vec<(u32, bool)> {
                 r.tag_name
                     .strip_prefix("mod-v")
                     .unwrap_or(&r.tag_name)
                     .split('.')
-                    .filter_map(|s| s.parse().ok())
+                    .map(|s| match s.parse::<u32>() {
+                        Ok(n) => (n, true),
+                        Err(_) => (0, false),
+                    })
                     .collect()
             };
             parse(b).cmp(&parse(a))
@@ -3925,16 +4060,15 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
     })
     .await;
 
-    let jar_bytes = state
-        .http
-        .get(&jar_asset.browser_download_url)
-        .send()
-        .await
-        .map_err(|e| internal(format!("скачивание jar: {e}")))?
-        .bytes()
-        .await
-        .map_err(|e| internal(format!("чтение jar: {e}")))?
-        .to_vec();
+    // Статус проверяет хелпер: на сбой GitHub отвечает телом ошибки, и без
+    // проверки оно ложилось бы в хранилище и раздавалось сборке как «мод».
+    let jar_bytes = fetch_release_asset(
+        &state,
+        &jar_asset.browser_download_url,
+        &format!("jar {jar_name}"),
+    )
+    .await
+    .map_err(internal)?;
 
     let size_bytes = jar_bytes.len() as i64;
     let sha1 = sha1_hex(&jar_bytes);
@@ -3976,10 +4110,22 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
     let mut old_files_to_delete = Vec::new();
 
     for f in &build.files {
-        let is_stardust_mod = f.mod_id.as_deref() == Some("stardust")
-            || (f.path.starts_with("mods/")
-                && f.path.contains("stardust")
-                && f.path.ends_with(".jar"));
+        // Заменяем только файлы ЭТОГО мода: явный mod_id «stardust» или jar,
+        // чьё имя соответствует нашему шаблону имени ассета мода
+        // (stardust[-<version>].jar). Голая подстрока «stardust» в пути
+        // цепляла и посторонние моды вроде stardust-something-else.jar.
+        let matches_name = f
+            .path
+            .rsplit('/')
+            .next()
+            .map(|name| {
+                let stem = name.strip_suffix(".jar").unwrap_or(name);
+                stem == "stardust"
+                    || (stem.starts_with("stardust-") && stem["stardust-".len()..].chars().all(|c| c.is_ascii_digit() || c == '.'))
+            })
+            .unwrap_or(false);
+        let is_stardust_mod =
+            f.mod_id.as_deref() == Some("stardust") || (f.path.starts_with("mods/") && matches_name);
         if is_stardust_mod {
             old_side = f.side.clone();
             old_overwrite = f.overwrite;
@@ -4165,9 +4311,15 @@ async fn ban_account(
             "Нельзя забанить свой собственный аккаунт",
         ));
     }
+    // Верхняя граница длительности бана — 10 лет: без неё `Duration::from_secs`
+    // паникует на огромных значениях из запроса (например 2^63/1000), а
+    // сложение с OffsetDateTime — ещё и переполняется. Запредельные значения
+    // приравниваем к постоянному бану.
+    const MAX_BAN_SECS: i64 = 10 * 365 * 24 * 60 * 60;
     let until = match req.duration_secs {
         Some(secs) if secs > 0 => {
-            Some(OffsetDateTime::now_utc() + Duration::from_secs(secs as u64))
+            let capped = secs.min(MAX_BAN_SECS) as u64;
+            Some(OffsetDateTime::now_utc() + Duration::from_secs(capped))
         }
         _ => None,
     };
@@ -4503,7 +4655,7 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
     let mut session = russh::client::connect(
         config,
         (host_part.as_str(), port),
-        SftpHandler::new(&state.modpack_dir),
+        SftpHandler::new(&state.modpack_dir, &format!("{host_part}:{port}")),
     )
     .await
     .map_err(|e| format!("SSH-подключение к {host_part}:{port}: {e}"))?;
@@ -5880,13 +6032,22 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 fn internal(e: impl std::fmt::Display) -> ApiError {
-    ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    // Полная причина — в журнал (админ его видит), наружу — заглушка:
+    // сюда доезжают и sqlx-ошибки с деталями БД, и пути на сервере.
+    tracing::error!("internal: {e}");
+    ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Внутренняя ошибка сервера")
 }
 
 fn map_store(e: store::StoreError) -> ApiError {
     match e {
         store::StoreError::NotFound => ApiError::new(StatusCode::NOT_FOUND, "Не найдено"),
         store::StoreError::NameTaken => ApiError::new(StatusCode::CONFLICT, "Такой slug уже занят"),
+        // sqlx-текст наружу не отдаём: в нём всплывают имя БД, схемы и
+        // куски SQL (детали инфраструктуры для атакующего). Лог — да, ответ — нет.
+        store::StoreError::Backend(msg) => {
+            tracing::error!("ошибка хранилища: {msg}");
+            ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Внутренняя ошибка сервера")
+        }
         other => ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
     }
 }

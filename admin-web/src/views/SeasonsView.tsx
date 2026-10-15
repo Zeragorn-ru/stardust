@@ -291,12 +291,16 @@ export function SeasonsView() {
         const s = await api.getSeasonArchiveStatus();
         archivePollErrors.current = 0;
         setArchiveStatus(s);
-        if (s.state === "success" || s.state === "error") {
+        // idle = статус сброшен рестартом сервера; задача результата больше
+        // не пришлёт — гасим опрос, чтобы кнопка не залипала навсегда.
+        if (s.state === "success" || s.state === "error" || s.state === "idle") {
           stopArchivePoll();
           setArchiving(false);
           if (s.state === "success") {
             toast.success(`Сезон «${s.seasonName ?? ""}» заархивирован. Счётчики игроков сброшены.`);
             await loadSeasons();
+          } else if (s.state === "idle") {
+            toast.error("Статус архивации потерян (сервер перезапущен?) — проверьте результат вручную");
           } else {
             toast.error(`Ошибка архивации: ${s.error ?? "неизвестная ошибка"}`);
           }
@@ -341,12 +345,15 @@ export function SeasonsView() {
         const s = await api.getPromoteStatus();
         promotePollErrors.current = 0;
         setPromoteStatus(s);
-        if (s.state === "success" || s.state === "error") {
+        // idle = статус сброшен рестартом сервера (см. archive poll).
+        if (s.state === "success" || s.state === "error" || s.state === "idle") {
           stopPromotePoll();
           setPromotingTag(null);
           if (s.state === "success") {
             toast.success(`Релиз ${s.tag ?? ""} переведён в стабильный канал`);
             await Promise.all([loadReleases(false), loadChannels(), loadBuildRuns()]);
+          } else if (s.state === "idle") {
+            toast.error("Статус перевода в стабильный потерян (сервер перезапущен?) — проверьте релизы вручную");
           } else {
             toast.error(`Ошибка перевода в стабильный: ${s.error ?? "неизвестная ошибка"}`);
           }
@@ -390,12 +397,16 @@ export function SeasonsView() {
         const s = await api.getSetLatestStatus();
         setLatestPollErrors.current = 0;
         setSetLatestStatus(s);
-        if (s.state === "success" || s.state === "error") {
+        // idle = статус сброшен рестартом сервера (см. archive poll).
+        if (s.state === "success" || s.state === "error" || s.state === "idle") {
           stopSetLatestPoll();
           if (s.state === "success") {
             setRetargeting(null);
             toast.success(`Канал launcher-${s.channel ?? ""} теперь раздаёт ${s.tag ?? ""}`);
             await loadChannels();
+          } else if (s.state === "idle") {
+            setRetargeting(null);
+            toast.error("Статус перестановки latest потерян (сервер перезапущен?) — проверьте канал вручную");
           } else {
             // Ошибка остаётся в плите канала (retargeting держим), toast —
             // кратким дублирующим сигналом.

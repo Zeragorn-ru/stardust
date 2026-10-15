@@ -36,8 +36,8 @@ pub use telegram::{
     CALLBACK_DENY, CHALLENGE_LOGIN_2FA, CHALLENGE_PASSWORDLESS, CHALLENGE_PASSWORD_RESET,
     SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET,
     SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION, SETTING_BACKUP_SECRET_KEY,
-    SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
-    SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
+    SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST, SETTING_SFTP_HOST_FINGERPRINT, SETTING_SFTP_PASSWORD,
+    SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 
 /// Скин игрока, хранимый сервером.
@@ -359,6 +359,13 @@ impl Store {
             let expected: &[u8] = &migration.checksum;
             if let Some((_v, db_checksum)) = applied.iter().find(|(v, _)| *v == version) {
                 if db_checksum.as_slice() != expected {
+                    // ВАЖНО: здесь миграция НЕ пере-применяется — только
+                    // подтягивается контрольная сумма. Изменённый SQL уже не
+                    // выполнится на этой БД; если изменение критично,
+                    // нужна новая миграция, а не правка старой. Предупреждаем.
+                    tracing::warn!(
+                        "миграция v{version} изменена после применения:                          контрольная сумма в БД обновлена, SQL повторно НЕ применялся"
+                    );
                     sqlx::query("UPDATE _sqlx_migrations SET checksum = $1 WHERE version = $2")
                         .bind(expected)
                         .bind(version)
@@ -389,11 +396,17 @@ impl Store {
         let mut reqs = self.rate_limiter.lock().unwrap();
         let now = std::time::Instant::now();
         let window = std::time::Duration::from_secs(window_secs);
+
+        // Разом чистим протухшие метки и пустые entry: каждое обращение
+        // атакующего IP оставляет запись, и без вычистки пустых Vec HashMap
+        // растёт неограниченно (IP-спуфинг при TRUST_PROXY делает это
+        // удалённо и безлимитно).
+        reqs.retain(|_, list| {
+            list.retain(|&t| now.duration_since(t) < window);
+            !list.is_empty()
+        });
+
         let list = reqs.entry(ip).or_default();
-
-        // Удаляем устаревшие метки времени
-        list.retain(|&t| now.duration_since(t) < window);
-
         if list.len() >= max_requests {
             true
         } else {
@@ -541,10 +554,15 @@ impl Store {
         column: &str,
         limit: i64,
     ) -> Result<Vec<(i64, String, i64)>, StoreError> {
+        // Временный бан, у которого уже истёк срок, — не бан: игрока снова
+        // пускают в игру (`is_banned`), поэтому и из лидербордов он
+        // выпадать не должен. Перманентный бан (banned_until IS NULL)
+        // исключается как раньше.
         let query = format!(
             "SELECT username, {column} AS value
              FROM accounts
-             WHERE banned = FALSE AND {column} > 0
+             WHERE (banned = FALSE OR (banned_until IS NOT NULL AND banned_until <= now()))
+               AND {column} > 0
              ORDER BY {column} DESC, username_lower ASC
              LIMIT $1"
         );
@@ -939,10 +957,18 @@ impl Store {
 
     /// Проверяет логин/пароль, возвращает профиль.
     pub async fn login(&self, username: &str, password: &str) -> Result<PlayerProfile, StoreError> {
-        let account = self
-            .find_by_name(username)
-            .await
-            .ok_or(StoreError::NotFound)?;
+        let account = match self.find_by_name(username).await {
+            Some(account) => account,
+            None => {
+                // Timing-oracle: без этой ветки ответ «нет такого аккаунта»
+                // возвращался мгновенно, а «неверный пароль» — после Argon2
+                // (~100 мс), что позволяло перечислять существующие логины
+                // по времени. Верифицируем фиктивный хеш, чтобы время
+                // совпадало.
+                verify_password(password, dummy_password_hash());
+                return Err(StoreError::NotFound);
+            }
+        };
         if verify_password(password, &account.password_hash) {
             self.migrate_password_hash_if_needed(&account, password)
                 .await?;
@@ -972,22 +998,6 @@ impl Store {
             .execute(&self.pool)
             .await?;
         self.destroy_sessions_for(&account.uuid).await?;
-        Ok(())
-    }
-
-    /// Устанавливает новый пароль без проверки текущего. Вызывается только
-    /// после подтверждения личности через Telegram (сценарий сброса пароля).
-    pub async fn reset_password(&self, uuid: &str, new_password: &str) -> Result<(), StoreError> {
-        let uuid = normalize_uuid(uuid);
-        let changed = sqlx::query("UPDATE accounts SET password_hash = $1 WHERE uuid = $2")
-            .bind(hash_password(new_password))
-            .bind(&uuid)
-            .execute(&self.pool)
-            .await?
-            .rows_affected();
-        if changed == 0 {
-            return Err(StoreError::NotFound);
-        }
         Ok(())
     }
 
@@ -1324,8 +1334,11 @@ impl Store {
     }
 
     /// Проверяет bearer-токен и возвращает UUID аккаунта, если сессия жива.
-    /// Ищет по SHA-256; OR с plaintext оставлен для сессий, созданных до
-    /// миграции 0013. Сессии старше `SESSION_TTL_DAYS` считаются протухшими.
+    /// В БД хранится только SHA-256 хеш токена, сравниваем строго с хешем:
+    /// plaintext-ветка `token = $2` делала сам хеш валидным bearer'ом
+    /// (утечка дампа БД = утеча всех сессий) — хеши ровно той формы, что
+    /// лежат в таблице, больше не проходят. Сессии старше
+    /// `SESSION_TTL_DAYS` считаются протухшими.
     pub async fn validate_session(&self, token: &str) -> Option<String> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
         // make_interval(days => ...) ждёт int4, а sqlx выводит для i64 тип
@@ -1335,11 +1348,10 @@ impl Store {
         // Явный каст $3::int закрывает несоответствие.
         sqlx::query_scalar(
             "SELECT account_uuid FROM sessions
-             WHERE (token = $1 OR token = $2)
-               AND created_at > now() - make_interval(days => $3::int)",
+             WHERE token = $1
+               AND created_at > now() - make_interval(days => $2::int)",
         )
         .bind(&token_hash)
-        .bind(token)
         .bind(SESSION_TTL_DAYS)
         .fetch_optional(&self.pool)
         .await
@@ -1350,9 +1362,8 @@ impl Store {
     /// Удаляет сессию (logout).
     pub async fn destroy_session(&self, token: &str) -> Result<(), StoreError> {
         let token_hash = to_hex(&Sha256::digest(token.as_bytes()));
-        sqlx::query("DELETE FROM sessions WHERE token = $1 OR token = $2")
+        sqlx::query("DELETE FROM sessions WHERE token = $1")
             .bind(&token_hash)
-            .bind(token)
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -1662,17 +1673,21 @@ impl Store {
     /// Установить доступные бейджи игрока (полная замена).
     pub async fn set_player_badges(&self, uuid: &str, badge_ids: &[i32]) -> Result<(), StoreError> {
         let uuid = normalize_uuid(uuid);
+        // Транзакция: DELETE + N INSERT. Сбой посередине оставлял игрока
+        // вообще без выданных бейджей (частичное применение).
+        let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM player_badges WHERE account_uuid = $1")
             .bind(&uuid)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         for &id in badge_ids {
             sqlx::query("INSERT INTO player_badges (account_uuid, badge_id) VALUES ($1, $2)")
                 .bind(&uuid)
                 .bind(id)
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
         }
+        tx.commit().await?;
         Ok(())
     }
 
@@ -1710,17 +1725,21 @@ impl Store {
         gradient_ids: &[i32],
     ) -> Result<(), StoreError> {
         let uuid = normalize_uuid(uuid);
+        // Транзакция — как у set_player_badges: без неё сбой посередине
+        // оставлял частично применённый набор.
+        let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM player_gradients WHERE account_uuid = $1")
             .bind(&uuid)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
         for &id in gradient_ids {
             sqlx::query("INSERT INTO player_gradients (account_uuid, gradient_id) VALUES ($1, $2)")
                 .bind(&uuid)
                 .bind(id)
-                .execute(&self.pool)
+                .execute(&mut *tx)
                 .await?;
         }
+        tx.commit().await?;
         Ok(())
     }
 
@@ -2060,6 +2079,14 @@ fn random_token() -> String {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     to_hex(&bytes)
+}
+
+/// Фиктивный Argon2-хеш для выравнивания времени ответа «логин не найден»
+/// с «неверный пароль» (см. `login`). Генерируется один раз на процесс.
+static DUMMY_PASSWORD_HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+fn dummy_password_hash() -> &'static str {
+    DUMMY_PASSWORD_HASH.get_or_init(|| hash_password("stardust-dummy-verify"))
 }
 
 /// Хеш пароля через Argon2id.

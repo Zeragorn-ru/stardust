@@ -149,12 +149,17 @@ export function AccountsView() {
   // статистика каждого догружается в фоне (ячейки «…» до её прихода).
   // TODO: batched-эндпоинт статистики одним запросом — вне скоупа UI-плана.
   const firstLoadDone = useRef(false);
+  // Guard от наложения: поздний ответ СТАРОГО запроса не должен перетирать
+  // свежий список (двойной клик «Повторить», рефреш поверх медленной загрузки).
+  const loadSeq = useRef(0);
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current;
     // Повторный вызов (после сбоя, кнопкой «Повторить» или после
     // синхронизации) — это фоновой рефреш, экран уже отрисован.
     if (firstLoadDone.current) setRefreshing(true);
     try {
       const nextAccounts = await api.listAccounts();
+      if (seq !== loadSeq.current) return; // устарели — более новый load в полёте
       setAccounts(nextAccounts);
       setListError(null);
       setLoading(false);

@@ -53,7 +53,9 @@ public final class StardustHttpProvider {
     private volatile boolean debug;
     private volatile String serverToken;
     private final HttpClient httpClient;
-    private final ScheduledExecutorService scheduler;
+    // Пересоздаётся в stop(): после shutdownNow исполнитель отвергает новые
+    // задачи, а reload() при смене периода перезапускает планировщик.
+    private ScheduledExecutorService scheduler;
     private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
     private final Path cacheFile;
     private final Object cachePersistenceLock = new Object();
@@ -179,11 +181,19 @@ public final class StardustHttpProvider {
     public void stop() {
         running = false;
         scheduler.shutdownNow();
+        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "stardust-http-provider");
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     public void reload(StardustServerConfig config) {
-        this.authUrl = config.authUrl().endsWith("/") ? config.authUrl().substring(0, config.authUrl().length() - 1) : config.authUrl();
-        this.refreshIntervalSeconds = Math.max(3, config.refreshIntervalSeconds());
+        String newUrl = config.authUrl().endsWith("/") ? config.authUrl().substring(0, config.authUrl().length() - 1) : config.authUrl();
+        int newInterval = Math.max(3, config.refreshIntervalSeconds());
+        boolean intervalChanged = newInterval != this.refreshIntervalSeconds;
+        this.authUrl = newUrl;
+        this.refreshIntervalSeconds = newInterval;
         this.debug = config.debug();
         this.serverToken = config.serverToken();
         if (serverToken.isBlank()) {
@@ -194,6 +204,13 @@ public final class StardustHttpProvider {
                     ? serverToken.substring(0, 4) + "****" + serverToken.substring(serverToken.length() - 3)
                     : "****";
             StardustMod.LOGGER.info("Stardust reload: token={} (debug={})", masked, debug);
+        }
+        // Период фиксируется при start(): без пересоздания задачи новый
+        // интервал из конфига не применялся бы до перезапуска сервера.
+        if (running && intervalChanged) {
+            stop();
+            start();
+            StardustMod.LOGGER.info("Stardust reload: период изменён, планировщик перезапущен ({}s)", refreshIntervalSeconds);
         }
         StardustMod.LOGGER.info("Stardust HTTP provider: конфиг перечитан (url={}, refresh={}s)", authUrl, refreshIntervalSeconds);
     }

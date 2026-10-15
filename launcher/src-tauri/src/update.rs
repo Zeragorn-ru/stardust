@@ -210,6 +210,48 @@ fn is_release_ready(release: &GhRelease) -> bool {
 /// (те же проверки готовности ассетов), а при выключенном — пропускаем,
 /// как и раньше: стабильные клиенты не должны получать вручную
 /// опубликованные pre-release, включая подписной тест-канал Tauri updater.
+/// Удаляет из temp осиротевшие артефакты прошлых обновлений. Скачанные
+/// установщики переживают перезагрузки (Windows чистит %TEMP% редко) и
+/// копятся; свежие файлы трогаем — они могут быть кэшем незавершённой
+/// установки (Range-докачка переиспользует их).
+fn cleanup_stale_update_artifacts() {
+    let Ok(temp) = std::fs::read_dir(std::env::temp_dir()) else {
+        return;
+    };
+    const STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
+    for entry in temp.flatten() {
+        let name = entry.file_name();
+        let Some(name) = name.to_str() else { continue };
+        // Паттерны артефактов апдейтера: setup-бинари, .app.zip, .dmg,
+        // bootstrap, .sha256-сайдкары и распакованные каталоги.
+        let looks_ours = name.starts_with("stardust")
+            || (name.starts_with("setup") && name.ends_with(".exe"))
+            || name.ends_with(".app.zip")
+            || name.ends_with(".dmg")
+            || name.ends_with(".AppImage")
+            || name.ends_with(".sha256");
+        if !looks_ours {
+            continue;
+        }
+        let Ok(meta) = entry.metadata() else { continue };
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .unwrap_or_default();
+        if modified < STALE_AFTER {
+            continue;
+        }
+        let path = entry.path();
+        if meta.is_dir() {
+            let _ = std::fs::remove_dir_all(&path);
+        } else {
+            let _ = std::fs::remove_file(&path);
+        }
+        tracing::debug!("[update] удалён устаревший temp-артефакт {}", path.display());
+    }
+}
+
 async fn find_update_release(
     app: &AppHandle,
     current_version: &str,
@@ -630,10 +672,25 @@ async fn download_single(params: &DownloadParams<'_>) -> Result<(), String> {
     let start = std::time::Instant::now();
     let mut last_emit = std::time::Instant::now();
 
+    // Потолок записи: битый или враждебный источник без Content-Length не
+    // должен уметь писать в temp бесконечно ( installer легитимно до ~1 ГБ).
+    const MAX_DOWNLOAD_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+
     while let Some(chunk) = resp.chunk().await.map_err(|e| e.to_string())? {
-        file.write_all(&chunk).map_err(|e| e.to_string())?;
         downloaded += chunk.len() as u64;
-        let new_bytes = downloaded - existing_size;
+        if downloaded > MAX_DOWNLOAD_BYTES {
+            return Err(format!(
+                "{}: размер превысил лимит {} ГБ — источник повреждён?",
+                params.progress_name,
+                MAX_DOWNLOAD_BYTES / (1024 * 1024 * 1024)
+            ));
+        }
+        file.write_all(&chunk).map_err(|e| e.to_string())?;
+        // Считаем относительно offset, а не existing_size: при 200-ответе
+        // на Range-запрос сервер игнорирует Range, файл перезаписывается с
+        // нуля — и downloaded здесь может быть МЕНЬШЕ existing_size, из-за
+        // чего вычитание existing_size переполняло u64 и паниковало.
+        let new_bytes = downloaded - offset;
 
         if last_emit.elapsed() >= std::time::Duration::from_millis(250) {
             let elapsed = start.elapsed().as_secs_f64();
@@ -1017,6 +1074,13 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
     }
 }
 
+/// Защита от параллельных установок: обновление могут запустить и настройки,
+/// и автоустановка UpdateModal — каждый знает только свой локальный статус,
+/// а команда в Rust одна. Двойной прогон качает установщик дважды и пишет
+/// в один и тот же temp-файл.
+static INSTALL_RUNNING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
 /// Скачать доступное обновление и запустить обновлятор, затем закрыть лаунчер.
 ///
 /// Фазы с прогрессом:
@@ -1026,6 +1090,19 @@ pub async fn check_update(app: AppHandle) -> Result<UpdateInfo, String> {
 /// 4. launching              (0.95 — 1.00)
 #[tauri::command]
 pub async fn install_update(app: AppHandle) -> Result<(), String> {
+    // try_acquire: второй вызов получает понятную ошибку, а не гонку.
+    if INSTALL_RUNNING
+        .swap(true, std::sync::atomic::Ordering::AcqRel)
+    {
+        return Err("Обновление уже устанавливается — дождитесь завершения".into());
+    }
+    let result = install_update_inner(app).await;
+    INSTALL_RUNNING.store(false, std::sync::atomic::Ordering::Release);
+    result
+}
+
+async fn install_update_inner(app: AppHandle) -> Result<(), String> {
+    cleanup_stale_update_artifacts();
     let current_version = app.package_info().version.to_string();
     let release = find_update_release(&app, &current_version)
         .await?
@@ -1257,8 +1334,10 @@ pub async fn install_update(app: AppHandle) -> Result<(), String> {
                     return Err("Не удалось скопировать новый .app (cp -R)".into());
                 }
                 let _ = std::fs::remove_dir_all(&backup);
+                // Без `-n`: новый экземпляр сейчас убьёт single-instance
+                // (старый процесс живёт ещё ~800 мс до app.exit), а LaunchServices
+                // откроет свежезаменённый .app как только старый завершится.
                 let _ = std::process::Command::new("open")
-                    .arg("-n")
                     .arg(&install_dir)
                     .spawn();
             }

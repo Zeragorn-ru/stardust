@@ -134,6 +134,8 @@ jobs:
           node-version: 20
       - name: Build
         working-directory: website
-        run: npm install --no-package-lock && npm run build
+        # npm ci: версии фиксируются package-lock.json (лежит в репе);
+        # install --no-package-lock ставил свежие минорные версии каждый прогон.
+        run: npm ci && npm run build
       - name: Build Docker image (dry-run)
         run: docker build -f deploy/website.Dockerfile -t website-ci .
