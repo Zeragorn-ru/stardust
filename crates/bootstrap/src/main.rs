@@ -635,6 +635,35 @@ mod win {
         // проверки. Отсутствие аргумента — легаси-запуск без TOCTOU-защиты.
         let expected_sha256 = args.get(4).cloned();
 
+        // Валидация argv: bootstrap умеет CreateProcessW любой путь из argv.
+        // Наш вызов всегда кладёт установщик в %TEMP%, а install_dir — рядом
+        // с текущим exe; всё, что не укладывается, отвергаем.
+        fn valid_install_dir(dir: &std::path::Path) -> bool {
+            let cur = std::env::current_exe().ok();
+            let parent = cur.as_deref().and_then(|e| e.parent());
+            // Установка идёт либо рядом с текущим exe (переносимый режим),
+            // либо в дефолтный %LOCALAPPDATA%\stardust.
+            let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+            parent.is_some_and(|p| dir.starts_with(p))
+                || (!local.is_empty() && dir.starts_with(std::path::Path::new(&local).join("stardust")))
+        }
+        if args.len() >= 3 {
+            let installer = PathBuf::from(&args[1]);
+            let install_dir = PathBuf::from(&args[2]);
+            if !installer.starts_with(std::env::temp_dir())
+                || !valid_install_dir(&install_dir)
+                || install_dir.is_file()
+            {
+                log(&format!(
+                    "run: rejected argv (installer={}, install_dir={})",
+                    installer.display(),
+                    install_dir.display()
+                ));
+                eprintln!("bootstrap: invalid arguments");
+                std::process::exit(2);
+            }
+        }
+
         let (installer_path, install_dir, exe_name) = if args.len() >= 4 {
             (
                 PathBuf::from(&args[1]),
