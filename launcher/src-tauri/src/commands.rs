@@ -3051,6 +3051,25 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
     use hickory_resolver::TokioResolver;
     use tokio::time::{timeout, Duration};
 
+    // Команда открывает raw TCP по имени из аргумента: пропускаем только
+    // публичные DNS-имена. Сырые IP и приватные/loopback адреса отсекаем —
+    // иначе скомпрометированный фронтенд мог бы сканировать внутреннюю
+    // сеть пользователя (SSRF).
+    let host = host.trim().trim_end_matches('.').to_string();
+    let host_lower = host.to_lowercase();
+    if host.is_empty()
+        || host.len() > 253
+        || host_lower.parse::<std::net::IpAddr>().is_ok()
+        || host_lower == "localhost"
+        || host_lower.ends_with(".local")
+        || host_lower.ends_with(".internal")
+        || !host_lower
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+    {
+        return serde_json::json!({ "online": false, "players": null, "max": null, "ping": null, "sample": [] });
+    }
+
     // 1. SRV-запись _minecraft._tcp.<host> (один раз на все попытки)
     let (target_host, target_port): (String, u16) = {
         let resolver = RESOLVER.get_or_init(|| {
