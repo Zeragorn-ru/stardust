@@ -8,6 +8,7 @@ name = "bootstrap"
 path = "src/main.rs"
 
 [dependencies]
+sha2 = "0.10"
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
     "Win32_Security",

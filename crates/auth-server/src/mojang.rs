@@ -151,21 +151,57 @@ pub async fn import_skin(
     })
 }
 
+/// Хосты, с которых разрешено качать текстуры. URL приходит из base64-JSON
+/// property ответа sessionserver — без allowlist'а компрометация апстрима
+/// (или легаси-аккаунт с произвольным skin-URL) превращалась в SSRF:
+/// сервер готов слать GET на любой адрес, включая внутреннюю сеть compose.
+fn is_allowed_texture_host(host: &str) -> bool {
+    host == "textures.minecraft.net"
+        || host.ends_with(".minecraft.net")
+        || host.ends_with(".mojang.com")
+        || host.ends_with(".mojang.org")
+}
+
+/// Лимит на скачиваемую текстуру: скин — сотни КБ; 8 МБ покрывает любые
+/// плащи с запасом, а мусор не оседает в БД навечно.
+const MAX_TEXTURE_BYTES: usize = 8 * 1024 * 1024;
+
 /// Скачивает PNG по URL текстуры Mojang.
 async fn download_png(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, MojangError> {
-    Ok(client
-        .get(url)
+    let parsed = reqwest::Url::parse(url).map_err(|e| MojangError::Network(e.to_string()))?;
+    if parsed.scheme() != "https" || !parsed.host_str().is_some_and(is_allowed_texture_host) {
+        return Err(MojangError::NoSkin);
+    }
+    let bytes = client
+        .get(parsed)
         .send()
         .await
         .map_err(|e| MojangError::Network(e.to_string()))?
         .bytes()
         .await
-        .map_err(|e| MojangError::Network(e.to_string()))?
-        .to_vec())
+        .map_err(|e| MojangError::Network(e.to_string()))?;
+    if bytes.len() > MAX_TEXTURE_BYTES {
+        return Err(MojangError::NoSkin);
+    }
+    // Та же сигнатура, что у ручной загрузки skin_upload: импорт раньше
+    // принимал любой контент и раздал его клиентам как image/png.
+    if bytes.len() < 8 || bytes[..8] != [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n'] {
+        return Err(MojangError::NoSkin);
+    }
+    Ok(bytes.to_vec())
 }
 
 /// Резолвит ник Mojang в UUID без дефисов.
 async fn resolve_name(client: &reqwest::Client, name: &str) -> Result<String, MojangError> {
+    // Ник подставляется в путь URL: без проверки [A-Za-z0-9_]{1,16}
+    // управляющие конструкции пути (`../`, `?`) уходили в api.mojang.com,
+    // а мусор — в логи с URL.
+    if name.is_empty()
+        || name.len() > 16
+        || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(MojangError::NotFound);
+    }
     let url = format!("https://api.mojang.com/users/profiles/minecraft/{name}");
     let resp = client
         .get(&url)

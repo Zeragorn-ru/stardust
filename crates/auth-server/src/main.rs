@@ -114,6 +114,11 @@ async fn main() {
 
     let http = reqwest::Client::builder()
         .user_agent("launcher-auth-server/0.1")
+        // Общий таймаут: без него один зависший (не оборванный) ответ
+        // sessionserver/хоста текстур подвешивал skin_import навечно и
+        // стопорил фоновый skin_refresh_loop — он ходит по аккаунтам
+        // последовательно в одном цикле.
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .expect("failed to build http client");
 
@@ -133,8 +138,10 @@ async fn main() {
         .unwrap_or(false);
 
     // Ключ подписи профилей персистится, чтобы не меняться между перезапусками.
+    // Fail hard при битом/нечитаемом ключе: тихая ротация протухляла все подписи.
     let key_path = std::env::var("AUTH_KEY_PATH").unwrap_or_else(|_| "yggdrasil_key.pem".into());
-    let keys = Keys::load_or_generate(std::path::Path::new(&key_path));
+    let keys = Keys::load_or_generate(std::path::Path::new(&key_path))
+        .unwrap_or_else(|e| panic!("ключ подписи Yggdrasil: {e}"));
 
     // PostgreSQL через общий фасад `store`.
     let database_url = std::env::var("DATABASE_URL")

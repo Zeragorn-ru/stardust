@@ -56,10 +56,31 @@ mod win {
         close_at: u64,
         launch_delay_ms: Option<u64>,
         error_msg: Option<String>,
+        /// SHA-256, переданный лаунчером: установщик лежит в общем %TEMP%, и
+        /// между проверкой в update.rs и исполнением здесь файл мог быть
+        /// подменён (TOCTOU). Не совпал — не исполняем.
+        expected_installer_sha256: Option<String>,
     }
 
     static mut STATE: Option<State> = None;
     static mut LOG_FILE: Option<std::fs::File> = None;
+
+    /// SHA-256 файла (потоково). None = не прочитался.
+    fn compute_file_sha256(path: &std::path::Path) -> Option<String> {
+        use sha2::{Digest, Sha256};
+        let mut file = std::fs::File::open(path).ok()?;
+        let mut hasher = Sha256::new();
+        let mut buf = [0u8; 64 * 1024];
+        use std::io::Read;
+        loop {
+            let n = file.read(&mut buf).ok()?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buf[..n]);
+        }
+        Some(format!("{:x}", hasher.finalize()))
+    }
 
     fn log(msg: &str) {
         let ts = unsafe { now_ms() };
@@ -424,6 +445,27 @@ mod win {
                 log(&format!("WM_CREATE: install_dir={}", install_dir.display()));
 
                 if installer_path.exists() {
+                    // TOCTOU-защита: установщик лежит в общем %TEMP% — между
+                    // проверкой лаунчера и этим моментом его могли подменить.
+                    // Перепроверяем SHA-256 перед исполнением.
+                    if let Some(expected) = state.expected_installer_sha256.clone() {
+                        match compute_file_sha256(&installer_path) {
+                            Some(actual) if actual.eq_ignore_ascii_case(&expected) => {
+                                log("WM_CREATE: installer SHA-256 OK");
+                            }
+                            other => {
+                                log(&format!(
+                                    "WM_CREATE: installer SHA-256 MISMATCH (got {other:?}), aborting"
+                                ));
+                                state.phase = Phase::Error;
+                                state.error_msg = Some(
+                                    "Файл обновления изменился после проверки — установка отменена. Запустите обновление заново."
+                                        .to_string(),
+                                );
+                                return 0;
+                            }
+                        }
+                    }
                     log("WM_CREATE: installer exists, running...");
                     if let Some(handle) = run_installer(&installer_path, &install_dir) {
                         state.installer_handle = Some(handle);
@@ -431,14 +473,22 @@ mod win {
                         state.phase = Phase::Installing;
                         log("WM_CREATE: phase = Installing");
                     } else {
-                        log("WM_CREATE: run_installer returned None, phase = Launching");
-                        state.phase = Phase::Launching;
-                        state.launch_delay_ms = Some(500);
+                        log("WM_CREATE: run_installer returned None, phase = Error");
+                        // CreateProcessW не удался: показываем ошибку, а не
+                        // «Готово!» — пользователь должен узнать, что
+                        // обновление не встало (старый лаунчер остался на месте).
+                        state.phase = Phase::Error;
+                        state.error_msg = Some(
+                            "Не удалось запустить установщик обновления. Проверьте антивирус и запустите лаунчер заново."
+                                .to_string(),
+                        );
                     }
                 } else {
-                    log("WM_CREATE: installer not found, phase = Launching");
-                    state.phase = Phase::Launching;
-                    state.launch_delay_ms = Some(500);
+                    log("WM_CREATE: installer not found, phase = Error");
+                    state.phase = Phase::Error;
+                    state.error_msg = Some(
+                        "Файл обновления не найден. Запустите обновление заново.".to_string(),
+                    );
                 }
 
                 0
@@ -466,9 +516,20 @@ mod win {
                                 log(&format!("NSIS process exited with code {exit_code}"));
                                 CloseHandle(handle);
                                 state.installer_handle = None;
-                                state.launch_delay_ms = Some(1500);
-                                state.phase = Phase::Launching;
-                                log("Phase -> Launching (waiting 1500ms)");
+                                // Код выхода учитывается: при отмене/ошибке
+                                // записи/блокировке файла раньше фаза всё равно
+                                // переходила в Launching и сплэш висел вечно.
+                                if exit_code != 0 {
+                                    state.phase = Phase::Error;
+                                    state.error_msg = Some(format!(
+                                        "Установщик завершился с ошибкой (код {exit_code}).\n                                         Обновление не применено — попробуйте ещё раз."
+                                    ));
+                                    log("Phase -> Error (NSIS failed)");
+                                } else {
+                                    state.launch_delay_ms = Some(1500);
+                                    state.phase = Phase::Launching;
+                                    log("Phase -> Launching (waiting 1500ms)");
+                                }
                             }
                         }
                     }
@@ -485,6 +546,24 @@ mod win {
                         }
                         let launcher_path = state.launcher_path.clone();
                         if !launcher_path.exists() {
+                            // Ожидание не бесконечно: 180 с без появления
+                            // лаунчера = что-то пошло не так (антивирус удалил
+                            // файл, установка не завершилась). Раньше сплэш
+                            // висел вечно с логом каждые 30 тиков.
+                            const LAUNCH_WAIT_TIMEOUT_MS: u64 = 180_000;
+                            let waited = now_ms().saturating_sub(state.installer_start_ms);
+                            if waited > LAUNCH_WAIT_TIMEOUT_MS {
+                                log("WM_TIMER: launch wait timeout, phase = Error");
+                                state.phase = Phase::Error;
+                                state.error_msg = Some(
+                                    "Лаунчер не появился после обновления (таймаут 3 мин).\n                                     Запустите приложение вручную."
+                                        .to_string(),
+                                );
+                                let mut rc = mem::zeroed::<RECT>();
+                                GetClientRect(hwnd, &mut rc);
+                                InvalidateRect(hwnd, &rc, 0);
+                                return 0;
+                            }
                             if state.ticks % 30 == 1 {
                                 log(&format!("WM_TIMER: waiting for {}", launcher_path.display()));
                             }
@@ -506,6 +585,19 @@ mod win {
                         log("Phase::Done, closing window");
                         DestroyWindow(hwnd);
                         return 0;
+                    }
+                    // Ошибка не висит вечно: 15 с на прочтение, затем окно
+                    // закрывается (пользователь запускает лаунчер вручную).
+                    Phase::Error if state.close_at > 0 && now_ms() >= state.close_at => {
+                        log("Phase::Error timeout, closing window");
+                        DestroyWindow(hwnd);
+                        return 0;
+                    }
+                    Phase::Error if state.close_at == 0 => {
+                        state.close_at = now_ms() + 15_000;
+                        let mut rc = mem::zeroed::<RECT>();
+                        GetClientRect(hwnd, &mut rc);
+                        InvalidateRect(hwnd, &rc, 0);
                     }
                     _ => {}
                 }
@@ -538,6 +630,10 @@ mod win {
         log(&format!("args: {args:?}"));
 
         let default_exe = "launcher.exe".to_string();
+
+        // SHA-256 установщика (argv[4]): передаёт update.rs после своей
+        // проверки. Отсутствие аргумента — легаси-запуск без TOCTOU-защиты.
+        let expected_sha256 = args.get(4).cloned();
 
         let (installer_path, install_dir, exe_name) = if args.len() >= 4 {
             (
@@ -592,6 +688,7 @@ mod win {
                 close_at: 0,
                 launch_delay_ms: None,
                 error_msg: None,
+                expected_installer_sha256: expected_sha256,
             });
 
             let class = wide("StarDustBootstrap");

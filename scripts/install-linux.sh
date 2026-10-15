@@ -76,6 +76,34 @@ StartupWMClass=StarDust
 DESKTOP
 echo "Desktop entry: $DESKTOP_FILE"
 
+# Install icon: .DirIcon/icon.png внутри AppImage (пакет самодостаточен
+# иконкой); без неё Icon=stardust-launcher в .desktop висел в воздухе и в
+# меню рисовалась дженерик-иконка. Отсутствие bsdtar/иконки — не ошибка
+# установки: десктоп-запись уже создана и работает.
+ICON_SIZE_DIR="$ICON_DIR/hicolor/512x512/apps"
+EXTRACT_DIR="$(mktemp -d)"
+appimage_abs="$(cd "$(dirname "$appimage")" && pwd)/$(basename "$appimage")"
+if command -v bsdtar >/dev/null 2>&1; then
+  if bsdtar -C "$EXTRACT_DIR" -xf "$appimage_abs" .DirIcon icon.png 2>/dev/null; then
+    icon_src=""
+    [ -f "$EXTRACT_DIR/.DirIcon" ] && icon_src="$EXTRACT_DIR/.DirIcon"
+    [ -z "$icon_src" ] && [ -f "$EXTRACT_DIR/icon.png" ] && icon_src="$EXTRACT_DIR/icon.png"
+    if [ -n "$icon_src" ]; then
+      mkdir -p "$ICON_SIZE_DIR"
+      cp "$icon_src" "$ICON_SIZE_DIR/stardust-launcher.png"
+      echo "Icon: $ICON_SIZE_DIR/stardust-launcher.png"
+    else
+      echo "Icon: not found inside AppImage, skipping"
+    fi
+  fi
+else
+  echo "Icon: bsdtar not found, skipping (desktop entry still works)"
+fi
+rm -rf "$EXTRACT_DIR"
+if command -v update-desktop-database >/dev/null 2>&1; then
+  update-desktop-database "$(dirname "$DESKTOP_FILE")" || true
+fi
+
 echo ""
 echo "Installation complete!"
 echo "Run 'stardust' from terminal or find StarDust in your application menu."

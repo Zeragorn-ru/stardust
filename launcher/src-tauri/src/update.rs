@@ -756,6 +756,7 @@ fn launch_bootstrap(
     bootstrap_path: &std::path::Path,
     installer_path: &std::path::Path,
     install_dir: &std::path::Path,
+    expected_sha256: &str,
 ) -> Result<(), String> {
     // Передаём имя текущего exe, чтобы bootstrap знал как называется бинарник.
     let exe_name = std::env::current_exe()
@@ -768,6 +769,9 @@ fn launch_bootstrap(
         .arg(installer_path)
         .arg(install_dir)
         .arg(exe_name)
+        // Ожидаемый SHA-256 установщика: bootstrap перепроверяет его перед
+        // запуском (TOCTOU-окно между проверкой здесь и исполнением там).
+        .arg(expected_sha256)
         .creation_flags(0x0800_0000) // CREATE_NO_WINDOW
         .spawn()
         .map_err(|e| format!("Не удалось запустить обновлятор: {e}"))?;
@@ -1264,7 +1268,7 @@ async fn install_update_inner(app: AppHandle) -> Result<(), String> {
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .unwrap_or_else(std::env::temp_dir);
 
-        launch_bootstrap(&bootstrap_path, &installer_path, &install_dir)?;
+        launch_bootstrap(&bootstrap_path, &installer_path, &install_dir, &expected_hex)?;
     }
 
     #[cfg(target_os = "macos")]

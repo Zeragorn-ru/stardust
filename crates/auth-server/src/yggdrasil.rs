@@ -38,36 +38,84 @@ pub struct Keys {
 }
 
 impl Keys {
-    /// Загружает ключ из PEM-файла или генерирует новый и сохраняет его.
+    /// Загружает ключ из PEM-файла; если файла нет — генерирует новый и
+    /// сохраняет. Ошибки чтения/парса существующего ключа — фатальны.
     ///
-    /// При ошибке чтения/записи файла откатывается на эфемерный ключ в памяти,
-    /// чтобы сервер всё равно поднялся (с предупреждением в лог).
-    pub fn load_or_generate(path: &Path) -> Self {
-        if let Ok(pem) = std::fs::read_to_string(path) {
-            match RsaPrivateKey::from_pkcs8_pem(&pem) {
-                Ok(key) => return Self::from_private(key),
-                Err(e) => tracing::warn!("не удалось разобрать ключ {}: {e}", path.display()),
-            }
-        }
-
-        let key = Self::generate_private();
-        match key.to_pkcs8_pem(LineEnding::LF) {
+    /// Почему fail hard: «тихий откат» на свежий ключ мгновенно протухал ВСЕ
+    /// ранее выданные подписи (текстуры, profile_key-сертификаты чата), а
+    /// перезапись поверх того же пути делала ротацию перманентной — битый
+    /// PEM (обрыв записи при краше) навсегда заменялся новым ключом.
+    /// Перезапуск контейнера с алертом в логе лучше необратимой потери.
+    pub fn load_or_generate(path: &Path) -> Result<Self, String> {
+        match std::fs::read_to_string(path) {
             Ok(pem) => {
-                if let Some(parent) = path.parent() {
-                    let _ = std::fs::create_dir_all(parent);
-                }
-                if let Err(e) = std::fs::write(path, pem.as_bytes()) {
-                    tracing::warn!("не удалось сохранить ключ {}: {e}", path.display());
-                } else {
-                    tracing::info!(
-                        "сгенерирован новый ключ подписи Yggdrasil: {}",
+                let key = RsaPrivateKey::from_pkcs8_pem(&pem).map_err(|e| {
+                    format!(
+                        "не удалось разобрать ключ {}: {e}; файл повреждён? \
+                         Перезапись молча ротировала бы ключ — восстановите файл                          из бэкапа или удалите осознанно",
                         path.display()
+                    )
+                })?;
+                // Чиним права и у существующего файла: старые записи могли
+                // быть созданы с 0644 — приватный ключ читался всей машиной.
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(
+                        path,
+                        std::fs::Permissions::from_mode(0o600),
                     );
                 }
+                Ok(Self::from_private(key))
             }
-            Err(e) => tracing::warn!("не удалось сериализовать ключ подписи: {e}"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Файла нет — штатная первичная генерация.
+                let key = Self::generate_private();
+                let pem = key
+                    .to_pkcs8_pem(LineEnding::LF)
+                    .map_err(|e| format!("не удалось сериализовать ключ: {e}"))?;
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| format!("не удалось создать каталог {}: {e}", parent.display()))?;
+                }
+                // Атомарная запись (tmp + rename): fs::write с O_TRUNC при
+                // краше посреди записи оставлял пустой/усечённый PEM, и
+                // следующий старт считал бы его битым.
+                let tmp = path.with_extension("pem.tmp");
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::OpenOptionsExt;
+                    use std::io::Write;
+                    let mut file = std::fs::OpenOptions::new()
+                        .write(true)
+                        .create(true)
+                        .truncate(true)
+                        .mode(0o600)
+                        .open(&tmp)
+                        .map_err(|e| format!("не удалось создать {}: {e}", tmp.display()))?;
+                    file.write_all(pem.as_bytes())
+                        .map_err(|e| format!("не удалось записать {}: {e}", tmp.display()))?;
+                    file.sync_all().map_err(|e| format!("fsync {}: {e}", tmp.display()))?;
+                }
+                #[cfg(not(unix))]
+                {
+                    std::fs::write(&tmp, pem.as_bytes())
+                        .map_err(|e| format!("не удалось записать {}: {e}", tmp.display()))?;
+                }
+                std::fs::rename(&tmp, path).map_err(|e| {
+                    format!("не удалось переименовать {} в {}: {e}", tmp.display(), path.display())
+                })?;
+                tracing::info!(
+                    "сгенерирован новый ключ подписи Yggdrasil: {}",
+                    path.display()
+                );
+                Ok(Self::from_private(key))
+            }
+            Err(e) => Err(format!(
+                "не удалось прочитать ключ {}: {e} (продолжение молча                  ротировало бы ключ — почините права/диск)",
+                path.display()
+            )),
         }
-        Self::from_private(key)
     }
 
     fn generate_private() -> RsaPrivateKey {

@@ -22,6 +22,12 @@ if [ -f "$pid_file" ]; then
       echo "[update-macos] launcher exited"
       break
     fi
+    if [ "$i" -eq 60 ]; then
+      # PID не умер за 30 с: не молчим — прерываем замену (бандл живой и
+      # рабочий, пользователь запустит приложение сам).
+      echo "[update-macos] ERROR: launcher PID $old_pid still alive after 30s, aborting"
+      exit 1
+    fi
     sleep 0.5
   done
   rm -f "$pid_file"
@@ -32,18 +38,22 @@ sleep 1
 
 echo "[update-macos] replacing $target_app → $new_app"
 
-# Move old app aside.
+# Move old app aside. Ошибка mv НЕ глотается: при её игнорировании следующий
+# cp -R копировал бы ВНУТРЬ оставшийся каталог (вложенный битый бандл без
+# Info.plist на месте), а ветка восстановления смотрела бы на отсутствующий
+# backup — тихая порча установки.
 backup="${target_app}.old"
 rm -rf "$backup"
-mv "$target_app" "$backup" || true
+if ! mv "$target_app" "$backup"; then
+  echo "[update-macos] ERROR: cannot move old app aside, aborting (bundle untouched)"
+  exit 1
+fi
 
 # Move new app into place; on failure restore the backup so the user
 # isn't left without a launcher at all.
 if ! cp -R "$new_app" "$target_app"; then
   echo "[update-macos] failed to install new app, restoring backup"
-  if [ -d "$backup" ]; then
-    mv "$backup" "$target_app"
-  fi
+  mv "$backup" "$target_app" || true
   exit 1
 fi
 
@@ -58,5 +68,8 @@ rm -rf "$(dirname "$new_app")"
 
 echo "[update-macos] update complete, launching $app_name"
 
-# Re-launch the app.
-open -a "$app_name"
+# Re-launch the app — ПО ПУТИ к только что установленному бандлу:
+# `open -a <имя>` спрашивал LaunchServices «любой .app с таким именем» и мог
+# поднять старую копию из /Applications или ~/Downloads — обновление
+# «не применялось» бы без всякой ошибки.
+open "$target_app"
