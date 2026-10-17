@@ -2485,11 +2485,12 @@ button,
     color: var(--muted);
 }
 
-.preset-disclosure__chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+/* Перечисление эксклюзивных модов пресета — текст, не чипы. */
+.preset-disclosure__mods {
     margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--muted);
 }
 
 /* Шаг 02 — моды как следствие выбора. */
@@ -2622,17 +2623,6 @@ button,
 
 [data-motion="off"] .preset-rail--busy .customize-tabs__ink {
     animation: none;
-}
-
-/* Чип имени мода (состав пресета в disclosure-панели). */
-.mods-section__profile-badge {
-    padding: 2px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--glass-border);
-    background: rgba(255, 255, 255, 0.04);
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--muted);
 }
 
 .account-form {

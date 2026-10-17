@@ -301,10 +301,20 @@ fn normalize(v: &str) -> &str {
 
 /// Возвращает true, если `latest` строго новее `current`.
 /// Сравнение покомпонентно по числам, разделённым точками (semver-подобно).
-/// Суффиксы `-rc1`, `-beta` и т.п. игнорируются — `1.2.0-rc1` считается равным `1.2.0`.
+/// Суффикс `-fixN` (релизы-фиксы поверх vX.Y.Z) учитывается как
+/// дополнительный компонент после трёх основных: `0.11.19-fix2` новее
+/// `0.11.19-fix1` и `0.11.19`, но старее `0.12.0`. Прочие суффиксы
+/// (`-rc1`, `-beta`) игнорируются — `1.2.0-rc1` считается равным `1.2.0`.
 fn is_newer(latest: &str, current: &str) -> bool {
+    // fixN -> номер в доп. сегмент; его отсутствие = 0 (сам базовый релиз).
+    let fix_suffix = |s: &str| -> u64 {
+        s.rsplit_once("-fix")
+            .and_then(|(_, n)| n.parse::<u64>().ok())
+            .unwrap_or(0)
+    };
     let parse = |s: &str| -> Vec<u64> {
-        normalize(s)
+        let (base, fix) = (normalize(s), fix_suffix(s));
+        let mut parts: Vec<u64> = base
             .split('.')
             .map(|p| {
                 p.chars()
@@ -313,7 +323,13 @@ fn is_newer(latest: &str, current: &str) -> bool {
                     .parse::<u64>()
                     .unwrap_or(0)
             })
-            .collect()
+            .collect();
+        // Выравниваем до 4 сегментов: X.Y.Z.fix — суффикс всегда последний.
+        while parts.len() < 3 {
+            parts.push(0);
+        }
+        parts.push(fix);
+        parts
     };
     let a = parse(latest);
     let b = parse(current);
@@ -893,9 +909,10 @@ fn find_update_script() -> Option<std::path::PathBuf> {
 //             «выкате в стабильный релиз» из админ-панели),
 //   beta   -> алиас-релиз launcher-beta   (latest.json публикует CI сразу
 //             при создании pre-release релиза).
-// Бета-канал видит pre-release версии: semver-сравнение апдейтера строгое
-// (`release.version > current`), поэтому свежий pre-release 0.12.0 будет
-// предложен клиенту 0.11.8, а стабильная 0.11.8 — нет.
+// Бета-канал видит pre-release версии: сравнение версий задаём своим
+// `is_newer` через version_comparator (см. signed_updater) — оно понимает
+// fix-релизы `X.Y.Z-fixN` (новее базы, растёт по номеру), а свежий
+// pre-release 0.12.0 будет предложен клиенту 0.11.8, стабильная 0.11.8 — нет.
 
 const STABLE_UPDATER_ENDPOINT: &str =
     "https://github.com/Zeragorn-ru/stardust/releases/download/launcher-stable/latest.json";
@@ -905,6 +922,11 @@ const BETA_UPDATER_ENDPOINT: &str =
 /// Строит апдейтер плагина с endpoint'ом текущего канала и прокси из
 /// настроек лаунчера (апдейтер живёт в собственном reqwest-клиенте и
 /// настроек не видит — как и в JS-пути, прокси задаём явно).
+///
+/// Сравнение версий переопределяем своим `is_newer`: стандартный semver
+/// считает `0.11.19-fix1` pre-release'ом *меньше* `0.11.19`, а нам
+/// fix-релизы поверх базовой версии должны предлагаться клиентам этой же
+/// версии (и расти по номеру фикса).
 fn signed_updater(
     app: &AppHandle,
 ) -> Result<tauri_plugin_updater::Updater, tauri_plugin_updater::Error> {
@@ -918,7 +940,12 @@ fn signed_updater(
     };
     let url = url::Url::parse(endpoint).expect("статический endpoint валиден");
 
-    let mut builder = app.updater_builder().endpoints(vec![url])?;
+    let mut builder = app
+        .updater_builder()
+        .endpoints(vec![url])?
+        .version_comparator(|current, remote| {
+            is_newer(&remote.version.to_string(), &current.to_string())
+        });
     match settings.proxy_type {
         crate::commands::ProxyType::System => {}
         crate::commands::ProxyType::Builtin => {
@@ -1441,6 +1468,22 @@ mod tests {
         assert!(!is_newer("1.2.0-beta", "1.2.0"));
         assert!(!is_newer("1.2.0", "1.2.0-rc1"));
         assert!(is_newer("1.2.1-rc1", "1.2.0"));
+    }
+
+    #[test]
+    fn is_newer_fix_suffix_orders_after_base() {
+        // fix-релизы поверх той же базовой версии новее базы и растут по номеру.
+        assert!(is_newer("0.11.19-fix1", "0.11.19"));
+        assert!(is_newer("0.11.19-fix2", "0.11.19-fix1"));
+        // Двузначный номер фикса старше однозначного (число, не лексика).
+        assert!(is_newer("0.11.19-fix10", "0.11.19-fix9"));
+        // База не считается обновлением поверх своего fix-релиза.
+        assert!(!is_newer("0.11.19", "0.11.19-fix1"));
+        assert!(!is_newer("0.11.19-fix1", "0.11.19-fix1"));
+        // Новая минорная версия старее любого фикса? Нет — старше:
+        assert!(is_newer("0.12.0", "0.11.19-fix99"));
+        // Младшая минорная с фиксом не обгоняет старшую базу.
+        assert!(!is_newer("0.11.19-fix99", "0.12.0"));
     }
 
     #[test]

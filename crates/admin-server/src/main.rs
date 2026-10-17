@@ -2799,11 +2799,22 @@ const GITHUB_REPO: &str = "Zeragorn-ru/stardust";
 /// Строгая проверка тега релиза лаунчера. Тег попадает в path URL
 /// `api.github.com/repos/.../releases/tags/{tag}` с токеном, поэтому
 /// недостаточно `starts_with('v')`: точка и слэш позволяют уводить запрос
-/// на произвольный путь GitHub (dot-segment). Разрешаем ровно `vцифры.цифры.цифры`.
+/// на произвольный путь GitHub (dot-segment). Разрешаем `vцифры.цифры.цифры`
+/// и fix-релизы поверх базовой версии — `vцифры.цифры.цифры-fixцифры`.
 fn tag_is_release(tag: &str) -> bool {
     let rest = tag.strip_prefix('v').unwrap_or("");
-    let mut parts = rest.split('.');
-    let mut ok = !rest.is_empty();
+    // Отделяем суффикс -fixN (если есть) до разбора сегментов.
+    let (base, fix) = match rest.split_once("-fix") {
+        Some((b, n)) => (b, Some(n)),
+        None => (rest, None),
+    };
+    if let Some(n) = fix {
+        if n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) {
+            return false;
+        }
+    }
+    let mut parts = base.split('.');
+    let mut ok = !base.is_empty();
     for _ in 0..3 {
         let seg = parts.next().unwrap_or("");
         ok &= !seg.is_empty() && seg.bytes().all(|b| b.is_ascii_digit());
@@ -6049,5 +6060,36 @@ fn map_store(e: store::StoreError) -> ApiError {
             ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Внутренняя ошибка сервера")
         }
         other => ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tag_is_release;
+
+    #[test]
+    fn tag_is_release_accepts_plain_and_fix_tags() {
+        assert!(tag_is_release("v0.11.19"));
+        assert!(tag_is_release("v1.0.0"));
+        // Fix-релизы поверх базовой версии.
+        assert!(tag_is_release("v0.11.19-fix1"));
+        assert!(tag_is_release("v0.11.19-fix10"));
+    }
+
+    #[test]
+    fn tag_is_release_rejects_garbage() {
+        assert!(!tag_is_release("0.11.19"));
+        assert!(!tag_is_release("v1.2"));
+        assert!(!tag_is_release("v1.2.3.4"));
+        assert!(!tag_is_release(""));
+        assert!(!tag_is_release("v"));
+        // dot-segment и слэши — увод path URL на GitHub.
+        assert!(!tag_is_release("v1.2.3/../etc"));
+        assert!(!tag_is_release("vx.y.z"));
+        // Битые суффиксы -fix.
+        assert!(!tag_is_release("v1.2.3-fix"));
+        assert!(!tag_is_release("v1.2.3-fixx"));
+        assert!(!tag_is_release("v1.2.3-fix1x"));
+        assert!(!tag_is_release("v1.2.3-fix-1"));
     }
 }

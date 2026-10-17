@@ -572,12 +572,8 @@ export default function ModsSection() {
                         <p className="preset-disclosure__desc">{selectedProfile.description}</p>
                       )}
                       {exclusive.length > 0 ? (
-                        <p className="preset-disclosure__chips">
-                          {exclusive.map((m) => (
-                            <span key={m.modId} className="mods-section__profile-badge">
-                              {m.name}
-                            </span>
-                          ))}
+                        <p className="preset-disclosure__mods">
+                          Только в этом пресете: {exclusive.map((m) => m.name).join(", ")}.
                         </p>
                       ) : (
                         <p className="preset-disclosure__desc">
