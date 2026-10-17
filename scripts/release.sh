@@ -10,9 +10,11 @@
 #
 # Использование:
 #   sh scripts/release.sh            # патч-бамп: v0.2.9 -> v0.2.10
+#   sh scripts/release.sh fix        # fix-релиз: v0.2.9 -> v0.2.9-fix1, v0.2.9-fix1 -> v0.2.9-fix2
 #   sh scripts/release.sh minor      # v0.2.9 -> v0.3.0
 #   sh scripts/release.sh major      # v0.2.9 -> v1.0.0
 #   sh scripts/release.sh 0.3.0      # явная версия -> тег v0.3.0
+#   sh scripts/release.sh 0.3.0-fix1 # явный fix-релиз -> тег v0.3.0-fix1
 #
 # Флаги:
 #   --no-push   создать тег локально, без пуша
@@ -35,8 +37,8 @@ for arg in "$@"; do
   esac
 done
 
-# --- последний релизный тег ---
-LAST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -n1)
+# --- последний релизный тег (обычный и fix-релиз) ---
+LAST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' 'v[0-9]*.[0-9]*.[0-9]*-fix[0-9]*' --sort=-version:refname | head -n1)
 if [ -z "$LAST" ]; then
   CURRENT="0.0.0"
   echo "Релизных тегов пока нет, отсчёт от 0.0.0."
@@ -45,14 +47,23 @@ else
   echo "Последний тег: $LAST"
 fi
 
-MAJOR=$(echo "$CURRENT" | cut -d. -f1)
-MINOR=$(echo "$CURRENT" | cut -d. -f2)
-PATCH=$(echo "$CURRENT" | cut -d. -f3)
+# Fix-суффикс текущего тега не участвует в разборе X.Y.Z.
+BASE=$(echo "$CURRENT" | sed 's/-fix[0-9]*$//')
+FIX=$(echo "$CURRENT" | sed -n 's/^[0-9]*\.[0-9]*\.[0-9]*-fix\([0-9]*\)$/\1/p')
+
+MAJOR=$(echo "$BASE" | cut -d. -f1)
+MINOR=$(echo "$BASE" | cut -d. -f2)
+PATCH=$(echo "$BASE" | cut -d. -f3)
 
 case "${BUMP:-patch}" in
+  fix)
+    # Следующий fix-релиз поверх той же базовой версии: v0.11.19-fix1 -> v0.11.19-fix2.
+    NEW="$MAJOR.$MINOR.$PATCH-fix$(( ${FIX:-0} + 1 ))"
+    ;;
   patch|"") NEW="$MAJOR.$MINOR.$((PATCH + 1))" ;;
   minor)    NEW="$MAJOR.$((MINOR + 1)).0" ;;
   major)    NEW="$((MAJOR + 1)).0.0" ;;
+  [0-9]*.[0-9]*.[0-9]*-fix[0-9]*) NEW="$BUMP" ;;
   [0-9]*.[0-9]*.[0-9]*) NEW="$BUMP" ;;
   *) echo "Некорректный аргумент версии: $BUMP" >&2; exit 2 ;;
 esac

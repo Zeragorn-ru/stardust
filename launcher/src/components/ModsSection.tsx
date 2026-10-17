@@ -534,14 +534,14 @@ export default function ModsSection() {
                 disabled={pendingProfile !== null}
                 onClick={() => setDisclosureOpen((v) => !v)}
               >
-                <span aria-hidden>{disclosureOpen ? "▾" : "▸"}</span> Состав и описание
+                <span aria-hidden>{disclosureOpen ? "▾" : "▸"}</span> Описание
               </button>
               <div
                 ref={disclosureRef}
                 className="preset-disclosure__panel"
                 id="preset-disclosure-panel"
                 role="region"
-                aria-label={`Состав и описание пресета ${selectedProfile.name}`}
+                aria-label={`Описание пресета ${selectedProfile.name}`}
                 style={
                   disclosureOpen && disclosureHeight != null
                     ? { maxHeight: `${disclosureHeight}px` }
