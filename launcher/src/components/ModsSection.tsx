@@ -348,16 +348,6 @@ export default function ModsSection() {
   const hasProfiles = (profiles ?? []).length > 0;
   const singleProfile = hasProfiles && (profiles ?? []).length === 1;
 
-  // Эксклюзивный состав пресета (тег только этого профиля) для
-  // disclosure-панели. Моды с несколькими тегами не эксклюзивны —
-  // они доступны в каждом из своих пресетов.
-  const presetExclusiveMods = (profileKey: string): OptionalMod[] =>
-    (mods ?? []).filter(
-      (m) =>
-        m.profiles.length === 1 &&
-        m.profiles[0].toLowerCase() === profileKey.toLowerCase(),
-    );
-
   /** Ряд мода (существующий .toggle-row) с новыми бейджами. */
   function renderRow(mod: OptionalMod) {
     const busy = pending.has(mod.modId);
@@ -558,31 +548,9 @@ export default function ModsSection() {
                     : undefined
                 }
               >
-                {(() => {
-                  const exclusive = presetExclusiveMods(selectedProfile.key);
-                  return (
-                    <>
-                      <p className="preset-disclosure__name">
-                        {selectedProfile.name}
-                        {selectedProfile.key === (profiles ?? [])[0]?.key && (
-                          <span className="new-preset__default">по умолчанию</span>
-                        )}
-                      </p>
-                      {selectedProfile.description && (
-                        <p className="preset-disclosure__desc">{selectedProfile.description}</p>
-                      )}
-                      {exclusive.length > 0 ? (
-                        <p className="preset-disclosure__mods">
-                          Только в этом пресете: {exclusive.map((m) => m.name).join(", ")}.
-                        </p>
-                      ) : (
-                        <p className="preset-disclosure__desc">
-                          Эксклюзивных модов нет — только общие.
-                        </p>
-                      )}
-                    </>
-                  );
-                })()}
+                {selectedProfile.description && (
+                  <p className="preset-disclosure__desc">{selectedProfile.description}</p>
+                )}
               </div>
             </div>
           )}

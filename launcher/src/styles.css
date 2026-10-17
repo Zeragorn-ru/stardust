@@ -2467,26 +2467,7 @@ button,
     transition-delay: 0s;
 }
 
-.preset-disclosure__name {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin: 0;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--muted);
-}
-
 .preset-disclosure__desc {
-    margin: 0;
-    font-size: 12px;
-    line-height: 1.4;
-    color: var(--muted);
-}
-
-/* Перечисление эксклюзивных модов пресета — текст, не чипы. */
-.preset-disclosure__mods {
     margin: 0;
     font-size: 12px;
     line-height: 1.4;
