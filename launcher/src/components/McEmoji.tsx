@@ -2,6 +2,7 @@
 // Символа в индексе нет — текстовый фолбэк, как раньше.
 import type { CSSProperties } from "react";
 import { findMcEmoji } from "../emoji";
+import { STANDARD_TO_MC } from "../standardEmojiMap";
 import { normalizeMinecraftText } from "../minecraftText";
 
 interface Props {
@@ -13,7 +14,10 @@ interface Props {
 }
 
 export default function McEmoji({ char, className, style, alt }: Props) {
-  const emoji = findMcEmoji(normalizeMinecraftText(char));
+  const normalized = normalizeMinecraftText(char);
+  // Сначала точный глиф; стандартные эмодзи из системной клавиатуры
+  // (😀 👍 ✨) в Minecraft отсутствуют — подставляем ближайший MC-эквивалент.
+  const emoji = findMcEmoji(normalized) ?? findMcEmoji(STANDARD_TO_MC[normalized] ?? "");
   if (!emoji) {
     return (
       <span

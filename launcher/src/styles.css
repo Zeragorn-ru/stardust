@@ -211,6 +211,23 @@ button,
     pointer-events: none;
 }
 
+/* Невидимая drag-полоса на зоне нативной шапки macOS: Overlay отдаёт пустые
+   клики полосы в WKWebView, перетаскивание никто не начинает. Полоса
+   перехватывает mousedown (drag.js → start_dragging) и сама прозрачна
+   визуально. Левый край (traffic lights ~70px) и центр (заголовок
+   «StarDust») оставляем нативным вью — там AppKit сам обрабатывает клики;
+   дважды-клик на полосе разворачивает/свёртывает как в системных окнах
+   (drag.js: internal_toggle_maximize — у нас maximizable:false, безвредно). */
+.macos-drag-strip {
+    position: absolute;
+    top: 0;
+    left: 78px;
+    right: 78px;
+    height: 38px;
+    z-index: 2;
+    -webkit-app-region: no-drag;
+}
+
 .titlebar {
     position: absolute;
     top: 0;
@@ -2472,6 +2489,7 @@ button,
     font-size: 12px;
     line-height: 1.4;
     color: var(--muted);
+    text-align: center;
 }
 
 /* Шаг 02 — моды как следствие выбора. */

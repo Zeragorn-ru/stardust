@@ -347,6 +347,13 @@ export default function App() {
   return (
     <div className={"app" + (mac ? " app--macos" : "")}>
       <Aurora />
+      {/* macOS: невидимая drag-полоса поверх зоны нативной шапки (38px).
+          Overlay-режим отдаёт клики по пустой полосе шапки в WKWebView,
+          где никто не начинает перетаскивание — контент начинается ниже
+          38px и drag.js туда не доходит. Полоса ловит mousedown и зовёт
+          нативный start_dragging (см. .macos-drag-strip в styles.css:
+          pointer-events только для mac, z-index над затемнением шапки). */}
+      {mac && <div className="macos-drag-strip" data-tauri-drag-region />}
       {/* На macOS — нативная шапка (Overlay + нативный заголовок окна
           «StarDust» у traffic lights), кастомный бар не нужен. Перетаскивание
           окна — через data-tauri-drag-region на шапках экранов: drag.js
