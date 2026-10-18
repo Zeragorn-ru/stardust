@@ -10,7 +10,7 @@ import { Button } from "./shadcn";
 import { useDirtyGuard } from "./useDirtyGuard";
 import { PlayerSkinTab } from "./PlayerSkinTab";
 import { formatDateTime, formatPlaytime } from "../format";
-import { normalizeMinecraftText } from "../minecraftText";
+import McEmoji from "../emoji/McEmoji";
 
 type Tab = "info" | "skin" | "badges" | "actions";
 
@@ -380,7 +380,7 @@ function BadgesTab({
                     checked={owned}
                     onChange={() => toggleBadge(b.id)}
                   />
-                  <span className="pc-check-emoji">{normalizeMinecraftText(b.emoji)}</span>
+                  <McEmoji char={b.emoji} />
                   <span className="pc-check-label">{b.label}</span>
                   {owned && (
                     <button
@@ -453,12 +453,10 @@ function BadgesTab({
         <span style={{ fontSize: 12, color: "var(--muted)" }}>Превью:</span>
         <span style={{ fontWeight: 600 }}>
           {data.activeBadgeId != null && (
-            <span
-              className="pc-check-emoji"
+            <McEmoji
+              char={data.availableBadges.find((b) => b.id === data.activeBadgeId)?.emoji ?? ""}
               style={{ color: data.availableBadges.find((b) => b.id === data.activeBadgeId)?.color }}
-            >
-              {normalizeMinecraftText(data.availableBadges.find((b) => b.id === data.activeBadgeId)?.emoji ?? "")}{" "}
-            </span>
+            />
           )}
           <span
             style={

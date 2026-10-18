@@ -4190,12 +4190,13 @@ button.data-directory-card__path:disabled {
     line-height: 1.1;
 }
 
+/* Бейдж ника — теперь SVG-глиф (McEmoji): размер по шрифту ника +2px,
+   цвет контура наследуется style/color, тень сохранена. */
 .minecraft-nick__badge {
-    font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-    font-size: calc(var(--minecraft-nick-size, 22px) + 2px);
-    font-variant-emoji: text;
+    width: calc(var(--minecraft-nick-size, 22px) + 2px);
+    height: calc(var(--minecraft-nick-size, 22px) + 2px);
     flex-shrink: 0;
-    text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+    filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.55));
 }
 
 .minecraft-nick__name-wrap {
@@ -4382,4 +4383,23 @@ select:focus {
 select option {
     background: #0f101b;
     color: var(--text);
+}
+
+/* Пиксельный эмодзи-глиф Mojangles (McEmoji, SVG из public/emoji). */
+.mc-emoji {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    image-rendering: pixelated;
+    user-select: none;
+}
+
+/* Фолбэк для символов вне индекса: системный шрифт с text-представлением. */
+.mc-emoji-fallback {
+    display: inline-block;
+    font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    font-variant-emoji: text;
+    line-height: 1;
+    user-select: none;
 }

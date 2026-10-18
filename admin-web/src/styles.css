@@ -3297,10 +3297,9 @@ td.num {
     cursor: pointer;
 }
 
+/* Эмодзи бейджа в чек-листе — SVG-глиф McEmoji (размер шрифта заголовка). */
 .pc-check-emoji {
-    font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
     font-size: var(--fs-lg);
-    font-variant-emoji: text;
     width: 22px;
     text-align: center;
 }
@@ -4495,13 +4494,12 @@ input[type="radio"] {
     white-space: nowrap;
 }
 
+/* Эмодзи бейджа в карточке-сэмпле — SVG-глиф McEmoji. */
 .badge-sample-emoji {
     width: 18px;
     height: 18px;
     display: inline-grid;
     place-items: center;
-    font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
-    font-variant-emoji: text;
     line-height: 1;
     font-size: 15px;
 }
@@ -5645,4 +5643,23 @@ input[type="radio"] {
 .latest-btn.is-locked {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+/* Пиксельный эмодзи-глиф Mojangles (McEmoji, SVG из public/emoji). */
+.mc-emoji {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    image-rendering: pixelated;
+    user-select: none;
+}
+
+/* Фолбэк для символов вне индекса: системный шрифт с text-представлением. */
+.mc-emoji-fallback {
+    display: inline-block;
+    font-family: 'Minecraft', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+    font-variant-emoji: text;
+    line-height: 1;
+    user-select: none;
 }

@@ -1,5 +1,5 @@
 import type { Badge, Gradient } from "../types";
-import { normalizeMinecraftText } from "../minecraftText";
+import McEmoji from "./McEmoji";
 
 interface Props {
   name: string;
@@ -20,9 +20,11 @@ export default function MinecraftNickname({ name, badge, gradient, className }: 
   return (
     <span className={"minecraft-nick" + (className ? ` ${className}` : "")}>
       {badge && (
-        <span className="minecraft-nick__badge" style={{ color: badge.color }}>
-          {normalizeMinecraftText(badge.emoji)}
-        </span>
+        <McEmoji
+          char={badge.emoji}
+          className="minecraft-nick__badge"
+          style={{ color: badge.color }}
+        />
       )}
       <span className="minecraft-nick__name-wrap">
         <span className="minecraft-nick__name-shadow" aria-hidden="true">
