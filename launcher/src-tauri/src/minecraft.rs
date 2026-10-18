@@ -843,7 +843,7 @@ async fn download_libraries(
         .iter()
         .filter(|lib| rules_allow(&lib.rules, &LaunchFeatures::default()))
     {
-        if let Some(artifact) = lib.downloads.artifact.as_ref() {
+        if let Some(artifact) = lib.artifact() {
             let path = root.join("libraries").join(library_rel_path(&artifact.path));
             if !artifact.url.is_empty()
                 && !file_matches(&path, artifact.sha1.as_deref(), artifact.size)?
@@ -1065,7 +1065,7 @@ fn extract_natives(
         }
 
         // MC 1.21+: отдельные записи вида group:artifact:version:natives-macos.
-        if let Some(artifact) = lib.downloads.artifact.as_ref() {
+        if let Some(artifact) = lib.artifact() {
             if native_artifact_for_current_os(&artifact.path, lib.name.as_deref()) {
                 let jar_path = root.join("libraries").join(library_rel_path(&artifact.path));
                 if jar_path.exists() && extracted.insert(artifact.path.clone()) {
@@ -1119,7 +1119,7 @@ fn build_modloader_classpath(
         .iter()
         .filter(|l| rules_allow(&l.rules, &launch_features))
     {
-        if let Some(artifact) = lib.downloads.artifact.as_ref() {
+        if let Some(artifact) = lib.artifact() {
             if let Some(key) = library_dedup_key(lib) {
                 seen.insert(key);
             }
@@ -1132,7 +1132,7 @@ fn build_modloader_classpath(
                 continue;
             }
         }
-        if let Some(artifact) = lib.downloads.artifact.as_ref() {
+        if let Some(artifact) = lib.artifact() {
             paths.push(root.join("libraries").join(library_rel_path(&artifact.path)));
         }
     }
@@ -2498,18 +2498,78 @@ struct AssetObject {
     size: Option<u64>,
 }
 
+/// Библиотека в Mojang-формате (`downloads.artifact`) ИЛИ Fabric-формате
+/// (meta.fabricmc.net: `name` + `url` корня maven-репозитория + `sha1`/`size`
+/// рядом, БЕЗ downloads). `artifact()` приводит оба вида к общему
+/// LibraryArtifact — остальные 6 точек потребления работают как с Mojang.
 #[derive(Debug, Deserialize)]
 struct Library {
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
     downloads: LibraryDownloads,
     #[serde(default)]
     rules: Option<Vec<Rule>>,
     #[serde(default)]
     natives: Option<HashMap<String, String>>,
+    /// Fabric: корень репозитория (https://maven.fabricmc.net/).
+    #[serde(default)]
+    url: Option<String>,
+    /// Fabric: sha1 библиотеки (у двух библиотек Fabric его нет — качаем без).
+    #[serde(default)]
+    sha1: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
+impl Library {
+    /// Нормализованный артефакт: Mojang-вид напрямую, Fabric-вид
+    /// реконструируется из name (maven-путь) + url (корень репозитория).
+    fn artifact(&self) -> Option<LibraryArtifact> {
+        if let Some(artifact) = self.downloads.artifact.as_ref() {
+            return Some(LibraryArtifact {
+                path: artifact.path.clone(),
+                url: artifact.url.clone(),
+                sha1: artifact.sha1.clone().or_else(|| self.sha1.clone()),
+                size: artifact.size.or(self.size),
+            });
+        }
+        // Fabric-вид: без downloads, но с name.
+        let name = self.name.as_deref()?;
+        let rel = maven_rel_path(name)?;
+        let repo = self
+            .url
+            .as_deref()
+            .map(|u| u.trim_end_matches('/'))
+            .unwrap_or("https://maven.fabricmc.net");
+        Some(LibraryArtifact {
+            url: format!("{repo}/{rel}"),
+            path: rel,
+            sha1: self.sha1.clone(),
+            size: self.size,
+        })
+    }
+}
+
+/// maven-путь из координат group:artifact:version[:classifier]:
+/// group с точками → каталоги, артефакт остаётся файлом.
+fn maven_rel_path(name: &str) -> Option<String> {
+    let parts: Vec<&str> = name.split(':').collect();
+    if parts.len() < 3 {
+        return None;
+    }
+    let (group, artifact, version) = (parts[0], parts[1], parts[2]);
+    let classifier = parts.get(3).copied().unwrap_or("");
+    let file = if classifier.is_empty() {
+        format!("{artifact}-{version}.jar")
+    } else {
+        format!("{artifact}-{version}-{classifier}.jar")
+    };
+    // Полный maven-путь: group-каталоги / artifact / version / файл.
+    Some(format!("{}/{}/{}/{}", group.replace('.', "/"), artifact, version, file))
+}
+
+#[derive(Debug, Default, Deserialize)]
 struct LibraryDownloads {
     #[serde(default)]
     artifact: Option<LibraryArtifact>,
@@ -2517,7 +2577,7 @@ struct LibraryDownloads {
     classifiers: Option<HashMap<String, LibraryArtifact>>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 struct LibraryArtifact {
     path: String,
     url: String,
@@ -2603,6 +2663,102 @@ fn current_os_name() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn library_artifact_fabric_with_sha1() {
+        // Реальная запись из meta.fabricmc.net: url — корень репозитория.
+        let lib: Library = serde_json::from_str(
+            r#"{
+                "name": "org.ow2.asm:asm:9.8",
+                "url": "https://maven.fabricmc.net/",
+                "sha1": "dc19ecb3f7889b7860697215cae99c0f9b6f6b4b",
+                "size": 126113
+            }"#,
+        )
+        .unwrap();
+        let artifact = lib.artifact().unwrap();
+        assert_eq!(artifact.path, "org/ow2/asm/asm/9.8/asm-9.8.jar");
+        assert_eq!(
+            artifact.url,
+            "https://maven.fabricmc.net/org/ow2/asm/asm/9.8/asm-9.8.jar"
+        );
+        assert_eq!(
+            artifact.sha1.as_deref(),
+            Some("dc19ecb3f7889b7860697215cae99c0f9b6f6b4b")
+        );
+        assert_eq!(artifact.size, Some(126113));
+    }
+
+    #[test]
+    fn library_artifact_fabric_without_checksum() {
+        // fabric-loader и intermediary приходят без sha1/size — качаем без проверки.
+        let lib: Library = serde_json::from_str(
+            r#"{
+                "name": "net.fabricmc:fabric-loader:0.16.14",
+                "url": "https://maven.fabricmc.net/"
+            }"#,
+        )
+        .unwrap();
+        let artifact = lib.artifact().unwrap();
+        assert_eq!(
+            artifact.path,
+            "net/fabricmc/fabric-loader/0.16.14/fabric-loader-0.16.14.jar"
+        );
+        assert_eq!(artifact.sha1, None);
+        assert_eq!(artifact.size, None);
+    }
+
+    #[test]
+    fn library_artifact_fabric_sponge_mixin_with_classifier() {
+        // Координаты с плюсом и без classifier: sponge-mixin имеет версию
+        // вида 0.15.5+mixin.0.8.7 — в пути это валидный сегмент.
+        let lib: Library = serde_json::from_str(
+            r#"{
+                "name": "net.fabricmc:sponge-mixin:0.15.5+mixin.0.8.7",
+                "url": "https://maven.fabricmc.net/",
+                "sha1": "22f9eb729e216a091673a574a5906dc1b9027fb3"
+            }"#,
+        )
+        .unwrap();
+        let artifact = lib.artifact().unwrap();
+        assert_eq!(
+            artifact.path,
+            "net/fabricmc/sponge-mixin/0.15.5+mixin.0.8.7/sponge-mixin-0.15.5+mixin.0.8.7.jar"
+        );
+    }
+
+    #[test]
+    fn library_artifact_mojang_passthrough() {
+        // Mojang-вид: downloads.artifact имеет приоритет, url репозитория
+        // из Fabric-полей не вмешивается.
+        let lib: Library = serde_json::from_str(
+            r#"{
+                "name": "com.google.guava:guava:32.1.2-jre",
+                "downloads": {
+                    "artifact": {
+                        "path": "com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar",
+                        "url": "https://libraries.minecraft.net/com/google/guava/guava/32.1.2-jre/guava-32.1.2-jre.jar",
+                        "sha1": "5eed2b8c8ff6e4a0d1a5a0b5a0a5a0a5a0a5a0a5",
+                        "size": 3000000
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        let artifact = lib.artifact().unwrap();
+        assert!(artifact.url.starts_with("https://libraries.minecraft.net/"));
+        assert_eq!(artifact.sha1.as_deref(), Some("5eed2b8c8ff6e4a0d1a5a0b5a0a5a0a5a0a5a0a5"));
+    }
+
+    #[test]
+    fn library_artifact_rejects_broken_name() {
+        // Меньше трёх координат — не maven-имя, артефакта нет.
+        let lib: Library = serde_json::from_str(
+            r#"{ "name": "only-two", "url": "https://maven.fabricmc.net/" }"#,
+        )
+        .unwrap();
+        assert!(lib.artifact().is_none());
+    }
 
     #[test]
     fn authlib_injector_marker_tracks_version_and_checksum() {
