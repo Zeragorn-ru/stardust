@@ -28,6 +28,12 @@ const DEFAULT_VERSION: &str = "1.21.1";
 const DEFAULT_NEOFORGE_BRANCH: &str = "21.1.";
 const NEOFORGE_METADATA_URL: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
+/// Fabric Loader ставится статичными файлами: profile JSON с meta.fabricmc.net
+/// в формате Mojang version-JSON (inheritsFrom/libraries/mainClass KnotClient),
+/// библиотеки — обычные maven-артефакты. Installer.jar не нужен.
+const FABRIC_PROFILE_URL: &str = "https://meta.fabricmc.net/v2/versions/loader";
+/// Ветка Fabric Loader по умолчанию, когда манифест не пинит версию.
+const FABRIC_DEFAULT_LOADER: &str = "0.16.14";
 const VERSION_MANIFEST_URL: &str =
     "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 #[cfg(windows)]
@@ -126,27 +132,59 @@ pub async fn launch(
     } else {
         crate::backend::fetch_manifest(http, &data_dir).await?
     };
-    let pinned_neoforge = manifest.as_ref().and_then(|m| {
-        use protocol::LoaderKind;
-        if m.loader.kind == LoaderKind::NeoForge && !m.loader.version.is_empty() {
-            Some(m.loader.version.clone())
-        } else {
-            None
+    // Ядро сборки из манифеста: NeoForge (installer) или Fabric (статичный
+    // profile JSON). Манифеста нет (админский режим/оффлайн) — остаёмся на
+    // NeoForge как историческом ядре по умолчанию.
+    let loader_kind = manifest
+        .as_ref()
+        .map(|m| m.loader.kind)
+        .unwrap_or(protocol::LoaderKind::NeoForge);
+    let pinned_loader_version = manifest
+        .as_ref()
+        .filter(|m| !m.loader.version.is_empty())
+        .map(|m| m.loader.version.clone());
+    let loader_profile_id = match loader_kind {
+        protocol::LoaderKind::Fabric => {
+            let mc = manifest
+                .as_ref()
+                .map(|m| m.loader.minecraft.clone())
+                .unwrap_or_else(|| version_id.clone());
+            ensure_fabric(
+                &progress,
+                http,
+                &root,
+                &mc,
+                pinned_loader_version.as_deref(),
+            )
+            .await?
         }
-    });
-    let neoforge_id =
-        ensure_neoforge(&progress, http, &root, &java, pinned_neoforge.as_deref()).await?;
-    let loader = load_modloader_profile(&root, &neoforge_id)?;
+        _ => {
+            // NeoForge (историческое ядро) и все прочие kinds идут через
+            // NeoForge-инсталлятор: их манифесты пока не создаются.
+            ensure_neoforge(
+                &progress,
+                http,
+                &root,
+                &java,
+                pinned_loader_version.as_deref(),
+            )
+            .await?
+        }
+    };
+    let loader = load_modloader_profile(&root, &loader_profile_id)?;
     if loader.inherits_from != version.id {
         return Err(format!(
-            "NeoForge профиль наследуется от {}, а запускаем {} — версии не совпадают",
-            loader.inherits_from, version.id
+            "Профиль ядра {} наследуется от {}, а запускаем {} — версии не совпадают",
+            loader_profile_id, loader.inherits_from, version.id
         ));
     }
     progress.begin(
         Stage::NeoForgeLibraries,
         "checking",
-        "Скачиваем библиотеки NeoForge…",
+        match loader_kind {
+            protocol::LoaderKind::Fabric => "Скачиваем библиотеки Fabric…",
+            _ => "Скачиваем библиотеки NeoForge…",
+        },
     );
     download_libraries(&progress, http, &root, &loader.libraries, concurrency).await?;
     progress.begin(
@@ -206,7 +244,8 @@ pub async fn launch(
     // Vanilla ruled JVM args: natives paths, OS-specific flags и т.д.
     args.extend(vanilla_jvm_args(&version, &natives_path));
 
-    // На macOS раннее окно NeoForge (fmlearlywindow) часто падает при старте GLFW.
+    // На macOS раннее окно NeoForge (fmlearlywindow) часто падает при старте
+    // GLFW. Флаг FML-специфичен, но безвреден на Fabric (игнорируется JVM).
     if cfg!(target_os = "macos") {
         args.push("-Dfml.earlyWindowControl=false".into());
     }
@@ -691,7 +730,7 @@ async fn ensure_version(
     progress.begin(
         Stage::Version,
         "checking",
-        "Проверяем Minecraft 1.21.1 + NeoForge…",
+        "Проверяем Minecraft 1.21.1…",
     );
     let version_dir = root.join("versions").join(version_id);
     let version_path = version_dir.join(format!("{version_id}.json"));
@@ -1058,12 +1097,14 @@ fn extract_zip(zip_path: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Строит classpath для NeoForge: сначала библиотеки NeoForge, затем vanilla
-/// (без дубликатов по group:artifact[:classifier] — NeoForge имеет приоритет,
-/// т.к. часто поднимает версии asm/guava/и т.п.), и vanilla-клиентский jar.
+/// Строит classpath для ядра сборки: сначала библиотеки лоадера (NeoForge
+/// или Fabric), затем vanilla (без дубликатов по group:artifact[:classifier] —
+/// лоадер имеет приоритет, т.к. часто поднимает версии asm/guava/и т.п.),
+/// и vanilla-клиентский jar.
 ///
 /// Сами universal/patched jar’ы NeoForge на classpath не попадают: их грузит FML
 /// из libraryDirectory по координатам (аргумент `--fml.neoForgeVersion`).
+/// Fabric не патчит vanilla — Knot грузит её сам.
 fn build_modloader_classpath(
     root: &Path,
     vanilla: &VersionJson,
@@ -1667,15 +1708,96 @@ async fn ensure_neoforge(
     Err(last_err)
 }
 
-/// Читает установленный профиль NeoForge из versions/<id>/<id>.json.
+/// Читает установленный профиль ядра из versions/<id>/<id>.json
+/// (NeoForge от installer'а или Fabric с meta.fabricmc.net — формат общий).
 fn load_modloader_profile(root: &Path, profile_id: &str) -> Result<ModLoaderProfile, String> {
     let path = root
         .join("versions")
         .join(profile_id)
         .join(format!("{profile_id}.json"));
     let json = fs::read_to_string(&path)
-        .map_err(|e| format!("Не удалось прочитать профиль NeoForge: {e}"))?;
-    serde_json::from_str(&json).map_err(|e| format!("Некорректный профиль NeoForge: {e}"))
+        .map_err(|e| format!("Не удалось прочитать профиль ядра: {e}"))?;
+    serde_json::from_str(&json).map_err(|e| format!("Некорректный профиль ядра: {e}"))
+}
+
+/// Устанавливает Fabric Loader: качает profile JSON с meta.fabricmc.net в
+/// формат Mojang version-JSON и кладёт его в versions/<profile_id>/. В отличие
+/// от NeoForge, installer.jar и Java не нужны — «установка» это один файл,
+/// библиотеки докачивает общий ensure_libraries/download_libraries по списку
+/// из этого же JSON. Идемпотентно: файл на месте — пропускаем.
+async fn ensure_fabric(
+    progress: &Progress,
+    http: &reqwest::Client,
+    root: &Path,
+    minecraft_version: &str,
+    pinned_version: Option<&str>,
+) -> Result<String, String> {
+    progress.begin(Stage::NeoForgeInstall, "checking", "Проверяем Fabric…");
+
+    // Версия из манифеста попадает в URL meta.fabricmc.net и имя профиля:
+    // как и у NeoForge, разрешаем только канонические символы.
+    let validate = |v: &str| -> Result<String, String> {
+        let v = v.trim();
+        if v.is_empty()
+            || !v
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        {
+            return Err(format!("Некорректная версия Fabric в манифесте: {v:?}"));
+        }
+        Ok(v.to_string())
+    };
+    let mc = validate(minecraft_version)?;
+    let loader_version = match pinned_version {
+        Some(v) => validate(v)?,
+        None => std::env::var("LAUNCHER_FABRIC_VERSION")
+            .ok()
+            .filter(|v| !v.trim().is_empty())
+            .unwrap_or_else(|| FABRIC_DEFAULT_LOADER.to_string()),
+    };
+
+    let profile_id = format!("fabric-loader-{loader_version}-{mc}");
+    let profile_dir = root.join("versions").join(&profile_id);
+    let profile_path = profile_dir.join(format!("{profile_id}.json"));
+
+    if profile_path.exists() {
+        tracing::info!("[fabric] профиль уже установлен: {}", profile_path.display());
+        return Ok(profile_id);
+    }
+    fs::create_dir_all(&profile_dir)
+        .map_err(|e| format!("Не удалось создать каталог профиля Fabric: {e}"))?;
+
+    let url = format!("{FABRIC_PROFILE_URL}/{mc}/{loader_version}/profile/json");
+    progress.set_label("downloading", format!("Скачиваем Fabric Loader {loader_version}…"));
+    let resp = http_get_with_retry(http, &url, "профиль Fabric", 3).await?;
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| format!("Не удалось прочитать профиль Fabric: {e}"))?;
+
+    // Профиль обязан наследоваться от ванильной версии, которую мы готовим:
+    // иначе launch увидит несостыковку inherits_from.
+    let parsed: serde_json::Value = serde_json::from_str(&body)
+        .map_err(|e| format!("Некорректный профиль Fabric с meta.fabricmc.net: {e}"))?;
+    let inherits = parsed
+        .get("inheritsFrom")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    if inherits != mc {
+        return Err(format!(
+            "Профиль Fabric наследуется от {inherits:?}, а сборка требует {mc:?}"
+        ));
+    }
+
+    // Атомарная запись: сначала .tmp, затем rename — битый файл после
+    // обрыва питания не оставит «установленным» наполовину.
+    let tmp = profile_path.with_extension("json.tmp");
+    fs::write(&tmp, &body).map_err(|e| format!("Не удалось записать профиль Fabric: {e}"))?;
+    fs::rename(&tmp, &profile_path)
+        .map_err(|e| format!("Не удалось переместить профиль Fabric: {e}"))?;
+    tracing::info!("[fabric] установлен профиль {}: {profile_id}", profile_path.display());
+
+    Ok(profile_id)
 }
 
 async fn latest_neoforge_21_1(http: &reqwest::Client) -> Result<String, String> {
@@ -2307,9 +2429,9 @@ struct VersionJson {
     id: String,
     #[serde(rename = "type")]
     version_type: String,
-    // Сейчас запуск идёт только через NeoForge (BootstrapLauncher), поэтому
-    // vanilla main class напрямую не используется, но поле описывает формат JSON
-    // и пригодится для vanilla-запуска.
+    // Запуск идёт через ядро сборки (NeoForge BootstrapLauncher или Fabric
+    // KnotClient), поэтому vanilla main class напрямую не используется, но
+    // поле описывает формат JSON и пригодится для vanilla-запуска.
     #[allow(dead_code)]
     main_class: String,
     asset_index: AssetIndexInfo,
@@ -2321,9 +2443,9 @@ struct VersionJson {
     arguments: Option<VersionArguments>,
 }
 
-/// Профиль модлоадера (NeoForge), который наследуется от vanilla-версии.
-/// В отличие от [`VersionJson`], у него нет `downloads`/`assetIndex` — он
-/// переопределяет только main class, аргументы и список библиотек.
+/// Профиль ядра сборки (NeoForge installer или Fabric с meta.fabricmc.net),
+/// наследуемый от vanilla-версии. Формат общий (Mojang version-JSON):
+/// main class (BootstrapLauncher/KnotClient), аргументы и список библиотек.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModLoaderProfile {
