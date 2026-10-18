@@ -1,0 +1,69 @@
+plugins {
+    id 'fabric-loom' version '1.11-SNAPSHOT'
+}
+
+version = '0.4.9'
+group = 'dev.stardust'
+
+base {
+    archivesName = 'stardust-mod'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    maven {
+        name = 'JitPack'
+        url = 'https://jitpack.io'
+        content {
+            // Only resolve TAB's API from JitPack.
+            includeGroup 'com.github.NEZNAMY'
+        }
+    }
+    maven {
+        name = 'lucko'
+        url = 'https://repo.lucko.me/'
+        content {
+            includeModule 'me.lucko', 'spark-api'
+        }
+    }
+}
+
+dependencies {
+    // Minecraft 1.21.1 / Fabric Loader — matches what the launcher provisions.
+    // mappings mojang_official: весь код перенесён с NeoForge в Mojang-именах
+    // (net.minecraft.server.level.ServerPlayer, Component и т.д.) — yarn-имена
+    // (ServerPlayerEntity, Text) потребовали бы переименования всего кода.
+    minecraft "com.mojang:minecraft:1.21.1"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:0.16.14"
+
+    // События жизненного цикла сервера (ServerLifecycleEvents, CommandRegistrationCallback).
+    // Fabric-API качаем целиком: на сборке игрока он всё равно стоит,
+    // compileOnly вариантов отдельных модулей loom не различает.
+    modImplementation "net.fabricmc.fabric-api:fabric-api:0.116.0+1.21.1"
+
+    // TAB's developer API. compileOnly: TAB is installed as a separate mod on
+    // the server at runtime and provides these classes. Never shade/relocate it.
+    compileOnly 'com.github.NEZNAMY:TAB-API:5.2.1'
+    // Spark API — TPS/MSPT from the profiler. compileOnly: Spark is a separate mod.
+    compileOnly 'me.lucko:spark-api:0.1-SNAPSHOT'
+    // Gson приходит с Minecraft (classpath лоадера), как и в NeoForge-версии.
+    // Явная зависимость не нужна: implementation затянул бы вторую копию в jar.
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}
+
+// Loom подставляет ${version} в fabric.mod.json через processResources.
+processResources {
+    inputs.property "version", project.version
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}

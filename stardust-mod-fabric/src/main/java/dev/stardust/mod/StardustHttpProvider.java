@@ -1,0 +1,354 @@
+package dev.stardust.mod;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.time.Duration;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.List;
+import java.util.function.Supplier;
+
+/**
+ * HTTP-провайдер кастомизации ника для серверного мода Stardust.
+ *
+ * <p>Периодически запрашивает {@code GET /api/server/customization?players=...}
+ * у auth-server и кеширует результат. Обновляет только онлайн-игроков.</p>
+ */
+public final class StardustHttpProvider {
+
+    private static final Gson GSON = new Gson();
+    private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(10);
+    private static final String CACHE_FILE_NAME = "stardust-customization-cache.json";
+
+    /** Данные кастомизации для одного игрока. */
+    public record Assignment(String badge, String badgeColor, String nameColor,
+                             String gradientStart, String gradientEnd,
+                             String badgeLabel, String badgeDescription,
+                             String gradientLabel, String gradientDescription) {
+    }
+
+    private volatile String authUrl;
+    private volatile int refreshIntervalSeconds;
+    private volatile boolean debug;
+    private volatile String serverToken;
+    private final HttpClient httpClient;
+    // Пересоздаётся в stop(): после shutdownNow исполнитель отвергает новые
+    // задачи, а reload() при смене периода перезапускает планировщик.
+    private ScheduledExecutorService scheduler;
+    private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
+    private final Path cacheFile;
+    private final Object cachePersistenceLock = new Object();
+    private volatile Supplier<Collection<String>> onlinePlayersProvider;
+    private volatile Runnable afterRefresh;
+    private volatile boolean running = false;
+
+    public StardustHttpProvider(String authUrl, int refreshIntervalSeconds, boolean debug) {
+        this.authUrl = authUrl.endsWith("/") ? authUrl.substring(0, authUrl.length() - 1) : authUrl;
+        this.refreshIntervalSeconds = Math.max(3, refreshIntervalSeconds);
+        this.debug = debug;
+        Path configDir = FabricLoader.getInstance().getConfigDir();
+        this.cacheFile = configDir.resolve(CACHE_FILE_NAME);
+        loadCache();
+        this.serverToken = StardustServerConfig.load(configDir).serverToken();
+        if (serverToken.isBlank()) {
+            StardustFabricMod.LOGGER.warn("Stardust telemetry token: НЕ ЗАДАН — телеметрия не будет отправляться");
+        } else {
+            // Для коротких токенов «маска» содержала бы весь токен.
+            String masked = serverToken.length() > 8
+                    ? serverToken.substring(0, 4) + "****" + serverToken.substring(serverToken.length() - 3)
+                    : "****";
+            StardustFabricMod.LOGGER.info("Stardust telemetry token: {} (длина={})", masked, serverToken.length());
+        }
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(HTTP_TIMEOUT)
+                .build();
+        this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "stardust-http-provider");
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    private void loadCache() {
+        if (Files.notExists(cacheFile)) return;
+
+        Map<String, Assignment> persisted;
+        try (Reader reader = Files.newBufferedReader(cacheFile, StandardCharsets.UTF_8)) {
+            persisted = GSON.fromJson(reader, new TypeToken<Map<String, Assignment>>() {}.getType());
+        } catch (Exception e) {
+            StardustFabricMod.LOGGER.warn("Stardust cache: не удалось прочитать {} ({})", cacheFile, e.toString());
+            return;
+        }
+
+        if (persisted == null) return;
+        int loaded = 0;
+        for (Map.Entry<String, Assignment> entry : persisted.entrySet()) {
+            String name = entry.getKey();
+            Assignment assignment = entry.getValue();
+            if (name == null || name.isBlank() || assignment == null) continue;
+            cache.put(name.trim().toLowerCase(Locale.ROOT), assignment);
+            loaded++;
+        }
+        StardustFabricMod.LOGGER.info("Stardust cache: загружено {} записей из {}", loaded, cacheFile);
+    }
+
+    private void persistCache() {
+        synchronized (cachePersistenceLock) {
+            Path temporaryFile = cacheFile.resolveSibling(cacheFile.getFileName() + ".tmp");
+            try {
+                Files.createDirectories(cacheFile.getParent());
+                Map<String, Assignment> snapshot = new HashMap<>(cache);
+                try (Writer writer = Files.newBufferedWriter(temporaryFile, StandardCharsets.UTF_8)) {
+                    GSON.toJson(snapshot, writer);
+                }
+                try {
+                    Files.move(temporaryFile, cacheFile,
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE);
+                } catch (AtomicMoveNotSupportedException | UnsupportedOperationException e) {
+                    Files.move(temporaryFile, cacheFile, StandardCopyOption.REPLACE_EXISTING);
+                }
+                if (debug) {
+                    StardustFabricMod.LOGGER.info("Stardust cache: сохранено {} записей в {}", snapshot.size(), cacheFile);
+                }
+            } catch (Exception e) {
+                StardustFabricMod.LOGGER.warn("Stardust cache: не удалось сохранить {} ({})", cacheFile, e.toString());
+                try {
+                    Files.deleteIfExists(temporaryFile);
+                } catch (IOException ignored) {
+                    // The next save will reuse the temporary path.
+                }
+            }
+        }
+    }
+
+    public void sendTelemetry(Collection<String> players, double tps, double mspt) {
+        scheduler.execute(() -> sendTelemetryBlocking(players, tps, mspt));
+    }
+
+    private void sendTelemetryBlocking(Collection<String> players, double tps, double mspt) {
+        try {
+            if (debug) StardustFabricMod.LOGGER.info("Stardust telemetry: players={}, tps={}, mspt={}", players, String.format("%.1f", tps), String.format("%.2f", mspt));
+            String body = GSON.toJson(Map.of("players", List.copyOf(players), "tps", tps, "mspt", mspt));
+            HttpRequest.Builder builder = HttpRequest.newBuilder().uri(URI.create(authUrl + "/api/server/telemetry"))
+                    .timeout(HTTP_TIMEOUT).header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString(body));
+            if (!serverToken.isBlank()) builder.header("Authorization", "Bearer " + serverToken);
+            httpClient.send(builder.build(), HttpResponse.BodyHandlers.discarding());
+        } catch (Exception e) { StardustFabricMod.LOGGER.warn("Stardust telemetry: {}", e.toString()); }
+    }
+
+    /** Устанавливает провайдер онлайн-игроков (вызывается из TAB интеграции). */
+    public void setOnlinePlayersProvider(Supplier<Collection<String>> provider) {
+        this.onlinePlayersProvider = provider;
+    }
+
+    /** Вызывается после успешного обновления HTTP-кеша. */
+    public void setAfterRefresh(Runnable afterRefresh) {
+        this.afterRefresh = afterRefresh;
+    }
+
+    public void start() {
+        if (running) return;
+        running = true;
+        // scheduleAtFixedRate ПОГАШАЕТ задачу после первого необработанного
+        // исключения — refreshOnline обязан гасить всё сам, иначе обновление
+        // кастомизации тихо умирает до конца жизни JVM.
+        scheduler.scheduleAtFixedRate(this::refreshOnlineSafely, refreshIntervalSeconds, refreshIntervalSeconds, TimeUnit.SECONDS);
+        StardustFabricMod.LOGGER.info("Stardust HTTP provider запущен (url={}, refresh={}s, debug={})", authUrl, refreshIntervalSeconds, debug);
+    }
+
+    public void stop() {
+        running = false;
+        scheduler.shutdownNow();
+        scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "stardust-http-provider");
+            t.setDaemon(true);
+            return t;
+        });
+    }
+
+    public void reload(StardustServerConfig config) {
+        String newUrl = config.authUrl().endsWith("/") ? config.authUrl().substring(0, config.authUrl().length() - 1) : config.authUrl();
+        int newInterval = Math.max(3, config.refreshIntervalSeconds());
+        boolean intervalChanged = newInterval != this.refreshIntervalSeconds;
+        this.authUrl = newUrl;
+        this.refreshIntervalSeconds = newInterval;
+        this.debug = config.debug();
+        this.serverToken = config.serverToken();
+        if (serverToken.isBlank()) {
+            StardustFabricMod.LOGGER.warn("Stardust reload: telemetry token НЕ ЗАДАН");
+        } else {
+            // Для коротких токенов «маска» содержала бы весь токен.
+            String masked = serverToken.length() > 8
+                    ? serverToken.substring(0, 4) + "****" + serverToken.substring(serverToken.length() - 3)
+                    : "****";
+            StardustFabricMod.LOGGER.info("Stardust reload: token={} (debug={})", masked, debug);
+        }
+        // Период фиксируется при start(): без пересоздания задачи новый
+        // интервал из конфига не применялся бы до перезапуска сервера.
+        if (running && intervalChanged) {
+            stop();
+            start();
+            StardustFabricMod.LOGGER.info("Stardust reload: период изменён, планировщик перезапущен ({}s)", refreshIntervalSeconds);
+        }
+        StardustFabricMod.LOGGER.info("Stardust HTTP provider: конфиг перечитан (url={}, refresh={}s)", authUrl, refreshIntervalSeconds);
+    }
+
+    public Assignment lookup(String playerName) {
+        if (playerName == null) return null;
+        String key = playerName.toLowerCase(Locale.ROOT);
+        Assignment cached = cache.get(key);
+        if (cached != null) return cached;
+
+        // Никогда не выполняем HTTP на серверном потоке.
+        if (debug) StardustFabricMod.LOGGER.info("Stardust lookup: {} → кеш пустой, используем fallback", playerName);
+        return null;
+    }
+
+    public boolean isEmpty() {
+        return cache.isEmpty();
+    }
+
+    /**
+     * Принудительно очищает кеш и перезапрашивает данные для всех известных онлайн-игроков.
+     * Вызывается командой /stardust refresh.
+     */
+    public void refreshNow() {
+        scheduler.execute(() -> {
+            Supplier<Collection<String>> provider = this.onlinePlayersProvider;
+            if (provider == null) return;
+            Collection<String> online = provider.get();
+            if (online == null || online.isEmpty()) return;
+            // Не удаляем старый снимок, пока новый запрос не завершился успешно.
+            if (fetchPlayers(online)) notifyAfterRefresh();
+        });
+    }
+
+    /** Обновляет кеш только для онлайн-игроков. */
+    private void refreshOnline() {
+        Supplier<Collection<String>> provider = this.onlinePlayersProvider;
+        if (provider == null) return;
+        Collection<String> online = provider.get();
+        if (online == null || online.isEmpty()) return;
+        if (fetchPlayers(online)) notifyAfterRefresh();
+    }
+
+    /** Обёртка для периодической задачи: любые исключения гасим здесь. */
+    private void refreshOnlineSafely() {
+        try {
+            refreshOnline();
+        } catch (Throwable t) {
+            StardustFabricMod.LOGGER.warn("Stardust: сбой периодического обновления кастомизации (продолжаем по расписанию)", t);
+        }
+    }
+
+    /** Запрашивает кастомизацию у auth-server. */
+    private boolean fetchPlayers(Collection<String> names) {
+        if (names.isEmpty()) return false;
+        try {
+            String players = names.stream()
+                    .filter(name -> name != null && !name.isBlank())
+                    .map(String::trim)
+                    .map(name -> URLEncoder.encode(name, StandardCharsets.UTF_8))
+                    .reduce((a, b) -> a + "," + b)
+                    .orElse("");
+            if (players.isEmpty()) return false;
+
+            String url = authUrl + "/api/server/customization?players=" + players;
+            if (debug) StardustFabricMod.LOGGER.info("Stardust HTTP: → {}", url);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(HTTP_TIMEOUT)
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                StardustFabricMod.LOGGER.warn("Stardust HTTP: auth-server {}", response.statusCode());
+                return false;
+            }
+
+            Map<String, ServerResponse> raw = GSON.fromJson(
+                    response.body(),
+                    new TypeToken<Map<String, ServerResponse>>() {}.getType()
+            );
+
+            Map<String, Assignment> updates = new HashMap<>();
+            if (raw != null) {
+                for (Map.Entry<String, ServerResponse> entry : raw.entrySet()) {
+                    String name = entry.getKey();
+                    ServerResponse sr = entry.getValue();
+                    if (name == null || name.isBlank() || sr == null) continue;
+                    if (debug) StardustFabricMod.LOGGER.info("Stardust HTTP: {} → badge={}, color={}, gradient={}→{}",
+                            name, sr.badge, sr.name_color, sr.gradient_start, sr.gradient_end);
+                    updates.put(name.trim().toLowerCase(Locale.ROOT), new Assignment(
+                            sr.badge,
+                            sr.badge_color,
+                            sr.name_color,
+                            sr.gradient_start,
+                            sr.gradient_end,
+                            sr.badge_label,
+                            sr.badge_description,
+                            sr.gradient_label,
+                            sr.gradient_description
+                    ));
+                }
+            }
+            synchronized (cachePersistenceLock) {
+                cache.putAll(updates);
+                persistCache();
+            }
+            if (debug) StardustFabricMod.LOGGER.info("Stardust HTTP: обновлено {}, кеш={}", names.size(), cache.size());
+            return true;
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            StardustFabricMod.LOGGER.warn("Stardust HTTP: ошибка ({})", e.toString());
+        } catch (Exception e) {
+            StardustFabricMod.LOGGER.warn("Stardust HTTP: ошибка", e);
+        }
+        return false;
+    }
+
+    private void notifyAfterRefresh() {
+        Runnable callback = afterRefresh;
+        if (callback == null) return;
+        try {
+            callback.run();
+        } catch (Exception e) {
+            StardustFabricMod.LOGGER.warn("Stardust HTTP: after-refresh callback failed", e);
+        }
+    }
+
+    private static class ServerResponse {
+        String badge;
+        String badge_color;
+        String name_color;
+        String gradient_start;
+        String gradient_end;
+        String badge_label;
+        String badge_description;
+        String gradient_label;
+        String gradient_description;
+    }
+}

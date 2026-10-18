@@ -11,6 +11,8 @@ on:
     paths:
       - "launcher/**"
       - "crates/**"
+      - "stardust-mod/**"
+      - "stardust-mod-fabric/**"
       - "Cargo.lock"
       - "Cargo.toml"
       - ".github/workflows/ci.yml"
@@ -117,8 +119,11 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: gradle
-      - name: Build
+      - name: Build (NeoForge)
         working-directory: stardust-mod
+        run: ./gradlew build
+      - name: Build (Fabric)
+        working-directory: stardust-mod-fabric
         run: ./gradlew build
 
   website:

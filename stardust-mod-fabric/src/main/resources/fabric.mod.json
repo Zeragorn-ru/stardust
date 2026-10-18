@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "stardust",
+  "version": "${version}",
+  "name": "Stardust",
+  "description": "Общий мод Stardust для клиента и сервера. На сервере интегрируется с TAB: выставляет игрокам бейдж (tab-префикс) и цветной ник в табе.",
+  "authors": ["Stardust"],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.stardust.mod.StardustFabricMod"]
+  },
+  "mixins": [
+    "stardust.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}
