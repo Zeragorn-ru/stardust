@@ -95,8 +95,9 @@ public final class StardustServerLifecycle {
     }
 
     /**
-     * Обработка чата: true — пропустить vanilla-сообщение (заменяем своим),
-     * false — разрешить стандартную отправку.
+     * Обработка чата: false = не отправлять vanilla-сообщение (заменяем своим
+     * форматом), true = пропустить замену. Текст — из SignedMessage
+     * (Mojang-имя PlayerChatMessage): signedContent — подписанное содержимое.
      */
     static boolean onServerChat(PlayerChatMessage message, ServerPlayer sender) {
         MutableComponent chatMessage = Component.empty()

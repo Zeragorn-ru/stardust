@@ -4,14 +4,12 @@ import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.fabricmc.fabric.api.event.player.ServerAdvancementEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.message.v1.ServerMessageEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.world.InteractionResultHolder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +19,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>Серверная часть интегрируется с плагином TAB (если он установлен), чтобы
  * выставлять игрокам бейдж (tab-префикс) и цветной ник в табе.</p>
+ *
+ * <p>Advancement-события в Fabric API нет (в NeoForge — AdvancementEvent):
+ * выдача трекается через PlayerAdvancementTrackerMixin.</p>
  */
 public final class StardustFabricMod implements ModInitializer {
     public static final String MOD_ID = "stardust";
@@ -47,30 +48,24 @@ public final class StardustFabricMod implements ModInitializer {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
                 StardustChatNotifications.onPlayerQuit(handler.getPlayer()));
 
-        // Супер-челленджи: advancement + респавн (клон после смерти у Fabric — respawn).
-        ServerAdvancementEvents.ADVANCEMENT_GRANTED.register((player, advancement) ->
-                StardustSuperChallengeHealth.onAdvancementEarned(player, advancement.id()));
+        // Респавн после смерти (аналог PlayerEvent.Clone): счётчик HP-бонуса.
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) ->
                 StardustSuperChallengeHealth.onPlayerRespawn(newPlayer));
 
         // Лайт-блок в survival: правый клик по блоку/предмету.
-        // Используем UseBlockCallback для обеих фаз: поворот уровня — клик по
-        // блоку света, смена уровня в руке — клик «в воздух» не нужен, Mojang
-        // path через onUse в LightBlock недоступен из колбэка, поэтому смена
-        // уровня в руке обрабатывается в onRightClickBlock же (в ветке LIGHT).
         UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             var result = StardustLightBlockInteraction.onRightClickBlock(
                     player,
                     world,
                     player.getItemInHand(hand),
                     hitResult);
-            return new InteractionResultHolder<>(result, player.getItemInHand(hand));
+            return new net.minecraft.world.InteractionResultHolder<>(result, player.getItemInHand(hand));
         });
         UseItemCallback.EVENT.register((player, world, hand) -> {
             var result = StardustLightBlockInteraction.onRightClickItem(
                     player,
                     player.getItemInHand(hand));
-            return new InteractionResultHolder<>(result, player.getItemInHand(hand));
+            return new net.minecraft.world.InteractionResultHolder<>(result, player.getItemInHand(hand));
         });
 
         if (FabricLoader.getInstance().getEnvironmentType().isClient()) {
