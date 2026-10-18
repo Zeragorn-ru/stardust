@@ -117,11 +117,23 @@ public final class StardustSuperChallengeHealth {
         }
     }
 
+    // Кэш счётчика по UUID игрока: источник истины — advancement-прогресс
+    // (пересчёт при каждом входе/выдаче), поэтому in-memory Map достаточна.
+    // NeoForge-версия хранила в player.getPersistentData() — на Fabric этот
+    // API нет; сериализация в NBT не нужна, кэш тёплый после первого входа.
+    private static final java.util.Map<java.util.UUID, Integer> COMPLETED_COUNTS =
+            java.util.Collections.synchronizedMap(new java.util.HashMap<>());
+
     private static int getCompletedCount(ServerPlayer player) {
-        return player.getPersistentData().getInt("stardust:sc_count");
+        return COMPLETED_COUNTS.getOrDefault(player.getUUID(), 0);
     }
 
     private static void setCompletedCount(ServerPlayer player, int count) {
-        player.getPersistentData().putInt("stardust:sc_count", count);
+        COMPLETED_COUNTS.put(player.getUUID(), count);
+    }
+
+    /** Выход игрока: чистим кэш, чтобы Map не рос между сессиями. */
+    public static void forgetPlayer(java.util.UUID uuid) {
+        COMPLETED_COUNTS.remove(uuid);
     }
 }

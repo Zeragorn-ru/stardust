@@ -1,5 +1,7 @@
 package dev.stardust.mod;
 
+import net.fabricmc.loader.api.FabricLoader;
+
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 

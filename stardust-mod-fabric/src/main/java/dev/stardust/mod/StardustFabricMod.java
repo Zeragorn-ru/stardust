@@ -45,22 +45,23 @@ public final class StardustFabricMod implements ModInitializer {
             StardustSuperChallengeHealth.onPlayerLogin(handler.getPlayer());
             StardustChatNotifications.onPlayerJoin(handler.getPlayer());
         });
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                StardustChatNotifications.onPlayerQuit(handler.getPlayer()));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            StardustChatNotifications.onPlayerQuit(handler.getPlayer());
+            // Кэш супер-челленджей не течёт между сессиями.
+            StardustSuperChallengeHealth.forgetPlayer(handler.getPlayer().getUUID());
+        });
 
         // Респавн после смерти (аналог PlayerEvent.Clone): счётчик HP-бонуса.
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) ->
                 StardustSuperChallengeHealth.onPlayerRespawn(newPlayer));
 
         // Лайт-блок в survival: правый клик по блоку/предмету.
-        UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
-            var result = StardustLightBlockInteraction.onRightClickBlock(
-                    player,
-                    world,
-                    player.getItemInHand(hand),
-                    hitResult);
-            return new net.minecraft.world.InteractionResultHolder<>(result, player.getItemInHand(hand));
-        });
+        UseBlockCallback.EVENT.register((player, world, hand, hitResult) ->
+                StardustLightBlockInteraction.onRightClickBlock(
+                        player,
+                        world,
+                        player.getItemInHand(hand),
+                        hitResult));
         UseItemCallback.EVENT.register((player, world, hand) -> {
             var result = StardustLightBlockInteraction.onRightClickItem(
                     player,
@@ -68,7 +69,7 @@ public final class StardustFabricMod implements ModInitializer {
             return new net.minecraft.world.InteractionResultHolder<>(result, player.getItemInHand(hand));
         });
 
-        if (FabricLoader.getInstance().getEnvironmentType().isClient()) {
+        if (FabricLoader.getInstance().getEnvironmentType() == net.fabricmc.api.EnvType.CLIENT) {
             StardustClientLifecycle.install();
         } else {
             // Dedicated-сервер: уведомления о крашах в бекенд.
