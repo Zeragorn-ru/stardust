@@ -1620,7 +1620,16 @@ async fn crash_analysis(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let account = current_account(&state, &headers).await?;
-    let log = state.store.server_log(id).await?;
+    // Явное сообщение: дефолтный From<StoreError> ответил бы «Аккаунт не
+    // найден», что для отсутствующего отчёта вводит в заблуждение.
+    let log = state
+        .store
+        .server_log(id)
+        .await
+        .map_err(|e| match e {
+            StoreError::NotFound => ApiError::new(StatusCode::NOT_FOUND, "Отчёт не найден"),
+            other => other.into(),
+        })?;
     if log.username.as_deref() != Some(account.username.as_str()) {
         return Err(ApiError::new(StatusCode::FORBIDDEN, "Чужой отчёт"));
     }
