@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DataDirectoryInfo, PlayerProfile, Progress, UpdateInfo } from "./types";
-import { checkUpdate, closeWindow, currentProfile, gameRunning, getDataDirectoryInfo, getSettings, logout, onLauncherProgress } from "./api";
+import { checkUpdate, closeWindow, currentProfile, gameRunning, getDataDirectoryInfo, getSettings, logout, onCrashAiVerdict, onLauncherProgress, type CrashAiVerdict } from "./api";
 import { animationsEnabled, isOnboarded, setOnboarded } from "./preferences";
 import { isMac, isModKey } from "./platform";
 import { useSkin } from "./skin";
@@ -53,6 +53,9 @@ export default function App() {
   const updateModal = useDelayedUnmount(update != null);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
+  // AI-вердикт по последнему крашу: показываем баннером, пока игрок не
+  // закроет или не запустит игру снова.
+  const [crashVerdict, setCrashVerdict] = useState<CrashAiVerdict | null>(null);
   const progressRef = useRef(progress);
   progressRef.current = progress;
   const runningRef = useRef(running);
@@ -115,6 +118,12 @@ export default function App() {
         setRunning(false);
       }
     }).then((fn) => { unlisten = fn; });
+    return () => unlisten?.();
+  }, []);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    onCrashAiVerdict(setCrashVerdict).then((fn) => { unlisten = fn; });
     return () => unlisten?.();
   }, []);
 
@@ -322,6 +331,8 @@ export default function App() {
             progress={progress}
             running={running}
             busy={busy}
+            crashVerdict={crashVerdict}
+            onDismissCrashVerdict={() => setCrashVerdict(null)}
             onProgressChange={setProgress}
             onRunningChange={setRunning}
             onOpenSettings={handleOpenSettings}

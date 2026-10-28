@@ -8,6 +8,7 @@ description = "Admin REST API: build (modpack) management, uploads and client ma
 [dependencies]
 protocol = { path = "../protocol" }
 store = { path = "../store" }
+crash-ai = { path = "../crash-ai" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 rand = { workspace = true }

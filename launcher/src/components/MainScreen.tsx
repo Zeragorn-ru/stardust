@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen } from "../api";
+import { accountInfo, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen, type CrashAiVerdict } from "../api";
 import { formatBytes } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
 import { useSkin } from "../skin";
@@ -28,6 +28,9 @@ interface Props {
   progress: Progress | null;
   running: boolean;
   busy: boolean;
+  /** AI-вердикт по последнему крашу (null — краша не было/разбор выключен). */
+  crashVerdict: CrashAiVerdict | null;
+  onDismissCrashVerdict: () => void;
   onProgressChange: (p: Progress | null) => void;
   onRunningChange: (r: boolean) => void;
   onOpenSettings: (section?: "game" | "account" | "logs") => void;
@@ -41,6 +44,8 @@ export default function MainScreen({
   progress,
   running,
   busy,
+  crashVerdict,
+  onDismissCrashVerdict,
   onProgressChange,
   onRunningChange,
   onOpenSettings,
@@ -186,6 +191,8 @@ export default function MainScreen({
       return;
     }
     playLockRef.current = true;
+    // Новый запуск — прошлый вердикт больше не актуален.
+    onDismissCrashVerdict();
     onProgressChange({ phase: "checking", label: "Готовим игру…", fraction: null });
     try {
       await playGame();
@@ -451,6 +458,9 @@ export default function MainScreen({
               </button>
             </div>
           )}
+          {crashVerdict && (
+            <CrashVerdictBanner verdict={crashVerdict} onDismiss={onDismissCrashVerdict} />
+          )}
         </div>
       </section>
 
@@ -665,4 +675,63 @@ function formatLastJoin(iso: string): string {
   const time = d.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
   const yearPart = d.getFullYear() !== new Date().getFullYear() ? `.${d.getFullYear()}` : "";
   return `${day}.${mon}${yearPart} ${time}`;
+}
+
+const SEVERITY_LABELS: Record<string, string> = {
+  low: "низкая",
+  medium: "средняя",
+  high: "высокая",
+  critical: "критическая",
+};
+
+/**
+ * Баннер AI-разбора краша: появляется, когда сервер закончил анализ
+ * последнего падения игры. Игрок видит причину и что сделать, не открывая
+ * логи. Ошибка анализа (failed) — одна строка с причиной, без драматизации.
+ */
+function CrashVerdictBanner({
+  verdict,
+  onDismiss,
+}: {
+  verdict: CrashAiVerdict;
+  onDismiss: () => void;
+}) {
+  const failed = verdict.status === "failed";
+  const severity = verdict.severity ?? "medium";
+  return (
+    <div
+      className={`crash-verdict crash-verdict--${failed ? "failed" : severity} stagger-item`}
+      role="status"
+    >
+      <div className="crash-verdict__head">
+        <strong>
+          🤖 {failed ? "AI не смог разобрать краш" : "AI-разбор краша готов"}
+        </strong>
+        {!failed && (
+          <span className="crash-verdict__sev">
+            серьёзность: {SEVERITY_LABELS[severity] ?? severity}
+          </span>
+        )}
+        <button
+          type="button"
+          className="crash-verdict__close"
+          aria-label="Скрыть"
+          onClick={onDismiss}
+        >
+          ×
+        </button>
+      </div>
+      {verdict.summary && <p className="crash-verdict__summary">{verdict.summary}</p>}
+      {verdict.cause && (
+        <p className="crash-verdict__line">
+          <span>Причина:</span> {verdict.cause}
+        </p>
+      )}
+      {verdict.suggestion && (
+        <p className="crash-verdict__line">
+          <span>Что сделать:</span> {verdict.suggestion}
+        </p>
+      )}
+    </div>
+  );
 }

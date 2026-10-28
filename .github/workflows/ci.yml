@@ -50,9 +50,9 @@ jobs:
           shared-key: backend-ci
           cache-on-failure: true
       - name: Test
-        run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
+        run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol -p crash-ai
       - name: Clippy
-        run: cargo clippy -p auth-server -p admin-server -p telegram-bot -p store -p protocol -- -D warnings
+        run: cargo clippy -p auth-server -p admin-server -p telegram-bot -p store -p protocol -p crash-ai -- -D warnings
 
   launcher:
     if: >-

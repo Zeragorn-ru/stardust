@@ -2009,6 +2009,68 @@ button,
     gap: 10px;
 }
 
+/* AI-разбор краша: стеклянная карточка с цветной левой гранью по серьёзности. */
+.crash-verdict {
+    display: grid;
+    gap: 6px;
+    width: min(560px, 100%);
+    margin: 12px auto 0;
+    padding: 12px 14px;
+    border: 1px solid var(--glass-border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    background: var(--glass);
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.crash-verdict--critical { border-left-color: var(--danger); }
+.crash-verdict--high { border-left-color: #ff9f43; }
+.crash-verdict--medium { border-left-color: #4f8cff; }
+.crash-verdict--low { border-left-color: var(--play); }
+.crash-verdict--failed { border-left-color: var(--muted); }
+
+.crash-verdict__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.crash-verdict__head strong {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+}
+.crash-verdict__sev {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: lowercase;
+    white-space: nowrap;
+}
+.crash-verdict__close {
+    border: none;
+    background: none;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
+}
+.crash-verdict__close:hover { color: var(--text); }
+.crash-verdict__summary {
+    margin: 0;
+    color: var(--text);
+    font-weight: 500;
+}
+.crash-verdict__line {
+    margin: 0;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+.crash-verdict__line > span {
+    color: var(--text-dim);
+}
+
 /* Ошибка запуска не вытесняет основное действие и не показывает технический текст. */
 .play-error {
     display: none;

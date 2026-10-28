@@ -102,6 +102,30 @@ export async function onLauncherProgress(
   }
 }
 
+/** Вердикт AI-разбора краша: приходит, когда сервер закончил анализ. */
+export interface CrashAiVerdict {
+  reportId: number;
+  /** "done" — разбор готов, "failed" — провайдер ошибся (summary = причина). */
+  status: "done" | "failed" | string;
+  summary: string | null;
+  cause: string | null;
+  suggestion: string | null;
+  severity: "low" | "medium" | "high" | "critical" | string | null;
+}
+
+export async function onCrashAiVerdict(
+  handler: (verdict: CrashAiVerdict) => void,
+): Promise<() => void> {
+  try {
+    const mod = await import("@tauri-apps/api/event");
+    return mod.listen<CrashAiVerdict>("crash-ai://verdict", (event) => {
+      handler(event.payload);
+    });
+  } catch {
+    return () => undefined;
+  }
+}
+
 /** Прогресс загрузки Java из настроек (не влияет на кнопку «Играть»). */
 export async function onJavaProgress(
   handler: (progress: Progress) => void,

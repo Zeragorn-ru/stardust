@@ -16,7 +16,7 @@ help: ## Показать цели
 
 .PHONY: test-backend
 test-backend: ## cargo test для backend-крейтов
-	$(CARGO) test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
+	$(CARGO) test -p auth-server -p admin-server -p telegram-bot -p store -p protocol -p crash-ai
 
 .PHONY: build-backend
 build-backend: ## release-сборка серверных бинарей
@@ -24,7 +24,7 @@ build-backend: ## release-сборка серверных бинарей
 
 .PHONY: clippy-backend
 clippy-backend: ## clippy для backend (без launcher)
-	$(CARGO) clippy -p auth-server -p admin-server -p telegram-bot -p store -p protocol -- -D warnings
+	$(CARGO) clippy -p auth-server -p admin-server -p telegram-bot -p store -p protocol -p crash-ai -- -D warnings
 
 .PHONY: run-auth
 run-auth: ## Запустить auth-server (127.0.0.1:8080)

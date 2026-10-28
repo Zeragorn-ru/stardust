@@ -65,8 +65,8 @@ jobs:
           # Сохранять кеш даже при упавшей джобе, чтобы скомпилированные зависимости
           # не пересобирались с нуля на каждом последующем (падающем) прогоне.
           cache-on-failure: true
-      - name: Test (auth-server, admin-server, telegram-bot, store, protocol)
-        run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol
+      - name: Test (auth-server, admin-server, telegram-bot, store, protocol, crash-ai)
+        run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol -p crash-ai
       # Тяжёлая release-сборка всех серверных бинарей за один прогон.
       # Инкрементальный target/ переживает прогоны благодаря rust-cache.
       - name: Build release binaries

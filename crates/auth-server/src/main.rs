@@ -200,6 +200,7 @@ async fn main() {
         .route("/api/stats/session", post(stats_record_session))
         .route("/api/coins", get(coins_get))
         .route("/api/report-crash", post(report_crash))
+        .route("/api/crash-analysis/:id", get(crash_analysis))
         .route("/api/server/report-crash", post(report_server_crash))
         .route("/api/news/seen", post(update_news_seen))
         .route("/api/report-external-mods", post(report_external_mods))
@@ -1491,7 +1492,7 @@ async fn report_crash(
     headers: HeaderMap,
     ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<ReportCrashRequest>,
-) -> Result<StatusCode, ApiError> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     // Репорты несут мегабайты логов (лимит тела — 8 МБ) и пишутся в outbox
     // + server_logs: без лимита один клиент замусоривает очередь Telegram
     // и таблицу логов.
@@ -1515,7 +1516,7 @@ async fn report_crash(
         .store
         .notify_admins_with_document(&summary, "latest.log", req.log.as_bytes())
         .await?;
-    state
+    let log_id = state
         .store
         .record_server_log(
             "client_crash",
@@ -1532,7 +1533,101 @@ async fn report_crash(
         )
         .await?;
 
-    Ok(StatusCode::OK)
+    // Немедленный AI-разбор: игрок ждёт вердикт на экране краша, поэтому не
+    // полагаемся на фоновый воркер admin-server (тот раз в 5 минут и служит
+    // страховкой для пропущенного). «pending» прячет запись от воркера на
+    // время разбора; застрявший pending воркер подберёт через 30 минут.
+    // AI выключен/не настроен — просто возвращаем reportId.
+    let ai_enabled = crash_ai::load_config(&state.store)
+        .await
+        .ok()
+        .flatten()
+        .is_some();
+    if ai_enabled {
+        let _ = state
+            .store
+            .set_crash_ai(log_id, "pending", &serde_json::json!({}))
+            .await;
+        let ai_state = state.clone();
+        tokio::spawn(async move {
+            if let Err(e) = analyze_crash_now(&ai_state, log_id).await {
+                tracing::warn!("[crash-ai] немедленный анализ #{log_id}: {e}");
+            }
+        });
+    }
+
+    // Старые лаунчеры тело игнорируют (проверяют только 2xx) — ответ
+    // обратно совместим.
+    Ok(Json(serde_json::json!({
+        "reportId": log_id,
+        "aiEnabled": ai_enabled,
+    })))
+}
+
+/// Разбирает свежий краш через AI-провайдера и пишет вердикт в server_logs
+/// (те же поля ai_status/ai_analysis, что читает админка). Уведомляет
+/// админов общим с admin-server форматом.
+async fn analyze_crash_now(state: &Shared, log_id: i64) -> Result<(), String> {
+    let Some(config) = crash_ai::load_config(&state.store).await? else {
+        return Ok(());
+    };
+    let log = state
+        .store
+        .server_log(log_id)
+        .await
+        .map_err(|e| format!("журнал #{log_id}: {e}"))?;
+    if !matches!(log.event_type.as_str(), "client_crash" | "server_crash") {
+        return Ok(());
+    }
+    let username = log.username.clone();
+    let input = crash_ai::CrashInput {
+        id: log.id,
+        event_type: log.event_type,
+        username,
+        summary: log.summary,
+        details: log.details,
+    };
+    match crash_ai::analyze(&state.http, &config, &input).await {
+        Ok(verdict) => {
+            let json = serde_json::to_value(&verdict).unwrap_or_default();
+            state
+                .store
+                .set_crash_ai(log_id, "done", &json)
+                .await
+                .map_err(|e| format!("запись вердикта: {e}"))?;
+            let text = crash_ai::admin_notification(log_id, input.username.as_deref(), &verdict);
+            if let Err(e) = state.store.notify_admins(&text).await {
+                tracing::warn!("[crash-ai] уведомление админов: {e}");
+            }
+        }
+        Err(error) => {
+            let failure = crash_ai::Failure::new(error.clone());
+            let json = serde_json::to_value(&failure).unwrap_or_default();
+            if let Err(e) = state.store.set_crash_ai(log_id, "failed", &json).await {
+                tracing::warn!("[crash-ai] запись ошибки #{log_id}: {e}");
+            }
+            return Err(error);
+        }
+    }
+    Ok(())
+}
+
+/// AI-разбор краша для опроса из лаунчера. Игрок видит только СВОИ записи:
+/// вердикт может содержать детали его системы и логов.
+async fn crash_analysis(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let log = state.store.server_log(id).await?;
+    if log.username.as_deref() != Some(account.username.as_str()) {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Чужой отчёт"));
+    }
+    Ok(Json(serde_json::json!({
+        "status": log.ai_status,
+        "analysis": log.ai_analysis,
+    })))
 }
 
 #[derive(Debug, Deserialize)]

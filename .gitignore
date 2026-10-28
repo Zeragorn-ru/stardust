@@ -6,6 +6,11 @@
 website/node_modules/
 website/dist/
 
+# Gradle (моды): локальный кэш и вывод сборки
+**/.gradle/
+stardust-mod/build/
+stardust-mod-fabric/build/
+
 # Секреты и состояние — НИКОГДА не коммитим
 .env
 *.env

@@ -8,6 +8,7 @@ description = "Yggdrasil-compatible auth server (login, sessions, skins) for the
 [dependencies]
 protocol = { path = "../protocol" }
 store = { path = "../store" }
+crash-ai = { path = "../crash-ai" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 axum = { workspace = true }

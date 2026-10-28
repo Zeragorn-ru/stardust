@@ -2731,8 +2731,16 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     launcher_log: launcher_content,
                     mod_report: mod_report_content,
                 };
-                if let Err(e) = backend::report_crash(&http, &token, &crash_req).await {
-                    tracing::error!("[crash] не удалось отправить отчет о краше: {e}");
+                match backend::report_crash(&http, &token, &crash_req).await {
+                    Ok(Some(resp)) if resp.ai_enabled => {
+                        // AI-разбор запущен на сервере. Опрашиваем вердикт
+                        // отдельной задачей, чтобы не задерживать запись
+                        // сессии, и по готовности шлём событие в UI — игрок
+                        // увидит причину и что делать прямо на экране.
+                        spawn_crash_ai_poll(&app_handle, &http, &token, resp.report_id);
+                    }
+                    Ok(_) => {}
+                    Err(e) => tracing::error!("[crash] не удалось отправить отчет о краше: {e}"),
                 }
             }
         }
@@ -2748,6 +2756,74 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     });
 
     Ok(())
+}
+
+/// Payload события `crash-ai://verdict` для UI.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CrashAiVerdictPayload {
+    report_id: i64,
+    status: String,
+    summary: Option<String>,
+    cause: Option<String>,
+    suggestion: Option<String>,
+    severity: Option<String>,
+}
+
+/// Опрашивает сервер, пока AI-разбор краша не завершится, и шлёт событие в UI.
+///
+/// Запускается отдельной задачей после отчёта о краше: не блокирует запись
+/// сессии и переживает закрытие игрового окна. Ограничение по времени и
+/// числу попыток — чтобы не опрашивать вечно, если сервер завис или анализ
+/// отключили на середине.
+fn spawn_crash_ai_poll(
+    app_handle: &tauri::AppHandle,
+    http: &reqwest::Client,
+    token: &str,
+    report_id: i64,
+) {
+    let app = app_handle.clone();
+    let http = http.clone();
+    let token = token.to_string();
+    tokio::spawn(async move {
+        const MAX_ATTEMPTS: u32 = 40;
+        const INTERVAL: std::time::Duration = std::time::Duration::from_secs(3);
+        for _ in 0..MAX_ATTEMPTS {
+            tokio::time::sleep(INTERVAL).await;
+            let analysis = match backend::fetch_crash_analysis(&http, &token, report_id).await {
+                Ok(analysis) => analysis,
+                // Транзитный сбой сети — пробуем ещё, вердикт может прийти позже.
+                Err(e) => {
+                    tracing::debug!("[crash-ai] опрос #{report_id}: {e}");
+                    continue;
+                }
+            };
+            let status = analysis.status.clone().unwrap_or_default();
+            if status != "done" && status != "failed" {
+                continue;
+            }
+            let fields = analysis.analysis.unwrap_or(serde_json::Value::Null);
+            let str_field = |key: &str| {
+                fields
+                    .get(key)
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            };
+            let payload = CrashAiVerdictPayload {
+                report_id,
+                status,
+                summary: str_field("summary").or_else(|| str_field("error")),
+                cause: str_field("cause"),
+                suggestion: str_field("suggestion"),
+                severity: str_field("severity"),
+            };
+            use tauri::Emitter;
+            if let Err(e) = app.emit("crash-ai://verdict", payload) {
+                tracing::warn!("[crash-ai] emit вердикта #{report_id}: {e}");
+            }
+            break;
+        }
+    });
 }
 
 fn launch_failure_label(log_content: &str, exit_code: Option<i32>) -> String {

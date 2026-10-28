@@ -1,0 +1,17 @@
+[package]
+name = "crash-ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "AI-разбор крашей Minecraft через OpenAI-совместимый API (общая логика auth-server и admin-server)"
+
+[dependencies]
+store = { path = "../store" }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+time = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

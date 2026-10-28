@@ -261,24 +261,26 @@ impl Store {
         Ok(())
     }
 
+    /// Пишет запись журнала и возвращает её id (нужен auth-server'у, чтобы
+    /// отдать его лаунчеру для опроса AI-разбора краша).
     pub async fn record_server_log(
         &self,
         event_type: &str,
         username: Option<&str>,
         summary: &str,
         details: serde_json::Value,
-    ) -> Result<(), StoreError> {
-        sqlx::query(
+    ) -> Result<i64, StoreError> {
+        let id: i64 = sqlx::query_scalar(
             "INSERT INTO server_logs (event_type, username, summary, details)
-             VALUES ($1, $2, $3, $4)",
+             VALUES ($1, $2, $3, $4) RETURNING id",
         )
         .bind(event_type)
         .bind(username)
         .bind(summary)
         .bind(details)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(())
+        Ok(id)
     }
 
     pub async fn server_log_summaries_since(
@@ -327,10 +329,17 @@ impl Store {
 
     /// Краши без AI-вердикта (для фонового воркера). Берём только свежие —
     /// анализ старых записей после включения настройки не нужен и дорог.
+    ///
+    /// Условие совпадает с индексом server_logs_crash_ai_idx (миграция 0030):
+    /// записи без статуса ИЛИ зависший 'pending' старше 30 минут (auth-server
+    /// упал посреди немедленного разбора). Активный 'pending' не трогаем —
+    /// его разбирает auth-server прямо сейчас.
     pub async fn pending_crashes(&self, limit: i64) -> Result<Vec<PendingCrash>, StoreError> {
         let rows = sqlx::query(
             "SELECT id, event_type, username, summary, details FROM server_logs
-             WHERE event_type IN ('client_crash', 'server_crash') AND ai_status IS NULL
+             WHERE event_type IN ('client_crash', 'server_crash')
+               AND (ai_status IS NULL
+                    OR (ai_status = 'pending' AND recorded_at < now() - INTERVAL '30 minutes'))
                AND recorded_at >= now() - INTERVAL '7 days'
              ORDER BY id LIMIT $1",
         )

@@ -800,11 +800,22 @@ pub struct ReportCrashRequest {
     pub mod_report: Option<String>,
 }
 
+/// Ответ `/api/report-crash`: id записи журнала (для опроса AI-разбора)
+/// и включён ли анализ на сервере. `ai_enabled == false` — лаунчер не
+/// тратит время на опрос.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReportCrashResponse {
+    pub report_id: i64,
+    #[serde(default)]
+    pub ai_enabled: bool,
+}
+
 pub async fn report_crash(
     client: &reqwest::Client,
     token: &str,
     req: &ReportCrashRequest,
-) -> Result<(), String> {
+) -> Result<Option<ReportCrashResponse>, String> {
     let resp = client
         .post(format!("{}/api/report-crash", base_url()))
         .bearer_auth(token)
@@ -813,11 +824,44 @@ pub async fn report_crash(
         .await
         .map_err(network_error)?;
     if resp.status().is_success() {
-        return Ok(());
+        // Сервер старше reportId отвечает пустым 200 — это не ошибка.
+        return Ok(resp.json::<ReportCrashResponse>().await.ok());
     }
     match resp.json::<ErrorBody>().await {
         Ok(body) => Err(body.error),
         Err(_) => Err("Не удалось отправить отчет о краше".to_string()),
+    }
+}
+
+/// Статус AI-разбора краша по id записи журнала.
+#[derive(serde::Deserialize, Clone)]
+pub struct CrashAnalysis {
+    /// `pending` / `done` / `failed`; null — сервер ещё не взялся.
+    pub status: Option<String>,
+    /// Вердикт `{summary, cause, suggestion, severity}` или `{error}`.
+    pub analysis: Option<serde_json::Value>,
+}
+
+pub async fn fetch_crash_analysis(
+    client: &reqwest::Client,
+    token: &str,
+    report_id: i64,
+) -> Result<CrashAnalysis, String> {
+    let resp = client
+        .get(format!("{}/api/crash-analysis/{report_id}", base_url()))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return resp
+            .json::<CrashAnalysis>()
+            .await
+            .map_err(|e| format!("Не удалось разобрать ответ сервера: {e}"));
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось получить AI-разбор краша".to_string()),
     }
 }
 

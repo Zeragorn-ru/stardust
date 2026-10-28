@@ -14,6 +14,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "crash-ai",
  "flate2",
  "futures-util",
  "hex",
@@ -410,6 +411,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "crash-ai",
  "protocol",
  "rand 0.8.6",
  "reqwest 0.12.28",
@@ -1060,6 +1062,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "crash-ai"
+version = "0.1.0"
+dependencies = [
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "store",
+ "time",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
