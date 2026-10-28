@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Подставляет версию мода в stardust-mod/build.gradle.
+# Подставляет версию мода в build.gradle обеих версий мода:
+# stardust-mod (NeoForge) и stardust-mod-fabric (Fabric).
 # Аргумент: версия без префикса mod-v (например 0.3.5).
 set -euo pipefail
 
@@ -9,9 +10,13 @@ cd "$root"
 
 echo "Setting mod version to $version"
 
-perl -0pi -e "s/(version\s*=\s*')[0-9]+\.[0-9]+\.[0-9]+(')/\${1}$version\${2}/" stardust-mod/build.gradle
+for gradle_file in stardust-mod/build.gradle stardust-mod-fabric/build.gradle; do
+  # Без флага /g: первое вхождение version = 'X.Y.Z' — версия проекта,
+  # остальные (например neoForge.version) не должны перезаписываться.
+  perl -0pi -e "s/(version\s*=\s*')[0-9]+\.[0-9]+\.[0-9]+(')/\${1}$version\${2}/" "$gradle_file"
 
-if ! grep -q "$version" stardust-mod/build.gradle; then
-  echo "ERROR: version replacement failed in stardust-mod/build.gradle" >&2
-  exit 1
-fi
+  if ! grep -q "version = '$version'" "$gradle_file"; then
+    echo "ERROR: version replacement failed in $gradle_file" >&2
+    exit 1
+  fi
+done

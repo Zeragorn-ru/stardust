@@ -3897,6 +3897,33 @@ struct GitHubRelease {
     assets: Vec<GitHubAsset>,
 }
 
+/// Выбор jar мода из ассетов релиза под нужный загрузчик.
+///
+/// Релизы mod-v* с 0.5.0 несут два jar: `stardust-mod-<ver>.jar` (NeoForge)
+/// и `stardust-mod-fabric-<ver>.jar` (Fabric). Отличаем их по сегменту
+/// после последнего дефиса в stem (`-fabric`), а не по подстроке «fabric»
+/// где угодно — иначе имя версии вроде `0.5.0-fabric` в NeoForge-jar
+/// совпало бы. `sources.jar` и не-jar ассеты отбрасываются.
+fn find_mod_jar(assets: &[GitHubAsset], want_fabric: bool) -> Option<&GitHubAsset> {
+    assets
+        .iter()
+        .filter(|a| a.name.ends_with(".jar") && !a.name.ends_with("-sources.jar"))
+        .find(|a| asset_jar_is_fabric(&a.name) == want_fabric)
+}
+
+/// True, если имя jar — Fabric-версия мода (`stardust-mod-fabric-0.5.0.jar`).
+///
+/// Имена ассетов предсказуемы: `stardust-mod-<ver>.jar` (NeoForge) и
+/// `stardust-mod-fabric-<ver>.jar` (Fabric) — третий сегмент stem равен
+/// `fabric` ровно у Fabric-версии.
+fn asset_jar_is_fabric(name: &str) -> bool {
+    name.strip_suffix(".jar")
+        .unwrap_or(name)
+        .split('-')
+        .nth(2)
+        .is_some_and(|segment| segment == "fabric")
+}
+
 #[derive(Deserialize)]
 struct GitHubAsset {
     id: Option<i64>,
@@ -4051,15 +4078,27 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
     })
     .await;
 
-    // 2. Скачиваем jar-файл.
-    let jar_asset = release
-        .assets
-        .iter()
-        .find(|a| a.name.ends_with(".jar") && !a.name.ends_with("-sources.jar"))
-        .ok_or_else(|| {
+    // 2. Определяем активную сборку: её loader_kind диктует, какой jar качать
+    // (в релизе mod-v* с 0.5.0 лежат ОБА: stardust-mod-*.jar (NeoForge) и
+    // stardust-mod-fabric-*.jar (Fabric)).
+    let build = state
+        .store
+        .active_build()
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
+
+    let want_fabric = build.header.loader_kind.eq_ignore_ascii_case("fabric");
+
+    let jar_asset =
+        find_mod_jar(&release.assets, want_fabric).ok_or_else(|| {
+            let expected = if want_fabric { "fabric-" } else { "NeoForge-" };
             ApiError::new(
                 StatusCode::NOT_FOUND,
-                format!("jar-файл не найден в релизе {}", release.tag_name),
+                format!(
+                    "jar-файл ({expected}версия) не найден в релизе {}",
+                    release.tag_name
+                ),
             )
         })?;
 
@@ -4099,18 +4138,11 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
             .map_err(|e| internal(format!("запись jar в хранилище: {e}")))?;
     }
 
-    // 4. Добавляем/обновляем файл в активной сборке.
+    // 4. Добавляем/обновляем файл в активной сборке (build получен в шаге 2).
     update_deploy_mod_status(&state, |s| {
         s.phase = "Добавление в сборку".to_string();
     })
     .await;
-
-    let build = state
-        .store
-        .active_build()
-        .await
-        .map_err(internal)?
-        .ok_or_else(|| ApiError::new(StatusCode::NOT_FOUND, "Нет активной сборки"))?;
 
     // 4.1 Сохраняем настройки стороны и т.д. из старого мода и удаляем его из сборки.
     let mut old_side = "server".to_string();
@@ -6065,7 +6097,56 @@ fn map_store(e: store::StoreError) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use super::tag_is_release;
+    use super::{find_mod_jar, tag_is_release, GitHubAsset};
+
+    fn asset(name: &str) -> GitHubAsset {
+        GitHubAsset {
+            id: None,
+            name: name.to_string(),
+            browser_download_url: format!("https://example.com/{name}"),
+            updated_at: None,
+        }
+    }
+
+    #[test]
+    fn find_mod_jar_picks_neoforge_for_neoforge_build() {
+        let assets = vec![
+            asset("stardust-mod-0.5.0.jar"),
+            asset("stardust-mod-0.5.0.jar.sha256"),
+            asset("stardust-mod-fabric-0.5.0.jar"),
+            asset("stardust-mod-fabric-0.5.0.jar.sha256"),
+        ];
+        let jar = find_mod_jar(&assets, false).expect("NeoForge jar");
+        assert_eq!(jar.name, "stardust-mod-0.5.0.jar");
+    }
+
+    #[test]
+    fn find_mod_jar_picks_fabric_for_fabric_build() {
+        let assets = vec![
+            asset("stardust-mod-0.5.0.jar"),
+            asset("stardust-mod-fabric-0.5.0.jar"),
+            asset("stardust-mod-fabric-0.5.0.jar.sha256"),
+        ];
+        let jar = find_mod_jar(&assets, true).expect("Fabric jar");
+        assert_eq!(jar.name, "stardust-mod-fabric-0.5.0.jar");
+    }
+
+    #[test]
+    fn find_mod_jar_skips_sources_and_sha() {
+        let assets = vec![
+            asset("stardust-mod-0.5.0-sources.jar"),
+            asset("stardust-mod-0.5.0.jar.sha256"),
+        ];
+        assert!(find_mod_jar(&assets, false).is_none());
+    }
+
+    #[test]
+    fn find_mod_jar_none_when_only_other_loader_present() {
+        // Релиз до 0.5.0: только NeoForge-jar. Fabric-сборка не должна
+        // молча получить NeoForge-артефакт.
+        let assets = vec![asset("stardust-mod-0.4.9.jar")];
+        assert!(find_mod_jar(&assets, true).is_none());
+    }
 
     #[test]
     fn tag_is_release_accepts_plain_and_fix_tags() {

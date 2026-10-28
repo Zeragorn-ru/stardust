@@ -6,7 +6,9 @@ version = '0.4.9'
 group = 'dev.stardust'
 
 base {
-    archivesName = 'stardust-mod'
+    // Суффикс -fabric отличает jar от NeoForge-версии в релизе mod-v*:
+    // оба файла живут в одном GitHub Release, deploy-mod выбирает по loader_kind.
+    archivesName = 'stardust-mod-fabric'
 }
 
 java {

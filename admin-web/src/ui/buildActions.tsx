@@ -305,7 +305,7 @@ export function useBuildActions(
   const deployMod = useCallback(async () => {
     const ok = await confirm({
       title: "Добавить мод в сборку?",
-      body: "Будет скачан последний релиз stardust-mod из GitHub и добавлен в эту сборку. При следующей синхронизации мод попадёт на сервер.",
+      body: "Будет скачан последний релиз stardust-mod из GitHub (jar под загрузчик этой сборки — NeoForge или Fabric) и добавлен в неё. При следующей синхронизации мод попадёт на сервер.",
       confirmText: "Добавить",
     });
     if (!ok) return;
