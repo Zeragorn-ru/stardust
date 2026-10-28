@@ -55,6 +55,24 @@ pub struct ServerLogEntry {
     pub username: Option<String>,
     pub summary: String,
     pub details: serde_json::Value,
+    /// Статус AI-анализа: `pending` / `done` / `failed` / `None` (не краш или
+    /// анализ выключен).
+    #[serde(rename = "aiStatus", skip_serializing_if = "Option::is_none")]
+    pub ai_status: Option<String>,
+    /// Вердикт AI-анализа (JSONB), если готов.
+    #[serde(rename = "aiAnalysis", skip_serializing_if = "Option::is_none")]
+    pub ai_analysis: Option<serde_json::Value>,
+}
+
+/// Краш, ожидающий AI-анализа. Воркер берёт пачку таких и прогоняет через
+/// провайдера; `details` — сырой JSONB журнала (логи, стек, моды).
+#[derive(Debug, Clone)]
+pub struct PendingCrash {
+    pub id: i64,
+    pub event_type: String,
+    pub username: Option<String>,
+    pub summary: String,
+    pub details: serde_json::Value,
 }
 
 impl Store {
@@ -288,7 +306,7 @@ impl Store {
 
     pub async fn server_log(&self, id: i64) -> Result<ServerLogEntry, StoreError> {
         let row = sqlx::query(
-            "SELECT id, recorded_at, event_type, username, summary, details
+            "SELECT id, recorded_at, event_type, username, summary, details, ai_status, ai_analysis
              FROM server_logs WHERE id = $1",
         )
         .bind(id)
@@ -302,7 +320,63 @@ impl Store {
             username: row.get("username"),
             summary: row.get("summary"),
             details: row.get("details"),
+            ai_status: row.get("ai_status"),
+            ai_analysis: row.get("ai_analysis"),
         })
+    }
+
+    /// Краши без AI-вердикта (для фонового воркера). Берём только свежие —
+    /// анализ старых записей после включения настройки не нужен и дорог.
+    pub async fn pending_crashes(&self, limit: i64) -> Result<Vec<PendingCrash>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, event_type, username, summary, details FROM server_logs
+             WHERE event_type IN ('client_crash', 'server_crash') AND ai_status IS NULL
+               AND recorded_at >= now() - INTERVAL '7 days'
+             ORDER BY id LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| PendingCrash {
+                id: row.get("id"),
+                event_type: row.get("event_type"),
+                username: row.get("username"),
+                summary: row.get("summary"),
+                details: row.get("details"),
+            })
+            .collect())
+    }
+
+    /// Пишет результат AI-анализа (`status` = done/failed, `analysis` = вердикт
+    /// или `{error}`). Возвращает Err(NotFound), если записи уже нет.
+    pub async fn set_crash_ai(
+        &self,
+        id: i64,
+        status: &str,
+        analysis: &serde_json::Value,
+    ) -> Result<(), StoreError> {
+        let result = sqlx::query("UPDATE server_logs SET ai_status = $2, ai_analysis = $3 WHERE id = $1")
+            .bind(id)
+            .bind(status)
+            .bind(analysis)
+            .execute(&self.pool)
+            .await?;
+        if result.rows_affected() == 0 {
+            return Err(StoreError::NotFound);
+        }
+        Ok(())
+    }
+
+    /// Сбрасывает AI-статус записи, чтобы воркер (или ручной запуск)
+    /// проанализировал её заново.
+    pub async fn reset_crash_ai(&self, id: i64) -> Result<(), StoreError> {
+        sqlx::query("UPDATE server_logs SET ai_status = NULL, ai_analysis = NULL WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     pub async fn telemetry_samples_since(

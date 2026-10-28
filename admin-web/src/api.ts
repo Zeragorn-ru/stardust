@@ -30,6 +30,7 @@ import type {
   ServerTelemetry,
   ServerLogsResponse,
   ServerLogEntry,
+  CrashAiAnalysis,
   ExternalModAllowlistEntry,
   ExternalModBlockRule,
   UploadMeta,
@@ -380,6 +381,10 @@ export const api = {
   getServerLog(id: number): Promise<ServerLogEntry> {
     return request("GET", `/api/server/logs/${id}`);
   },
+  /** Ручной (пере)анализ краша через AI. Долгий запрос — ждёт ответа провайдера. */
+  analyzeServerLog(id: number): Promise<CrashAiAnalysis> {
+    return request("POST", `/api/server/logs/${id}/analyze`);
+  },
   listExternalModAllowlist(): Promise<{ entries: ExternalModAllowlistEntry[] }> {
     return request("GET", "/api/server/external-mod-allowlist");
   },
@@ -478,8 +483,17 @@ export const api = {
     backupSecretKey?: string;
     achievementCoinReward?: number;
     githubToken?: string;
+    crashAiEnabled?: boolean;
+    crashAiEndpoint?: string;
+    crashAiModel?: string;
+    crashAiApiKey?: string;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
+  },
+
+  /** Пробный запрос к настроенному AI-провайдеру (проверка endpoint/ключа). */
+  testCrashAi(): Promise<{ ok: boolean; model: string }> {
+    return request("POST", "/api/settings/crash-ai/test");
   },
 
   runBackup(): Promise<void> {

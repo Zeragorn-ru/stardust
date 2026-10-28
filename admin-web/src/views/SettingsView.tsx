@@ -85,6 +85,15 @@ export function SettingsView() {
   const [githubToken, setGithubToken] = useState("");
   const [savingGithubToken, setSavingGithubToken] = useState(false);
 
+  // AI-анализ крашей: endpoint/модель/ключ + тумблер. Ключ — секрет,
+  // после сохранения поле пустое (в DTO только флаг crashAiApiKeySet).
+  const [crashAiEnabled, setCrashAiEnabled] = useState(false);
+  const [crashAiEndpoint, setCrashAiEndpoint] = useState("");
+  const [crashAiModel, setCrashAiModel] = useState("");
+  const [crashAiApiKey, setCrashAiApiKey] = useState("");
+  const [savingCrashAi, setSavingCrashAi] = useState(false);
+  const [testingCrashAi, setTestingCrashAi] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const s = await api.getSettings();
@@ -97,6 +106,9 @@ export function SettingsView() {
       setBackupBucket(s.backupBucket ?? "");
       setBackupRegion(s.backupRegion ?? "");
       setBackupPrefix(s.backupPrefix ?? "");
+      setCrashAiEnabled(s.crashAiEnabled ?? false);
+      setCrashAiEndpoint(s.crashAiEndpoint ?? "");
+      setCrashAiModel(s.crashAiModel ?? "");
       try {
         setBackupStatus(await api.getBackupStatus());
       } catch (err) {
@@ -310,6 +322,42 @@ export function SettingsView() {
       );
     } finally {
       setSavingGithubToken(false);
+    }
+  }
+
+  async function saveCrashAi() {
+    setSavingCrashAi(true);
+    try {
+      // Ключ отправляем только если поле заполнено: пустая строка стёрла бы
+      // сохранённый секрет (бэкенд трактует "" как delete_setting).
+      const patch: Parameters<typeof api.saveSettings>[0] = {
+        crashAiEnabled,
+        crashAiEndpoint: crashAiEndpoint.trim(),
+        crashAiModel: crashAiModel.trim(),
+      };
+      if (crashAiApiKey.trim()) patch.crashAiApiKey = crashAiApiKey.trim();
+      const next = await api.saveSettings(patch);
+      setSettings(next);
+      setCrashAiApiKey("");
+      toast.success("Настройки AI-анализа сохранены");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сохранить настройки AI-анализа",
+      );
+    } finally {
+      setSavingCrashAi(false);
+    }
+  }
+
+  async function testCrashAi() {
+    setTestingCrashAi(true);
+    try {
+      const result = await api.testCrashAi();
+      toast.success(`Провайдер отвечает (модель: ${result.model})`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Провайдер недоступен");
+    } finally {
+      setTestingCrashAi(false);
     }
   }
 
@@ -693,6 +741,105 @@ export function SettingsView() {
                       onClick={saveGithubToken}
                     >
                       {savingGithubToken ? "Сохранение…" : "Сохранить токен"}
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            <Card className="settings-card">
+              <CardHeader className="settings-card-head">
+                <IconSettings />
+                <div>
+                  <CardTitle>AI-анализ крашей</CardTitle>
+                  <CardDescription>
+                    Любой OpenAI-совместимый API разбирает краши игроков и сервера
+                    и присылает вердикт в Telegram. Вердикт виден в журнале «Логи».
+                  </CardDescription>
+                </div>
+              </CardHeader>
+
+              {loading ? (
+                <p className="muted">
+                  <span className="spinner" />
+                  Загрузка…
+                </p>
+              ) : (
+                <CardContent>
+                  <div className="settings-status">
+                    {settings?.crashAiEnabled ? (
+                      <Badge variant="secondary">включён</Badge>
+                    ) : (
+                      <Badge variant="outline">выключен</Badge>
+                    )}
+                    {settings?.crashAiApiKeySet && <Badge variant="outline">ключ задан</Badge>}
+                  </div>
+
+                  <label className="news-editor__pin">
+                    <input
+                      type="checkbox"
+                      checked={crashAiEnabled}
+                      onChange={(e) => setCrashAiEnabled(e.target.checked)}
+                    />
+                    <span>
+                      <strong>Анализировать новые краши автоматически</strong>
+                      <small>Фоновый воркер разбирает краши каждые 5 минут.</small>
+                    </span>
+                  </label>
+
+                  <Field label="Базовый URL API" hint="Без пути /chat/completions, например https://api.openai.com/v1">
+                    {(control) => (
+                      <FieldInput
+                        control={control}
+                        type="url"
+                        autoComplete="off"
+                        placeholder="https://api.openai.com/v1"
+                        value={crashAiEndpoint}
+                        onChange={(e) => setCrashAiEndpoint(e.target.value)}
+                      />
+                    )}
+                  </Field>
+
+                  <Field label="Модель" hint="По умолчанию gpt-4o-mini">
+                    {(control) => (
+                      <FieldInput
+                        control={control}
+                        type="text"
+                        autoComplete="off"
+                        placeholder="gpt-4o-mini"
+                        value={crashAiModel}
+                        onChange={(e) => setCrashAiModel(e.target.value)}
+                      />
+                    )}
+                  </Field>
+
+                  <Field
+                    label={settings?.crashAiApiKeySet
+                      ? "Новый API-ключ (оставьте пустым, чтобы не менять)"
+                      : "API-ключ"}
+                  >
+                    {(control) => (
+                      <FieldInput
+                        control={control}
+                        type="password"
+                        autoComplete="off"
+                        placeholder="sk-…"
+                        value={crashAiApiKey}
+                        onChange={(e) => setCrashAiApiKey(e.target.value)}
+                      />
+                    )}
+                  </Field>
+
+                  <div className="modal-actions">
+                    <Button disabled={savingCrashAi} onClick={saveCrashAi}>
+                      {savingCrashAi ? "Сохранение…" : "Сохранить"}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={testingCrashAi || !settings?.crashAiEnabled || !settings?.crashAiApiKeySet}
+                      onClick={testCrashAi}
+                    >
+                      {testingCrashAi ? "Проверка…" : "Проверить подключение"}
                     </Button>
                   </div>
                 </CardContent>

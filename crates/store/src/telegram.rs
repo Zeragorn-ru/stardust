@@ -42,6 +42,15 @@ pub const SETTING_ACHIEVEMENT_COIN_REWARD: &str = "achievement_coin_reward";
 /// продвижения релизов лаунчера в stable из админ-панели.
 pub const SETTING_GITHUB_TOKEN: &str = "github_token";
 
+/// Ключ настройки: AI-анализ крашей включён (`"1"`) или выключен.
+pub const SETTING_CRASH_AI_ENABLED: &str = "crash_ai_enabled";
+/// Ключ настройки: базовый URL OpenAI-совместимого API (без `/chat/completions`).
+pub const SETTING_CRASH_AI_ENDPOINT: &str = "crash_ai_endpoint";
+/// Ключ настройки: имя модели (например `gpt-4o-mini`).
+pub const SETTING_CRASH_AI_MODEL: &str = "crash_ai_model";
+/// Ключ настройки: API-ключ провайдера (секрет, наружу не отдаём).
+pub const SETTING_CRASH_AI_API_KEY: &str = "crash_ai_api_key";
+
 /// Время жизни кода привязки Telegram.
 const LINK_TTL: Duration = Duration::minutes(15);
 /// Время жизни кода 2FA.

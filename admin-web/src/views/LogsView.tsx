@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../api";
-import type { ServerLogEntry, ServerLogSummary } from "../types";
+import type { CrashAiAnalysis, ServerLogEntry, ServerLogSummary } from "../types";
 import { formatTelemetryTime } from "../format";
 import { IconSync } from "../ui/icons";
 import { useToast } from "../ui/feedback";
@@ -270,18 +270,21 @@ function LogDetailsModal({ logId, onClose }: { logId: number; onClose: () => voi
           </div>
         )}
 
-        {log && <LogDetails log={log} />}
+        {log && <LogDetails log={log} onAnalyzed={() => setReload((n) => n + 1)} />}
       </section>
     </div>
   );
 }
 
-function LogDetails({ log }: { log: ServerLogEntry }) {
-  const files = log.eventType.endsWith("crash") ? crashFiles(log.details) : [];
+function LogDetails({ log, onAnalyzed }: { log: ServerLogEntry; onAnalyzed: () => void }) {
+  const isCrash = log.eventType.endsWith("crash");
+  const files = isCrash ? crashFiles(log.details) : [];
   const mods = Array.isArray(log.details.mods) ? log.details.mods : [];
 
   return (
     <>
+      {isCrash && <CrashAiSection log={log} onAnalyzed={onAnalyzed} />}
+
       {files.length > 0 && (
         <section className="log-details-section">
           <div className="log-details-section__head"><strong>Связанные файлы</strong><button className="secondary" type="button" onClick={() => downloadBundle(log, files)}>Скачать все</button></div>
@@ -295,6 +298,85 @@ function LogDetails({ log }: { log: ServerLogEntry }) {
 
       <section className="log-details-section"><strong>Полные данные события</strong><pre className="log-json">{JSON.stringify(log.details, null, 2)}</pre></section>
     </>
+  );
+}
+
+/** Русские подписи уровней серьёзности вердикта. */
+const SEVERITY_LABELS: Record<string, string> = {
+  low: "низкая",
+  medium: "средняя",
+  high: "высокая",
+  critical: "критическая",
+};
+
+/**
+ * AI-разбор краша: показывает вердикт (done), ошибку (failed), спиннер
+ * (pending) или кнопку запуска. `onAnalyzed` перезагружает запись после
+ * ручного анализа, чтобы подтянуть свежий вердикт с бэкенда.
+ */
+function CrashAiSection({ log, onAnalyzed }: { log: ServerLogEntry; onAnalyzed: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const verdict: CrashAiAnalysis | undefined = log.aiAnalysis;
+
+  async function analyze() {
+    setBusy(true);
+    try {
+      await api.analyzeServerLog(log.id);
+      onAnalyzed();
+      toast.success("AI-разбор готов");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось проанализировать краш");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="log-details-section">
+      <div className="log-details-section__head">
+        <strong>AI-разбор краша</strong>
+        <button
+          className="secondary"
+          type="button"
+          disabled={busy}
+          onClick={() => void analyze()}
+        >
+          {busy ? "Анализ…" : verdict ? "Пересчитать" : "Проанализировать"}
+        </button>
+      </div>
+
+      {verdict && verdict.error && (
+        <div className="log-details-state" role="alert">
+          <strong>Анализ не удался</strong>
+          <span className="muted">{verdict.error}</span>
+        </div>
+      )}
+
+      {verdict && !verdict.error && (
+        <div className="crash-ai">
+          <span className={`crash-ai__sev crash-ai__sev--${verdict.severity ?? "medium"}`}>
+            {SEVERITY_LABELS[verdict.severity ?? ""] ?? "средняя"}
+          </span>
+          <p className="crash-ai__summary">{verdict.summary}</p>
+          <dl className="crash-ai__grid">
+            <div><dt>Причина</dt><dd>{verdict.cause || "—"}</dd></div>
+            <div><dt>Что сделать</dt><dd>{verdict.suggestion || "—"}</dd></div>
+          </dl>
+          <small className="muted">
+            {verdict.model ? `Модель: ${verdict.model}` : "AI"}
+            {verdict.analyzedAt ? ` · ${formatTelemetryTime(verdict.analyzedAt)}` : ""}
+          </small>
+        </div>
+      )}
+
+      {!verdict && (
+        <p className="muted">
+          Автоматический разбор ещё не обработал запись (или выключен в настройках).
+          Нажмите «Проанализировать», чтобы отправить краш в настроенный AI-провайдер.
+        </p>
+      )}
+    </section>
   );
 }
 

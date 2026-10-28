@@ -123,6 +123,18 @@
 /* Состояния внутри диалога деталей: спиннер или ошибка с повтором. */
 .log-details-state { display: grid; gap: 10px; justify-items: start; margin-top: 20px; }
 .log-details-state button { width: fit-content; }
+.crash-ai { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius-sm); background: var(--bg-elev); }
+.crash-ai__summary { margin: 0; font-weight: 600; }
+.crash-ai__grid { display: grid; gap: 8px; margin: 0; }
+.crash-ai__grid > div { display: grid; gap: 2px; }
+.crash-ai__grid dt { color: var(--muted); font-size: 12px; }
+.crash-ai__grid dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crash-ai__sev { justify-self: start; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; background: var(--muted); }
+.crash-ai__sev--critical { background: var(--danger); }
+/* --warn светлый (#ffd166) — текст тёмный для контраста. */
+.crash-ai__sev--high { background: var(--warn); color: #1c1917; }
+.crash-ai__sev--medium { background: var(--accent); }
+.crash-ai__sev--low { background: var(--ok); }
 .logs-average-card { display: grid; gap: 4px; margin-bottom: 16px; }
 .logs-average-card strong { color: var(--accent); font-size: 30px; line-height: 1; }
 .logs-average-card small { color: var(--muted); }

@@ -73,6 +73,14 @@ export interface Settings {
   achievementCoinReward: number;
   /** Установлен ли GitHub-токен (секреты наружу не отдаём). */
   githubTokenSet?: boolean;
+  /** Включён ли AI-анализ крашей. */
+  crashAiEnabled?: boolean;
+  /** Базовый URL OpenAI-совместимого провайдера. */
+  crashAiEndpoint?: string;
+  /** Имя модели AI. */
+  crashAiModel?: string;
+  /** Установлен ли AI-ключ (секреты наружу не отдаём). */
+  crashAiApiKeySet?: boolean;
 }
 
 // ───── Сезоны и релизы лаунчера ─────
@@ -311,6 +319,22 @@ export interface ServerLogEntry {
   username?: string;
   summary: string;
   details: Record<string, unknown>;
+  /** Статус AI-анализа краша: pending/done/failed или отсутствует. */
+  aiStatus?: "pending" | "done" | "failed" | string;
+  /** Вердикт AI (done) или {error} (failed). */
+  aiAnalysis?: CrashAiAnalysis;
+}
+
+/** Вердикт AI-анализа краша (хранится в server_logs.ai_analysis). */
+export interface CrashAiAnalysis {
+  summary?: string;
+  cause?: string;
+  suggestion?: string;
+  severity?: "low" | "medium" | "high" | "critical" | string;
+  model?: string;
+  analyzedAt?: string;
+  /** Заполняется при aiStatus === "failed". */
+  error?: string;
 }
 
 export interface ServerLogsResponse {

@@ -30,8 +30,9 @@ use sha1::{Digest, Sha1};
 use store::{
     NewBuild, Role, SeasonRow, Store, SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY,
     SETTING_BACKUP_BUCKET, SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
-    SETTING_BACKUP_SECRET_KEY, SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST, SETTING_SFTP_PASSWORD,
-    SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
+    SETTING_BACKUP_SECRET_KEY, SETTING_CRASH_AI_API_KEY, SETTING_CRASH_AI_ENABLED,
+    SETTING_CRASH_AI_ENDPOINT, SETTING_CRASH_AI_MODEL, SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST,
+    SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
     SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;
@@ -41,6 +42,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
 mod backup;
+mod crash_ai;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
 /// Задаётся только на multipart-маршруте загрузки, не глобально.
@@ -281,6 +283,21 @@ async fn main() {
         }
     });
 
+    // AI-анализ крашей: каждые 5 минут берёт необработанные записи и
+    // прогоняет через провайдера. Когда анализ выключен/не настроен,
+    // analyze_pending сразу возвращает 0 — воркер просто спит.
+    let crash_ai_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        loop {
+            match crash_ai::analyze_pending(&crash_ai_state).await {
+                Ok(0) => {}
+                Ok(n) => tracing::info!("[crash-ai] проанализировано крашей: {n}"),
+                Err(e) => tracing::warn!("[crash-ai] {e}"),
+            }
+            tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+        }
+    });
+
     let cors = {
         let allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
             .ok()
@@ -370,6 +387,8 @@ async fn main() {
         .route("/api/server/telemetry", get(server_telemetry))
         .route("/api/server/logs", get(server_logs))
         .route("/api/server/logs/:id", get(server_log))
+        .route("/api/server/logs/:id/analyze", post(analyze_server_log))
+        .route("/api/settings/crash-ai/test", post(test_crash_ai))
         .route(
             "/api/server/external-mod-allowlist",
             get(list_external_mod_allowlist).post(add_external_mod_allowlist),
@@ -712,6 +731,18 @@ struct SettingsDto {
     /// Установлен ли GitHub-токен (сам токен наружу не отдаём — секрет).
     #[serde(rename = "githubTokenSet")]
     github_token_set: bool,
+    /// Включён ли AI-анализ крашей.
+    #[serde(rename = "crashAiEnabled")]
+    crash_ai_enabled: bool,
+    /// Базовый URL OpenAI-совместимого провайдера.
+    #[serde(rename = "crashAiEndpoint", skip_serializing_if = "Option::is_none")]
+    crash_ai_endpoint: Option<String>,
+    /// Имя модели AI.
+    #[serde(rename = "crashAiModel", skip_serializing_if = "Option::is_none")]
+    crash_ai_model: Option<String>,
+    /// Установлен ли AI-ключ (сам ключ наружу не отдаём — секрет).
+    #[serde(rename = "crashAiApiKeySet")]
+    crash_ai_api_key_set: bool,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -731,6 +762,10 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_BACKUP_SECRET_KEY,
         SETTING_ACHIEVEMENT_COIN_REWARD,
         SETTING_GITHUB_TOKEN,
+        SETTING_CRASH_AI_ENABLED,
+        SETTING_CRASH_AI_ENDPOINT,
+        SETTING_CRASH_AI_MODEL,
+        SETTING_CRASH_AI_API_KEY,
     ];
     let map = state
         .store
@@ -765,6 +800,14 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
             .unwrap_or(10),
         github_token_set: get(SETTING_GITHUB_TOKEN)
             .map(|t| !t.trim().is_empty())
+            .unwrap_or(false),
+        crash_ai_enabled: get(SETTING_CRASH_AI_ENABLED)
+            .map(|v| v.trim() == "1")
+            .unwrap_or(false),
+        crash_ai_endpoint: get(SETTING_CRASH_AI_ENDPOINT).filter(|s| !s.trim().is_empty()),
+        crash_ai_model: get(SETTING_CRASH_AI_MODEL).filter(|s| !s.trim().is_empty()),
+        crash_ai_api_key_set: get(SETTING_CRASH_AI_API_KEY)
+            .map(|k| !k.trim().is_empty())
             .unwrap_or(false),
     })
 }
@@ -821,6 +864,14 @@ struct UpdateSettingsRequest {
     achievement_coin_reward: Option<i64>,
     #[serde(rename = "githubToken", default)]
     github_token: Option<String>,
+    #[serde(rename = "crashAiEnabled", default)]
+    crash_ai_enabled: Option<bool>,
+    #[serde(rename = "crashAiEndpoint", default)]
+    crash_ai_endpoint: Option<String>,
+    #[serde(rename = "crashAiModel", default)]
+    crash_ai_model: Option<String>,
+    #[serde(rename = "crashAiApiKey", default)]
+    crash_ai_api_key: Option<String>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -944,6 +995,24 @@ async fn update_settings(
             .map_err(internal)?;
     }
 
+    // Вкл/выкл AI-анализа — отдельный флаг: `false` удаляем ключ, `true`
+    // пишем «1» (load_config читает ровно это значение).
+    if let Some(enabled) = req.crash_ai_enabled {
+        if enabled {
+            state
+                .store
+                .set_setting(SETTING_CRASH_AI_ENABLED, "1")
+                .await
+                .map_err(internal)?;
+        } else {
+            state
+                .store
+                .delete_setting(SETTING_CRASH_AI_ENABLED)
+                .await
+                .map_err(internal)?;
+        }
+    }
+
     for (value, key) in [
         (req.backup_endpoint, SETTING_BACKUP_ENDPOINT),
         (req.backup_bucket, SETTING_BACKUP_BUCKET),
@@ -952,6 +1021,9 @@ async fn update_settings(
         (req.backup_access_key, SETTING_BACKUP_ACCESS_KEY),
         (req.backup_secret_key, SETTING_BACKUP_SECRET_KEY),
         (req.github_token, SETTING_GITHUB_TOKEN),
+        (req.crash_ai_endpoint, SETTING_CRASH_AI_ENDPOINT),
+        (req.crash_ai_model, SETTING_CRASH_AI_MODEL),
+        (req.crash_ai_api_key, SETTING_CRASH_AI_API_KEY),
     ] {
         if let Some(value) = value {
             let value = value.trim();
@@ -4870,6 +4942,76 @@ async fn server_log(
     require_admin(&state, &headers).await?;
     let log = state.store.server_log(id).await.map_err(map_store)?;
     Ok(Json(log))
+}
+
+/// Ручной (пере)анализ конкретного краша. Сбрасывает прошлый статус, чтобы
+/// вердикт пересчитался даже если запись уже обработана воркером.
+async fn analyze_server_log(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<crash_ai::Verdict>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let log = state.store.server_log(id).await.map_err(map_store)?;
+    if !matches!(log.event_type.as_str(), "client_crash" | "server_crash") {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "AI-анализ доступен только для крашей",
+        ));
+    }
+    state
+        .store
+        .reset_crash_ai(id)
+        .await
+        .map_err(map_store)?;
+    let verdict = crash_ai::analyze_log(&state, id)
+        .await
+        .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, e))?;
+    Ok(Json(verdict))
+}
+
+/// Пробный запрос к настроенному провайдеру: проверяет доступность endpoint
+/// и валидность ключа коротким промптом, не тратя токены на полный разбор.
+async fn test_crash_ai(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let config = crash_ai::load_config(&state)
+        .await
+        .map_err(internal)?
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "AI-анализ выключен или endpoint/ключ не заполнены",
+            )
+        })?;
+    let url = format!("{}/chat/completions", config.endpoint);
+    let body = serde_json::json!({
+        "model": config.model,
+        "max_tokens": 5,
+        "messages": [{ "role": "user", "content": "ping" }],
+    });
+    let response = state
+        .http
+        .post(&url)
+        .timeout(std::time::Duration::from_secs(30))
+        .bearer_auth(&config.api_key)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| internal(format!("запрос к AI-провайдеру: {e}")))?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            format!("AI-провайдер ответил {status}"),
+        ));
+    }
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "model": config.model,
+    })))
 }
 
 #[derive(Deserialize)]
