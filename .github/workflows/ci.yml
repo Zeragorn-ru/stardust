@@ -106,6 +106,8 @@ jobs:
         working-directory: admin-web
         run: npm ci --ignore-scripts && npm run build
 
+  # Два отдельных job'а: NeoForge-мод пинит Gradle 8.10.2 + Java 21, а
+  # Fabric-мод (MC 26.2) требует JVM 25+ (loom 1.19.x не стартует на 21).
   mod:
     if: >-
       github.event_name != 'workflow_dispatch' ||
@@ -122,6 +124,21 @@ jobs:
       - name: Build (NeoForge)
         working-directory: stardust-mod
         run: ./gradlew build
+
+  mod-fabric:
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.event.inputs.target == 'all' ||
+      github.event.inputs.target == 'mod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          # Сам Gradle и лоадер loom крутятся на этом JDK (минимум 25).
+          java-version: 25
+          cache: gradle
       - name: Build (Fabric)
         working-directory: stardust-mod-fabric
         run: ./gradlew build

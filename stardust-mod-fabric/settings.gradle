@@ -7,8 +7,8 @@ pluginManagement {
 }
 
 plugins {
-    // Toolchain-резолвер: сборка требует Java 25 (Minecraft 26.2), а CI
-    // крутится на Java 21 — Gradle сам скачает JDK 25 для toolchain.
+    // Toolchain-резолвер: сборка требует Java 25 (Minecraft 26.2). Gradle сам
+    // скачает JDK 25, если в системе только 21 (CI-раннер mod-fabric на 25).
     id 'org.gradle.toolchains.foojay-resolver-convention' version '0.10.0'
 }
 

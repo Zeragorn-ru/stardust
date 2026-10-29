@@ -47,8 +47,12 @@ intermediary: игра поставляется **необфусцированн
 ./gradlew build
 ```
 
-Требуется JDK 25 (toolchain подтянет сам через foojay-resolver, если в системе
-его нет — CI крутится на Java 21). Gradle 9.8.2.
+Требуется JDK 25 и Gradle 9.8.2. Минимум 25 нужен не только для компиляции,
+но и для самого Gradle: loom 1.19.x собран под JVM 25 и на Java 21 не
+запускается. В CI оба каталога собираются отдельными job'ами (ci.yml: `mod`
+на temurin 21, `mod-fabric` на temurin 25) — NeoForge остаётся на Gradle 8.x
+и Java 21, общий runner для них невозможен. foojay-resolver в settings.gradle
+докатывает JDK 25 для toolchain, если в системе стоит только 21.
 
 Ресурсы (data/, assets/, миксины) синхронны с NeoForge-версией: при правке
 одной из копий синхронизируй вторую (Java-код синхронным быть НЕ может —
