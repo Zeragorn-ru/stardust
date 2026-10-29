@@ -32,12 +32,12 @@ public final class StardustLightBlockInteraction {
             // Adventure-режим: прав на изменение чужого блока нет — иначе
             // игроки в adventure крутят уровень света.
             if (!player.mayBuild()) return InteractionResult.PASS;
-            if (!level.isClientSide) {
+            if (!level.isClientSide()) {
                 int current = clickedState.getValue(LightBlock.LEVEL);
                 int next = player.isShiftKeyDown() ? (current == 0 ? 15 : current - 1) : (current + 1) % 16;
                 level.setBlock(clickedPos, clickedState.setValue(LightBlock.LEVEL, next), 3);
             }
-            return InteractionResult.sidedSuccess(level.isClientSide);
+            return level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.CONSUME;
         }
 
         BlockPos placementPos = clickedState.canBeReplaced()
@@ -46,11 +46,11 @@ public final class StardustLightBlockInteraction {
         BlockState placementState = level.getBlockState(placementPos);
         if (!placementState.canBeReplaced() || !player.mayBuild()) return InteractionResult.PASS;
 
-        if (!level.isClientSide) {
+        if (!level.isClientSide()) {
             level.setBlock(placementPos, getState(stack), 3);
             if (!player.getAbilities().instabuild) stack.shrink(1);
         }
-        return InteractionResult.sidedSuccess(level.isClientSide);
+        return level.isClientSide() ? InteractionResult.SUCCESS : InteractionResult.CONSUME;
     }
 
     /** Fabric UseItemCallback: InteractionResult.SUCCESS = отменить vanilla. */

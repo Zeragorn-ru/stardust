@@ -2,12 +2,14 @@ package dev.stardust.mod.mixin;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.NoteBlock;
+import net.minecraft.world.level.block.WeatheringCopper;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.core.particles.ParticleTypes;
 import org.spongepowered.asm.mixin.Mixin;
@@ -47,26 +49,38 @@ public abstract class NoteBlockMixin {
                 pos.getY() + 0.5,
                 pos.getZ() + 0.5,
                 Holder.direct(SoundEvent.createVariableRangeEvent(
-                        ResourceLocation.fromNamespaceAndPath("stardust", sound))),
+                        Identifier.fromNamespaceAndPath("stardust", sound))),
                 SoundSource.RECORDS,
                 3.0F,
                 NoteBlock.getPitchFromNote(note),
-                level.random.nextLong());
+                level.getRandom().nextLong());
         cir.setReturnValue(true);
+    }
+
+    /** Медный блок нужной степени окисления: с 26.x варианты лежат в
+     *  WeatheringCopperCollection, а не отдельными константами Blocks. */
+    @Unique
+    private static Block copper(boolean waxed, WeatheringCopper.WeatherState weather) {
+        return (waxed ? Blocks.COPPER_BLOCK.waxed() : Blocks.COPPER_BLOCK.weathering())
+                .pick(weather);
     }
 
     @Unique
     private static String stardust$copperTrumpetSound(BlockState state) {
-        if (state.is(Blocks.OXIDIZED_COPPER) || state.is(Blocks.WAXED_OXIDIZED_COPPER)) {
+        if (state.is(copper(false, WeatheringCopper.WeatherState.OXIDIZED))
+                || state.is(copper(true, WeatheringCopper.WeatherState.OXIDIZED))) {
             return "trumpet_oxidized";
         }
-        if (state.is(Blocks.WEATHERED_COPPER) || state.is(Blocks.WAXED_WEATHERED_COPPER)) {
+        if (state.is(copper(false, WeatheringCopper.WeatherState.WEATHERED))
+                || state.is(copper(true, WeatheringCopper.WeatherState.WEATHERED))) {
             return "trumpet_weathered";
         }
-        if (state.is(Blocks.EXPOSED_COPPER) || state.is(Blocks.WAXED_EXPOSED_COPPER)) {
+        if (state.is(copper(false, WeatheringCopper.WeatherState.EXPOSED))
+                || state.is(copper(true, WeatheringCopper.WeatherState.EXPOSED))) {
             return "trumpet_exposed";
         }
-        if (state.is(Blocks.COPPER_BLOCK) || state.is(Blocks.WAXED_COPPER_BLOCK)) {
+        if (state.is(copper(false, WeatheringCopper.WeatherState.UNAFFECTED))
+                || state.is(copper(true, WeatheringCopper.WeatherState.UNAFFECTED))) {
             return "trumpet";
         }
         return null;

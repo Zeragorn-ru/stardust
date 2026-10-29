@@ -6,4 +6,10 @@ pluginManagement {
     }
 }
 
+plugins {
+    // Toolchain-резолвер: сборка требует Java 25 (Minecraft 26.2), а CI
+    // крутится на Java 21 — Gradle сам скачает JDK 25 для toolchain.
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.10.0'
+}
+
 rootProject.name = 'stardust-mod-fabric'

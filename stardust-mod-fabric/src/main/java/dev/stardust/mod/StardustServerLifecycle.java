@@ -40,7 +40,7 @@ public final class StardustServerLifecycle {
         dispatcher.register(
             Commands.literal("stardust")
                 .then(Commands.literal("refresh")
-                    .requires(source -> source.hasPermission(2))
+                    .requires(source -> Commands.LEVEL_MODERATORS.check(source.permissions()))
                     .executes(ctx -> {
                         StardustTabIntegration.refreshNow();
                         ctx.getSource().sendSuccess(() -> Component.literal("§aStardust: кеш кастомизации обновлён."), true);
@@ -48,7 +48,7 @@ public final class StardustServerLifecycle {
                     })
                 )
                 .then(Commands.literal("reload")
-                    .requires(source -> source.hasPermission(2))
+                    .requires(source -> Commands.LEVEL_MODERATORS.check(source.permissions()))
                     .executes(ctx -> {
                         StardustTabIntegration.reloadConfig();
                         ctx.getSource().sendSuccess(() -> Component.literal("§aStardust: конфиг и telemetry token перечитаны."), true);
@@ -89,7 +89,7 @@ public final class StardustServerLifecycle {
             sender.sendSystemMessage(formatPrivateMessage("▸ ЛС для ", targetName, text));
             if (target != sender) {
                 target.sendSystemMessage(formatPrivateMessage("◂ ЛС от ", senderName, text));
-                target.playNotifySound(SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 1.0f, 1.0f);
+                target.playSound(SoundEvents.EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
             }
         }
     }
@@ -106,7 +106,7 @@ public final class StardustServerLifecycle {
                 .append(Component.literal("] ").withStyle(ChatFormatting.GRAY))
                 .append(Component.literal(message.signedContent()));
 
-        MinecraftServer server = sender.getServer();
+        MinecraftServer server = sender.level().getServer();
         if (server != null) {
             server.getPlayerList().broadcastSystemMessage(chatMessage, false);
         }
@@ -114,9 +114,9 @@ public final class StardustServerLifecycle {
     }
 
     static Component formatPlayerName(ServerPlayer player) {
-        String name = player.getGameProfile().getName();
+        String name = player.getGameProfile().name();
         StardustHttpProvider.Assignment assignment = StardustTabIntegration.resolveAssignmentForName(name);
-        ClickEvent click = new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/w " + name + " ");
+        ClickEvent click = new ClickEvent.SuggestCommand("/w " + name + " ");
 
         MutableComponent result = Component.empty();
         String badgeText = StardustTabIntegration.resolveBadgeForName(name);
@@ -136,7 +136,7 @@ public final class StardustServerLifecycle {
     private static Component withPlayerActions(Component component, ClickEvent click, Component tooltip) {
         return component.copy().withStyle(style -> style
                 .withClickEvent(click)
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, tooltip)));
+                .withHoverEvent(new HoverEvent.ShowText(tooltip)));
     }
 
     private static Component badgeHover(StardustHttpProvider.Assignment assignment) {
@@ -232,7 +232,7 @@ public final class StardustServerLifecycle {
                 tps = Math.min(20.0, 1_000_000_000.0 / Math.max(1, telemetryTickIntervalNanos / telemetryTickCount));
             }
             provider.sendTelemetry(
-                server.getPlayerList().getPlayers().stream().map(p -> p.getGameProfile().getName()).toList(),
+                server.getPlayerList().getPlayers().stream().map(p -> p.getGameProfile().name()).toList(),
                 tps, mspt);
             telemetryTickNanos = 0;
             telemetryTickIntervalNanos = 0;

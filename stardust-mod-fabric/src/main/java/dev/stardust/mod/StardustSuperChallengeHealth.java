@@ -2,7 +2,7 @@ package dev.stardust.mod;
 
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementProgress;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.ServerAdvancementManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
@@ -20,8 +20,8 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
  */
 public final class StardustSuperChallengeHealth {
 
-    private static final ResourceLocation MODIFIER_ID =
-            ResourceLocation.fromNamespaceAndPath("stardust", "super_challenge_bonus");
+    private static final Identifier MODIFIER_ID =
+            Identifier.fromNamespaceAndPath("stardust", "super_challenge_bonus");
 
     private static final int MAX_BONUS_HP = 20;
     private static final int HP_PER_CHALLENGE = 1;
@@ -31,7 +31,7 @@ public final class StardustSuperChallengeHealth {
     }
 
     /** Fabric: вызывается из AdvancementEvents (StardustFabricMod). */
-    public static void onAdvancementEarned(ServerPlayer player, ResourceLocation id) {
+    public static void onAdvancementEarned(ServerPlayer player, Identifier id) {
         if (!isSuperChallenge(id)) return;
 
         int newCount = countCompletedChallenges(player);
@@ -75,7 +75,7 @@ public final class StardustSuperChallengeHealth {
      * напрямую из advancement data на сервере.
      */
     private static int countCompletedChallenges(ServerPlayer player) {
-        var server = player.getServer();
+        var server = player.level().getServer();
         if (server == null) return 0;
 
         ServerAdvancementManager advManager = server.getAdvancements();
@@ -93,7 +93,7 @@ public final class StardustSuperChallengeHealth {
         return count;
     }
 
-    private static boolean isSuperChallenge(ResourceLocation id) {
+    private static boolean isSuperChallenge(Identifier id) {
         return id.getNamespace().equals("blazeandcave")
                 && id.getPath().startsWith("challenges/")
                 && !id.toString().equals(ROOT_ID);

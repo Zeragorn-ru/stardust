@@ -1,5 +1,9 @@
 plugins {
-    id 'fabric-loom' version '1.11-SNAPSHOT'
+    // 1.19.x — первая линия loom с поддержкой Minecraft 26.x (Java 25).
+    // Plugin id net.fabricmc.fabric-loom = non-obfuscated путь (26.x):
+    // loom пропускает весь remapping. Старый id 'fabric-loom' включает
+    // obf-режим и требует mappings, которых для 26.x больше нет.
+    id 'net.fabricmc.fabric-loom' version '1.19.3'
 }
 
 version = '0.4.9'
@@ -12,8 +16,10 @@ base {
 }
 
 java {
+    // Minecraft 26.2 собран под Java 25 (java-runtime-epsilon) — toolchain
+    // и options.release должны совпадать, иначе классы не загрузятся.
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -36,18 +42,19 @@ repositories {
 }
 
 dependencies {
-    // Minecraft 1.21.1 / Fabric Loader — matches what the launcher provisions.
-    // mappings mojang_official: весь код перенесён с NeoForge в Mojang-именах
-    // (net.minecraft.server.level.ServerPlayer, Component и т.д.) — yarn-имена
-    // (ServerPlayerEntity, Text) потребовали бы переименования всего кода.
-    minecraft "com.mojang:minecraft:1.21.1"
-    mappings loom.officialMojangMappings()
-    modImplementation "net.fabricmc:fabric-loader:0.16.14"
+    // Minecraft 26.2 / Fabric Loader 0.20.x — matches what the launcher provisions.
+    // С 26.x Minecraft поставляется НЕобфусцированным (1.21.11 — последняя
+    // обфусцированная версия): маппинги не объявляются вовсе, loom 1.14+
+    // с plugin id fabric-loom сам пропускает весь remapping. Код уже в
+    // Mojang-именах (net.minecraft.server.level.ServerPlayer, Component),
+    // поэтому компилируется напрямую против классов игры.
+    minecraft "com.mojang:minecraft:26.2"
+    implementation "net.fabricmc:fabric-loader:0.20.1"
 
     // События жизненного цикла сервера (ServerLifecycleEvents, CommandRegistrationCallback).
-    // Fabric-API качаем целиком: на сборке игрока он всё равно стоит,
-    // compileOnly вариантов отдельных модулей loom не различает.
-    modImplementation "net.fabricmc.fabric-api:fabric-api:0.116.0+1.21.1"
+    // Fabric-API качаем целиком: на сборке игрока он всё равно стоит.
+    // В non-obf режиме — implementation, как в эталоне fabric-example-mod 26.2.
+    implementation "net.fabricmc.fabric-api:fabric-api:0.161.0+26.2"
 
     // TAB's developer API. compileOnly: TAB is installed as a separate mod on
     // the server at runtime and provides these classes. Never shade/relocate it.
@@ -59,7 +66,7 @@ dependencies {
 }
 
 tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
+    it.options.release = 25
 }
 
 // Loom подставляет ${version} в fabric.mod.json через processResources.

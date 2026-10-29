@@ -11,7 +11,7 @@ import dev.stardust.mod.StardustSuperChallengeHealth;
 
 /**
  * Трекер выдачи advancement: в Fabric API нет события AdvancementEvent
- * (NeoForge), поэтому вешаем хук на PlayerAdvancements.grant — в момент,
+ * (NeoForge), поэтому вешаем хук на PlayerAdvancements.award — в момент,
  * когда прогресс достигает 100% и advancement реально выдан.
  */
 @Mixin(net.minecraft.server.PlayerAdvancements.class)
@@ -19,10 +19,10 @@ public abstract class PlayerAdvancementsMixin {
     @Shadow
     private ServerPlayer player;
 
-    @Inject(method = "grant", at = @At("TAIL"))
+    @Inject(method = "award", at = @At("TAIL"))
     private void stardust$onAdvancementGranted(AdvancementHolder advancement, String criterion,
             CallbackInfoReturnable<Boolean> cir) {
-        // grant возвращает false, если критерий не завершил advancement:
+        // award возвращает false, если критерий не завершил advancement:
         // реакция только на полную выдачу.
         if (!cir.getReturnValueZ()) return;
         StardustSuperChallengeHealth.onAdvancementEarned(player, advancement.id());

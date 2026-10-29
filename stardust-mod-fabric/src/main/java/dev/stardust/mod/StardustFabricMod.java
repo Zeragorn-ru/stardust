@@ -62,12 +62,12 @@ public final class StardustFabricMod implements ModInitializer {
                         world,
                         player.getItemInHand(hand),
                         hitResult));
-        UseItemCallback.EVENT.register((player, world, hand) -> {
-            var result = StardustLightBlockInteraction.onRightClickItem(
-                    player,
-                    player.getItemInHand(hand));
-            return new net.minecraft.world.InteractionResultHolder<>(result, player.getItemInHand(hand));
-        });
+        // С 26.x UseItemCallback возвращает InteractionResult напрямую
+        // (InteractionResultHolder удалён из игры).
+        UseItemCallback.EVENT.register((player, world, hand) ->
+                StardustLightBlockInteraction.onRightClickItem(
+                        player,
+                        player.getItemInHand(hand)));
 
         if (FabricLoader.getInstance().getEnvironmentType() == net.fabricmc.api.EnvType.CLIENT) {
             StardustClientLifecycle.install();

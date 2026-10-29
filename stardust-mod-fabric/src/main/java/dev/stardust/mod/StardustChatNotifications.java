@@ -28,7 +28,7 @@ final class StardustChatNotifications {
     }
 
     static void onPlayerJoin(ServerPlayer player) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) return;
 
         MutableComponent message = Component.empty()
@@ -43,7 +43,7 @@ final class StardustChatNotifications {
     }
 
     static void onPlayerQuit(ServerPlayer player) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = player.level().getServer();
         if (server == null) return;
 
         MutableComponent message = Component.empty()
