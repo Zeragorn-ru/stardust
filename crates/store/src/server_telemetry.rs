@@ -327,6 +327,40 @@ impl Store {
         })
     }
 
+    /// История крашей ОДНОГО игрока (для экрана «История крашей» в лаунчере).
+    /// Без полных логов (details): список лёгкий, вердикт AI прилагается.
+    /// Свежие сверху, не более `limit`.
+    pub async fn crash_history_for(
+        &self,
+        username: &str,
+        limit: i64,
+    ) -> Result<Vec<ServerLogEntry>, StoreError> {
+        let rows = sqlx::query(
+            "SELECT id, recorded_at, event_type, username, summary, '{}'::jsonb AS details,
+                    ai_status, ai_analysis
+             FROM server_logs
+             WHERE event_type = 'client_crash' AND username = $1
+             ORDER BY id DESC LIMIT $2",
+        )
+        .bind(username)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| ServerLogEntry {
+                id: row.get("id"),
+                recorded_at: format_recorded_at(row.get("recorded_at")),
+                event_type: row.get("event_type"),
+                username: row.get("username"),
+                summary: row.get("summary"),
+                details: row.get("details"),
+                ai_status: row.get("ai_status"),
+                ai_analysis: row.get("ai_analysis"),
+            })
+            .collect())
+    }
+
     /// Краши без AI-вердикта (для фонового воркера). Берём только свежие —
     /// анализ старых записей после включения настройки не нужен и дорог.
     ///

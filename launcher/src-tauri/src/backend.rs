@@ -790,6 +790,7 @@ pub async fn record_session(
     }
 }
 
+// Поля — snake_case, как ждёт auth-server (ReportCrashRequest без rename_all).
 #[derive(serde::Serialize)]
 pub struct ReportCrashRequest {
     pub exit_code: Option<i32>,
@@ -798,6 +799,16 @@ pub struct ReportCrashRequest {
     pub debug_log: Option<String>,
     pub launcher_log: Option<String>,
     pub mod_report: Option<String>,
+    /// Окружение клиента (ОС/арх/версии/память) — контекст для AI-разбора.
+    /// Сервер старше этого поля игнорирует его (неизвестные поля отбрасывает).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub environment: Option<serde_json::Value>,
+    /// Имена jar'ов из каталога mods/ на момент краша.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mods: Option<Vec<String>>,
+    /// JVM-лог нативного краша (hs_err_pid*.log).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jvm_log: Option<String>,
 }
 
 /// Ответ `/api/report-crash`: id записи журнала (для опроса AI-разбора)
@@ -840,6 +851,40 @@ pub struct CrashAnalysis {
     pub status: Option<String>,
     /// Вердикт `{summary, cause, suggestion, severity}` или `{error}`.
     pub analysis: Option<serde_json::Value>,
+}
+
+/// Запись истории крашей игрока (без полных логов — список лёгкий).
+#[derive(serde::Deserialize, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CrashHistoryEntry {
+    pub id: i64,
+    pub recorded_at: String,
+    pub summary: String,
+    /// `done` / `failed` / null — разбор ещё не готов.
+    pub ai_status: Option<String>,
+    pub ai_analysis: Option<serde_json::Value>,
+}
+
+pub async fn fetch_crash_history(
+    client: &reqwest::Client,
+    token: &str,
+) -> Result<Vec<CrashHistoryEntry>, String> {
+    let resp = client
+        .get(format!("{}/api/crash-history", base_url()))
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(network_error)?;
+    if resp.status().is_success() {
+        return resp
+            .json::<Vec<CrashHistoryEntry>>()
+            .await
+            .map_err(|e| format!("Не удалось разобрать ответ сервера: {e}"));
+    }
+    match resp.json::<ErrorBody>().await {
+        Ok(body) => Err(body.error),
+        Err(_) => Err("Не удалось получить историю крашей".to_string()),
+    }
 }
 
 pub async fn fetch_crash_analysis(

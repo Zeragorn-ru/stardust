@@ -2085,6 +2085,14 @@ async fn account_info(state: State<'_, AppState>) -> Result<protocol::AccountInf
     backend::account_info(&state.http(), &token).await
 }
 
+/// История крашей игрока: свежие записи и их AI-вердикты (если готовы).
+/// Работает и после закрытия лаунчера — данные на сервере, а не локально.
+#[tauri::command]
+async fn crash_history(state: State<'_, AppState>) -> Result<Vec<backend::CrashHistoryEntry>, String> {
+    let (_uuid, token) = current_session(&state)?;
+    backend::fetch_crash_history(&state.http(), &token).await
+}
+
 /// Запросить код привязки Telegram (для включения 2FA).
 #[tauri::command]
 async fn telegram_link_start(
@@ -2723,6 +2731,12 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     read_optional_report_text(&resolve_launcher_log_latest(&launcher_log_dir()));
 
                 let exit_code = exit_status.and_then(|s| s.code());
+                // Контекст для AI-разбора: стек клиента, список модов и
+                // JVM-лог нативного краша. Сбор дешёвый и не падает сам:
+                // любая ошибка здесь не должна мешать отправить репорт.
+                let environment = collect_crash_environment(&app_handle);
+                let mods = collect_mod_names(&game_dir);
+                let jvm_log = collect_jvm_log(&game_dir);
                 let crash_req = backend::ReportCrashRequest {
                     exit_code,
                     log: log_content,
@@ -2730,6 +2744,9 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                     debug_log: debug_content,
                     launcher_log: launcher_content,
                     mod_report: mod_report_content,
+                    environment: Some(environment),
+                    mods,
+                    jvm_log,
                 };
                 match backend::report_crash(&http, &token, &crash_req).await {
                     Ok(Some(resp)) if resp.ai_enabled => {
@@ -2756,6 +2773,111 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     });
 
     Ok(())
+}
+
+/// Окружение клиента для AI-разбора краша: стек (ОС/арх, версии лаунчера,
+/// Minecraft и загрузчика, Java, память). Только дешёвые операции: чтение
+/// кешированного манифеста и списка установленных Java, без сети и без
+/// скачивания runtime — отчёт не должен тормозить или падать из-за него.
+fn collect_crash_environment(app: &tauri::AppHandle) -> serde_json::Value {
+    let data_dir = paths::data_dir(app);
+    let settings = get_settings_cached(&app.state::<AppState>(), app);
+
+    // Minecraft + загрузчик: из кешированного манифеста сборки (он же
+    // использовался при запуске). Нет кеша — поле пропускаем.
+    let manifest = std::fs::read(data_dir.join("cached-manifest.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<protocol::Manifest>(&bytes).ok());
+
+    // Java: первая установленная (управляемый runtime → системная), без
+    // скачивания. Версия уже спрошена java -version при установке.
+    let java = crate::java::list_installations(&data_dir)
+        .into_iter()
+        .next()
+        .map(|j| j.version);
+
+    let os = format!(
+        "{} {} ({})",
+        std::env::consts::OS,
+        sysinfo::System::name().unwrap_or_default(),
+        std::env::consts::ARCH
+    );
+
+    let mut env = serde_json::Map::new();
+    env.insert("os".into(), serde_json::json!(os.trim().to_string()));
+    env.insert(
+        "launcherVersion".into(),
+        serde_json::json!(env!("CARGO_PKG_VERSION")),
+    );
+    if let Some(m) = manifest {
+        env.insert("minecraft".into(), serde_json::json!(m.loader.minecraft));
+        env.insert(
+            "loader".into(),
+            serde_json::json!(format!("{:?} {}", m.loader.kind, m.loader.version)),
+        );
+    }
+    if let Some(java) = java {
+        env.insert("java".into(), serde_json::json!(java));
+    }
+    env.insert(
+        "memoryAllocatedMb".into(),
+        serde_json::json!(settings.memory_mb),
+    );
+    env.insert(
+        "memoryTotalMb".into(),
+        serde_json::json!(total_ram_mb()),
+    );
+    serde_json::Value::Object(env)
+}
+
+/// Имена jar'ов из каталога mods/ на момент краша: имя мода часто и есть
+/// причина. Только имена (без путей и sha), сортировка для стабильности.
+fn collect_mod_names(game_dir: &std::path::Path) -> Option<Vec<String>> {
+    let mut names: Vec<String> = std::fs::read_dir(game_dir.join("mods"))
+        .ok()?
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            name.ends_with(".jar").then_some(name)
+        })
+        .collect();
+    if names.is_empty() {
+        return None;
+    }
+    names.sort();
+    Some(names)
+}
+
+/// Свежий JVM-лог нативного краша (hs_err_pid*.log в каталоге игры или
+/// рядом): без него нативные падения рендерера не диагностируются. Берём
+/// самый новый и только если он создан в пределах часа — иначе это старый
+/// краш, не связанный с текущим запуском.
+fn collect_jvm_log(game_dir: &std::path::Path) -> Option<String> {
+    let cutoff = std::time::SystemTime::now()
+        .checked_sub(std::time::Duration::from_secs(3600))?;
+    let newest = [game_dir.to_path_buf(), game_dir.join("logs")]
+        .into_iter()
+        .filter_map(|dir| std::fs::read_dir(dir).ok())
+        .flatten()
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with("hs_err_pid")
+        })
+        .filter(|entry| {
+            entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .map(|t| t >= cutoff)
+                .unwrap_or(false)
+        })
+        .max_by_key(|entry| entry.metadata().and_then(|m| m.modified()).ok())?;
+    std::fs::read_to_string(newest.path())
+        .ok()
+        .map(|content| trim_report_text(content, 200_000))
+        .filter(|content| !content.trim().is_empty())
 }
 
 /// Payload события `crash-ai://verdict` для UI.
@@ -3449,6 +3571,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             set_skin,
             import_skin_from_license,
             account_info,
+            crash_history,
             telegram_link_start,
             open_external,
             open_path,

@@ -227,8 +227,12 @@ pub fn parse_verdict(content: &str, model: &str) -> Result<Verdict, String> {
     })
 }
 
-const SYSTEM_PROMPT: &str = "Ты — диагност крашей Minecraft (NeoForge/Fabric, моды 1.21.x). \
-Проанализируй crash-report и логи игрока или сервера. Ответь СТРОГО JSON-объектом \
+const SYSTEM_PROMPT: &str = "Ты — диагност крашей Minecraft (NeoForge/Fabric, версии 1.21.x и 26.x). \
+Проанализируй crash-report, логи и окружение игрока или сервера. В разделе «Окружение» дан стек: \
+ОС/архитектура, версия лаунчера, Minecraft и загрузчика, Java, выделенная и общая память, список \
+установленных модов — используй его для точного диагноза (несовместимость версий, нехватка памяти, \
+нативные библиотеки под конкретную ОС). Если есть JVM-лог (hs_err_pid) — это нативный краш JVM: \
+смотри секции siginfo/stack нативных фреймов. Ответь СТРОГО JSON-объектом \
 без markdown: {\"summary\": \"1-2 предложения что случилось\", \"cause\": \"вероятная причина: \
 конкретный мод/класс/драйвер/память/конфиг\", \"suggestion\": \"конкретные шаги что сделать\", \
 \"severity\": \"low|medium|high|critical\"}. Отвечай на русском. \
@@ -236,7 +240,7 @@ severity: critical — сервер не запускается/падает п�
 medium — разовый краш, игра работает; low — краш без влияния (например, при выходе). \
 Если данных недостаточно для точного диагноза, честно скажи об этом в cause.";
 
-/// Склеивает краш в один промпт: метаданные + файлы логов (усечённые).
+/// Склеивает краш в один промпт: метаданные + окружение + файлы логов (усечённые).
 pub fn build_prompt(crash: &CrashInput) -> String {
     let kind = match crash.event_type.as_str() {
         "server_crash" => "Dedicated-сервер",
@@ -248,10 +252,39 @@ pub fn build_prompt(crash: &CrashInput) -> String {
     }
     out.push_str(&format!("Сводка: {}\n\n", crash.summary));
 
+    // Окружение клиента: ОС/арх, версии лаунчера/MC/загрузчика/Java, память.
+    // Даёт модели стек для точного диагноза (несовместимость, нехватка RAM,
+    // нативные библиотеки под конкретную ОС).
+    if let Some(env) = crash
+        .details
+        .get("environment")
+        .and_then(|v| v.as_object())
+        .filter(|env| !env.is_empty())
+    {
+        out.push_str("===== Окружение =====\n");
+        for (key, value) in env {
+            if let Some(text) = value.as_str().filter(|s| !s.is_empty()) {
+                out.push_str(&format!("{key}: {text}\n"));
+            } else if value.is_number() || value.is_boolean() {
+                out.push_str(&format!("{key}: {value}\n"));
+            }
+        }
+        out.push('\n');
+    }
+
+    // Список модов на момент краша: имя мода часто и есть причина.
+    if let Some(mods) = crash.details.get("mods").and_then(|v| v.as_array()) {
+        let names: Vec<&str> = mods.iter().filter_map(|m| m.as_str()).collect();
+        if !names.is_empty() {
+            out.push_str(&format!("===== Моды ({}) =====\n{}\n\n", names.len(), names.join("\n")));
+        }
+    }
+
     // Ключи details соответствуют полям ReportCrashRequest/ReportServerCrashRequest.
     let files: &[(&str, &str)] = &[
         ("modReport", "Отчёт мода Stardust"),
         ("crashReport", "crash-report.txt"),
+        ("jvmLog", "JVM-лог нативного краша (hs_err_pid)"),
         ("stackTrace", "stack trace"),
         ("latestLog", "latest.log"),
         ("debugLog", "debug.log"),
@@ -408,5 +441,50 @@ mod tests {
         assert!(prompt.contains("[INFO] loading"));
         // Отсутствующий файл не попадает в промпт.
         assert!(!prompt.contains("debug.log"));
+    }
+
+    #[test]
+    fn build_prompt_includes_environment_mods_and_jvm_log() {
+        let crash = CrashInput {
+            id: 7,
+            event_type: "client_crash".to_string(),
+            username: None,
+            summary: "Код выхода: -1".to_string(),
+            details: serde_json::json!({
+                "environment": {
+                    "os": "macOS 15.2 (aarch64)",
+                    "launcherVersion": "0.11.21",
+                    "minecraft": "26.2",
+                    "loader": "Fabric 0.19.5",
+                    "java": "Temurin 21.0.5",
+                    "memoryAllocatedMb": 4096,
+                    "memoryTotalMb": 16384
+                },
+                "mods": ["Volcanic-1.21.1-0.1.3-alpha.jar", "sodium.jar"],
+                "jvmLog": "# SIGSEGV (0xb) at pc=0x...",
+            }),
+        };
+        let prompt = build_prompt(&crash);
+        assert!(prompt.contains("Окружение"));
+        assert!(prompt.contains("macOS 15.2 (aarch64)"));
+        assert!(prompt.contains("memoryAllocatedMb: 4096"));
+        assert!(prompt.contains("Моды (2)"));
+        assert!(prompt.contains("Volcanic-1.21.1-0.1.3-alpha.jar"));
+        assert!(prompt.contains("JVM-лог нативного краша"));
+        assert!(prompt.contains("SIGSEGV"));
+    }
+
+    #[test]
+    fn build_prompt_skips_empty_environment_and_mods() {
+        let crash = CrashInput {
+            id: 8,
+            event_type: "client_crash".to_string(),
+            username: None,
+            summary: "s".to_string(),
+            details: serde_json::json!({ "environment": {}, "mods": [] }),
+        };
+        let prompt = build_prompt(&crash);
+        assert!(!prompt.contains("Окружение"));
+        assert!(!prompt.contains("Моды"));
     }
 }

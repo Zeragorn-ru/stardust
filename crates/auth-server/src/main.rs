@@ -201,6 +201,7 @@ async fn main() {
         .route("/api/coins", get(coins_get))
         .route("/api/report-crash", post(report_crash))
         .route("/api/crash-analysis/:id", get(crash_analysis))
+        .route("/api/crash-history", get(crash_history))
         .route("/api/server/report-crash", post(report_server_crash))
         .route("/api/news/seen", post(update_news_seen))
         .route("/api/report-external-mods", post(report_external_mods))
@@ -1485,6 +1486,16 @@ struct ReportCrashRequest {
     debug_log: Option<String>,
     launcher_log: Option<String>,
     mod_report: Option<String>,
+    /// Окружение клиента (ОС/арх/версии/память) — контекст для AI-разбора.
+    #[serde(default)]
+    environment: Option<serde_json::Value>,
+    /// Имена jar'ов из каталога mods/ на момент краша.
+    #[serde(default)]
+    mods: Option<Vec<String>>,
+    /// JVM-лог нативного краша (hs_err_pid*.log): без него нативные
+    /// падения рендерера не диагностируются.
+    #[serde(default)]
+    jvm_log: Option<String>,
 }
 
 async fn report_crash(
@@ -1529,6 +1540,9 @@ async fn report_crash(
                 "debugLog": req.debug_log,
                 "launcherLog": req.launcher_log,
                 "modReport": req.mod_report,
+                "environment": req.environment,
+                "mods": req.mods,
+                "jvmLog": req.jvm_log,
             }),
         )
         .await?;
@@ -1637,6 +1651,20 @@ async fn crash_analysis(
         "status": log.ai_status,
         "analysis": log.ai_analysis,
     })))
+}
+
+/// История крашей текущего игрока (свежие сверху, до 50): id, время, сводка
+/// и AI-вердикт, если он готов. Без полных логов — список лёгкий.
+async fn crash_history(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<store::server_telemetry::ServerLogEntry>>, ApiError> {
+    let account = current_account(&state, &headers).await?;
+    let logs = state
+        .store
+        .crash_history_for(&account.username, 50)
+        .await?;
+    Ok(Json(logs))
 }
 
 #[derive(Debug, Deserialize)]

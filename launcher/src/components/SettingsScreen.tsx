@@ -29,6 +29,7 @@ import { useMotion } from "../motion";
 import AccountSection from "./AccountSection";
 import ConfirmDialog, { type ConfirmRequest } from "./ConfirmDialog";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
+import CrashHistoryModal from "./CrashHistoryModal";
 import AdminSettingsSection from "./AdminSettingsSection";
 import ModsSection from "./ModsSection";
 
@@ -125,6 +126,7 @@ export default function SettingsScreen({
   const [javaProgress, setJavaProgress] = useState<Progress | null>(null);
 
   const [logPaths, setLogPaths] = useState<LogPaths | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [logViewer, setLogViewer] = useState<{
     title: string;
     tabs: LogTab[];
@@ -704,6 +706,13 @@ export default function SettingsScreen({
                 >
                   Все логи
                 </button>
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  История крашей
+                </button>
               </div>
             </div>
 
@@ -1241,6 +1250,8 @@ export default function SettingsScreen({
           onClose={() => setLogViewer(null)}
         />
       )}
+
+      {historyOpen && <CrashHistoryModal onClose={() => setHistoryOpen(false)} />}
 
       {confirmReq && (
         <ConfirmDialog

@@ -113,6 +113,31 @@ export interface CrashAiVerdict {
   severity: "low" | "medium" | "high" | "critical" | string | null;
 }
 
+/** Запись истории крашей игрока (с сервера, без полных логов). */
+export interface CrashHistoryEntry {
+  id: number;
+  recordedAt: string;
+  summary: string;
+  /** "done" / "failed" / null — разбор ещё не готов. */
+  aiStatus: "done" | "failed" | string | null;
+  aiAnalysis: {
+    summary?: string;
+    cause?: string;
+    suggestion?: string;
+    severity?: string;
+    model?: string;
+    analyzedAt?: string;
+    error?: string;
+  } | null;
+}
+
+/** История крашей игрока: свежие сверху, до 50 записей. */
+export async function crashHistory(): Promise<CrashHistoryEntry[]> {
+  const invoke = await getInvoke();
+  if (!invoke) return [];
+  return invoke<CrashHistoryEntry[]>("crash_history");
+}
+
 export async function onCrashAiVerdict(
   handler: (verdict: CrashAiVerdict) => void,
 ): Promise<() => void> {

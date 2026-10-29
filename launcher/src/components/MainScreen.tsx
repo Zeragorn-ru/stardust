@@ -7,6 +7,7 @@ import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
+import CrashHistoryModal from "./CrashHistoryModal";
 import MinecraftNickname from "./MinecraftNickname";
 
 const SERVER_HOST = "play.stardust-mc.xyz";
@@ -70,6 +71,7 @@ export default function MainScreen({
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
   const [news, setNews] = useState<import("../types").NewsHighlight | null>(null);
   const [newsUnread, setNewsUnread] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const playLockRef = useRef(false);
 
@@ -458,11 +460,19 @@ export default function MainScreen({
               </button>
             </div>
           )}
-          {crashVerdict && (
-            <CrashVerdictBanner verdict={crashVerdict} onDismiss={onDismissCrashVerdict} />
-          )}
         </div>
       </section>
+
+      {/* Пока открыта история, тост прячем: иначе Escape закрыл бы оба
+          окна разом, а вердикт никуда не денется — он в состоянии App. */}
+      {crashVerdict && !historyOpen && (
+        <CrashVerdictToast
+          verdict={crashVerdict}
+          onDismiss={onDismissCrashVerdict}
+          onOpenHistory={() => setHistoryOpen(true)}
+        />
+      )}
+      {historyOpen && <CrashHistoryModal onClose={() => setHistoryOpen(false)} />}
 
       {playersOpen && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setPlayersOpen(false); }}>
@@ -685,53 +695,83 @@ const SEVERITY_LABELS: Record<string, string> = {
 };
 
 /**
- * Баннер AI-разбора краша: появляется, когда сервер закончил анализ
- * последнего падения игры. Игрок видит причину и что сделать, не открывая
- * логи. Ошибка анализа (failed) — одна строка с причиной, без драматизации.
+ * Всплывашка AI-разбора краша: центрированное стекло поверх экрана, когда
+ * сервер закончил анализ последнего падения игры. Не прижата к низу (там
+ * она терялась под кнопкой «Играть») и не блокирует работу: закрывается
+ * крестиком, кликом по фону или Escape. Кнопка «История крашей» ведёт к
+ * списку всех разборов — вердикт переживает закрытие всплывашки.
+ * Ошибка анализа (failed) — та же форма, но без severity.
  */
-function CrashVerdictBanner({
+function CrashVerdictToast({
   verdict,
   onDismiss,
+  onOpenHistory,
 }: {
   verdict: CrashAiVerdict;
   onDismiss: () => void;
+  onOpenHistory: () => void;
 }) {
   const failed = verdict.status === "failed";
   const severity = verdict.severity ?? "medium";
+
+  // Escape закрывает всплывашку, как и любую модалку лаунчера.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onDismiss();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onDismiss]);
+
   return (
     <div
-      className={`crash-verdict crash-verdict--${failed ? "failed" : severity} stagger-item`}
-      role="status"
+      className="crash-verdict-overlay"
+      onClick={(event) => { if (event.target === event.currentTarget) onDismiss(); }}
     >
-      <div className="crash-verdict__head">
-        <strong>
-          🤖 {failed ? "AI не смог разобрать краш" : "AI-разбор краша готов"}
-        </strong>
-        {!failed && (
-          <span className="crash-verdict__sev">
-            серьёзность: {SEVERITY_LABELS[severity] ?? severity}
-          </span>
+      <div
+        className={`crash-verdict crash-verdict--${failed ? "failed" : severity}`}
+        role="alertdialog"
+        aria-modal="false"
+        aria-label={failed ? "AI не смог разобрать краш" : "AI-разбор краша готов"}
+      >
+        <div className="crash-verdict__head">
+          <strong>
+            🤖 {failed ? "AI не смог разобрать краш" : "AI-разбор краша готов"}
+          </strong>
+          {!failed && (
+            <span className={`crash-verdict__sev crash-verdict__sev--${severity}`}>
+              {SEVERITY_LABELS[severity] ?? severity}
+            </span>
+          )}
+          <button
+            type="button"
+            className="crash-verdict__close"
+            aria-label="Скрыть"
+            onClick={onDismiss}
+          >
+            ×
+          </button>
+        </div>
+        {verdict.summary && <p className="crash-verdict__summary">{verdict.summary}</p>}
+        {verdict.cause && (
+          <p className="crash-verdict__line">
+            <span>Причина:</span> {verdict.cause}
+          </p>
         )}
-        <button
-          type="button"
-          className="crash-verdict__close"
-          aria-label="Скрыть"
-          onClick={onDismiss}
-        >
-          ×
-        </button>
+        {verdict.suggestion && (
+          <p className="crash-verdict__line">
+            <span>Что сделать:</span> {verdict.suggestion}
+          </p>
+        )}
+        <div className="crash-verdict__actions">
+          <button type="button" className="btn btn--ghost" onClick={onOpenHistory}>
+            История крашей
+          </button>
+          <button type="button" className="btn btn--ghost" onClick={onDismiss}>
+            Понятно
+          </button>
+        </div>
       </div>
-      {verdict.summary && <p className="crash-verdict__summary">{verdict.summary}</p>}
-      {verdict.cause && (
-        <p className="crash-verdict__line">
-          <span>Причина:</span> {verdict.cause}
-        </p>
-      )}
-      {verdict.suggestion && (
-        <p className="crash-verdict__line">
-          <span>Что сделать:</span> {verdict.suggestion}
-        </p>
-      )}
     </div>
   );
 }
