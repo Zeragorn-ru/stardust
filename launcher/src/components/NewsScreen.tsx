@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { getNews, openExternal } from "../api";
 import type { NewsPost } from "../types";
+import McText from "./McText";
 
 export default function NewsScreen({ onClose }: { onClose: () => void }) {
   const [posts, setPosts] = useState<NewsPost[] | null>(null);
@@ -27,7 +28,7 @@ export default function NewsScreen({ onClose }: { onClose: () => void }) {
       {posts?.length === 0 && <div className="news-screen__empty"><strong>Новостей пока нет</strong><span>Когда появится что-то важное, оно будет здесь.</span></div>}
       {posts?.map((post) => <article className="news-post stagger-item" key={post.id}>
         <div className="news-post__topline"><div className="news-post__meta">{post.pinned && <span className="news-post__pin">Закреплено</span>}<span>{post.authorName}</span></div><time dateTime={post.updatedAt}>{formatDate(post.updatedAt)}</time></div>
-        <h2>{post.title}</h2><Markdown text={post.markdown} />
+        <h2><McText text={post.title} /></h2><Markdown text={post.markdown} />
       </article>)}
       </div>
     </div>
@@ -72,14 +73,17 @@ function Markdown({ text }: { text: string }) {
 }
 
 function formatInline(text: string) {
+  // Обычный текст и содержимое форматирования проходят через McText:
+  // эмодзи в новостях рисуются пиксельными глифами «как в игре».
   return text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g).map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
-    if (part.startsWith("*") && part.endsWith("*")) return <em key={index}>{part.slice(1, -1)}</em>;
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}><McText text={part.slice(2, -2)} /></strong>;
+    if (part.startsWith("*") && part.endsWith("*")) return <em key={index}><McText text={part.slice(1, -1)} /></em>;
+    // Внутри `code` эмодзи не подменяем: это буквальный текст.
     if (part.startsWith("`") && part.endsWith("`")) return <code key={index}>{part.slice(1, -1)}</code>;
     const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/);
     return link
-      ? <a key={index} href={link[2]} onClick={(event) => { event.preventDefault(); void openExternal(link[2]); }}>{link[1]}</a>
-      : part;
+      ? <a key={index} href={link[2]} onClick={(event) => { event.preventDefault(); void openExternal(link[2]); }}><McText text={link[1]} /></a>
+      : <McText key={index} text={part} />;
   });
 }
 

@@ -6,6 +6,7 @@ import { useToast } from "../ui/feedback";
 import { useAsyncData } from "../ui/useAsyncData";
 import { ErrorPanel, LoadPanel, StaleBanner } from "../ui/EmptyState";
 import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
+import { McText } from "../ui/McText";
 
 type MobileTab = "overview" | "builds" | "accounts" | "customization" | "settings";
 
@@ -156,7 +157,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
                 </div>
                 <div className="m-telemetry-divider" />
                 <div className="m-telemetry-players" aria-label="Игроки онлайн">
-                  {latest.players.map((player) => <span key={player}>{player}</span>)}
+                  {/* Ники из телеметрии — контент игрока: эмодзи через McText. */}
+                  {latest.players.map((player) => <McText key={player} text={player} />)}
                   {latest.players.length === 0 && <span className="muted">Никого нет</span>}
                 </div>
               </div>
@@ -201,7 +203,7 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
         {activeBuild ? (
           <button className="m-service-row" type="button" onClick={() => onOpenBuild(activeBuild.id)}>
             <span className="m-row-icon"><IconBox size={16} /></span>
-            <span className="m-row-main"><strong>{activeBuild.name}</strong><small>v{activeBuild.version} · {activeBuild.loaderKind} · MC {activeBuild.mcVersion}</small></span>
+            <span className="m-row-main"><strong><McText text={activeBuild.name} /></strong><small>v{activeBuild.version} · {activeBuild.loaderKind} · MC {activeBuild.mcVersion}</small></span>
             <IconChevronRight size={18} />
           </button>
         ) : (

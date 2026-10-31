@@ -4,6 +4,7 @@ import { api, ApiError } from "../api";
 import type { CrashAiAnalysis, ServerLogEntry, ServerLogSummary } from "../types";
 import { formatTelemetryTime } from "../format";
 import { IconSync } from "../ui/icons";
+import { McText } from "../ui/McText";
 import { useToast } from "../ui/feedback";
 import { useDialogFocus } from "../ui/useDialogFocus";
 
@@ -197,8 +198,9 @@ export function LogsView({ mobile = false }: { mobile?: boolean }) {
                   <span className="log-card__type">{labels[log.eventType] ?? log.eventType}</span>
                   <time>{formatTelemetryTime(log.recordedAt)}</time>
                 </span>
-                <strong className="log-card__summary">{log.summary}</strong>
-                {log.username && <span className="log-card__user">Игрок: {log.username}</span>}
+                {/* Summary и ник — контент игрока: эмодзи рисуем глифами McEmoji. */}
+                <strong className="log-card__summary"><McText text={log.summary} /></strong>
+                {log.username && <span className="log-card__user">Игрок: <McText text={log.username} /></span>}
                 <span className="log-card__open">Открыть детали →</span>
               </button>
             ))}
@@ -251,8 +253,11 @@ function LogDetailsModal({ logId, onClose }: { logId: number; onClose: () => voi
             {log ? (
               <>
                 <span className="eyebrow">{labels[log.eventType] ?? log.eventType}</span>
-                <h2>{log.summary}</h2>
-                <small className="muted">{formatTelemetryTime(log.recordedAt)}{log.username ? ` · ${log.username}` : ""}</small>
+                <h2><McText text={log.summary} /></h2>
+                <small className="muted">
+                  {formatTelemetryTime(log.recordedAt)}
+                  {log.username && <> · <McText text={log.username} /></>}
+                </small>
               </>
             ) : (
               <span className="eyebrow">Детали события</span>

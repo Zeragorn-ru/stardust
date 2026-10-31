@@ -21,6 +21,7 @@ import type {
 import { formatDateTime } from "../format";
 import { useConfirm, useToast } from "../ui/feedback";
 import { IconAlert, IconCheck, IconSync } from "../ui/icons";
+import { McText } from "../ui/McText";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
 
 // Интервал и лимит ошибок опроса задач — как у деплоя мода (BuildDetail).
@@ -670,7 +671,8 @@ export function SeasonsView() {
                 <TableRow key={activeSeason.id}>
                   <TableCell>
                     <div className="cell-main">
-                      <strong>{activeSeason.name}</strong>
+                      {/* Имя сезона задаёт админ — эмодзи рисуем глифами McEmoji. */}
+                      <strong><McText text={activeSeason.name} /></strong>
                     </div>
                   </TableCell>
                   <TableCell data-label="Статус">
@@ -700,7 +702,7 @@ export function SeasonsView() {
                 <TableRow key={s.id}>
                   <TableCell>
                     <div className="cell-main">
-                      <strong>{s.name}</strong>
+                      <strong><McText text={s.name} /></strong>
                     </div>
                   </TableCell>
                   <TableCell data-label="Статус">

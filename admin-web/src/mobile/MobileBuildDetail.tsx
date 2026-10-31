@@ -12,6 +12,7 @@ import type { BuildDetail as BuildDetailData, BuildHeader } from "../types";
 import { FileManager } from "../FileManager";
 import { formatSize } from "../format";
 import { useToast } from "../ui/feedback";
+import { McText } from "../ui/McText";
 import { EmptyPanel, ErrorPanel } from "../ui/EmptyState";
 import {
   ActiveBuildBadge,
@@ -371,7 +372,8 @@ function MobileDetailHead({
         <IconChevronRight size={22} className="flip" />
       </button>
       <div className="m-detail-titles">
-        <h1>{title}</h1>
+        {/* Имя сборки задаёт админ и может содержать эмодзи — рисуем глифами. */}
+        <h1><McText text={title} /></h1>
         {subtitle && <span className="muted">{subtitle}</span>}
       </div>
     </header>

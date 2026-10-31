@@ -22,6 +22,7 @@ import { GuidesView } from "../views/GuidesView";
 import { LogsView } from "../views/LogsView";
 import { ExternalModsView } from "../views/ExternalModsView";
 import { IconArrowLeft, IconClose, IconLogout } from "../ui/icons";
+import { McText } from "../ui/McText";
 import { NAV, NAV_GROUPS, isNavTab, type NavTab } from "../ui/navConfig";
 import { switchViewHref } from "../app/viewMode";
 import { useDialogFocus } from "../ui/useDialogFocus";
@@ -219,7 +220,7 @@ function Shell() {
           ))}
         </nav>
         <div className="m-drawer-foot">
-          {username && <span className="m-drawer-user">{username}</span>}
+          {username && <McText className="m-drawer-user" text={username} />}
           <a className="m-drawer-item" href={switchViewHref("desktop")}>ПК-версия</a>
           <button className="m-drawer-item" type="button" onClick={logout}>
             <IconLogout size={18} />

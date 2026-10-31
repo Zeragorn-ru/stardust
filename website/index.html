@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#0b0d0c" />
   <title>StarDust — приватный Minecraft-сервер</title>
-  <meta name="description" content="StarDust — приватный Minecraft-сервер с собственным лаунчером, картой и гайдами для игроков." />
+  <meta name="description" content="StarDust — приватный Minecraft-сервер с собственной сборкой модов, лаунчером, картой и гайдами для игроков." />
   <link rel="stylesheet" href="styles.css" />
   <link rel="icon" type="image/svg+xml" href="/stardust-logo.svg?v=three-rings" />
 </head>
@@ -17,14 +17,22 @@
     <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a2 2 0 0 1 2-2h9" /></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6" /></symbol>
   </svg>
+
+  <!-- Плёнка зерна: одна на весь сайт, не перехватывает клики. -->
+  <div class="grain" aria-hidden="true"><span class="grain__layer"></span></div>
 
   <a class="skip-link" href="#start">К скачиванию</a>
   <header class="site-header">
     <div class="container header-inner">
       <a class="brand" href="#top" aria-label="StarDust — на главную"><img src="/stardust-logo.svg" alt="" /><span>StarDust</span></a>
       <nav aria-label="Основная навигация">
-        <a href="#guides">Гайды</a><a href="#leaderboards">Лидерборд</a><a href="#start">Скачать</a>
+        <a href="#guides"><span class="bracket">[</span>гайды<span class="bracket">]</span></a>
+        <a href="#leaderboards"><span class="bracket">[</span>рейтинг<span class="bracket">]</span></a>
+        <a href="#build"><span class="bracket">[</span>сборка<span class="bracket">]</span></a>
+        <a href="#start"><span class="bracket">[</span>скачать<span class="bracket">]</span></a>
       </nav>
       <a class="header-map" data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Карта <svg class="icon icon--thin" aria-hidden="true"><use href="#i-arrow-out" /></svg></a>
       <button class="menu-button" type="button" aria-label="Открыть меню" aria-expanded="false">
@@ -35,29 +43,159 @@
   </header>
 
   <main id="top">
-    <section class="hero container">
-      <div class="hero-copy">
-        <p class="kicker"><span class="status-dot" data-health-dot></span><span data-health-label>Проверяем сервер</span></p>
-        <h1>Играй в мире,<br /><em>который растёт.</em></h1>
-        <p class="hero-lead">Приватный Minecraft-сервер с собственной сборкой, живым сообществом и простым стартом через лаунчер.</p>
-        <div class="hero-actions"><a class="button button-dark" href="#start" data-primary-download>Скачать лаунчер <svg class="icon" aria-hidden="true"><use href="#i-arrow-down" /></svg></a><a class="button button-light" data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Открыть карту <svg class="icon" aria-hidden="true"><use href="#i-arrow-out" /></svg></a></div>
-        <div class="hero-meta"><span data-build-summary>Актуальная сборка загружается автоматически</span><span>Windows · macOS · Linux</span></div>
+    <!-- Hero открывается составом реальной сборки, а не декоративным числом. -->
+    <section class="hero">
+      <div class="hero-floor" aria-hidden="true"></div>
+      <div class="container hero-inner">
+        <div class="hero-copy">
+          <p class="hero-status"><span class="status-dot" data-health-dot></span><span data-health-label>Проверяем сервер</span></p>
+          <h1 class="hero-title">
+            <span class="title-row">Один лаунчер</span>
+            <span class="title-row"><span class="block-word">Вся сборка</span></span>
+            <span class="title-row">Свой аккаунт</span>
+          </h1>
+          <p class="hero-lead"><span class="bracket">[</span> моды, конфиги и Java нужной версии: лаунчер скачает, сверит контрольные суммы и запустит сам <span class="bracket">]</span></p>
+          <div class="hero-actions">
+            <a class="button button-dark" href="#start" data-primary-download>Скачать лаунчер <svg class="icon" aria-hidden="true"><use href="#i-arrow-down" /></svg></a>
+            <a class="button button-light" data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Открыть карту <svg class="icon" aria-hidden="true"><use href="#i-arrow-out" /></svg></a>
+          </div>
+          <p class="hero-meta"><span data-build-summary>Актуальная сборка загружается автоматически</span><span>Windows · macOS · Linux</span></p>
+        </div>
+
+        <!-- Состав активной сборки: данные приходят из /admin/manifest. -->
+        <aside class="build-panel" id="build" aria-label="Состав актуальной сборки">
+          <div class="build-panel__bar">
+            <span class="build-face" role="img" aria-label="Скин игрока StarDust"></span>
+            <span class="build-panel__name" data-build-name>StarDust</span>
+            <span class="build-panel__tag" data-build-tag>сборка</span>
+          </div>
+          <dl class="build-rows" data-build-rows aria-busy="true">
+            <div class="build-row build-row--skeleton"><dt><span class="skeleton skeleton-line"></span></dt><dd><span class="skeleton skeleton-line"></span></dd></div>
+            <div class="build-row build-row--skeleton"><dt><span class="skeleton skeleton-line"></span></dt><dd><span class="skeleton skeleton-line"></span></dd></div>
+            <div class="build-row build-row--skeleton"><dt><span class="skeleton skeleton-line"></span></dt><dd><span class="skeleton skeleton-line"></span></dd></div>
+            <div class="build-row build-row--skeleton"><dt><span class="skeleton skeleton-line"></span></dt><dd><span class="skeleton skeleton-line"></span></dd></div>
+            <div class="build-row build-row--skeleton"><dt><span class="skeleton skeleton-line"></span></dt><dd><span class="skeleton skeleton-line"></span></dd></div>
+          </dl>
+          <p class="build-panel__note">Состав обновляется вместе со сборкой. Лаунчер сверяет каждый файл по SHA-1.</p>
+        </aside>
       </div>
-      <div class="hero-note"><span>01</span><p>Собственная сборка.<br />Никакой лишней настройки.</p><small>StarDust Launcher</small></div>
     </section>
 
-    <section class="status-strip"><div class="container status-grid"><div><span>Сервер</span><strong data-server-status>Проверяем</strong></div><div><span>Онлайн</span><strong data-server-players>—</strong></div><div><span>Сборка</span><strong data-build-version>—</strong></div><div><span>Адрес</span><strong>play.stardust-mc.xyz</strong></div></div></section>
+    <section class="status-strip" aria-label="Состояние сервера">
+      <div class="container status-grid">
+        <div class="status-cell"><span>Сервер</span><strong data-server-status>Проверяем</strong></div>
+        <div class="status-cell"><span>Онлайн</span><strong data-server-players>—</strong></div>
+        <div class="status-cell"><span>Сборка</span><strong data-build-version>—</strong></div>
+        <div class="status-cell status-cell--wide">
+          <span>Адрес</span>
+          <strong>play.stardust-mc.xyz</strong>
+          <button class="copy-button" type="button" data-copy-value="play.stardust-mc.xyz">
+            <svg class="icon copy-button__icon" aria-hidden="true"><use href="#i-copy" /></svg>
+            <span data-copy-label>Скопировать</span>
+          </button>
+        </div>
+      </div>
+    </section>
 
-    <section id="guides" class="section container"><div class="section-head"><div><p class="kicker">02 / База знаний</p><h2>Гайды для<br /><em>первого шага.</em></h2></div><p>Короткие инструкции от команды и игроков: от установки лаунчера до первых маршрутов в мире.</p></div><div class="guide-grid" data-guides aria-busy="true" aria-label="Гайды загружаются"><div class="guide-card guide-card--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="guide-card guide-card--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="guide-card guide-card--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><p class="muted" data-guides-status role="status">Загружаем гайды…</p></div></section>
+    <section id="guides" class="section container">
+      <div class="section-head">
+        <h2><span class="title-row">С чего</span><span class="title-row">начать</span></h2>
+        <div class="section-head__aside">
+          <p class="section-label"><span class="tick" aria-hidden="true"></span>база знаний</p>
+          <p>Короткие инструкции от команды и игроков: установка лаунчера, первый вход, маршруты по миру.</p>
+        </div>
+      </div>
+      <div class="guide-grid" data-guides aria-busy="true" aria-label="Гайды загружаются">
+        <div class="guide-card guide-card--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div>
+        <div class="guide-card guide-card--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div>
+        <div class="guide-card guide-card--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div>
+        <p class="muted grid-note" data-guides-status role="status">Загружаем гайды…</p>
+      </div>
+    </section>
 
-    <section id="community" class="section section-muted"><div class="container split"><div><p class="kicker">03 / Ритм игры</p><h2>Меньше шума.<br /><em>Больше мира.</em></h2></div><div class="principles"><article><span>01</span><h3>Свой темп</h3><p>Строй, исследуй и возвращайся к своим проектам тогда, когда удобно.</p></article><article><span>02</span><h3>Свои люди</h3><p>Приватное сообщество, где знакомятся по игре, а не по случайному чату.</p></article><article><span>03</span><h3>Один клик</h3><p>Лаунчер сам скачает сборку, проверит файлы и запустит Minecraft.</p></article></div></div></section>
+    <section id="community" class="section section-muted">
+      <div class="container split">
+        <div>
+          <p class="section-label"><span class="tick" aria-hidden="true"></span>ритм игры</p>
+          <h2><span class="title-row">Меньше шума,</span><span class="title-row">больше мира</span></h2>
+        </div>
+        <div class="principles">
+          <article><h3>Свой темп</h3><p>Строй, исследуй и возвращайся к своим проектам тогда, когда удобно.</p></article>
+          <article><h3>Свои люди</h3><p>Приватное сообщество, где знакомятся по игре, а не по случайному чату.</p></article>
+          <article><h3>Один клик</h3><p>Лаунчер сам скачает сборку, проверит файлы и запустит Minecraft.</p></article>
+        </div>
+      </div>
+    </section>
 
-    <section id="leaderboards" class="section container"><div class="section-head"><div><p class="kicker">04 / Сообщество</p><h2>Игра остаётся<br /><em>в цифрах.</em></h2></div><p>Статистика обновляется из игровых профилей. В рейтинг попадают только активные незаблокированные аккаунты.</p></div><div class="leaderboard-grid"><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Время в игре</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="playtime"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div></div><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Больше смертей</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="deaths"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div></div><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Блоков добыто</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="blocksMined"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div></div><div class="leaderboard-card"><div class="leaderboard-card__head"><strong>Дистанция</strong><span>топ-10</span></div><div class="leaderboard-list" data-leaderboard="distance"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div></div></div></section>
+    <section id="leaderboards" class="section container">
+      <div class="section-head">
+        <h2><span class="title-row">Игра</span><span class="title-row">в цифрах</span></h2>
+        <div class="section-head__aside">
+          <p class="section-label"><span class="tick" aria-hidden="true"></span>статистика</p>
+          <p>Данные обновляются из игровых профилей. В рейтинг попадают только активные незаблокированные аккаунты.</p>
+        </div>
+      </div>
+      <div class="leaderboard-grid">
+        <div class="leaderboard-card">
+          <div class="leaderboard-card__head"><strong>Время в игре</strong><span>топ-10</span></div>
+          <div class="leaderboard-list" data-leaderboard="playtime"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div>
+        </div>
+        <div class="leaderboard-card">
+          <div class="leaderboard-card__head"><strong>Больше смертей</strong><span>топ-10</span></div>
+          <div class="leaderboard-list" data-leaderboard="deaths"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div>
+        </div>
+        <div class="leaderboard-card">
+          <div class="leaderboard-card__head"><strong>Блоков добыто</strong><span>топ-10</span></div>
+          <div class="leaderboard-list" data-leaderboard="blocksMined"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div>
+        </div>
+        <div class="leaderboard-card">
+          <div class="leaderboard-card__head"><strong>Дистанция</strong><span>топ-10</span></div>
+          <div class="leaderboard-list" data-leaderboard="distance"><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div><div class="leaderboard-row leaderboard-row--skeleton" aria-hidden="true"><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span><span class="skeleton skeleton-line"></span></div></div>
+        </div>
+      </div>
+    </section>
 
-    <section id="start" class="section container start-section"><div class="section-head"><div><p class="kicker">05 / Старт</p><h2>Увидимся<br /><em>в игре.</em></h2></div><p data-release-status role="status">Ищем последний релиз лаунчера на GitHub…</p></div><div class="download-card"><div><strong>Последняя версия</strong><h3 data-download-title>Скачать StarDust Launcher</h3><p data-download-hint>Выбери установщик для своей системы. Ссылка обновляется автоматически.</p></div><div class="download-links"><a class="download-link" data-platform="windows" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">Windows <small>.exe</small></a><a class="download-link" data-platform="macos" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">macOS <small>.dmg</small></a><a class="download-link" data-platform="linux" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">Linux <small>.AppImage / .deb</small></a></div></div><div class="steps"><article><span>01</span><h3>Скачай</h3><p>Выбери файл под свою систему.</p></article><article><span>02</span><h3>Войди</h3><p>Создай аккаунт или используй свой.</p></article><article><span>03</span><h3>Играй</h3><p>Остальное лаунчер сделает сам.</p></article></div></section>
+    <section id="start" class="section container start-section">
+      <div class="section-head">
+        <h2><span class="title-row">Три шага</span><span class="title-row">до игры</span></h2>
+        <div class="section-head__aside">
+          <p class="section-label"><span class="tick" aria-hidden="true"></span>старт</p>
+          <p data-release-status role="status">Ищем последний релиз лаунчера на GitHub…</p>
+        </div>
+      </div>
+      <div class="download-card">
+        <div>
+          <p class="section-label"><span class="tick" aria-hidden="true"></span>последняя версия</p>
+          <h3 data-download-title>Скачать StarDust Launcher</h3>
+          <p data-download-hint>Выбери установщик для своей системы. Ссылка обновляется автоматически.</p>
+        </div>
+        <div class="download-links">
+          <a class="download-link" data-platform="windows" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">Windows <small>.exe</small></a>
+          <a class="download-link" data-platform="macos" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">macOS <small>.dmg</small></a>
+          <a class="download-link" data-platform="linux" href="https://github.com/Zeragorn-ru/stardust/releases/latest" target="_blank" rel="noopener">Linux <small>.AppImage / .deb</small></a>
+        </div>
+      </div>
+      <!-- Шаги — настоящая последовательность, поэтому нумерация уместна. -->
+      <div class="steps">
+        <article><span class="step-index">01</span><h3>Скачай</h3><p>Выбери файл под свою систему.</p></article>
+        <article><span class="step-index">02</span><h3>Войди</h3><p>Создай аккаунт или используй свой.</p></article>
+        <article><span class="step-index">03</span><h3>Играй</h3><p>Остальное лаунчер сделает сам.</p></article>
+      </div>
+    </section>
   </main>
 
-  <footer><div class="container footer-inner"><a class="brand" href="#top"><img src="/stardust-logo.svg" alt="" /><span>StarDust</span></a><div><a href="#guides">Гайды</a><a href="#leaderboards">Лидерборд</a><a data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Карта</a><a href="#start">Скачать</a></div><small>© 2026 StarDust</small></div></footer>
+  <footer>
+    <div class="container footer-inner">
+      <a class="brand" href="#top"><img src="/stardust-logo.svg" alt="" /><span>StarDust</span></a>
+      <div class="footer-links">
+        <a href="#guides">Гайды</a>
+        <a href="#leaderboards">Рейтинг</a>
+        <a data-map-link href="https://map.stardust-mc.xyz" target="_blank" rel="noopener">Карта</a>
+        <a href="#start">Скачать</a>
+      </div>
+      <small>© 2026 StarDust</small>
+    </div>
+  </footer>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

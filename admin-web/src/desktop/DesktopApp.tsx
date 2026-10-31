@@ -32,6 +32,7 @@ import { LogsView } from "../views/LogsView";
 import { ExternalModsView } from "../views/ExternalModsView";
 import { SeasonsView } from "../views/SeasonsView";
 import { NAV, NAV_GROUPS, navItem, subrouteTitle } from "../ui/navConfig";
+import { McText } from "../ui/McText";
 import { IconLogout, IconSmartphone } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
 
@@ -144,9 +145,11 @@ function Shell() {
           {username && (
             <div className="who" title={username}>
               <span className="who-avatar">
-                {username.charAt(0).toUpperCase()}
+                {/* Аватар-инициал: первый графем ника может быть эмодзи
+                    (charAt разорвал бы суррогатную пару). */}
+                <McText text={Array.from(username)[0]?.toUpperCase() ?? ""} />
               </span>
-              <span className="who-name">{username}</span>
+              <McText className="who-name" text={username} />
             </div>
           )}
           <a className="nav-item" href={switchViewHref("mobile")}>

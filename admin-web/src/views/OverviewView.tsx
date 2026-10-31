@@ -8,6 +8,7 @@ import { IconBox, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
 import { useAsyncData } from "../ui/useAsyncData";
 import { ErrorPanel, LoadPanel, StaleBanner } from "../ui/EmptyState";
+import { McText } from "../ui/McText";
 import { Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
 
 /** Сводные данные обзора: основная тройка запросов + необязательная телеметрия. */
@@ -143,7 +144,7 @@ export function OverviewView() {
                   <Link key={build.id} className="compact-row" to={`/builds/${build.id}`}>
                     <span className="row-icon"><IconBox size={15} /></span>
                     <span className="compact-row-main">
-                      <strong>{build.name}</strong>
+                      <strong><McText text={build.name} /></strong>
                       <small>{build.loaderKind} · MC {build.mcVersion} · v{build.version}</small>
                     </span>
                     {build.isActive && <span className="badge active">активная</span>}
@@ -263,7 +264,9 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
           {selected !== null && samples[selected] && (
             <div className="telemetry-selected">
               <strong>{formatTelemetryTime(samples[selected].recordedAt)} · {samples[selected].onlineCount} игроков</strong>
-              <span>{samples[selected].players.join(", ") || "В этот момент игроков не было"}</span>
+              {/* Список ников — пользовательский текст: эмодзи в никах
+                  рисуются пиксель-глифами McEmoji через McText. */}
+              <span><McText text={samples[selected].players.join(", ")} fallback="В этот момент игроков не было" /></span>
             </div>
           )}
         </CardContent>
@@ -307,7 +310,7 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
             {(telemetry?.events ?? []).slice(-4).reverse().map((event, index) => (
               <div className="telemetry-event" key={`${event.recordedAt}-${event.username}-${index}`}>
                 <span className={`telemetry-event-dot telemetry-event-dot--${event.event}`} />
-                <strong>{event.username}</strong>
+                <strong><McText text={event.username} /></strong>
                 <span>{event.event === "join" ? "вошёл" : "вышел"}</span>
                 <time>{formatTelemetryTime(event.recordedAt)}</time>
               </div>

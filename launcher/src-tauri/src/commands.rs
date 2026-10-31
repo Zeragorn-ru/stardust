@@ -2635,6 +2635,10 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
     crate::game_guard::write_session(&data_dir, child_id, &launched_at_str);
     *state.game.lock().unwrap() = Some(child);
 
+    // Момент запуска в настенных часах: по нему отличаем артефакты ЭТОЙ
+    // сессии (crash-report, hs_err_pid) от оставшихся с прошлых запусков.
+    let launched_wall = std::time::SystemTime::now();
+
     // Фоновая задача: ждём завершения игры и отправляем статистику на сервер.
     let http = state.http().clone();
     let data_dir2 = data_dir.clone();
@@ -2688,6 +2692,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
 
         let quick_exit = duration < EARLY_WINDOW_SECS;
         let failed_exit = exit_status.map(|s| !s.success()).unwrap_or(true);
+        let exit_code = exit_status.and_then(|s| s.code());
         let game_dir = data_dir2.join("minecraft").join("game");
         let latest_log_path = game_dir.join("logs").join("latest.log");
         let log_content = std::fs::read_to_string(&latest_log_path).unwrap_or_default();
@@ -2695,20 +2700,30 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let mod_status = mod_report_content
             .as_deref()
             .and_then(mod_crash_marker_status);
-        let recent_crash_content = latest_recent_crash_report(&game_dir)
+        // Отчёт о краше и JVM-лог берём ТОЛЬКО если они новее запуска этой
+        // сессии: иначе отчёт, оставшийся с прошлого падения, приписывался бы
+        // текущему завершению. Небольшой люфт (-5с) — на расхождение часов и
+        // то, что Minecraft пишет crash-report чуть позже старта процесса.
+        let session_start = launched_wall
+            .checked_sub(std::time::Duration::from_secs(5))
+            .unwrap_or(launched_wall);
+        let recent_crash_content = latest_session_crash_report(&game_dir, session_start)
             .and_then(|path| std::fs::read_to_string(path).ok())
             .map(|content| trim_report_text(content, 900_000));
         let looks_like_start_failure = failed_exit || minecraft_log_has_fatal_error(&log_content);
-        // Alt+F4 can produce a platform-specific non-zero exit code. The mod's
-        // shutdown event is the authoritative signal for a normal close.
-        // If the mod marker is absent (mod not loaded, force-kill, etc.), fall
-        // back to parsing the tail of latest.log for Minecraft's own shutdown
-        // message ("Stopping!").
+        // Ненулевой код сам по себе ещё не краш: Alt+F4 и закрытие окна дают
+        // платформенный ненулевой код. Авторитетный сигнал нормального
+        // выхода — маркер мода (status=normal) либо «Stopping!» в логе. Но
+        // если код — фатальный сигнал/нативное падение, это краш даже когда
+        // лог успел напечатать «Stopping!» (падение во время шатдауна).
         let marker_says_normal = mod_status.as_deref() == Some("normal");
         let log_says_normal = minecraft_log_shows_normal_shutdown(&log_content);
-        let is_normal_shutdown = marker_says_normal || log_says_normal;
+        let fatal_signal = exit_code.map(is_fatal_exit_code).unwrap_or(false);
+        let is_normal_shutdown =
+            (marker_says_normal || log_says_normal) && !fatal_signal;
         let is_crash = !is_normal_shutdown
-            && (failed_exit
+            && (fatal_signal
+                || failed_exit
                 || recent_crash_content.is_some()
                 || mod_status.as_deref() == Some("crash"));
 
@@ -2730,13 +2745,12 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                 let launcher_content =
                     read_optional_report_text(&resolve_launcher_log_latest(&launcher_log_dir()));
 
-                let exit_code = exit_status.and_then(|s| s.code());
                 // Контекст для AI-разбора: стек клиента, список модов и
                 // JVM-лог нативного краша. Сбор дешёвый и не падает сам:
                 // любая ошибка здесь не должна мешать отправить репорт.
                 let environment = collect_crash_environment(&app_handle);
                 let mods = collect_mod_names(&game_dir);
-                let jvm_log = collect_jvm_log(&game_dir);
+                let jvm_log = collect_jvm_log(&game_dir, session_start);
                 let crash_req = backend::ReportCrashRequest {
                     exit_code,
                     log: log_content,
@@ -2850,11 +2864,9 @@ fn collect_mod_names(game_dir: &std::path::Path) -> Option<Vec<String>> {
 
 /// Свежий JVM-лог нативного краша (hs_err_pid*.log в каталоге игры или
 /// рядом): без него нативные падения рендерера не диагностируются. Берём
-/// самый новый и только если он создан в пределах часа — иначе это старый
-/// краш, не связанный с текущим запуском.
-fn collect_jvm_log(game_dir: &std::path::Path) -> Option<String> {
-    let cutoff = std::time::SystemTime::now()
-        .checked_sub(std::time::Duration::from_secs(3600))?;
+/// самый новый, созданный ПОСЛЕ запуска сессии — иначе hs_err от прошлого
+/// краша приписывался бы текущему.
+fn collect_jvm_log(game_dir: &std::path::Path, session_start: std::time::SystemTime) -> Option<String> {
     let newest = [game_dir.to_path_buf(), game_dir.join("logs")]
         .into_iter()
         .filter_map(|dir| std::fs::read_dir(dir).ok())
@@ -2870,7 +2882,7 @@ fn collect_jvm_log(game_dir: &std::path::Path) -> Option<String> {
             entry
                 .metadata()
                 .and_then(|m| m.modified())
-                .map(|t| t >= cutoff)
+                .map(|t| t >= session_start)
                 .unwrap_or(false)
         })
         .max_by_key(|entry| entry.metadata().and_then(|m| m.modified()).ok())?;
@@ -3019,34 +3031,54 @@ fn minecraft_log_has_fatal_error(log_content: &str) -> bool {
     })
 }
 
-fn latest_recent_crash_report(game_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+/// Crash-отчёт, созданный ПОСЛЕ запуска текущей сессии (session_start уже
+/// включает небольшой люфт на расхождение часов). Предыдущая эвристика «mtime
+/// не старше 60 секунд» промахивалась дважды: длинная сессия, упавшая через
+/// час, теряла отчёт (краш не детектился по файлу), а свежий отчёт ПРОШЛОГО
+/// краша мог приписаться текущему нормальному выходу.
+fn latest_session_crash_report(
+    game_dir: &std::path::Path,
+    session_start: std::time::SystemTime,
+) -> Option<std::path::PathBuf> {
     let crash_reports_dir = game_dir.join("crash-reports");
-    let mut latest_file = None;
-    let mut latest_time = std::time::SystemTime::UNIX_EPOCH;
-    for entry in std::fs::read_dir(crash_reports_dir).ok()?.flatten() {
-        let Ok(metadata) = entry.metadata() else {
-            continue;
-        };
-        if !metadata.is_file() {
-            continue;
-        }
-        let Ok(modified) = metadata.modified() else {
-            continue;
-        };
-        if modified > latest_time {
-            latest_time = modified;
-            latest_file = Some(entry.path());
-        }
-    }
-    latest_file.as_ref()?;
-    let age = std::time::SystemTime::now()
-        .duration_since(latest_time)
-        .ok()?;
-    if age.as_secs() <= 60 {
-        latest_file
-    } else {
-        None
-    }
+    std::fs::read_dir(crash_reports_dir)
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.metadata().map(|m| m.is_file()).unwrap_or(false))
+        .filter(|entry| {
+            entry
+                .metadata()
+                .and_then(|m| m.modified())
+                .map(|modified| modified >= session_start)
+                .unwrap_or(false)
+        })
+        .max_by_key(|entry| entry.metadata().and_then(|m| m.modified()).ok())
+        .map(|entry| entry.path())
+}
+
+/// Фатальные коды выхода — нативное падение процесса. Такой код делает
+/// завершение крашем ДАЖЕ если лог успел напечатать «Stopping!» (падение во
+/// время шатдауна — тоже краш, его нельзя списывать на нормальный выход).
+///
+/// Только хорошо известные коды, чтобы не ловить ложные срабатывания:
+/// Windows STATUS_* (в Rust приходят как i32): 0xC0000005 ACCESS_VIOLATION,
+/// 0xC0000409 STACK_BUFFER_OVERRUN, 0xC0000374 HEAP_CORRUPTION,
+/// 0x40000015 STATUS_FATAL_APP_EXIT (java.lang.Error), 0xE0434352 (.NET).
+/// Unix-смерть от сигнала code() не отдаёт (None), поэтому отрицательные
+/// сигнальные коды здесь не нужны — их покрывает failed_exit.
+fn is_fatal_exit_code(code: i32) -> bool {
+    // Windows STATUS_* приходят из code() как i32 (исходный u32 приведён).
+    // Значения вычисляются компилятором из шестнадцатеричных литералов, чтобы
+    // не ошибиться в приведении знакового диапазона вручную.
+    const ACCESS_VIOLATION: i32 = 0xC0000005_u32 as i32;
+    const STACK_BUFFER_OVERRUN: i32 = 0xC0000409_u32 as i32;
+    const HEAP_CORRUPTION: i32 = 0xC0000374_u32 as i32;
+    const FATAL_APP_EXIT: i32 = 0x40000015_u32 as i32; // java.lang.Error
+    const CLR_EXCEPTION: i32 = 0xE0434352_u32 as i32; // .NET
+    matches!(
+        code,
+        ACCESS_VIOLATION | STACK_BUFFER_OVERRUN | HEAP_CORRUPTION | FATAL_APP_EXIT | CLR_EXCEPTION
+    )
 }
 
 fn read_optional_report_text(path: &std::path::Path) -> Option<String> {
@@ -3603,4 +3635,91 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             set_active_customization,
             get_player_skin,
         ])
+}
+
+#[cfg(test)]
+mod crash_detection_tests {
+    use super::*;
+
+    /// Уникальный временный каталог для файловых тестов (tempfile в
+    /// зависимостях нет). Тест обязан вызвать cleanup.
+    fn temp_game_dir(tag: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("stardust-test-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn fatal_exit_codes_are_recognized() {
+        // Нативные падения Windows (те же литералы, что в реализации).
+        assert!(is_fatal_exit_code(0xC0000005_u32 as i32)); // ACCESS_VIOLATION
+        assert!(is_fatal_exit_code(0xC0000409_u32 as i32)); // STACK_BUFFER_OVERRUN
+        assert!(is_fatal_exit_code(0xC0000374_u32 as i32)); // HEAP_CORRUPTION
+        assert!(is_fatal_exit_code(0x40000015_u32 as i32)); // FATAL_APP_EXIT
+        assert!(is_fatal_exit_code(0xE0434352_u32 as i32)); // CLR
+        // Обычные коды — не фатальные: их покрывает failed_exit.
+        assert!(!is_fatal_exit_code(0));
+        assert!(!is_fatal_exit_code(1));
+        assert!(!is_fatal_exit_code(-1));
+        assert!(!is_fatal_exit_code(255));
+        // Коды, похожие по духу, но не из списка: не угадываем.
+        assert!(!is_fatal_exit_code(-100));
+        assert!(!is_fatal_exit_code(0x40000016_u32 as i32));
+    }
+
+    #[test]
+    fn crash_report_from_previous_session_is_ignored() {
+        let game_dir = temp_game_dir("prev-session");
+        let reports = game_dir.join("crash-reports");
+        std::fs::create_dir_all(&reports).unwrap();
+        std::fs::write(reports.join("crash-2026-10-30_20.00.00-client.txt"), "old crash").unwrap();
+
+        // session_start «в будущем» относительно mtime файла — отчёт прошлой
+        // сессии не должен попадать в репорт текущей.
+        let future = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        assert!(latest_session_crash_report(&game_dir, future).is_none());
+
+        let _ = std::fs::remove_dir_all(&game_dir);
+    }
+
+    #[test]
+    fn crash_report_of_current_session_is_picked() {
+        let game_dir = temp_game_dir("cur-session");
+        let reports = game_dir.join("crash-reports");
+        std::fs::create_dir_all(&reports).unwrap();
+
+        // Сессия «началась» до создания отчёта.
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        std::fs::write(reports.join("crash-2026-10-31_01.00.00-client.txt"), "fresh crash").unwrap();
+        let picked = latest_session_crash_report(&game_dir, past).unwrap();
+        assert_eq!(picked.file_name().unwrap(), "crash-2026-10-31_01.00.00-client.txt");
+
+        let _ = std::fs::remove_dir_all(&game_dir);
+    }
+
+    #[test]
+    fn newest_session_crash_report_wins() {
+        let game_dir = temp_game_dir("newest");
+        let reports = game_dir.join("crash-reports");
+        std::fs::create_dir_all(&reports).unwrap();
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        std::fs::write(reports.join("crash-a.txt"), "a").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(reports.join("crash-b.txt"), "b").unwrap();
+        let picked = latest_session_crash_report(&game_dir, past).unwrap();
+        assert_eq!(picked.file_name().unwrap(), "crash-b.txt");
+        let _ = std::fs::remove_dir_all(&game_dir);
+    }
+
+    #[test]
+    fn normal_shutdown_log_is_recognized() {
+        let log = "[20:00:00] [Server thread/INFO]: Stopping server\n[20:00:01] [Server thread/INFO]: Saving worlds\n[20:00:02] [Server thread/INFO]: Stopping!\n";
+        assert!(minecraft_log_shows_normal_shutdown(log));
+        let crash_log = "[20:00:00] [Render thread/FATAL]: Reported exception thrown!\n";
+        assert!(!minecraft_log_shows_normal_shutdown(crash_log));
+    }
 }

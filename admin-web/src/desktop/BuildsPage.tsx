@@ -8,6 +8,7 @@ import { useConfirm, useToast } from "../ui/feedback";
 import { useContextMenu } from "../ui/ContextMenu";
 import { activateBuildFromList } from "../ui/buildActions";
 import { IconBox, IconPlus, IconStar } from "../ui/icons";
+import { McText } from "../ui/McText";
 import { BuildDetail } from "../BuildDetail";
 import { CreateBuildForm } from "../CreateBuildForm";
 import type { BuildHeader } from "../types";
@@ -197,7 +198,7 @@ function BuildCard({
       <div className="build-card-orb"><IconBox size={18} /></div>
       <div className="build-card-main">
         <div className="build-card-title">
-          <strong>{build.name}</strong>
+          <strong><McText text={build.name} /></strong>
           {/* Бейдж активной сборки — она отдаётся лаунчеру клиентам. */}
           {build.isActive && (
             <span className="badge active" title="сборка отдаётся лаунчеру">

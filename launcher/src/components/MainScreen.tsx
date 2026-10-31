@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen, type CrashAiVerdict } from "../api";
+import { accountInfo, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen, crashHistory, type CrashAiVerdict } from "../api";
 import { formatBytes } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
 import { useSkin } from "../skin";
@@ -9,6 +9,7 @@ import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
 import CrashHistoryModal from "./CrashHistoryModal";
 import MinecraftNickname from "./MinecraftNickname";
+import McText from "./McText";
 
 const SERVER_HOST = "play.stardust-mc.xyz";
 const SERVER_STATUS_INTERVAL = 60_000;
@@ -72,8 +73,21 @@ export default function MainScreen({
   const [news, setNews] = useState<import("../types").NewsHighlight | null>(null);
   const [newsUnread, setNewsUnread] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Число записей в истории крашей и последняя запись: лёгкий запрос, чтобы
+  // показать на главном экране, были ли падения (null — ещё грузим/нет связи).
+  const [crashCount, setCrashCount] = useState<number | null>(null);
+  const [lastCrashAt, setLastCrashAt] = useState<string | null>(null);
 
   const playLockRef = useRef(false);
+
+  const refreshCrashHistory = useCallback(() => {
+    crashHistory()
+      .then((entries) => {
+        setCrashCount(entries.length);
+        setLastCrashAt(entries[0]?.recordedAt ?? null);
+      })
+      .catch(() => undefined);
+  }, []);
 
   // Загружаем статистику и настройки при монтировании.
   useEffect(() => {
@@ -85,7 +99,8 @@ export default function MainScreen({
       const seen = profile.newsSeenAt || localStorage.getItem("launcher.news.seen");
       setNewsUnread(Boolean(highlight.latestUpdatedAt && seen !== highlight.latestUpdatedAt));
     }).catch(() => undefined);
-  }, []);
+    refreshCrashHistory();
+  }, [refreshCrashHistory]);
 
   useEffect(() => {
     if (news?.latestUpdatedAt) {
@@ -116,8 +131,10 @@ export default function MainScreen({
     if (!running) {
       playLockRef.current = false;
       getStats().then(setStats).catch(() => undefined);
+      // Если игра только что упала, история могла пополниться — обновляем счётчик.
+      refreshCrashHistory();
     }
-  }, [running]);
+  }, [running, refreshCrashHistory]);
 
   // Слушаем фокус окна Tauri — скрываем модель при сворачивании.
   useEffect(() => {
@@ -300,8 +317,8 @@ export default function MainScreen({
           >
             {news?.featured ? (
               <span className="hero__news-banner-copy">
-                <strong>{news.featured.title}</strong>
-                <span>{news.featured.excerpt || "Открыть ленту новостей"}</span>
+                <strong><McText text={news.featured.title} /></strong>
+                <span><McText text={news.featured.excerpt || "Открыть ленту новостей"} /></span>
               </span>
             ) : (
               <span className="hero__news-banner-copy"><span className="hero__news-banner-label">Новости сервера</span><strong>Все новости сервера</strong><span>События, обновления и объявления</span></span>
@@ -383,6 +400,41 @@ export default function MainScreen({
                     <span className="hero__stat-label">статус</span>
                   </div>
                 )}
+              </div>
+              <div className="hero__stats hero__stats--crashes">
+                <div className="hero__stats-title">Краши</div>
+                <button
+                  type="button"
+                  className="crash-entry"
+                  onClick={() => setHistoryOpen(true)}
+                  aria-haspopup="dialog"
+                >
+                  {crashCount == null ? (
+                    <span className="hero__stat">
+                      <span className="hero__stat-value skeleton-text" />
+                      <span className="hero__stat-label skeleton-text" />
+                    </span>
+                  ) : crashCount > 0 ? (
+                    <>
+                      <span className="hero__stat">
+                        <span className="hero__stat-value hero__stat-value--crash">{crashCount}</span>
+                        <span className="hero__stat-label">записей</span>
+                      </span>
+                      {lastCrashAt && (
+                        <span className="hero__stat">
+                          <span className="hero__stat-value crash-entry__date">{formatLastJoin(lastCrashAt)}</span>
+                          <span className="hero__stat-label">последний</span>
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="hero__stat">
+                      <span className="hero__stat-value hero__stat-value--online">Чисто</span>
+                      <span className="hero__stat-label">аварий не было</span>
+                    </span>
+                  )}
+                  <span className="crash-entry__hint">Открыть историю →</span>
+                </button>
               </div>
             </div>
           <button
@@ -736,7 +788,7 @@ function CrashVerdictToast({
       >
         <div className="crash-verdict__head">
           <strong>
-            🤖 {failed ? "AI не смог разобрать краш" : "AI-разбор краша готов"}
+            <McText text={`🤖 ${failed ? "AI не смог разобрать краш" : "AI-разбор краша готов"}`} />
           </strong>
           {!failed && (
             <span className={`crash-verdict__sev crash-verdict__sev--${severity}`}>
@@ -752,15 +804,15 @@ function CrashVerdictToast({
             ×
           </button>
         </div>
-        {verdict.summary && <p className="crash-verdict__summary">{verdict.summary}</p>}
+        {verdict.summary && <p className="crash-verdict__summary"><McText text={verdict.summary} /></p>}
         {verdict.cause && (
           <p className="crash-verdict__line">
-            <span>Причина:</span> {verdict.cause}
+            <span>Причина:</span> <McText text={verdict.cause} />
           </p>
         )}
         {verdict.suggestion && (
           <p className="crash-verdict__line">
-            <span>Что сделать:</span> {verdict.suggestion}
+            <span>Что сделать:</span> <McText text={verdict.suggestion} />
           </p>
         )}
         <div className="crash-verdict__actions">

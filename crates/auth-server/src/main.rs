@@ -1532,7 +1532,7 @@ async fn report_crash(
         .record_server_log(
             "client_crash",
             Some(&account.username),
-            "Клиент Minecraft завершился аварийно",
+            &crash_db_summary(req.exit_code, req.mod_report.as_deref(), req.crash_report.as_deref(), Some(&req.log)),
             serde_json::json!({
                 "exitCode": req.exit_code,
                 "crashReport": req.crash_report,
@@ -1872,6 +1872,81 @@ fn append_report_summary(summary: &mut String, name: &str, report: Option<&str>)
         summary.truncate(boundary);
         summary.push_str("\n[сводка обрезана]");
     }
+}
+
+/// Короткая однострочная сводка краша для `server_logs.summary` — то, что
+/// видит игрок в «Истории крашей» и админ в списке логов. В отличие от
+/// Telegram-уведомления (`append_report_summary`, до 3900 символов, много
+/// строк) здесь нужна ОДНА содержательная строка: код выхода + первая
+/// сигнальная строка из crash-отчёта / отчёта мода / latest.log.
+///
+/// Раньше в базу писалась фиксированная строка «Клиент Minecraft завершился
+/// аварийно», из-за чего все записи истории были неразличимы.
+fn crash_db_summary(
+    exit_code: Option<i32>,
+    mod_report: Option<&str>,
+    crash_report: Option<&str>,
+    latest_log: Option<&str>,
+) -> String {
+    // Порядок источников: crash-отчёт Minecraft самый точный, затем отчёт
+    // нашего мода, затем latest.log. Берём первую найденную сигнальную строку.
+    let signal = [crash_report, mod_report, latest_log]
+        .into_iter()
+        .flatten()
+        .find_map(first_signal_line);
+
+    let code = match exit_code {
+        Some(code) => format!("код {code}"),
+        None => "код неизвестен".to_string(),
+    };
+    let mut line = match signal {
+        Some(text) => format!("Клиент Minecraft завершился аварийно ({code}): {text}"),
+        None => format!("Клиент Minecraft завершился аварийно ({code})"),
+    };
+    // Одна строка, без переносов (в UI рендерится nowrap+ellipsis, но в базе
+    // и Telegram-превью не должна расползаться). Ограничиваем длину.
+    line = line
+        .chars()
+        .filter(|ch| !ch.is_control())
+        .take(300)
+        .collect::<String>()
+        .trim()
+        .to_string();
+    line
+}
+
+/// Первая строка, которая действительно объясняет падение: «Description:»
+/// из crash-отчёта, либо строка с исключением/фатальной ошибкой. Пустые и
+/// чисто декоративные строки (заголовок отчёта, «// There are four lights!»)
+/// пропускаем. Возвращает строку без ведущих пробелов, обрезанную до 200 симв.
+fn first_signal_line(report: &str) -> Option<String> {
+    // Сначала — явный «Description:» (crash-отчёт Minecraft).
+    for line in report.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("Description:") {
+            let rest = rest.trim();
+            if !rest.is_empty() {
+                return Some(rest.chars().take(200).collect());
+            }
+        }
+    }
+    // Затем — первая строка с исключением / фатальной ошибкой / «Caused by».
+    for line in report.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let lower = trimmed.to_ascii_lowercase();
+        let is_signal = lower.contains("exception")
+            || lower.contains("error")
+            || lower.contains("caused by")
+            || lower.contains("fatal")
+            || lower.contains("crash");
+        if is_signal {
+            return Some(trimmed.chars().take(200).collect());
+        }
+    }
+    None
 }
 
 // ─────────────────── Кастомизация ника ───────────────────
@@ -2318,5 +2393,63 @@ fn parse_minecraft_stats(json: &serde_json::Value) -> MinecraftStats {
             .unwrap_or(0),
         blocks_mined: sum_stat_group(json.pointer("/stats/minecraft:mined")),
         distance_cm,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn db_summary_prefers_crash_report_description() {
+        let crash = "---- Minecraft Crash Report ----\n// There are four lights!\n\nTime: 2026-10-30\nDescription: Ticking entity\n\njava.lang.NullPointerException: Ticking entity\n\tat net.minecraft.world.level.Level.tick(Level.java:123)\n";
+        let summary = crash_db_summary(Some(-1), None, Some(crash), Some("[INFO] Stopping!"));
+        assert_eq!(
+            summary,
+            "Клиент Minecraft завершился аварийно (код -1): Ticking entity"
+        );
+    }
+
+    #[test]
+    fn db_summary_falls_back_to_exception_line() {
+        let latest = "[20:00:01] [main/INFO]: Building unoptimized datafixer\n[20:00:09] [Render thread/FATAL]: Reported exception thrown!\nnet.minecraft.ReportedException: Rendering screen\n";
+        let summary = crash_db_summary(None, None, None, Some(latest));
+        assert_eq!(
+            summary,
+            "Клиент Minecraft завершился аварийно (код неизвестен): [20:00:09] [Render thread/FATAL]: Reported exception thrown!"
+        );
+    }
+
+    #[test]
+    fn db_summary_without_signals_keeps_base_line() {
+        let summary = crash_db_summary(Some(0), None, None, Some("пустой лог без сигналов"));
+        assert_eq!(
+            summary,
+            "Клиент Minecraft завершился аварийно (код 0)"
+        );
+        // Совсем ничего не прислали — та же базовая строка.
+        let summary = crash_db_summary(None, None, None, None);
+        assert_eq!(
+            summary,
+            "Клиент Minecraft завершился аварийно (код неизвестен)"
+        );
+    }
+
+    #[test]
+    fn db_summary_strips_control_chars_and_caps_length() {
+        let crash = "Description: очень длинная строка\tс управляющими символами \u{0} и текстом, который превышает двести символов ".to_string() + &"а".repeat(250);
+        let summary = crash_db_summary(Some(1), None, Some(&crash), None);
+        assert!(!summary.contains('\t') && !summary.contains('\u{0}'));
+        assert!(summary.chars().count() <= 300);
+        assert!(summary.starts_with("Клиент Minecraft завершился аварийно (код 1): очень длинная строка"));
+    }
+
+    #[test]
+    fn signal_line_skips_empty_description() {
+        let report = "Description:   \njava.lang.IllegalStateException: bad state\n";
+        assert_eq!(
+            first_signal_line(report).as_deref(),
+            Some("java.lang.IllegalStateException: bad state")
+        );
     }
 }

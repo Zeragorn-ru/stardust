@@ -11,6 +11,7 @@ import type { BuildDetail as BuildDetailData, BuildHeader } from "./types";
 import { FileManager } from "./FileManager";
 import { formatSize } from "./format";
 import { EmptyPanel, ErrorPanel, LoadPanel } from "./ui/EmptyState";
+import { McText } from "./ui/McText";
 import {
   ActiveBuildBadge,
   EditBuildModal,
@@ -128,7 +129,8 @@ export function BuildDetail({
       <div className="panel detail-head-compact">
         <div className="detail-header-top">
           <div className="detail-title">
-            <h2>{detail.name}</h2>
+            {/* Имя сборки — контент админа: эмодзи рисуем глифами McEmoji. */}
+            <h2><McText text={detail.name} /></h2>
             <span className="detail-version muted">v{detail.version}</span>
             {/* Активация — полноценная primary-кнопка в тулбаре; бейдж — состояние. */}
             {detail.isActive && <ActiveBuildBadge />}

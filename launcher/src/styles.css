@@ -1689,7 +1689,13 @@ button,
 .hero__info-row {
     display: flex;
     gap: 12px;
+    flex-wrap: wrap;
 }
+
+/* Минимум на блок: три колонки помещаются в окно 1000px (минимальная
+   ширина), а если места меньше — блоки честно переносятся, а не сжимаются
+   в нечитаемую полосу. */
+.hero__info-row > .hero__stats { min-width: 165px; }
 
 .hero__stats {
     position: relative;
@@ -1876,6 +1882,42 @@ button,
 .hero__stat-value--offline { opacity: 0.4; }
 .hero__stat-value--muted  { opacity: 0.4; }
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
+
+/* Блок «Краши»: вход в историю крашей прямо с главного экрана — раньше он
+   жил только в настройках, и игрок после падения не находил разбор. */
+.hero__stats--crashes { flex: 0 0 auto; min-width: 190px; }
+.crash-entry {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.crash-entry__date { font-size: 15px; font-variant-numeric: tabular-nums; }
+.hero__stat-value--crash { color: #ff9f43; }
+.crash-entry__hint {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--muted);
+    padding: 5px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+.crash-entry:hover .crash-entry__hint {
+    border-color: rgba(255, 159, 67, 0.4);
+    background: rgba(255, 159, 67, 0.12);
+    color: var(--text);
+}
+.crash-entry:active .crash-entry__hint { transform: scale(0.98); }
 
 .players-modal {
     width: min(620px, calc(100vw - 36px));
@@ -2116,9 +2158,21 @@ button,
     display: flex;
     flex-direction: column;
 }
+.crash-history__count {
+    margin: 2px 0 0;
+    font-size: 12px;
+}
 .crash-history__state {
     padding: 8px 4px;
 }
+.crash-history__empty {
+    display: grid;
+    gap: 6px;
+    padding: 18px 4px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.crash-history__empty strong { font-size: 15px; color: var(--text); }
 .crash-history__list {
     list-style: none;
     margin: 0;
@@ -2137,31 +2191,39 @@ button,
 .crash-history__item--done { border-left-color: var(--play); }
 .crash-history__item--failed { border-left-color: var(--danger); }
 .crash-history__row {
-    display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    align-items: center;
-    gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
     width: 100%;
-    padding: 10px 12px;
+    padding: 11px 13px;
     border: none;
     background: none;
     color: var(--text);
     text-align: left;
     cursor: pointer;
+    font: inherit;
 }
 .crash-history__row:hover { background: rgba(255, 255, 255, 0.04); }
+.crash-history__head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 .crash-history__date {
     color: var(--muted);
     font-size: 12px;
     white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 .crash-history__summary {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    overflow-wrap: anywhere;
 }
-.crash-history__sev {
+.crash-history__sev,
+.crash-history__status {
+    margin-left: auto;
     padding: 2px 8px;
     border-radius: 999px;
     font-size: 11px;
@@ -2170,6 +2232,7 @@ button,
     color: #0b0d16;
     background: var(--muted);
 }
+.crash-history__status { background: rgba(154, 160, 181, 0.2); color: var(--muted); }
 .crash-history__sev--critical { background: var(--danger); color: #fff; }
 .crash-history__sev--high { background: #ff9f43; }
 .crash-history__sev--medium { background: #4f8cff; color: #fff; }
@@ -2178,11 +2241,12 @@ button,
 .crash-history__chevron {
     color: var(--muted);
     font-size: 12px;
+    flex-shrink: 0;
 }
 .crash-history__details {
     display: grid;
     gap: 6px;
-    padding: 0 12px 12px;
+    padding: 0 13px 12px;
     border-top: 1px solid var(--glass-border);
     margin-top: 2px;
     padding-top: 10px;
@@ -2194,6 +2258,7 @@ button,
 .crash-history__details p { margin: 0; }
 .crash-history__details p:first-child { color: var(--text); font-weight: 500; }
 .crash-history__details span { color: var(--text-dim); }
+.crash-history__raw { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 
 /* Ошибка запуска не вытесняет основное действие и не показывает технический текст. */
 .play-error {

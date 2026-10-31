@@ -4,6 +4,7 @@ import type { Account, PlayerStats } from "../types";
 import { useToast } from "../ui/feedback";
 import { IconCopy, IconSearch, IconSync } from "../ui/icons";
 import { PlayerCardModal } from "../ui/PlayerCardModal";
+import { McText } from "../ui/McText";
 import { EmptyPanel, ErrorPanel, LoadPanel } from "../ui/EmptyState";
 import { formatDateTime, formatPlaytime } from "../format";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
@@ -473,9 +474,10 @@ export function AccountsView() {
                     <TableCell>
                       <div className="cell-main">
                         <span className="account-initial" aria-hidden="true">
-                          {a.username.slice(0, 1).toUpperCase()}
+                          {/* Первый графем ника: может быть эмодзи — тогда рисуем глиф. */}
+                          <McText text={Array.from(a.username)[0]?.toUpperCase() ?? ""} />
                         </span>
-                        <strong>{a.username}</strong>
+                        <strong><McText text={a.username} /></strong>
                         {isSelf && <Badge variant="outline">вы</Badge>}
                         {a.isAdmin && <Badge variant="success">admin</Badge>}
                         {a.telegramLinked && <Badge variant="secondary">tg</Badge>}

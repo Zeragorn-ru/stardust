@@ -19,6 +19,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { McText } from "./McText";
 
 export interface ContextMenuItem {
   /** Текст пункта. */
@@ -123,7 +124,9 @@ export function ContextMenuProvider({ children }: { children: ReactNode }) {
           onClick={(e) => e.stopPropagation()}
           onContextMenu={(e) => e.preventDefault()}
         >
-          {menu.title && <div className="context-menu__title">{menu.title}</div>}
+          {/* Заголовок — имя файла/сборки: эмодзи в имени рисуем глифами McEmoji,
+              для строк без эмодзи McText отдаёт обычный текст. */}
+          {menu.title && <div className="context-menu__title"><McText text={menu.title} /></div>}
           {menu.items.map((item, i) =>
             item === "-" ? (
               <div key={`sep-${i}`} className="context-menu__sep" role="separator" />

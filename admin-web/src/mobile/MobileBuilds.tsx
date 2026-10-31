@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "../api";
 import type { BuildHeader } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
+import { McText } from "../ui/McText";
 import { CreateBuildForm } from "../CreateBuildForm";
 import {
   IconChevronRight,
@@ -114,7 +115,7 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
             >
               <div className="m-card-body">
                 <div className="m-card-title">
-                  <strong>{b.name}</strong>
+                  <strong><McText text={b.name} /></strong>
                   {b.isActive && (
                     <span className="badge active">
                       <IconStar size={12} /> активная

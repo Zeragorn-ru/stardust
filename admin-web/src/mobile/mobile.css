@@ -9,7 +9,7 @@
     background:
         radial-gradient(circle at 20% 0%, rgba(115, 215, 255, 0.12), transparent 18rem),
         radial-gradient(circle at 92% 6%, rgba(157, 124, 255, 0.1), transparent 18rem),
-        #030406;
+        var(--bg);
     overflow-x: hidden;
 }
 
@@ -29,18 +29,18 @@
 
 .m-content {
     flex: 1;
-    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
 }
 
 .m-telemetry-summary {
-    padding: 14px 12px;
+    padding: var(--space-4) var(--space-3);
 }
 
 .m-telemetry-performance {
     display: grid;
     grid-template-columns: 1fr 1px 1fr;
-    gap: 12px;
-    padding: 12px;
+    gap: var(--space-3);
+    padding: var(--space-3);
 }
 
 .m-telemetry-performance-block {
@@ -58,48 +58,48 @@
 .m-telemetry-performance-labels {
     display: flex;
     justify-content: space-around;
-    gap: 6px;
+    gap: var(--space-2);
 }
 
 .m-telemetry-performance-values {
-    margin-top: 5px;
+    margin-top: var(--space-1);
     color: var(--ok);
 }
 
 .m-telemetry-performance-values--blue {
-    color: #38bdf8;
+    color: var(--info);
 }
 
 .m-telemetry-performance-values strong {
-    font-size: 20px;
+    font-size: var(--fs-xl);
 }
 
 .m-telemetry-performance-labels {
     color: var(--faint);
-    font-size: 10px;
+    font-size: var(--fs-micro);
 }
 
 .m-telemetry-summary-head {
     display: grid;
     grid-template-columns: minmax(0, .9fr) 1px minmax(0, 1.4fr);
-    gap: 14px;
+    gap: var(--space-4);
     align-items: stretch;
 }
 
 .m-telemetry-online {
     display: flex;
     justify-content: space-around;
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .m-telemetry-players {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-content: start;
-    gap: 5px 12px;
+    gap: var(--space-1) var(--space-3);
     max-height: 92px;
     overflow-y: auto;
-    padding-right: 4px;
+    padding-right: var(--space-1);
     scrollbar-width: thin;
 }
 
@@ -121,21 +121,21 @@
 .m-telemetry-label {
     display: block;
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--fs-micro);
     letter-spacing: .08em;
     text-transform: uppercase;
 }
 
 .m-telemetry-online-metric strong {
     display: block;
-    margin-top: 5px;
+    margin-top: var(--space-1);
     color: var(--accent);
-    font-size: 27px;
+    font-size: var(--fs-metric);
     line-height: 1;
 }
 
 .m-telemetry-online-metric small {
-    margin-top: 5px;
+    margin-top: var(--space-1);
     color: var(--faint);
     letter-spacing: 0;
     text-transform: none;
@@ -148,14 +148,14 @@
 
 .m-telemetry-events {
     display: grid;
-    gap: 6px;
+    gap: var(--space-2);
     min-width: 0;
 }
 
 .m-telemetry-event {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--space-2);
     min-width: 0;
     color: var(--muted);
     font-size: var(--fs-xs);
@@ -175,7 +175,7 @@
 }
 
 .m-telemetry-chart {
-    margin-top: 10px;
+    margin-top: var(--space-3);
 }
 
 .m-telemetry-chart-wrap {
@@ -186,7 +186,7 @@
    (план 3.1): десктопные min-width/высоту перекрываем под узкий экран,
    инлайн-стили удалены из MobileOverview. */
 .m-telemetry-chart-wrap .telemetry-chart-wrap {
-    padding: 0 8px 6px;
+    padding: 0 var(--space-2) var(--space-2);
 }
 
 .m-telemetry-chart-wrap .telemetry-chart {
@@ -196,7 +196,7 @@
 }
 
 .m-telemetry-chart-wrap .telemetry-axis {
-    font-size: 10px;
+    font-size: var(--fs-micro);
 }
 
 /* Пустые состояния (LoadPanel/ErrorPanel) и StaleBanner в мобильном
@@ -204,18 +204,18 @@
    m-section-card (общие стили живут в styles.css). */
 .m-screen.m-overview .empty-state-panel,
 .m-screen.m-overview .logs-stale {
-    border-radius: 18px;
+    border-radius: var(--radius-lg);
 }
 
 .m-screen.m-overview .empty-state-panel button,
 .m-screen.m-overview .logs-stale button {
-    min-height: 44px;
+    min-height: var(--touch-h);
 }
 
 @media (max-width: 520px) {
     .m-telemetry-summary-head {
         grid-template-columns: 1fr;
-        gap: 12px;
+        gap: var(--space-3);
     }
 
     .m-telemetry-divider {
@@ -233,30 +233,30 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 14px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    gap: var(--space-3);
+    padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space-4) var(--space-3);
+    border-bottom: 1px solid var(--hairline);
     background: rgba(3, 4, 6, 0.78);
     backdrop-filter: blur(18px);
 }
 
 .m-menu-button {
-    width: 44px;
-    height: 44px;
+    width: var(--touch-h);
+    height: var(--touch-h);
     flex: none;
     display: grid;
     place-content: center;
-    gap: 4px;
+    gap: var(--space-1);
     padding: 0;
-    border-radius: 15px;
-    border-color: rgba(255, 255, 255, 0.09);
-    background: rgba(255, 255, 255, 0.045);
+    border-radius: var(--radius);
+    border-color: var(--hairline);
+    background: var(--surface-raised);
 }
 
 .m-menu-button span {
     width: 17px;
     height: 2px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--text);
 }
 
@@ -275,7 +275,7 @@
 
 .m-shell-title span {
     color: var(--accent);
-    font-size: 10px;
+    font-size: var(--fs-micro);
     font-weight: 850;
     letter-spacing: 0.16em;
     line-height: 1;
@@ -283,8 +283,8 @@
 }
 
 .m-shell-title strong {
-    margin-top: 4px;
-    font-size: 17px;
+    margin-top: var(--space-1);
+    font-size: var(--fs-xl);
     letter-spacing: -0.02em;
 }
 
@@ -292,7 +292,7 @@
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .m-shell-brand strong,
@@ -304,7 +304,7 @@
 .m-shell-brand small {
     margin-top: 3px;
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--fs-micro);
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.13em;
@@ -316,8 +316,8 @@
     flex: none;
     display: grid;
     place-items: center;
-    border-radius: 13px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius);
+    border: 1px solid var(--hairline-strong);
     background: linear-gradient(135deg, rgba(115, 215, 255, 0.16), rgba(157, 124, 255, 0.18));
 }
 
@@ -325,26 +325,26 @@
     width: 11px;
     height: 11px;
     border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 0 16px #73d7ff, 0 0 26px #9d7cff;
+    background: var(--on-color);
+    box-shadow: 0 0 16px var(--accent), 0 0 26px var(--accent-2);
 }
 
 .m-shell-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 /* «Назад» из деталей сборки в липкой шапке (план 5, шаг 8): та же цель
    44×44, что у гамбургера, — кнопка не уезжает при прокрутке. */
 .m-shell-back {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: var(--touch-h);
+    height: var(--touch-h);
+    min-height: var(--touch-h);
     flex: none;
     padding: 0;
-    border-color: rgba(255, 255, 255, 0.09);
-    background: rgba(255, 255, 255, 0.045);
+    border-color: var(--hairline);
+    background: var(--surface-raised);
 }
 
 .m-shell-link {
@@ -352,11 +352,11 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 999px;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
     color: var(--muted);
-    background: rgba(255, 255, 255, 0.035);
+    background: var(--surface-raised);
     text-decoration: none;
     font-size: var(--fs-sm);
     font-weight: 800;
@@ -385,12 +385,12 @@
     bottom: 0;
     z-index: 45;
     width: min(286px, calc(100vw - 46px));
-    padding: calc(24px + env(safe-area-inset-top, 0px)) 14px calc(16px + env(safe-area-inset-bottom, 0px));
+    padding: calc(var(--space-6) + env(safe-area-inset-top, 0px)) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(3, 4, 6, 0.96);
+    gap: var(--space-3);
+    border-right: 1px solid var(--hairline);
+    background: var(--glass-overlay);
     backdrop-filter: blur(24px);
     box-shadow: 24px 0 70px rgba(0, 0, 0, 0.5);
     transform: translateX(-104%);
@@ -404,8 +404,8 @@
 .m-drawer-brand {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 4px 4px 12px;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-1) var(--space-3);
 }
 
 .m-drawer-brand > div {
@@ -420,26 +420,26 @@
 }
 
 .m-drawer-brand small {
-    margin-top: 4px;
+    margin-top: var(--space-1);
     color: var(--muted);
-    font-size: 10px;
+    font-size: var(--fs-micro);
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.13em;
 }
 
 .m-drawer-close {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
-    border-radius: 13px;
+    width: var(--touch-h);
+    height: var(--touch-h);
+    min-height: var(--touch-h);
+    border-radius: var(--radius);
     padding: 0;
 }
 
 .m-drawer-nav {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-2);
     /* С подписями групп список стал выше: на низких экранах прокручиваем,
        а не выдавливаем фут drawer за край. */
     flex: 1 1 auto;
@@ -452,18 +452,18 @@
 .m-drawer-nav > section {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-2);
 }
 
 .m-drawer-nav > section + section {
-    margin-top: 14px;
+    margin-top: var(--space-4);
 }
 
 .m-drawer-group {
     display: block;
-    margin: 0 12px 0;
+    margin: 0 var(--space-3) 0;
     color: var(--faint);
-    font-size: 10px;
+    font-size: var(--fs-micro);
     font-weight: 850;
     letter-spacing: 0.16em;
     line-height: 1;
@@ -472,14 +472,14 @@
 
 .m-drawer-item {
     width: 100%;
-    min-height: 44px;
+    min-height: var(--touch-h);
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 11px;
-    padding: 0 12px;
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
     border: 1px solid transparent;
-    border-radius: 15px;
+    border-radius: var(--radius);
     background: transparent;
     color: var(--muted);
     text-decoration: none;
@@ -503,16 +503,16 @@
     margin-top: auto;
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    padding-top: 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--hairline);
 }
 
 .m-drawer-user {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 12px 4px;
+    padding: 0 var(--space-3) var(--space-1);
     color: var(--text);
     font-size: var(--fs-md);
     font-weight: 800;
@@ -520,7 +520,7 @@
 
 /* --- Экран и его шапка --- */
 .m-screen {
-    padding: 16px 12px 8px;
+    padding: var(--space-4) var(--space-3) var(--space-2);
 }
 
 /* Экран с плавающей кнопкой: запас снизу, чтобы FAB не перекрывал
@@ -532,12 +532,12 @@
 .m-head {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
 }
 
 .m-head h1 {
-    font-size: 28px;
+    font-size: var(--fs-hero);
     letter-spacing: -0.055em;
     margin: 0;
     flex: 1;
@@ -552,12 +552,12 @@
     align-items: center;
     min-height: 16px;
     color: var(--accent);
-    font-size: 10px;
+    font-size: var(--fs-micro);
     font-weight: 850;
     letter-spacing: 0.16em;
     line-height: 1;
     text-transform: uppercase;
-    margin-bottom: 6px;
+    margin-bottom: var(--space-2);
 }
 
 .m-text-link {
@@ -583,15 +583,15 @@
 
 .m-hero-card,
 .m-section-card {
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 24px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018));
-    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface-card);
+    box-shadow: var(--shadow-md);
 }
 
 .m-hero-card {
-    padding: 22px;
-    margin-bottom: 14px;
+    padding: var(--space-6);
+    margin-bottom: var(--space-4);
 }
 
 .m-hero-card--overview {
@@ -605,12 +605,12 @@
 
 .m-hero-card h1 {
     margin: 0;
-    font-size: 34px;
+    font-size: var(--fs-hero);
     letter-spacing: -0.06em;
 }
 
 .m-hero-card p {
-    margin: 10px 0 0;
+    margin: var(--space-3) 0 0;
     color: var(--muted);
     line-height: 1.55;
 }
@@ -618,18 +618,18 @@
 .m-hero-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 16px;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
 }
 
 .m-hero-pills span {
     min-height: 30px;
     display: inline-flex;
     align-items: center;
-    padding: 0 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.035);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    background: var(--surface-raised);
     color: var(--text);
     font-size: var(--fs-sm);
     font-weight: 750;
@@ -638,8 +638,8 @@
 .m-metric-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-    margin-bottom: 14px;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
 }
 
 .m-metric {
@@ -647,11 +647,11 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 10px;
-    padding: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.028);
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
 }
 
 .m-metric span,
@@ -663,7 +663,7 @@
 }
 
 .m-metric strong {
-    font-size: 28px;
+    font-size: var(--fs-metric);
     line-height: 1;
     letter-spacing: -0.055em;
 }
@@ -673,16 +673,16 @@
 .m-metric--yellow { box-shadow: inset 0 -54px 70px rgba(255, 209, 102, 0.045); }
 
 .m-section-card {
-    padding: 14px;
-    margin-bottom: 14px;
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
 }
 
 .m-section-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
 }
 
 .m-section-head h2 {
@@ -703,12 +703,12 @@
     min-height: 62px;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.07);
-    border-radius: 18px;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
     color: var(--text);
-    background: rgba(255, 255, 255, 0.025);
+    background: var(--surface);
     text-decoration: none;
     transition: transform var(--ease), border-color var(--ease), background var(--ease), box-shadow var(--ease);
 }
@@ -720,13 +720,13 @@
 }
 
 .m-wide-action + .m-wide-action {
-    margin-top: 8px;
+    margin-top: var(--space-2);
 }
 
 .m-journey-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .m-journey-card {
@@ -735,18 +735,18 @@
     flex-direction: column;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 10px;
-    padding: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
     color: var(--text);
-    background: rgba(255, 255, 255, 0.028);
+    background: var(--surface);
     text-align: left;
     transition: transform var(--ease), border-color var(--ease), background var(--ease), box-shadow var(--ease);
 }
 
 .m-journey-card strong {
-    font-size: 15px;
+    font-size: var(--fs-lg);
 }
 
 .m-journey-card small {
@@ -760,9 +760,9 @@
     flex: none;
     display: grid;
     place-items: center;
-    border-radius: 13px;
+    border-radius: var(--radius);
     color: var(--accent);
-    background: rgba(115, 215, 255, 0.09);
+    background: var(--accent-tint);
 }
 
 .m-row-main {
@@ -770,7 +770,7 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--space-1);
     text-align: left;
 }
 
@@ -792,18 +792,18 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .m-card {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--space-3);
     min-height: 92px;
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.028);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 22px;
+    padding: var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
     cursor: pointer;
     transition:
         border-color var(--ease),
@@ -811,8 +811,8 @@
 }
 
 .m-card:active {
-    background: rgba(115, 215, 255, 0.06);
-    border-color: rgba(115, 215, 255, 0.22);
+    background: var(--accent-hover);
+    border-color: var(--accent-hairline);
 }
 
 .m-card-body {
@@ -820,13 +820,13 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-1);
 }
 
 .m-card-title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     min-width: 0;
 }
 
@@ -843,7 +843,7 @@
 .m-card-actions {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--space-1);
     flex: none;
 }
 
@@ -862,9 +862,9 @@
     height: 52px;
     padding: 0;
     border-radius: var(--radius-pill);
-    background: linear-gradient(135deg, #6bd7ff, #8a7cff 58%, #c084fc);
-    border-color: rgba(255, 255, 255, 0.18);
-    color: #020304;
+    background: var(--grad-brand);
+    border-color: var(--hairline-strong);
+    color: var(--on-accent);
     box-shadow: var(--shadow-md);
     justify-content: center;
 }
@@ -898,7 +898,7 @@
 }
 
 .m-detail-titles h1 {
-    font-size: 19px;
+    font-size: var(--fs-xl);
     margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -907,8 +907,8 @@
 
 .m-detail-actions {
     display: grid;
-    gap: 8px;
-    margin-bottom: 14px;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
 }
 
 .m-detail-primary-action,
@@ -919,19 +919,19 @@
 .m-detail-primary-action .primary,
 .m-detail-primary-action .badge {
     width: 100%;
-    min-height: 44px;
+    min-height: var(--touch-h);
     justify-content: center;
 }
 
 .m-detail-secondary-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .m-detail-secondary-actions button {
     min-width: 0;
-    min-height: 44px;
+    min-height: var(--touch-h);
     justify-content: center;
     /* Подписи объясняют сами себя («Обновить stardust-mod», «Синхр. на
        сервер») и длиннее старых: на узком телефоне переносим их на вторую
@@ -943,23 +943,23 @@
 }
 
 .m-detail-secondary-actions .icon-btn {
-    padding-inline: 10px;
+    padding-inline: var(--space-3);
 }
 
 
 .m-stats {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-bottom: 14px;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
 }
 
 .m-stats .stat {
     min-height: 82px;
-    padding: 12px;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.028);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
 }
 
 .m-stats .stat-value {
@@ -969,36 +969,36 @@
 }
 
 .m-fm-panel {
-    padding: 10px;
-    border-radius: 22px;
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
 }
 
 .m-checks-panel {
-    padding: 12px;
-    margin: 0 0 12px;
-    border-radius: 22px;
+    padding: var(--space-3);
+    margin: 0 0 var(--space-3);
+    border-radius: var(--radius-lg);
 }
 
 .m-screen > .sync-progress {
-    padding: 12px;
-    margin-bottom: 14px;
+    padding: var(--space-3);
+    margin-bottom: var(--space-4);
 }
 
 .m-screen .sync-progress__meta {
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-1);
 }
 
 .m-checks-head {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     flex-wrap: wrap;
 }
 
 .m-checks-head button {
     font-size: var(--fs-md);
-    padding: 6px 10px;
+    padding: var(--space-2) var(--space-3);
 }
 
 /* --- Настройки и переиспользуемые десктопные экраны --- */
@@ -1016,12 +1016,12 @@
 .m-screen-reuse .view-head {
     align-items: flex-start;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .m-screen-reuse .page-head h1,
 .m-screen-reuse .view-head h1 {
-    font-size: 30px;
+    font-size: var(--fs-hero);
 }
 
 .m-screen-reuse .head-actions {
@@ -1045,13 +1045,13 @@
    колонку, тап-таргеты 44px. Панель всегда открыта — тумблер удалён. */
 .m-screen-reuse .accounts-filter-panel {
     grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 12px;
+    gap: var(--space-3);
+    padding: var(--space-3);
 }
 
 .m-screen-reuse .accounts-filter-panel select,
 .m-screen-reuse .accounts-filter-panel button {
-    min-height: 44px;
+    min-height: var(--touch-h);
 }
 
 .m-screen-reuse .fm-chip {
@@ -1065,8 +1065,8 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
-    margin-bottom: 14px;
-    padding: 8px 0;
+    margin-bottom: var(--space-4);
+    padding: var(--space-2) 0;
 }
 
 .m-screen-reuse .settings-subnav::-webkit-scrollbar {
@@ -1075,21 +1075,21 @@
 
 .m-screen-reuse .settings-subnav-item {
     flex: 0 0 auto;
-    min-height: 44px;
+    min-height: var(--touch-h);
     white-space: nowrap;
 }
 
 .m-screen-reuse .settings-sections {
-    gap: 24px;
+    gap: var(--space-6);
 }
 
 .m-screen-reuse .metric-card {
     min-height: 104px;
-    padding: 14px;
+    padding: var(--space-4);
 }
 
 .m-screen-reuse .metric-card strong {
-    font-size: 26px;
+    font-size: var(--fs-metric);
 }
 
 .m-screen-reuse .cosmetics-preview {
@@ -1104,7 +1104,7 @@
 
 .m-screen-reuse .gradient-name-preview {
     min-width: 0;
-    font-size: 22px;
+    font-size: var(--fs-2xl);
 }
 
 .m-screen-reuse .cosmetic-actions {
@@ -1136,27 +1136,27 @@
 }
 
 .m-screen-reuse tr {
-    margin-bottom: 8px;
-    padding: 10px;
+    margin-bottom: var(--space-2);
+    padding: var(--space-3);
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0 10px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.028);
+    gap: 0 var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
 }
 
 .m-screen-reuse td:first-child {
     grid-column: 1 / -1;
-    margin-bottom: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    padding-bottom: 8px;
+    margin-bottom: var(--space-1);
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: var(--space-2);
 }
 
 .m-screen-reuse td {
     min-height: 0;
     height: auto;
-    padding: 5px 0;
+    padding: var(--space-1) 0;
     border-bottom: none;
 }
 
@@ -1165,48 +1165,20 @@
     display: block;
     margin-bottom: 2px;
     color: var(--faint);
-    font-size: 10px;
+    font-size: var(--fs-micro);
     font-weight: 850;
     letter-spacing: 0.1em;
     text-transform: uppercase;
 }
 
 /* Верхняя полоска переиспользуемых экранов: служебные быстрые ссылки. */
-.m-top-bar {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 14px;
-}
-
-.m-top-bar > * {
-    flex: 1;
-}
-
-.m-top-link {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 9px 14px;
-    font-size: var(--fs-md);
-    color: var(--text);
-    text-decoration: none;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 999px;
-}
-
-.m-top-link:active {
-    background: var(--panel-3);
-}
-
 /* --- Вход --- */
 .m-login {
     min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    padding: var(--space-5);
 }
 
 .m-login-card {
@@ -1214,11 +1186,11 @@
     max-width: 380px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 22px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.018));
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 24px;
+    gap: var(--space-4);
+    padding: var(--space-6);
+    background: var(--surface-card);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
 }
 
@@ -1230,7 +1202,7 @@
 
 /* Кнопка с иконкой и подписью (в отличие от .icon-only — без обрезки до квадрата). */
 .icon-btn {
-    gap: 6px;
+    gap: var(--space-2);
 }
 
 .m-screen .badge,
@@ -1246,7 +1218,7 @@
     max-width: none;
     max-height: calc(100dvh - 24px);
     overflow: auto;
-    border-radius: 24px;
+    border-radius: var(--radius-lg);
 }
 
 /* --- Новости --- */
@@ -1258,52 +1230,51 @@
     position: sticky;
     top: calc(72px + env(safe-area-inset-top, 0px));
     z-index: 12;
-    margin: -14px -14px 16px;
-    padding: 14px;
+    margin: -14px -14px var(--space-4);
+    padding: var(--space-4);
     display: flex;
     flex-direction: row;
     align-items: flex-end;
-    gap: 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    background: rgba(3, 4, 6, 0.9);
+    gap: var(--space-3);
+    border-bottom: 1px solid var(--hairline);
+    background: var(--glass-overlay);
     backdrop-filter: blur(18px);
 }
 
 .m-screen .news-view--mobile .news-view__head h1 {
-    font-size: 27px;
+    font-size: var(--fs-hero);
 }
 
 .m-screen .news-view--mobile .news-view__head p {
-    margin: 5px 0 0;
+    margin: var(--space-1) 0 0;
     font-size: var(--fs-sm);
 }
 
 .m-screen .news-view--mobile .news-view__create {
-    min-height: 44px;
+    min-height: var(--touch-h);
     flex: none;
-    padding: 0 13px;
+    padding: 0 var(--space-3);
     font-size: var(--fs-sm);
     white-space: nowrap;
 }
 
 .m-screen .news-view--mobile .news-admin-list {
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .m-screen .news-view--mobile .news-admin-card {
-    gap: 14px;
-    padding: 16px;
-    border-radius: 18px;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
 }
 
 .m-screen .news-view--mobile .news-admin-card h2 {
-    margin: 7px 0;
-    font-size: 17px;
+    margin: var(--space-2) 0;
     line-height: 1.2;
 }
 
 .m-screen .news-view--mobile .news-admin-card__meta {
-    gap: 6px 9px;
+    gap: var(--space-2);
     font-size: var(--fs-xs);
 }
 
@@ -1317,19 +1288,19 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     width: 100%;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .m-screen .news-view--mobile .news-admin-card__actions button,
 .m-screen .news-view--mobile .news-empty button {
-    min-height: 44px;
+    min-height: var(--touch-h);
 }
 
 .m-screen .news-view--mobile .news-empty {
     min-height: 210px;
     place-content: center;
-    padding: 22px;
-    border-radius: 18px;
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
 }
 
 .news-editor-backdrop--mobile {
@@ -1349,31 +1320,31 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: calc(var(--space-4) + env(safe-area-inset-top, 0px)) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
     border: 0;
     border-radius: 0;
-    background: #080a0e;
+    background: var(--bg-elev);
 }
 
 .news-editor-backdrop--mobile .news-editor__head {
     flex: none;
-    padding-bottom: 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--hairline);
 }
 
 .news-editor-backdrop--mobile .news-editor__head h3 {
     margin: 0;
-    font-size: 22px;
+    font-size: var(--fs-2xl);
 }
 
 .news-editor-backdrop--mobile .news-editor__close {
     display: inline-flex;
     min-height: 40px;
-    padding: 0 10px;
+    padding: 0 var(--space-3);
     border: 0;
-    border-radius: 10px;
+    border-radius: var(--radius-sm);
     color: var(--accent);
-    background: rgba(115, 215, 255, 0.08);
+    background: var(--accent-tint);
     font: inherit;
     font-size: var(--fs-md);
     font-weight: 800;
@@ -1381,7 +1352,7 @@
 
 .news-editor-backdrop--mobile .news-editor .field {
     flex: none;
-    margin-top: 16px;
+    margin-top: var(--space-4);
 }
 
 .news-editor-backdrop--mobile .news-editor__body-field {
@@ -1402,11 +1373,11 @@
 .news-editor-backdrop--mobile .news-editor__pin {
     flex: none;
     min-height: 48px;
-    margin-top: 14px;
-    padding: 11px 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.025);
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
 }
 
 .news-editor-backdrop--mobile .news-editor__pin input {
@@ -1418,10 +1389,10 @@
     flex: none;
     display: grid;
     grid-template-columns: 1fr 1.35fr;
-    margin: 14px -16px calc(-14px - env(safe-area-inset-bottom, 0px));
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(8, 10, 14, 0.94);
+    margin: var(--space-4) -16px calc(-14px - env(safe-area-inset-bottom, 0px));
+    padding: var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hairline);
+    background: var(--glass-sticky);
 }
 
 .news-editor-backdrop--mobile .news-editor__actions button {
@@ -1429,7 +1400,7 @@
 }
 
 .m-screen .player-card-modal {
-    padding: 16px;
+    padding: var(--space-4);
 }
 
 .m-screen .pc-tabs {
@@ -1456,8 +1427,10 @@
     justify-content: center;
 }
 
-.m-screen .fm-toolbar,
-.m-screen .files-toolbar {
+/* Тулбар файлового менеджера на мобильном — колонка, как остальные
+   полноширинные блоки (правило восстановлено после чистки мёртвого
+   .files-toolbar, с которым он делил селектор). */
+.m-screen .fm-toolbar {
     align-items: stretch;
     flex-direction: column;
 }
@@ -1466,10 +1439,10 @@
     position: sticky;
     top: calc(72px + env(safe-area-inset-top, 0px));
     z-index: 18;
-    margin: -10px -10px 10px;
-    padding: 10px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(8, 10, 14, 0.94);
+    margin: -10px -10px var(--space-3);
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--hairline);
+    background: var(--glass-sticky);
     backdrop-filter: blur(18px) saturate(1.1);
 }
 
@@ -1502,9 +1475,9 @@
 }
 
 .m-screen .fm-toolbar .search,
-.m-screen .files-toolbar .search,
-.m-screen .fm-toolbar .seg,
-.m-screen .files-toolbar .seg {
+/* Поиск и сегмент-фильтры в тулбаре файлов — во всю ширину экрана. */
+.m-screen .fm-toolbar .search,
+.m-screen .fm-toolbar .seg {
     width: 100%;
 }
 
@@ -1515,13 +1488,13 @@
 
 .m-screen .fm-filter-panel {
     flex-direction: column;
-    gap: 10px;
-    padding: 12px;
+    gap: var(--space-3);
+    padding: var(--space-3);
 }
 
 .m-screen .fm-filter-options {
     flex-wrap: wrap;
-    gap: 4px;
+    gap: var(--space-1);
 }
 
 .m-screen .seg {
@@ -1532,27 +1505,27 @@
 .m-screen .seg-btn {
     justify-content: center;
     min-height: 34px;
-    padding: 0 8px;
+    padding: 0 var(--space-2);
 }
 
 .m-screen .fm-row {
     min-height: 58px;
-    border-radius: 14px;
-    margin-bottom: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-2);
+    border: 1px solid var(--hairline);
     overflow: hidden;
 }
 
 .m-screen .fm-row.file {
     grid-template-columns: 34px minmax(0, 1fr) auto;
     align-items: center;
-    padding-right: 6px;
+    padding-right: var(--space-2);
 }
 
 .m-screen .fm-row.folder {
     align-items: center;
-    padding-left: 6px;
-    padding-right: 6px;
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
 }
 
 .m-screen .fm-row.folder .fm-main {
@@ -1562,19 +1535,19 @@
 
 .m-screen .fm-main {
     padding-inline: 2px;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .m-screen .fm-icon.file {
     width: 32px;
     height: 32px;
-    padding: 7px;
+    padding: var(--space-2);
 }
 
 .m-screen .fm-icon.folder {
     width: 32px;
     height: 32px;
-    padding: 7px;
+    padding: var(--space-2);
 }
 
 .m-screen .fm-file-headline {
@@ -1586,7 +1559,7 @@
 }
 
 .m-screen .fm-file-subline {
-    gap: 5px;
+    gap: var(--space-1);
 }
 
 .m-screen .fm-list {
@@ -1598,13 +1571,13 @@
     position: relative;
     top: auto;
     display: grid;
-    gap: 10px;
+    gap: var(--space-3);
     margin-inline: 0;
-    padding: 10px;
+    padding: var(--space-3);
     border-color: rgba(115, 215, 255, 0.28);
-    background: rgba(8, 11, 16, 0.96);
+    background: var(--glass-solid);
     backdrop-filter: blur(18px) saturate(1.12);
-    box-shadow: 0 16px 42px rgba(0, 0, 0, 0.32);
+    box-shadow: var(--shadow-md);
 }
 
 .m-screen .fm-bulk-count {
@@ -1614,7 +1587,7 @@
 .m-screen .fm-bulk-controls {
     display: flex;
     flex-wrap: nowrap;
-    gap: 10px;
+    gap: var(--space-3);
     max-width: 100%;
     overflow-x: auto;
     padding-bottom: 2px;
@@ -1632,7 +1605,7 @@
 }
 
 .m-screen .fm-bulk-actions button {
-    min-height: 44px;
+    min-height: var(--touch-h);
 }
 
 .m-screen .fm-actions {
@@ -1642,28 +1615,28 @@
 
 .m-screen .fm-actions .icon-only,
 .m-screen .fm-actions a.icon-only {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: var(--touch-h);
+    height: var(--touch-h);
+    min-height: var(--touch-h);
 }
 
 .m-screen .fm-drawer-backdrop {
     place-items: end center;
-    padding: 12px;
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: var(--space-3);
+    padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
 }
 
 .m-screen .fm-drawer {
     width: 100%;
     max-height: min(86vh, 720px);
-    border-radius: 24px 24px 18px 18px;
+    border-radius: var(--radius-lg) var(--radius-lg) var(--radius) var(--radius);
     animation: m-sheet-up 0.18s ease;
 }
 
 .m-screen .fm-drawer-body {
     grid-template-columns: 1fr;
-    padding: 14px;
-    gap: 10px;
+    padding: var(--space-4);
+    gap: var(--space-3);
 }
 
 .m-screen .fm-properties-section:last-child {
@@ -1671,25 +1644,25 @@
 }
 
 .m-screen .fm-drawer-head {
-    padding: 14px;
+    padding: var(--space-4);
 }
 
 .m-screen .fm-drawer-head--hero {
-    padding: 16px;
+    padding: var(--space-4);
 }
 
 .m-screen .fm-file-avatar--lg {
-    width: 44px;
-    height: 44px;
+    width: var(--touch-h);
+    height: var(--touch-h);
 }
 
 .m-screen .fm-drawer-body--props {
-    padding: 14px;
-    gap: 10px;
+    padding: var(--space-4);
+    gap: var(--space-3);
 }
 
 .m-screen .fm-drawer-foot {
-    padding: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: var(--space-3) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
 }
 
 .m-screen .fm-drawer-foot button {
@@ -1713,7 +1686,7 @@
     }
 
     .m-metric-grid {
-        gap: 8px;
+        gap: var(--space-2);
     }
 
     .m-journey-grid {
@@ -1745,10 +1718,10 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    padding: calc(12px + env(safe-area-inset-top, 0px)) 12px 0;
+    padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) var(--space-3) 0;
     border: 0;
     border-radius: 0;
-    background: #080a0e;
+    background: var(--bg-elev);
     animation: mobile-editor-in 180ms ease-out;
 }
 
@@ -1757,18 +1730,18 @@
     min-height: 64px;
     align-items: center;
     margin: 0;
-    padding: 0 2px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 0 2px var(--space-3);
+    border-bottom: 1px solid var(--hairline);
 }
 
 .m-screen .file-editor .editor-title {
     min-width: 0;
-    gap: 3px;
+    gap: var(--space-1);
 }
 
 .m-screen .file-editor .editor-title .eyebrow {
     margin-bottom: 2px;
-    font-size: 9px;
+    font-size: var(--fs-micro);
 }
 
 .m-screen .file-editor .editor-title strong,
@@ -1787,7 +1760,7 @@
     display: flex;
     flex: none;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     font-size: var(--fs-xs);
 }
 
@@ -1798,7 +1771,7 @@
 .m-screen .editor-state {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: var(--space-1);
     color: var(--muted);
     white-space: nowrap;
 }
@@ -1820,10 +1793,10 @@
 
 .m-screen .editor-close {
     min-height: 40px;
-    padding: 0 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 11px;
-    background: rgba(255, 255, 255, 0.045);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
     color: var(--text);
     font-size: var(--fs-sm);
     font-weight: 750;
@@ -1834,13 +1807,13 @@
 .m-screen .file-editor > .error {
     flex: 1;
     min-height: 0;
-    margin: 12px 0;
+    margin: var(--space-3) 0;
 }
 
 .m-screen .file-editor .editor-area {
     resize: none;
-    padding: 14px;
-    border-radius: 14px;
+    padding: var(--space-4);
+    border-radius: var(--radius);
     line-height: 1.55;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -1855,9 +1828,9 @@
     flex: none;
     min-height: 68px;
     margin: 0 -12px;
-    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    background: rgba(8, 10, 14, 0.96);
+    padding: var(--space-3) var(--space-3) calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--hairline);
+    background: var(--glass-solid);
 }
 
 .m-screen .file-editor .editor-hint {
@@ -1868,7 +1841,7 @@
 
 .m-screen .file-editor .editor-actions button {
     min-height: 46px;
-    padding-inline: 14px;
+    padding-inline: var(--space-4);
 }
 
 .m-screen .file-editor .editor-actions .primary {
@@ -1911,7 +1884,7 @@
 @media (max-width: 700px) {
     .m-screen .fm-row.file .fm-actions {
         align-items: center;
-        gap: 4px;
+        gap: var(--space-1);
         min-height: 46px;
         padding: 2px 0;
     }
@@ -1922,11 +1895,11 @@
         align-items: center;
         justify-content: center;
         min-height: 36px;
-        padding: 0 10px;
-        border: 1px solid rgba(255, 255, 255, 0.09);
-        border-radius: 10px;
+        padding: 0 var(--space-3);
+        border: 1px solid var(--hairline);
+        border-radius: var(--radius-sm);
         color: var(--muted);
-        background: rgba(255, 255, 255, 0.035);
+        background: var(--surface-raised);
         font-size: var(--fs-sm);
         font-weight: 750;
     }
@@ -1934,7 +1907,7 @@
     .m-screen .fm-row.file .fm-actions-secondary {
         display: none;
         align-items: center;
-        gap: 4px;
+        gap: var(--space-1);
     }
 
     .m-screen .fm-row.file .fm-actions-secondary.open {
@@ -1997,10 +1970,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: var(--space-2);
     min-height: 108px;
-    padding: 18px 16px;
-    border-radius: 18px;
+    padding: var(--space-5) var(--space-4);
+    border-radius: var(--radius-lg);
     font-size: var(--fs-md);
 }
 
@@ -2017,12 +1990,12 @@
    дропзоны: вертикальные поля расширяют зону тапа. */
 .m-screen .fm-upload .dropzone .link {
     display: inline-block;
-    padding: 6px 2px;
+    padding: var(--space-2) 2px;
 }
 
 .m-screen .fm-upload .dropzone:active {
     border-color: var(--accent);
-    background: rgba(115, 215, 255, 0.08);
+    background: var(--accent-tint);
 }
 
 /* Глубокий путь рядом с заголовком не должен распирать панель. */
@@ -2031,21 +2004,21 @@
 }
 
 .m-screen .fm-upload .q-item {
-    padding: 12px;
-    border-radius: 14px;
+    padding: var(--space-3);
+    border-radius: var(--radius);
 }
 
 /* Шапка строки очереди: имя файла и действия — друг под другом. */
 .m-screen .fm-upload .q-head {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .m-screen .fm-upload .q-right {
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 6px;
+    gap: var(--space-2);
 }
 
 /* Сообщение об ошибке — на всю строку с переносом: ховера для title на
@@ -2060,11 +2033,11 @@
 /* «настроить»: прозрачная текстовая ссылка на тач-экране мелкая и не
    читается как кнопка — превращаем в кнопку-чип высотой с палец. */
 .m-screen .fm-upload .q-right .link-btn {
-    min-height: 44px;
-    padding: 0 14px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.035);
+    min-height: var(--touch-h);
+    padding: 0 var(--space-4);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface-raised);
     font-size: var(--fs-md);
     font-weight: 750;
 }
@@ -2073,19 +2046,19 @@
    десктопного button.danger цель была бы «слепой». */
 .m-screen .fm-upload .q-right .icon-only {
     flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
+    width: var(--touch-h);
+    height: var(--touch-h);
+    min-height: var(--touch-h);
     justify-content: center;
     padding: 0;
-    border-color: rgba(229, 83, 75, 0.28);
-    border-radius: 12px;
+    border-color: color-mix(in srgb, var(--danger) 28%, transparent);
+    border-radius: var(--radius);
     background: var(--danger-soft);
 }
 
 .m-screen .fm-upload .q-item .progress {
     height: 6px;
-    margin-top: 8px;
+    margin-top: var(--space-2);
 }
 
 /* Тело строки и «применить ко всем»: поля друг под другом. Вертикальный
@@ -2093,7 +2066,7 @@
 .m-screen .fm-upload .q-body,
 .m-screen .fm-upload .queue-batch-body {
     display: grid;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .m-screen .fm-upload .q-body .field,
@@ -2103,7 +2076,7 @@
 
 .m-screen .fm-upload .row {
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .m-screen .fm-upload .row > .field {
@@ -2114,9 +2087,9 @@
 
 /* Чекбоксы: строка высотой с палец (лэйбл кликабелен целиком), флажок крупнее. */
 .m-screen .fm-upload .checkbox-row {
-    min-height: 44px;
+    min-height: var(--touch-h);
     align-items: center;
-    gap: 10px;
+    gap: var(--space-3);
     font-size: var(--fs-md);
 }
 
@@ -2129,22 +2102,22 @@
 /* Чипы профилей модов: тап-цель заметно крупнее десктопной. */
 .m-screen .fm-upload .fm-profile-chip {
     min-height: 36px;
-    padding: 0 14px;
+    padding: 0 var(--space-4);
     font-size: var(--fs-md);
 }
 
 /* «Применить ко всем»: на десктопе блок не стилизован вовсе (родной
    <details>); на мобильном — карточка в ритме очереди. */
 .m-screen .fm-upload .queue-batch {
-    margin-top: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.028);
+    margin-top: var(--space-3);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--surface);
 }
 
 .m-screen .fm-upload .queue-batch > summary {
-    min-height: 44px;
-    padding: 12px;
+    min-height: var(--touch-h);
+    padding: var(--space-3);
     color: var(--muted);
     font-size: var(--fs-md);
     font-weight: 750;
@@ -2153,11 +2126,11 @@
 
 .m-screen .fm-upload .queue-batch[open] > summary {
     color: var(--text);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--hairline);
 }
 
 .m-screen .fm-upload .queue-batch-body {
-    padding: 12px;
+    padding: var(--space-3);
 }
 
 /* Итоговые действия: кнопки переносятся по две в ряд, длинные подписи
@@ -2167,16 +2140,16 @@
 .m-screen .fm-upload .queue-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
 }
 
 .m-screen .fm-upload .queue-actions button {
     flex: 1 1 calc(50% - 4px);
-    min-height: 44px;
+    min-height: var(--touch-h);
     min-width: 0;
     justify-content: center;
-    padding: 10px 12px;
+    padding: var(--space-3);
     white-space: normal;
     line-height: 1.25;
 }
@@ -2193,13 +2166,13 @@
 .m-screen-seasons .sd-table-row .sd-button {
     white-space: normal;
     line-height: 1.3;
-    min-height: 44px;
+    min-height: var(--touch-h);
 }
 
 /* Подсказки под таблицами: чуть больше воздуха на мобильном. */
 .m-screen-seasons .seasons-hint {
-    margin-top: 10px;
-    font-size: 11.5px;
+    margin-top: var(--space-3);
+    font-size: var(--fs-xs);
 }
 
 /* Пустая ячейка «Действие» у архивных сезонов: прячем с карточки. */
@@ -2212,7 +2185,7 @@
 /* Плиты каналов — в столбец, тег раздачи чуть крупнее базового. */
 .m-screen-seasons .chan-board {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .m-screen-seasons .chan-tag {
@@ -2226,7 +2199,7 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .m-screen-seasons .ci-row > .sd-badge,
@@ -2247,18 +2220,18 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 44px;
+    min-height: var(--touch-h);
     border: 1px solid var(--border);
     border-radius: var(--radius);
 }
 
 .m-screen-seasons .ci-legs {
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .m-screen-seasons .ci-leg {
     min-height: 32px;
-    padding: 0 11px;
+    padding: 0 var(--space-3);
 }
 
 /* Действия релиза: кнопка перевода на всю ширину, пилюли 44px пополам. */
@@ -2272,7 +2245,7 @@
 
 .m-screen-seasons .latest-btn {
     flex: 1 1 calc(50% - 4px);
-    min-height: 44px;
+    min-height: var(--touch-h);
     justify-content: center;
 }
 
@@ -2287,20 +2260,20 @@
 .m-screen .external-mods-view .view-head {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .m-screen .external-mods-view .view-head h1 {
-    font-size: 30px;
+    font-size: var(--fs-hero);
 }
 
 .m-screen .external-mod-rule-form {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: var(--space-3);
 }
 
 .m-screen .external-mod-rule-form button {
-    min-height: 44px;
+    min-height: var(--touch-h);
     width: 100%;
     justify-content: center;
 }
@@ -2310,7 +2283,7 @@
 }
 
 .m-screen .external-mod-row__actions button {
-    min-height: 44px;
+    min-height: var(--touch-h);
     flex: 1;
 }
 
@@ -2329,7 +2302,7 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
-    margin-bottom: 14px;
+    margin-bottom: var(--space-4);
 }
 
 .m-screen .logs-tabs::-webkit-scrollbar {
@@ -2338,9 +2311,9 @@
 
 .m-screen .logs-tabs .seg-btn {
     flex: 0 0 auto;
-    min-height: 44px;
+    min-height: var(--touch-h);
     white-space: nowrap;
-    padding: 8px 14px;
+    padding: var(--space-2) var(--space-4);
 }
 
 /* Подпись кнопки manifest в тулбаре на мобильном: тулбар и так в колонку,

@@ -18,6 +18,7 @@ import {
   slugifyModId,
 } from "./format";
 import { useConfirm, useToast } from "./ui/feedback";
+import { McText } from "./ui/McText";
 import { useContextMenu } from "./ui/ContextMenu";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import { useDialogFocus } from "./ui/useDialogFocus";
@@ -936,7 +937,7 @@ export function FileManager({
                     className={`fm-filter-opt${filters.profile === p.key ? " active" : ""}`}
                     onClick={() => setFilters((f) => ({ ...f, profile: p.key }))}
                   >
-                    {p.name}
+                    <McText text={p.name} />
                   </button>
                 ))}
                 <button
@@ -1420,7 +1421,7 @@ function BulkBar({
                     title={on ? "Убрать выделенные файлы из профиля" : "Добавить выделенные файлы в профиль"}
                     onClick={() => onToggleProfile(p.key)}
                   >
-                    {p.name}
+                    <McText text={p.name} />
                   </button>
                 );
               })}
@@ -1820,7 +1821,7 @@ function FileRow({
                   onFilterProfile?.(p.key);
                 }}
               >
-                {p.name}
+                <McText text={p.name} />
               </button>
             ))}
             {onOpenDir && parentDir(file.path) && (
@@ -2073,12 +2074,12 @@ function ModProfilesDialog({
           {profiles.map((p) => (
             <div className="fm-profile-row" key={p.key}>
               <div className="fm-profile-row__text">
-                <strong>{p.name}</strong>
+                <strong><McText text={p.name} /></strong>
                 <span className="muted">
                   {p.key} · {members(p.key)}{" "}
                   {pluralRu(members(p.key), "файл", "файла", "файлов")}
                 </span>
-                {p.description && <span className="muted">{p.description}</span>}
+                {p.description && <span className="muted"><McText text={p.description} /></span>}
               </div>
               <div className="fm-profile-row__actions">
                 <button
@@ -2421,7 +2422,7 @@ function FileSettingsDrawer({
                               )
                             }
                           >
-                            {p.name}
+                            <McText text={p.name} />
                           </button>
                         );
                       })}

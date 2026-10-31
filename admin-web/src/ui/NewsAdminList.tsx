@@ -10,6 +10,7 @@
 
 import type { ReactNode } from "react";
 import { formatDateTime } from "../format";
+import { McText } from "./McText";
 
 export interface NewsAdminCard {
   id: number;
@@ -54,10 +55,11 @@ export function NewsAdminList({
                 className="news-admin-card__title"
                 onClick={card.onOpen}
               >
-                {card.title}
+                {/* Заголовок новости/гайда пишет админ — эмодзи рисуем глифами. */}
+                <McText text={card.title} />
               </button>
             </h2>
-            <p className="muted news-admin-card__excerpt">{card.excerpt}</p>
+            <p className="muted news-admin-card__excerpt"><McText text={card.excerpt} /></p>
             {card.footnote && <small className="muted">{card.footnote}</small>}
           </div>
           <div className="news-admin-card__actions">

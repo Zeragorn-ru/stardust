@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { normalizeMinecraftText } from "../minecraftText";
 import McEmoji from "../emoji/McEmoji";
+import { McText } from "../ui/McText";
 import { api, ApiError } from "../api";
 import type { Badge, Gradient } from "../types";
 import { useToast, useConfirm } from "../ui/feedback";
@@ -130,7 +131,7 @@ export function CustomizationView() {
         <div className="nickname-preview-row">
           <span className="badge-sample" style={{ "--badge-color": badges[0]?.color ?? "#7dd3fc" } as CSSProperties}>
             <McEmoji char={badges[0]?.emoji ?? "✦"} />
-            <span>{badges[0]?.label ?? "VIP"}</span>
+            <span><McText text={badges[0]?.label ?? "VIP"} /></span>
           </span>
           <strong
             className="gradient-name-preview"
@@ -165,13 +166,14 @@ export function CustomizationView() {
                 <article className="cosmetic-card" key={b.id}>
                   <div className="badge-sample" style={{ "--badge-color": b.color } as CSSProperties}>
                     <McEmoji char={b.emoji} style={{ color: b.color }} />
-                    <span>{b.label}</span>
+                    {/* Подпись бейджа — контент админа: эмодзи рисуем глифами. */}
+                    <span><McText text={b.label} /></span>
                   </div>
                    <div className="cosmetic-meta">
                     <span className="color-swatch" style={{ background: b.color }} />
                      <span className="mono muted">{b.color}</span>
                    </div>
-                   <p className="muted">{b.description || "Без описания"}</p>
+                   <p className="muted"><McText text={b.description} fallback="Без описания" /></p>
                   <div className="cosmetic-actions">
                     <button className="secondary icon-btn" onClick={() => setBadgeModal({ mode: "edit", badge: b })}>
                       <IconPencil size={14} /> Редактировать

@@ -11,6 +11,7 @@ import { useDirtyGuard } from "./useDirtyGuard";
 import { PlayerSkinTab } from "./PlayerSkinTab";
 import { formatDateTime, formatPlaytime } from "../format";
 import McEmoji from "../emoji/McEmoji";
+import { McText, splitMcText } from "./McText";
 
 type Tab = "info" | "skin" | "badges" | "actions";
 
@@ -94,7 +95,8 @@ export function PlayerCardModal({ account, isSelf = false, stats, onClose, onUpd
         <div className="pc-head">
           <SkinHead uuid={account.uuid} username={account.username} size={48} />
           <div className="pc-head__text">
-            <div className="pc-head__name" id="player-card-title">{account.username}</div>
+            {/* Ник — контент игрока: эмодзи рисуем пиксель-глифами. */}
+            <div className="pc-head__name" id="player-card-title"><McText text={account.username} /></div>
             <div className="pc-head__uuid">
               {account.uuid}
             </div>
@@ -381,7 +383,7 @@ function BadgesTab({
                     onChange={() => toggleBadge(b.id)}
                   />
                   <McEmoji char={b.emoji} />
-                  <span className="pc-check-label">{b.label}</span>
+                  <span className="pc-check-label"><McText text={b.label} /></span>
                   {owned && (
                     <button
                       type="button"
@@ -425,7 +427,7 @@ function BadgesTab({
                     className="pc-check-swatch"
                     style={{ background: `linear-gradient(90deg, ${g.colorStart}, ${g.colorEnd})` }}
                   />
-                  <span className="pc-check-label">{g.label}</span>
+                  <span className="pc-check-label"><McText text={g.label} /></span>
                   {owned && (
                     <button
                       type="button"
@@ -469,7 +471,10 @@ function BadgesTab({
                 : undefined
             }
           >
-            {account.username}
+            {/* В градиентном превью — splitMcText без обёртки: background-clip:text
+                капризен к вложенным span, а здесь фрагменты лежат прямо в
+                градиентном элементе. Эмодзи (img) clip не затрагивает. */}
+            {splitMcText(account.username)}
           </span>
         </span>
       </div>
@@ -639,28 +644,27 @@ function ActionsTab({
   }
 
   return (
-    <div className="pc-actions-container" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+    <div className="pc-actions-container">
       {/* Смена ника */}
-      <form onSubmit={handleRename} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Сменить ник</label>
+      <form onSubmit={handleRename} className="pc-action-form">
+        <div className="pc-action-field">
+          <label>Сменить ник</label>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             placeholder="Новый ник"
             disabled={busy}
-            style={{ width: "100%" }}
           />
         </div>
-        <button type="submit" disabled={busy || !username.trim() || username.trim() === account.username} className="primary" style={{ padding: "8px 14px", height: 38 }}>
+        <button type="submit" disabled={busy || !username.trim() || username.trim() === account.username} className="primary">
           Изменить
         </button>
       </form>
 
       {/* Сброс пароля */}
-      <form onSubmit={handleResetPassword} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-        <div style={{ flex: 1 }}>
-          <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Сбросить пароль</label>
+      <form onSubmit={handleResetPassword} className="pc-action-form">
+        <div className="pc-action-field">
+          <label>Сбросить пароль</label>
           <input
             type="password"
             autoComplete="new-password"
@@ -668,42 +672,40 @@ function ActionsTab({
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Новый пароль (от 6 символов)"
             disabled={busy}
-            style={{ width: "100%" }}
           />
         </div>
-        <button type="submit" disabled={busy || password.length < 6} className="primary" style={{ padding: "8px 14px", height: 38 }}>
+        <button type="submit" disabled={busy || password.length < 6} className="primary">
           Сбросить
         </button>
       </form>
 
       {/* Управление правами и банами */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+      <div className="pc-role-actions">
         <button
           className="secondary"
           disabled={busy || (isSelf && account.isAdmin)}
           onClick={doSetRole}
           title={isSelf && account.isAdmin ? "Нельзя снять права администратора с самого себя" : undefined}
-          style={{ flex: 1, minWidth: 140, justifyContent: "center" }}
         >
           {account.isAdmin ? "Снять права админа" : "Сделать админом"}
         </button>
 
         {account.banned ? (
-          <button className="secondary" disabled={busy} onClick={handleUnban} style={{ flex: 1, minWidth: 140, justifyContent: "center" }}>
+          <button className="secondary" disabled={busy} onClick={handleUnban}>
             Снять бан
           </button>
         ) : null}
       </div>
 
       {!account.banned && (
-        <form onSubmit={handleBan} style={{ display: "grid", gap: 10, marginTop: 8 }}>
+        <form onSubmit={handleBan} className="pc-ban-form">
           {account.isAdmin && (
-            <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+            <p className="muted pc-action-note">
               Администратора нельзя забанить/удалить — сначала снимите права.
             </p>
           )}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <label className="checkbox-row" style={{ flex: "0 0 auto", margin: 0 }}>
+          <div className="pc-ban-radios">
+            <label className="checkbox-row">
               <input
                 type="radio"
                 checked={banMode === "forever"}
@@ -712,7 +714,7 @@ function ActionsTab({
               />
               <span>Навсегда</span>
             </label>
-            <label className="checkbox-row" style={{ flex: "0 0 auto", margin: 0 }}>
+            <label className="checkbox-row">
               <input
                 type="radio"
                 checked={banMode === "temporary"}
@@ -724,9 +726,9 @@ function ActionsTab({
           </div>
 
           {banMode === "temporary" && (
-            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Срок</label>
+            <div className="pc-action-form">
+              <div className="pc-action-field">
+                <label>Срок</label>
                 <input
                   type="number"
                   min="1"
@@ -734,16 +736,14 @@ function ActionsTab({
                   value={banDuration}
                   onChange={(e) => setBanDuration(e.target.value)}
                   disabled={busy || account.isAdmin}
-                  style={{ width: "100%" }}
                 />
               </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Единицы</label>
+              <div className="pc-action-field">
+                <label>Единицы</label>
                 <select
                   value={banDurationUnit}
                   onChange={(e) => setBanDurationUnit(e.target.value as "hours" | "days" | "weeks")}
                   disabled={busy || account.isAdmin}
-                  style={{ width: "100%" }}
                 >
                   <option value="hours">часов</option>
                   <option value="days">дней</option>
@@ -753,20 +753,19 @@ function ActionsTab({
             </div>
           )}
 
-          <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4, display: "block" }}>Забанить игрока</label>
+          <div className="pc-action-form">
+          <div className="pc-action-field">
+            <label>Забанить игрока</label>
             <input
               value={banReason}
               onChange={(e) => setBanReason(e.target.value)}
               placeholder="Причина бана (необязательно)"
               disabled={busy || account.isAdmin}
-              style={{ width: "100%" }}
             />
           </div>
           {/* Destructive-словарь — tinted sd-button (план 1.2):
               danger-solid остаётся только внутри ConfirmDialog. */}
-          <Button type="submit" variant="destructive" disabled={busy || account.isAdmin} style={{ height: 38, flex: "none" }}>
+          <Button type="submit" variant="destructive" disabled={busy || account.isAdmin} className="pc-ban-submit">
             Забанить
           </Button>
           </div>
@@ -774,9 +773,9 @@ function ActionsTab({
       )}
 
       {/* Удаление аккаунта */}
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 12 }}>
+      <div className="pc-danger-zone">
         {account.isAdmin && (
-          <p className="muted" style={{ margin: "0 0 8px", fontSize: 12 }}>
+          <p className="muted pc-action-note pc-action-note--block">
             Администратора нельзя забанить/удалить — сначала снимите права.
           </p>
         )}
@@ -784,7 +783,7 @@ function ActionsTab({
           variant="destructive"
           disabled={busy || account.isAdmin}
           onClick={doDelete}
-          style={{ width: "100%" }}
+          className="pc-delete-btn"
         >
           Удалить аккаунт
         </Button>

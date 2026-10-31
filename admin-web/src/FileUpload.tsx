@@ -11,6 +11,7 @@ import { formatSize, baseName, slugifyModId } from "./format";
 import { KINDS, SIDES, guessKind } from "./fileUtils";
 import { useToast, useConfirm } from "./ui/feedback";
 import { Field } from "./ui/Field";
+import { McText } from "./ui/McText";
 import { IconUpload } from "./ui/icons";
 
 // Куда по умолчанию кладётся файл в зависимости от типа.
@@ -473,7 +474,8 @@ export const FileUpload = forwardRef<
                           title={p.description ?? undefined}
                           onClick={() => toggleProfileAll(p.key)}
                         >
-                          {p.name}
+                          {/* Имя профиля — контент админа: эмодзи глифами. */}
+                          <McText text={p.name} />
                         </button>
                       );
                     })}
@@ -793,7 +795,7 @@ function QueueRow({
                           })
                         }
                       >
-                        {p.name}
+                        <McText text={p.name} />
                       </button>
                     );
                   })}
