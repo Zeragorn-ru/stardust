@@ -124,19 +124,25 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
                     aria-expanded={open}
                     onClick={() => setOpenId(open ? null : entry.id)}
                   >
-                    <span className="crash-history__head">
-                      <span className="crash-history__date">{formatRecordedAt(entry.recordedAt)}</span>
-                      {resolved ? (
-                        <span className={`crash-history__sev crash-history__sev--${severity}`}>
-                          {SEVERITY_LABELS[severity] ?? severity}
-                        </span>
-                      ) : status ? (
-                        <span className="crash-history__status">{status}</span>
-                      ) : null}
-                      <span className="crash-history__chevron" aria-hidden>{open ? "▾" : "▸"}</span>
-                    </span>
-                    <span className="crash-history__summary">
-                      <McText text={analysis?.summary || entry.summary} />
+                    {/* Раскладка живёт во внутреннем div, а не на самой
+                        кнопке: WebKit в Tauri схлопывает flex-контент
+                        непосредственно внутри <button> (строки выглядели
+                        пустыми полосами). */}
+                    <span className="crash-history__rowbox">
+                      <span className="crash-history__head">
+                        <span className="crash-history__date">{formatRecordedAt(entry.recordedAt)}</span>
+                        {resolved ? (
+                          <span className={`crash-history__sev crash-history__sev--${severity}`}>
+                            {SEVERITY_LABELS[severity] ?? severity}
+                          </span>
+                        ) : status ? (
+                          <span className="crash-history__status">{status}</span>
+                        ) : null}
+                        <span className="crash-history__chevron" aria-hidden>{open ? "▾" : "▸"}</span>
+                      </span>
+                      <span className="crash-history__summary">
+                        <McText text={analysis?.summary || entry.summary} />
+                      </span>
                     </span>
                   </button>
                   {open && (

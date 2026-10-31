@@ -230,10 +230,6 @@ export default function SkinModal({ onClose, embedded = false }: Props) {
                 <div className="toggle-row">
                   <div className="toggle-row__text">
                     <span className="toggle-row__title">Синхронизация скина</span>
-                    <span className="muted toggle-row__desc">
-                      Лаунчер запомнит UUID лицензии и будет обновлять скин и
-                      плащ — даже после смены ника.
-                    </span>
                   </div>
                   <button
                     type="button"

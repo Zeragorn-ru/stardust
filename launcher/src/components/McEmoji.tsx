@@ -1,5 +1,11 @@
 // Рендер эмодзи пиксельным глифом Mojangles «как в игре» (см. src/emoji.ts).
 // Символа в индексе нет — текстовый фолбэк, как раньше.
+//
+// Глифы — SVG с fill="currentColor". Через <img> currentColor не наследует
+// цвет страницы (внутри <img> документ изолирован, цвет схлопывается в чёрный),
+// поэтому на тёмном UI иконки были невидимы, а цвет бейджа терялся. Рисуем
+// span'ом с CSS-маской: background-color: currentColor берёт цвет текста или
+// бейджа, маска вырезает форму глифа. См. .mc-emoji в styles.css.
 import type { CSSProperties } from "react";
 import { findMcEmoji } from "../emoji";
 import { STANDARD_TO_MC } from "../standardEmojiMap";
@@ -30,12 +36,12 @@ export default function McEmoji({ char, className, style, alt }: Props) {
     );
   }
   return (
-    <img
-      src={emoji.file}
-      alt={alt ?? emoji.char}
+    <span
+      role="img"
+      aria-label={alt ?? emoji.char}
+      title={alt}
       className={"mc-emoji" + (className ? ` ${className}` : "")}
-      style={style}
-      draggable={false}
+      style={{ ...style, ["--mc-emoji-src" as string]: `url(${emoji.file})` }}
     />
   );
 }

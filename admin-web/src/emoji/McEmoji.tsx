@@ -5,6 +5,12 @@
 // scripts/gen-emoji-svg.mjs) даёт точные контуры глифов — показываем их
 // inline. Символа в индексе нет — остаётся текстовый фолбэк (normalize
 // + font-variant-emoji), как раньше.
+//
+// Глифы — SVG с fill="currentColor". Через <img> currentColor не наследует
+// цвет страницы (документ внутри <img> изолирован, цвет схлопывается в
+// чёрный) — иконки пропадали на тёмном фоне, цвет бейджа терялся. Рисуем
+// span'ом с CSS-маской: background-color: currentColor берёт цвет текста
+// или бейджа, маска вырезает форму. См. .mc-emoji в styles.css.
 import type { CSSProperties } from "react";
 import { findMcEmoji } from "./index";
 import { STANDARD_TO_MC } from "./standardEmojiMap";
@@ -36,15 +42,14 @@ export default function McEmoji({ char, size, className, style, alt }: Props) {
       </span>
     );
   }
+  const sizeStyle: CSSProperties = size ? { width: size, height: size } : {};
   return (
-    <img
-      src={emoji.file}
-      alt={alt ?? emoji.char}
-      width={size}
-      height={size}
+    <span
+      role="img"
+      aria-label={alt ?? emoji.char}
+      title={alt}
       className={"mc-emoji" + (className ? ` ${className}` : "")}
-      style={style}
-      draggable={false}
+      style={{ ...sizeStyle, ...style, ["--mc-emoji-src" as string]: `url(${emoji.file})` }}
     />
   );
 }
