@@ -11,14 +11,9 @@ use std::path::{Path, PathBuf};
 
 use sha1::{Digest, Sha1};
 
-/// Папка привязана к сборке и совместимому игровому ядру, но не к версии
-/// сборки или загрузчика: обычные обновления модов не меняют игровой каталог.
-/// На старом сервере вместо buildId используется хеш имени.
-fn build_key(manifest: &protocol::Manifest) -> String {
-    let build = match manifest.build_id.filter(|id| *id > 0) {
-        Some(id) => format!("build-{id}"),
-        None => format!("name-{:x}", Sha1::digest(manifest.name.as_bytes())),
-    };
+/// Часть ключа, описывающая ядро: тип загрузчика + хеш версии Minecraft.
+/// Не зависит от формы идентификатора сборки (buildId или хеш имени).
+fn instance_suffix(manifest: &protocol::Manifest) -> String {
     let kind = match manifest.loader.kind {
         protocol::LoaderKind::Vanilla => "vanilla",
         protocol::LoaderKind::Fabric => "fabric",
@@ -27,9 +22,140 @@ fn build_key(manifest: &protocol::Manifest) -> String {
         protocol::LoaderKind::NeoForge => "neoforge",
     };
     let version_hash = Sha1::digest(manifest.loader.minecraft.as_bytes());
-    format!("{build}-{kind}-{version_hash:x}")
+    format!("{kind}-{version_hash:x}")
 }
 
+/// Папка привязана к сборке и совместимому игровому ядру, но не к версии
+/// сборки или загрузчика: обычные обновления модов не меняют игровой каталог.
+/// На старом сервере вместо buildId используется хеш имени.
+fn build_key(manifest: &protocol::Manifest) -> String {
+    let build = match manifest.build_id.filter(|id| *id > 0) {
+        Some(id) => format!("build-{id}"),
+        None => format!("name-{:x}", Sha1::digest(manifest.name.as_bytes())),
+    };
+    format!("{build}-{}", instance_suffix(manifest))
+}
+
+fn instances_root(data_dir: &Path) -> PathBuf {
+    data_dir.join("minecraft").join("instances")
+}
+
+/// Краткие метаданные экземпляра: нужны, чтобы опознать build-каталог,
+/// когда сервер снова перестал передавать buildId (откат).
+#[derive(serde::Serialize, serde::Deserialize)]
+struct InstanceMeta {
+    #[serde(rename = "buildId", skip_serializing_if = "Option::is_none")]
+    build_id: Option<i64>,
+    name: String,
+}
+
+fn write_instance_meta(instance: &Path, manifest: &protocol::Manifest) {
+    let meta = InstanceMeta {
+        build_id: manifest.build_id.filter(|id| *id > 0),
+        name: manifest.name.clone(),
+    };
+    if let Ok(json) = serde_json::to_string_pretty(&meta) {
+        let _ = std::fs::write(instance.join("instance.json"), json);
+    }
+}
+
+/// Откат server-side: ищем единственный build-каталог с тем же ядром и тем
+/// же именем сборки. Несколько совпадений — не угадываем, ничего не трогаем.
+fn find_build_alias(root: &Path, suffix: &str, name: &str) -> Option<PathBuf> {
+    let wanted = format!("-{suffix}");
+    let mut found: Vec<PathBuf> = std::fs::read_dir(root)
+        .ok()?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.is_dir()
+                && path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with("build-") && n.ends_with(&wanted))
+        })
+        .filter(|path| {
+            std::fs::read(path.join("instance.json"))
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<InstanceMeta>(&bytes).ok())
+                .is_some_and(|meta| meta.name == name)
+        })
+        .collect();
+    match found.len() {
+        1 => Some(found.remove(0)),
+        _ => None,
+    }
+}
+
+/// Сервер может начать (или перестать) передавать buildId — форма ключа
+/// экземпляра меняется. Усыновляем существующий каталог той же сборки и
+/// того же ядра, чтобы миры и выборы модов остались у игрока.
+///
+/// Переименование идемпотентно и консервативно: выполняется только если
+/// целевой каталог ещё не создан, а источник опознан однозначно. Совпадение
+/// требуем по имени сборки (и по метаданным при откате), поэтому чужой
+/// экземпляр на том же ядре не будет присвоен. Вызывается из точек, которые
+/// держат `launch_lock`, — не из геттеров путей для интерфейса.
+fn adopt_instance(data_dir: &Path, manifest: &protocol::Manifest) {
+    let root = instances_root(data_dir);
+    let target = root.join(build_key(manifest));
+    if target.exists() {
+        return;
+    }
+    let suffix = instance_suffix(manifest);
+    let source = if manifest.build_id.filter(|id| *id > 0).is_some() {
+        // Сервер добавил buildId: прежний каталог ключевался хешем имени.
+        let alias = root.join(format!(
+            "name-{:x}-{suffix}",
+            Sha1::digest(manifest.name.as_bytes())
+        ));
+        alias.is_dir().then_some(alias)
+    } else {
+        find_build_alias(&root, &suffix, &manifest.name)
+    };
+    match source {
+        Some(source) => match std::fs::rename(&source, &target) {
+            Ok(()) => {
+                tracing::info!(
+                    "[game] экземпляр перенесён: {} → {}",
+                    source.display(),
+                    target.display()
+                );
+                write_instance_meta(&target, manifest);
+            }
+            Err(e) => tracing::warn!(
+                "[game] не удалось перенести экземпляр {} → {}: {e}",
+                source.display(),
+                target.display()
+            ),
+        },
+        // Совпадающий по ядру каталог есть, но опознать его владельцем этой
+        // сборки нельзя. Не угадываем: оставляем след для поддержки.
+        None => log_unadopted(&root, &suffix, manifest),
+    }
+}
+
+fn log_unadopted(root: &Path, suffix: &str, manifest: &protocol::Manifest) {
+    let wanted = format!("-{suffix}");
+    let siblings: Vec<String> = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_dir())
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| name.ends_with(&wanted))
+        .collect();
+    if !siblings.is_empty() {
+        tracing::info!(
+            "[game] сборка «{}» не усыновила существующие каталоги {:?}: владелец не опознан",
+            manifest.name,
+            siblings
+        );
+    }
+}
+
+/// Путь игровой папки активной сборки. Чистая функция: каталог на диске
+/// приводится к этому ключу в `prepare_game_dir`/`modpack_settings`.
 pub fn game_dir(data_dir: &Path, manifest: Option<&protocol::Manifest>) -> PathBuf {
     let root = data_dir.join("minecraft");
     match manifest {
@@ -51,8 +177,14 @@ pub fn prepare_game_dir(
     data_dir: &Path,
     manifest: Option<&protocol::Manifest>,
 ) -> Result<PathBuf, String> {
+    if let Some(m) = manifest {
+        adopt_instance(data_dir, m);
+    }
     let target = game_dir(data_dir, manifest);
     std::fs::create_dir_all(&target).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
+    if let (Some(m), Some(instance)) = (manifest, target.parent()) {
+        write_instance_meta(instance, m);
+    }
     canonical_clean(&target)
 }
 
@@ -181,7 +313,8 @@ pub fn data_location_path(app: &AppHandle) -> PathBuf {
 /// Выборы относятся к тому же экземпляру, что и игровые файлы. Храним их
 /// рядом с game/, чтобы просмотр профилей не создавал игровую папку заранее.
 pub fn modpack_settings(data_dir: &Path, manifest: &protocol::Manifest) -> (PathBuf, PathBuf) {
-    let instance = data_dir.join("minecraft").join("instances").join(build_key(manifest));
+    adopt_instance(data_dir, manifest);
+    let instance = instances_root(data_dir).join(build_key(manifest));
     (instance.join("mod-choices.json"), instance.join("selected-profile.json"))
 }
 
@@ -329,14 +462,125 @@ mod game_directory_tests {
         let new = manifest(Some(42), "../../unsafe");
         let new_dir = prepare_game_dir(&root, Some(&new)).unwrap();
         assert_ne!(old_dir, new_dir);
+        // Экземпляр усыновлён: данные переехали в каталог с buildId.
+        assert!(!old_dir.exists());
         assert_eq!(
-            std::fs::read(old_dir.join("options.txt")).unwrap(),
+            std::fs::read(new_dir.join("options.txt")).unwrap(),
             b"settings"
         );
         assert_eq!(
             game_dir(&root, Some(&new)),
             game_dir(&root, Some(&manifest(Some(42), "renamed")))
         );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn server_adds_build_id_and_instance_is_adopted() {
+        let root = temp();
+        let without_id = manifest(None, "Сборка");
+        let (choices, profile) = modpack_settings(&root, &without_id);
+        let dir = prepare_game_dir(&root, Some(&without_id)).unwrap();
+        std::fs::create_dir_all(dir.join("saves/world")).unwrap();
+        std::fs::write(dir.join("saves/world/level.dat"), b"world").unwrap();
+        std::fs::write(&choices, b"{}").unwrap();
+        std::fs::write(&profile, b"{}").unwrap();
+
+        let old_dir = dir.clone();
+        let with_id = manifest(Some(7), "Сборка");
+        let adopted = prepare_game_dir(&root, Some(&with_id)).unwrap();
+        assert_ne!(adopted, old_dir);
+        assert!(!old_dir.exists());
+        assert_eq!(
+            std::fs::read(adopted.join("saves/world/level.dat")).unwrap(),
+            b"world"
+        );
+        let (adopted_choices, adopted_profile) = modpack_settings(&root, &with_id);
+        assert_eq!(std::fs::read(adopted_choices).unwrap(), b"{}");
+        assert_eq!(std::fs::read(adopted_profile).unwrap(), b"{}");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn build_id_rollback_finds_instance_by_metadata() {
+        let root = temp();
+        let with_id = manifest(Some(7), "Сборка");
+        let dir = prepare_game_dir(&root, Some(&with_id)).unwrap();
+        std::fs::write(dir.join("options.txt"), b"settings").unwrap();
+        let (choices, _) = modpack_settings(&root, &with_id);
+        std::fs::write(&choices, b"{}").unwrap();
+
+        // Сервер откатился и снова не передаёт buildId: экземпляр находится
+        // по метаданным, игрок не теряет миры и настройки.
+        let without_id = manifest(None, "Сборка");
+        let rolled_back = prepare_game_dir(&root, Some(&without_id)).unwrap();
+        assert_ne!(rolled_back, dir);
+        assert!(!dir.exists());
+        assert_eq!(
+            std::fs::read(rolled_back.join("options.txt")).unwrap(),
+            b"settings"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn adoption_never_touches_existing_target() {
+        let root = temp();
+        let with_id = manifest(Some(7), "Сборка");
+        let build_dir = prepare_game_dir(&root, Some(&with_id)).unwrap();
+        std::fs::write(build_dir.join("options.txt"), b"build").unwrap();
+        // Каталог с прежним ключом создан старой версией лаунчера, которая
+        // не знала про усыновление. Целевой build-каталог уже существует —
+        // перенос не выполняется, чужие данные не перезаписываются.
+        let without_id = manifest(None, "Сборка");
+        let alias_dir = game_dir(&root, Some(&without_id));
+        std::fs::create_dir_all(alias_dir.join("saves/world")).unwrap();
+        std::fs::write(alias_dir.join("options.txt"), b"alias").unwrap();
+
+        let again = prepare_game_dir(&root, Some(&with_id)).unwrap();
+        assert_eq!(again, build_dir);
+        assert_eq!(
+            std::fs::read(build_dir.join("options.txt")).unwrap(),
+            b"build"
+        );
+        assert_eq!(
+            std::fs::read(alias_dir.join("options.txt")).unwrap(),
+            b"alias"
+        );
+        assert!(alias_dir.join("saves/world").is_dir());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn ambiguous_rollback_does_not_guess() {
+        let root = temp();
+        // Два разных buildId, одно имя — метаданные совпадают.
+        let first = prepare_game_dir(&root, Some(&manifest(Some(1), "Сборка"))).unwrap();
+        std::fs::write(first.join("options.txt"), b"first").unwrap();
+        let second = prepare_game_dir(&root, Some(&manifest(Some(2), "Сборка"))).unwrap();
+        std::fs::write(second.join("options.txt"), b"second").unwrap();
+        let without_id = manifest(None, "Сборка");
+        let dir = prepare_game_dir(&root, Some(&without_id)).unwrap();
+        assert_ne!(dir, first);
+        assert_ne!(dir, second);
+        assert_eq!(std::fs::read(first.join("options.txt")).unwrap(), b"first");
+        assert_eq!(std::fs::read(second.join("options.txt")).unwrap(), b"second");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn different_build_with_same_name_is_not_adopted() {
+        let root = temp();
+        // Сборка 1 без id, затем сборка 2 с id, но то же имя ядра:
+        // усыновляем только полное совпадение имени.
+        let without_id = manifest(None, "Сборка А");
+        let dir_a = prepare_game_dir(&root, Some(&without_id)).unwrap();
+        std::fs::write(dir_a.join("options.txt"), b"a").unwrap();
+        let other = manifest(Some(9), "Сборка Б");
+        let dir_b = prepare_game_dir(&root, Some(&other)).unwrap();
+        assert_ne!(dir_a, dir_b);
+        assert!(!dir_b.join("options.txt").exists());
+        assert_eq!(std::fs::read(dir_a.join("options.txt")).unwrap(), b"a");
         std::fs::remove_dir_all(root).unwrap();
     }
 }
