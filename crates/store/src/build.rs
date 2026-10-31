@@ -536,12 +536,13 @@ impl Store {
     /// «висячие» ключи навсегда (ретрай получает NotFound до чистки).
     pub async fn delete_mod_profile(&self, build_id: i64, key: &str) -> Result<(), StoreError> {
         let mut tx = self.pool().begin().await?;
-        let changed = sqlx::query("DELETE FROM build_mod_profiles WHERE build_id = $1 AND key = $2")
-            .bind(build_id)
-            .bind(key)
-            .execute(&mut *tx)
-            .await?
-            .rows_affected();
+        let changed =
+            sqlx::query("DELETE FROM build_mod_profiles WHERE build_id = $1 AND key = $2")
+                .bind(build_id)
+                .bind(key)
+                .execute(&mut *tx)
+                .await?
+                .rows_affected();
         if changed == 0 {
             return Err(StoreError::NotFound);
         }
@@ -579,6 +580,7 @@ impl BuildRecord {
             })
             .collect();
         Manifest {
+            build_id: Some(self.header.id),
             name: self.header.name.clone(),
             version: self.header.version.clone(),
             loader: LoaderInfo {

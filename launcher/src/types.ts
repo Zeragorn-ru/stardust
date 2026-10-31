@@ -315,6 +315,8 @@ export interface LogPaths {
   minecraftDebugLog: string;
   crashReportsDir: string;
   dataDir: string;
+  legacyGameDir?: string | null;
+  activeGameDir?: string | null;
   crashReportsExists: boolean;
 }
 

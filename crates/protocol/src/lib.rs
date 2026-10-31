@@ -207,6 +207,9 @@ pub enum LoaderKind {
 /// серверная часть формируется из `side ∈ {server, both}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
+    /// Постоянный идентификатор сборки; старые серверы его не передают.
+    #[serde(default, rename = "buildId", skip_serializing_if = "Option::is_none")]
+    pub build_id: Option<i64>,
     /// Имя сборки (для отображения).
     #[serde(default)]
     pub name: String,

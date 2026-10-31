@@ -8,7 +8,7 @@
 // `.dis` (напр. `mods/sodium.jar.dis`) — Minecraft/NeoForge грузит только
 // `.jar`, поэтому такой файл игнорируется. Включение/выключение мода в
 // лаунчере — это просто переименование файла ± `.dis`, без перекачки. Выбор
-// игрока хранится в `mod-choices.json` (data-dir) по `mod_id`; если выбора
+// игрока хранится в `mod-choices.json` экземпляра по `mod_id`; если выбора
 // нет — берём `enabled_by_default` из манифеста, с поправкой на
 // `PLATFORM_DEFAULT_DISABLED` (например Better Clouds на macOS).
 //
@@ -37,8 +37,6 @@ use crate::progress::Progress;
 
 /// Имя файла-реестра управляемых лаунчером файлов (лежит в game-dir).
 const STATE_FILE: &str = "managed-files.json";
-/// Имя файла с выбором игрока по опциональным модам (лежит в data-dir).
-const CHOICES_FILE: &str = "mod-choices.json";
 /// Суффикс, которым помечается выключенный мод (Minecraft его не грузит).
 const DISABLED_SUFFIX: &str = ".dis";
 
@@ -232,12 +230,12 @@ pub struct ModProfileInfo {
 pub async fn mod_profile_summary(
     http: &reqwest::Client,
     data_dir: &Path,
-    selected_profile_file: &Path,
 ) -> Result<Vec<ModProfileInfo>, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Ok(Vec::new());
     };
-    let selected = read_selected_profile(&manifest, selected_profile_file);
+    let (_, selected_profile_file) = crate::paths::modpack_settings(data_dir, &manifest);
+    let selected = read_selected_profile(&manifest, &selected_profile_file);
     // Считаем все клиентские файлы с тегами: неопциональный мод из профиля
     // тоже входит в него (гейт в sync() действует на оба вида).
     let mods: Vec<_> = manifest.client_files().collect();
@@ -275,14 +273,12 @@ pub async fn mod_profile_summary(
 pub async fn select_mod_profile(
     http: &reqwest::Client,
     data_dir: &Path,
-    choices_file: &Path,
-    selected_profile_file: &Path,
-    game_dir: &Path,
     profile_key: &str,
 ) -> Result<usize, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Err("Активная сборка недоступна".to_string());
     };
+    let game_dir = crate::paths::game_dir(data_dir, Some(&manifest));
     let known = manifest
         .mod_profiles
         .iter()
@@ -293,9 +289,10 @@ pub async fn select_mod_profile(
 
     // Держим лок и на записи профиля, и на переименованиях: параллельный
     // set_mod_enabled не должен вклиниться между ними (см. CHOICES_LOCK).
-    let choices = read_choices(data_dir, choices_file);
+    let (choices_file, selected_profile_file) = crate::paths::modpack_settings(data_dir, &manifest);
     let _guard = CHOICES_LOCK.lock().unwrap();
-    write_selected_profile(selected_profile_file, profile_key);
+    let choices = read_choices(&choices_file);
+    write_selected_profile(&selected_profile_file, profile_key);
 
     let mut applied = 0usize;
     // Все клиентские файлы (не только опциональные): тег профиля у
@@ -303,7 +300,7 @@ pub async fn select_mod_profile(
     for entry in manifest.client_files() {
         let enabled = file_enabled(entry, &choices, Some(profile_key));
         if let Some(rel) = sanitize_rel_path(&entry.path) {
-            if apply_enabled_state(game_dir, &rel, enabled) {
+            if apply_enabled_state(&game_dir, &rel, enabled) {
                 applied += 1;
             }
         }
@@ -351,8 +348,6 @@ pub async fn sync(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
-    choices_file: &Path,
-    selected_profile_file: &Path,
     game_dir: &Path,
     concurrency: usize,
     manifest: Option<&protocol::Manifest>,
@@ -371,11 +366,12 @@ pub async fn sync(
     // select_mod_profile: без этого переключение тумблера вклинивалось
     // между чтением и переименованиями и срывало согласованность .jar/.dis.
     // Лок держится только на чтение — сама синхронизация может идти минутами.
+    let (choices_file, selected_profile_file) = crate::paths::modpack_settings(data_dir, manifest);
     let (choices, selected_profile) = {
         let _guard = CHOICES_LOCK.lock().unwrap();
         (
-            read_choices(data_dir, choices_file),
-            read_selected_profile(manifest, selected_profile_file),
+            read_choices(&choices_file),
+            read_selected_profile(manifest, &selected_profile_file),
         )
     };
     let mut state = read_state(game_dir);
@@ -526,15 +522,14 @@ pub async fn sync(
 pub async fn list_optional_mods(
     http: &reqwest::Client,
     data_dir: &Path,
-    choices_file: &Path,
-    selected_profile_file: &Path,
-    game_dir: &Path,
 ) -> Result<Vec<OptionalMod>, String> {
     let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
         return Ok(Vec::new());
     };
-    let choices = read_choices(data_dir, choices_file);
-    let selected_profile = read_selected_profile(&manifest, selected_profile_file);
+    let game_dir = crate::paths::game_dir(data_dir, Some(&manifest));
+    let (choices_file, selected_profile_file) = crate::paths::modpack_settings(data_dir, &manifest);
+    let choices = read_choices(&choices_file);
+    let selected_profile = read_selected_profile(&manifest, &selected_profile_file);
 
     let mods = manifest
         .client_files()
@@ -551,7 +546,7 @@ pub async fn list_optional_mods(
             // достать из метаданных самого jar (он всегда скачан, пусть и как
             // `.dis`). В последнюю очередь — имя файла.
             let jar_meta = if entry.display_name.is_none() || entry.description.is_none() {
-                read_jar_mod_meta(game_dir, &entry.path)
+                read_jar_mod_meta(&game_dir, &entry.path)
             } else {
                 None
             };
@@ -593,53 +588,29 @@ static CHOICES_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 pub async fn set_mod_enabled(
     http: &reqwest::Client,
     data_dir: &Path,
-    choices_file: &Path,
-    selected_profile_file: &Path,
-    game_dir: &Path,
     mod_id: String,
     enabled: bool,
 ) -> Result<(), String> {
-    // Профильный гейт: мод, недоступный в выбранном профиле, руками не
-    // переключается — сначала нужно выбрать профиль, которому он принадлежит.
-    // Недоступный манифест не мешает сохранению выбора (см. комментарий ниже),
-    // гейт тогда просто не проверяется — sync() выправит состояние при запуске.
-    let manifest = crate::backend::fetch_manifest(http, data_dir)
-        .await
-        .ok()
-        .flatten();
-    if let Some(manifest) = &manifest {
-        let selected = resolve_selected_profile(manifest, selected_profile_file);
-        if let Some(entry) = manifest
-            .optional_client_mods()
-            .find(|m| mod_choice_key(m) == mod_id)
-        {
-            if !profile_gate_open(entry, selected.as_deref()) {
-                return Err("Мод недоступен в выбранном профиле".to_string());
-            }
+    // Без манифеста (в том числе кешированного) неизвестно, к какой сборке
+    // относится выбор. Не записываем его в общий файл и не угадываем владельца.
+    let manifest = crate::backend::fetch_manifest(http, data_dir).await?
+        .ok_or_else(|| "Активная сборка недоступна".to_string())?;
+    let (choices_file, selected_profile_file) = crate::paths::modpack_settings(data_dir, &manifest);
+    let _guard = CHOICES_LOCK.lock().unwrap();
+    let selected = resolve_selected_profile(&manifest, &selected_profile_file);
+    let entry = manifest.optional_client_mods().find(|m| mod_choice_key(m) == mod_id);
+    if let Some(entry) = entry {
+        if !profile_gate_open(entry, selected.as_deref()) {
+            return Err("Мод недоступен в выбранном профиле".to_string());
         }
     }
-
-    // Выбор сохраняем всегда — даже если сервер недоступен.
-    {
-        let _guard = CHOICES_LOCK.lock().unwrap();
-        let mut choices = read_choices(data_dir, choices_file);
-        choices.insert(mod_id.clone(), enabled);
-        write_choices(choices_file, &choices);
-    }
-
-    // Пытаемся применить переименование сразу. Путь берём из манифеста (не
-    // доверяем фронту). Если манифест недоступен — переименование произойдёт
-    // при следующем запуске в sync().
-    if let Some(manifest) = manifest {
-        let selected = resolve_selected_profile(&manifest, selected_profile_file);
-        if let Some(entry) = manifest
-            .optional_client_mods()
-            .find(|m| mod_choice_key(m) == mod_id)
-        {
-            let effective = enabled && profile_gate_open(entry, selected.as_deref());
-            if let Some(rel) = sanitize_rel_path(&entry.path) {
-                apply_enabled_state(game_dir, &rel, effective);
-            }
+    let mut choices = read_choices(&choices_file);
+    choices.insert(mod_id, enabled);
+    write_choices(&choices_file, &choices);
+    if let Some(entry) = entry {
+        let game_dir = crate::paths::game_dir(data_dir, Some(&manifest));
+        if let Some(rel) = sanitize_rel_path(&entry.path) {
+            apply_enabled_state(&game_dir, &rel, enabled);
         }
     }
     Ok(())
@@ -956,17 +927,11 @@ fn write_state(game_dir: &Path, state: &ManagedState) {
 }
 
 /// Выбор игрока по опциональным модам: `mod_id` -> включён ли.
-fn read_choices(data_dir: &Path, stable_file: &Path) -> BTreeMap<String, bool> {
-    if let Ok(contents) = std::fs::read_to_string(stable_file) {
-        return serde_json::from_str(&contents).unwrap_or_default();
-    }
-
-    let choices = std::fs::read_to_string(data_dir.join(CHOICES_FILE))
+fn read_choices(path: &Path) -> BTreeMap<String, bool> {
+    std::fs::read_to_string(path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
-    write_choices(stable_file, &choices);
-    choices
+        .unwrap_or_default()
 }
 
 fn write_choices(path: &Path, choices: &BTreeMap<String, bool>) {
@@ -1008,6 +973,7 @@ mod tests {
 
     fn manifest(profiles: &[(&str, &str)], mods: Vec<protocol::FileEntry>) -> protocol::Manifest {
         protocol::Manifest {
+            build_id: None,
             name: "Test".to_string(),
             version: "1.0".to_string(),
             loader: protocol::LoaderInfo {
@@ -1026,6 +992,31 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn mod_choices_and_profiles_are_isolated_per_instance() {
+        let root = std::env::temp_dir().join(format!("stardust-choices-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("mod-choices.json"), r#"{"shared":false}"#).unwrap();
+        let mut a = manifest(&[("performance", "Performance"), ("quality", "Quality")], vec![]);
+        a.build_id = Some(1);
+        let mut b = a.clone();
+        b.build_id = Some(2);
+        let (a_choices, a_profile) = crate::paths::modpack_settings(&root, &a);
+        let (b_choices, b_profile) = crate::paths::modpack_settings(&root, &b);
+        assert!(read_choices(&a_choices).is_empty());
+        write_choices(&a_choices, &BTreeMap::from([("shared".into(), true)]));
+        write_choices(&b_choices, &BTreeMap::from([("shared".into(), false)]));
+        write_selected_profile(&a_profile, "quality");
+        write_selected_profile(&b_profile, "performance");
+        assert_eq!(read_choices(&a_choices).get("shared"), Some(&true));
+        assert_eq!(read_choices(&b_choices).get("shared"), Some(&false));
+        assert_eq!(resolve_selected_profile(&a, &a_profile).as_deref(), Some("quality"));
+        assert_eq!(resolve_selected_profile(&b, &b_profile).as_deref(), Some("performance"));
+        assert_eq!(std::fs::read_to_string(root.join("mod-choices.json")).unwrap(), r#"{"shared":false}"#);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -1063,7 +1054,11 @@ mod tests {
         choices.clear();
         let off_by_default = mod_entry("voxy", &["performance"], false);
         assert!(optional_mod_enabled(&perf, &choices, Some("performance")));
-        assert!(!optional_mod_enabled(&off_by_default, &choices, Some("performance")));
+        assert!(!optional_mod_enabled(
+            &off_by_default,
+            &choices,
+            Some("performance")
+        ));
     }
 
     #[test]
@@ -1092,7 +1087,10 @@ mod tests {
     #[test]
     fn resolve_selected_profile_falls_back_to_first() {
         let m = manifest(
-            &[("performance", "Производительность"), ("quality", "Качество")],
+            &[
+                ("performance", "Производительность"),
+                ("quality", "Качество"),
+            ],
             vec![mod_entry("sodium", &["performance"], true)],
         );
         let dir = std::env::temp_dir().join("stardust_test_profiles");
@@ -1101,15 +1099,24 @@ mod tests {
 
         // Нет файла — первый профиль манифеста.
         let file = dir.join("selected-profile.json");
-        assert_eq!(resolve_selected_profile(&m, &file).as_deref(), Some("performance"));
+        assert_eq!(
+            resolve_selected_profile(&m, &file).as_deref(),
+            Some("performance")
+        );
 
         // Неизвестный ключ — тоже первый профиль (не падаем).
         std::fs::write(&file, "deprecated-key").unwrap();
-        assert_eq!(resolve_selected_profile(&m, &file).as_deref(), Some("performance"));
+        assert_eq!(
+            resolve_selected_profile(&m, &file).as_deref(),
+            Some("performance")
+        );
 
         // Валидный ключ используется как есть.
         std::fs::write(&file, "quality").unwrap();
-        assert_eq!(resolve_selected_profile(&m, &file).as_deref(), Some("quality"));
+        assert_eq!(
+            resolve_selected_profile(&m, &file).as_deref(),
+            Some("quality")
+        );
 
         // Манифест без профилей — None.
         let no_profiles = manifest(&[], vec![mod_entry("sodium", &[], true)]);

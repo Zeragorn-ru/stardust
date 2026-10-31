@@ -20,8 +20,6 @@ export default function MinecraftNickname({ name, badge, gradient, className }: 
   return (
     <span className={"minecraft-nick" + (className ? ` ${className}` : "")}>
       {badge && (
-        /* Обёртка держит drop-shadow: сам McEmoji рисуется CSS-маской,
-           а filter применяется до маски — тень на нём срезалась бы. */
         <span className="minecraft-nick__badge-wrap">
           <McEmoji
             char={badge.emoji}

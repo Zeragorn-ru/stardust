@@ -25,7 +25,6 @@ use crate::java::JavaProvider;
 use crate::progress::{DownloadScope, Progress, Stage};
 
 const DEFAULT_VERSION: &str = "1.21.1";
-const DEFAULT_NEOFORGE_BRANCH: &str = "21.1.";
 const NEOFORGE_METADATA_URL: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
 /// Fabric Loader ставится статичными файлами: profile JSON с meta.fabricmc.net
@@ -68,7 +67,15 @@ pub async fn launch(
     app: AppHandle,
     http: &reqwest::Client,
     options: LaunchOptions,
-) -> Result<(Child, Vec<crate::backend::ExternalModReport>), String> {
+) -> Result<
+    (
+        Child,
+        Vec<crate::backend::ExternalModReport>,
+        PathBuf,
+        Option<protocol::Manifest>,
+    ),
+    String,
+> {
     let LaunchOptions {
         data_dir,
         settings_memory_mb,
@@ -87,9 +94,22 @@ pub async fn launch(
         ));
     }
 
+    let manifest = if skip_build_check {
+        match crate::backend::fetch_manifest(http, &data_dir).await {
+            Ok(manifest) => manifest,
+            Err(error) => {
+                tracing::warn!("[modpack] админский режим: манифест недоступен: {error}");
+                None
+            }
+        }
+    } else {
+        crate::backend::fetch_manifest(http, &data_dir).await?
+    };
+    let version_id = resolve_minecraft_version(
+        manifest.as_ref(),
+        std::env::var("LAUNCHER_MC_VERSION").ok().as_deref(),
+    )?;
     let root = data_dir.join("minecraft");
-    let version_id =
-        std::env::var("LAUNCHER_MC_VERSION").unwrap_or_else(|_| DEFAULT_VERSION.into());
     fs::create_dir_all(&root).map_err(|e| format!("Не удалось создать папку Minecraft: {e}"))?;
     let root = canonicalize_clean(&root)?;
     tracing::info!(
@@ -105,33 +125,23 @@ pub async fn launch(
     let concurrency = download_concurrency.clamp(1, 16);
 
     let progress = Progress::new(app.clone());
+    let version = ensure_version(&progress, http, &root, &version_id).await?;
+    let required_java = version.required_java_major()?;
     let java = crate::java::resolve_java(
         java_provider,
         java_custom_path.as_deref(),
         &progress,
         http,
         &data_dir,
+        required_java,
     )
     .await?;
-    tracing::info!("[game] выбрана Java: {}", java.display());
+    let java_major = crate::java::java_major(&java)?;
+    tracing::info!("[game] выбрана Java {java_major} для Minecraft {version_id}: {}", java.display());
 
-    let version = ensure_version(&progress, http, &root, &version_id).await?;
     ensure_client(&progress, http, &root, &version).await?;
     ensure_libraries(&progress, http, &root, &version, concurrency).await?;
     ensure_assets(&progress, http, &root, &version, concurrency).await?;
-    let manifest = if skip_build_check {
-        match crate::backend::fetch_manifest(http, &data_dir).await {
-            Ok(manifest) => manifest,
-            Err(error) => {
-                tracing::warn!(
-                    "[modpack] админский режим: манифест недоступен, продолжаем с локальной сборкой: {error}"
-                );
-                None
-            }
-        }
-    } else {
-        crate::backend::fetch_manifest(http, &data_dir).await?
-    };
     // Ядро сборки из манифеста: NeoForge (installer) или Fabric (статичный
     // profile JSON). Манифеста нет (админский режим/оффлайн) — остаёмся на
     // NeoForge как историческом ядре по умолчанию.
@@ -145,15 +155,11 @@ pub async fn launch(
         .map(|m| m.loader.version.clone());
     let loader_profile_id = match loader_kind {
         protocol::LoaderKind::Fabric => {
-            let mc = manifest
-                .as_ref()
-                .map(|m| m.loader.minecraft.clone())
-                .unwrap_or_else(|| version_id.clone());
             ensure_fabric(
                 &progress,
                 http,
                 &root,
-                &mc,
+                &version_id,
                 pinned_loader_version.as_deref(),
             )
             .await?
@@ -166,6 +172,7 @@ pub async fn launch(
                 http,
                 &root,
                 &java,
+                &version_id,
                 pinned_loader_version.as_deref(),
             )
             .await?
@@ -194,9 +201,15 @@ pub async fn launch(
     );
     extract_natives(&root, &version, &loader.libraries)?;
 
-    let game_dir = root.join("game");
-    fs::create_dir_all(&game_dir).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
+    let legacy = root.join("game");
+    if legacy.is_dir() && !crate::paths::game_dir(&data_dir, manifest.as_ref()).exists() {
+        let message = format!("Старая игровая папка сохранена в {}. Её принадлежность сборке неизвестна; нужные сохранения можно скопировать вручную в {}", legacy.display(), crate::paths::game_dir(&data_dir, manifest.as_ref()).display());
+        tracing::warn!("[game] {message}");
+        progress.log(message);
+    }
+    let game_dir = crate::paths::prepare_game_dir(&data_dir, manifest.as_ref())?;
     tracing::info!("[game] game_dir={}", game_dir.display());
+    crate::commands::archive_previous_latest_log(&game_dir);
 
     if skip_build_check {
         tracing::warn!(
@@ -210,8 +223,6 @@ pub async fn launch(
             &progress,
             http,
             &data_dir,
-            &crate::paths::mod_choices_file(&app),
-            &crate::paths::selected_profile_file(&app),
             &game_dir,
             concurrency,
             manifest.as_ref(),
@@ -257,7 +268,7 @@ pub async fn launch(
     let xms = memory.min(512);
     args.push(format!("-Xms{xms}M"));
     args.push(format!("-Xmx{memory}M"));
-    args.extend(jvm_tuning_args(java_provider));
+    args.extend(jvm_tuning_args(java_provider, java_major));
 
     // JVM-аргументы NeoForge (module-path, --add-opens и т.д.) с подстановкой
     // плейсхолдеров. Без них BootstrapLauncher не стартует.
@@ -321,7 +332,27 @@ pub async fn launch(
         .spawn()
         .map_err(|e| format!("Не удалось запустить Java/Minecraft: {e}"))?;
 
-    Ok((child, scan_external_mods(&game_dir, manifest.as_ref())))
+    let external_mods = scan_external_mods(&game_dir, manifest.as_ref());
+    Ok((child, external_mods, game_dir, manifest))
+}
+
+fn resolve_minecraft_version(
+    manifest: Option<&protocol::Manifest>,
+    fallback: Option<&str>,
+) -> Result<String, String> {
+    let version = manifest
+        .map(|m| m.loader.minecraft.as_str())
+        .unwrap_or_else(|| fallback.unwrap_or(DEFAULT_VERSION));
+    if version.is_empty()
+        || version == "."
+        || version == ".."
+        || !version
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+    {
+        return Err(format!("Некорректная версия Minecraft: {version:?}"));
+    }
+    Ok(version.to_string())
 }
 
 fn scan_external_mods(
@@ -548,7 +579,7 @@ fn jvm_proxy_args(proxy_type: &crate::commands::ProxyType) -> Vec<String> {
     args
 }
 
-fn jvm_tuning_args(provider: JavaProvider) -> Vec<String> {
+fn jvm_tuning_args(provider: JavaProvider, java_major: u32) -> Vec<String> {
     // Лаунчер требует Java 21+ (см. java::JAVA_VERSION). Distant Horizons
     // ругается на G1 и на -XX:+DisableExplicitGC; concurrent GC (ZGC) снимает
     // оба предупреждения, поэтому ExplicitGC не отключаем.
@@ -563,8 +594,10 @@ fn jvm_tuning_args(provider: JavaProvider) -> Vec<String> {
         | JavaProvider::Microsoft
         | JavaProvider::Zulu
         | JavaProvider::Auto => {
-            // Generational ZGC — product feature с JDK 21 (JEP 439).
-            args.push("-XX:+ZGenerational".to_string());
+            // С JDK 24 ZGC только generational, отдельный флаг удалён.
+            if java_major < 24 {
+                args.push("-XX:+ZGenerational".to_string());
+            }
         }
         JavaProvider::System | JavaProvider::Custom => {
             // System/custom могут быть нестандартными HotSpot-сборками;
@@ -730,7 +763,7 @@ async fn ensure_version(
     progress.begin(
         Stage::Version,
         "checking",
-        "Проверяем Minecraft 1.21.1…",
+        format!("Проверяем Minecraft {version_id}…"),
     );
     let version_dir = root.join("versions").join(version_id);
     let version_path = version_dir.join(format!("{version_id}.json"));
@@ -806,7 +839,6 @@ async fn ensure_libraries(
     download_libraries(progress, http, root, &version.libraries, concurrency).await
 }
 
-
 /// Путь библиотеки из доверенного JSON в безопасный относительный путь ФС.
 /// artifact.path приходит из version-JSON Mojang/NeoForge/манифеста сборки:
 /// при компрометации источника он мог бы содержать `..`/абсолютный путь и
@@ -844,7 +876,9 @@ async fn download_libraries(
         .filter(|lib| rules_allow(&lib.rules, &LaunchFeatures::default()))
     {
         if let Some(artifact) = lib.artifact() {
-            let path = root.join("libraries").join(library_rel_path(&artifact.path));
+            let path = root
+                .join("libraries")
+                .join(library_rel_path(&artifact.path));
             if !artifact.url.is_empty()
                 && !file_matches(&path, artifact.sha1.as_deref(), artifact.size)?
             {
@@ -860,7 +894,9 @@ async fn download_libraries(
         if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
             if let Some(native_key) = native_classifier(lib) {
                 if let Some(artifact) = classifiers.get(&native_key) {
-                    let path = root.join("libraries").join(library_rel_path(&artifact.path));
+                    let path = root
+                        .join("libraries")
+                        .join(library_rel_path(&artifact.path));
                     if !artifact.url.is_empty()
                         && !file_matches(&path, artifact.sha1.as_deref(), artifact.size)?
                     {
@@ -1056,7 +1092,9 @@ fn extract_natives(
         if let Some(classifier) = native_classifier(lib) {
             if let Some(classifiers) = lib.downloads.classifiers.as_ref() {
                 if let Some(artifact) = classifiers.get(&classifier) {
-                    let jar_path = root.join("libraries").join(library_rel_path(&artifact.path));
+                    let jar_path = root
+                        .join("libraries")
+                        .join(library_rel_path(&artifact.path));
                     if jar_path.exists() && extracted.insert(artifact.path.clone()) {
                         extract_zip(&jar_path, &dir)?;
                     }
@@ -1067,7 +1105,9 @@ fn extract_natives(
         // MC 1.21+: отдельные записи вида group:artifact:version:natives-macos.
         if let Some(artifact) = lib.artifact() {
             if native_artifact_for_current_os(&artifact.path, lib.name.as_deref()) {
-                let jar_path = root.join("libraries").join(library_rel_path(&artifact.path));
+                let jar_path = root
+                    .join("libraries")
+                    .join(library_rel_path(&artifact.path));
                 if jar_path.exists() && extracted.insert(artifact.path.clone()) {
                     extract_zip(&jar_path, &dir)?;
                 }
@@ -1123,7 +1163,10 @@ fn build_modloader_classpath(
             if let Some(key) = library_dedup_key(lib) {
                 seen.insert(key);
             }
-            paths.push(root.join("libraries").join(library_rel_path(&artifact.path)));
+            paths.push(
+                root.join("libraries")
+                    .join(library_rel_path(&artifact.path)),
+            );
         }
     }
     for lib in active_libraries(vanilla) {
@@ -1133,7 +1176,10 @@ fn build_modloader_classpath(
             }
         }
         if let Some(artifact) = lib.artifact() {
-            paths.push(root.join("libraries").join(library_rel_path(&artifact.path)));
+            paths.push(
+                root.join("libraries")
+                    .join(library_rel_path(&artifact.path)),
+            );
         }
     }
     // vanilla-клиентский jar остаётся нужен (исключён из module-path через ignoreList).
@@ -1486,6 +1532,7 @@ async fn ensure_neoforge(
     http: &reqwest::Client,
     root: &Path,
     java: &Path,
+    minecraft_version: &str,
     pinned_version: Option<&str>,
 ) -> Result<String, String> {
     progress.begin(Stage::NeoForgeInstall, "checking", "Проверяем NeoForge…");
@@ -1508,7 +1555,7 @@ async fn ensure_neoforge(
             .filter(|v| !v.trim().is_empty())
         {
             Some(v) => v,
-            None => latest_neoforge_21_1(http).await?,
+            None => latest_neoforge(http, minecraft_version).await?,
         }
     };
     let profile_id = format!("neoforge-{neoforge_version}");
@@ -1715,8 +1762,8 @@ fn load_modloader_profile(root: &Path, profile_id: &str) -> Result<ModLoaderProf
         .join("versions")
         .join(profile_id)
         .join(format!("{profile_id}.json"));
-    let json = fs::read_to_string(&path)
-        .map_err(|e| format!("Не удалось прочитать профиль ядра: {e}"))?;
+    let json =
+        fs::read_to_string(&path).map_err(|e| format!("Не удалось прочитать профиль ядра: {e}"))?;
     serde_json::from_str(&json).map_err(|e| format!("Некорректный профиль ядра: {e}"))
 }
 
@@ -1761,14 +1808,20 @@ async fn ensure_fabric(
     let profile_path = profile_dir.join(format!("{profile_id}.json"));
 
     if profile_path.exists() {
-        tracing::info!("[fabric] профиль уже установлен: {}", profile_path.display());
+        tracing::info!(
+            "[fabric] профиль уже установлен: {}",
+            profile_path.display()
+        );
         return Ok(profile_id);
     }
     fs::create_dir_all(&profile_dir)
         .map_err(|e| format!("Не удалось создать каталог профиля Fabric: {e}"))?;
 
     let url = format!("{FABRIC_PROFILE_URL}/{mc}/{loader_version}/profile/json");
-    progress.set_label("downloading", format!("Скачиваем Fabric Loader {loader_version}…"));
+    progress.set_label(
+        "downloading",
+        format!("Скачиваем Fabric Loader {loader_version}…"),
+    );
     let resp = http_get_with_retry(http, &url, "профиль Fabric", 3).await?;
     let body = resp
         .text()
@@ -1795,12 +1848,30 @@ async fn ensure_fabric(
     fs::write(&tmp, &body).map_err(|e| format!("Не удалось записать профиль Fabric: {e}"))?;
     fs::rename(&tmp, &profile_path)
         .map_err(|e| format!("Не удалось переместить профиль Fabric: {e}"))?;
-    tracing::info!("[fabric] установлен профиль {}: {profile_id}", profile_path.display());
+    tracing::info!(
+        "[fabric] установлен профиль {}: {profile_id}",
+        profile_path.display()
+    );
 
     Ok(profile_id)
 }
 
-async fn latest_neoforge_21_1(http: &reqwest::Client) -> Result<String, String> {
+fn neoforge_branch(minecraft: &str) -> Result<String, String> {
+    let parts: Vec<_> = minecraft.split('.').collect();
+    if !(parts.len() == 2 || parts.len() == 3)
+        || parts[0] != "1"
+        || parts[1].parse::<u32>().is_err()
+        || parts.get(2).is_some_and(|p| p.parse::<u32>().is_err())
+    {
+        return Err(format!(
+            "Для Minecraft {minecraft} укажите версию NeoForge в манифесте"
+        ));
+    }
+    Ok(format!("{}.{}.", parts[1], parts.get(2).unwrap_or(&"0")))
+}
+
+async fn latest_neoforge(http: &reqwest::Client, minecraft: &str) -> Result<String, String> {
+    let branch = neoforge_branch(minecraft)?;
     let resp = http_get_with_retry(http, NEOFORGE_METADATA_URL, "метаданные NeoForge", 5).await?;
     let xml = resp.text().await.map_err(network_error)?;
 
@@ -1809,9 +1880,9 @@ async fn latest_neoforge_21_1(http: &reqwest::Client) -> Result<String, String> 
             part.split_once("</version>")
                 .map(|(v, _)| v.trim().to_string())
         })
-        .filter(|v| v.starts_with(DEFAULT_NEOFORGE_BRANCH))
+        .filter(|v| v.starts_with(&branch))
         .last()
-        .ok_or_else(|| "Не удалось найти NeoForge для Minecraft 1.21.1".to_string())
+        .ok_or_else(|| format!("Не удалось найти NeoForge для Minecraft {minecraft}"))
 }
 
 /// Маркер версии локального StarDust authlib-injector.
@@ -2438,9 +2509,27 @@ struct VersionJson {
     downloads: HashMap<String, DownloadInfo>,
     libraries: Vec<Library>,
     #[serde(default)]
+    java_version: Option<JavaVersionInfo>,
+    #[serde(default)]
     minecraft_arguments: Option<String>,
     #[serde(default)]
     arguments: Option<VersionArguments>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct JavaVersionInfo {
+    major_version: u32,
+}
+
+impl VersionJson {
+    fn required_java_major(&self) -> Result<u32, String> {
+        match self.java_version.as_ref().map(|v| v.major_version) {
+            Some(0) => Err("Некорректная требуемая версия Java в метаданных Minecraft".into()),
+            Some(major) => Ok(major.max(crate::java::JAVA_VERSION)),
+            None => Ok(crate::java::JAVA_VERSION),
+        }
+    }
 }
 
 /// Профиль ядра сборки (NeoForge installer или Fabric с meta.fabricmc.net),
@@ -2566,7 +2655,13 @@ fn maven_rel_path(name: &str) -> Option<String> {
         format!("{artifact}-{version}-{classifier}.jar")
     };
     // Полный maven-путь: group-каталоги / artifact / version / файл.
-    Some(format!("{}/{}/{}/{}", group.replace('.', "/"), artifact, version, file))
+    Some(format!(
+        "{}/{}/{}/{}",
+        group.replace('.', "/"),
+        artifact,
+        version,
+        file
+    ))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -2665,6 +2760,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn mojang_java_requirement_defaults_to_21_and_supports_25() {
+        let mut version = version_json_with_game_args("");
+        assert_eq!(version.required_java_major().unwrap(), 21);
+        let modern: VersionJson = serde_json::from_str(r#"{"id":"26.2","type":"release","mainClass":"x","assetIndex":{"id":"32","url":"https://example.test"},"downloads":{},"libraries":[],"javaVersion":{"component":"java-runtime-epsilon","majorVersion":25}}"#).unwrap();
+        assert_eq!(modern.required_java_major().unwrap(), 25);
+        version.java_version = serde_json::from_str(r#"{"majorVersion":17}"#).unwrap();
+        assert_eq!(version.required_java_major().unwrap(), 21);
+        version.java_version = serde_json::from_str(r#"{"majorVersion":0}"#).unwrap();
+        assert!(version.required_java_major().is_err());
+    }
+
+    #[test]
+    fn manifest_version_has_priority_and_is_validated() {
+        let mut manifest: protocol::Manifest = serde_json::from_str(r#"{"name":"test","version":"1","loader":{"minecraft":"1.20.1","kind":"fabric","version":"0.16.14"},"files":[]}"#).unwrap();
+        assert_eq!(resolve_minecraft_version(Some(&manifest), Some("1.21.1")).unwrap(), "1.20.1");
+        assert_eq!(resolve_minecraft_version(None, Some("1.21.4")).unwrap(), "1.21.4");
+        assert_eq!(resolve_minecraft_version(None, None).unwrap(), DEFAULT_VERSION);
+        manifest.loader.minecraft = "../escape".into();
+        assert!(resolve_minecraft_version(Some(&manifest), None).is_err());
+        manifest.loader.minecraft.clear();
+        assert!(resolve_minecraft_version(Some(&manifest), None).is_err());
+    }
+
+    #[test]
+    fn neoforge_branch_tracks_minecraft_version() {
+        assert_eq!(neoforge_branch("1.21.1").unwrap(), "21.1.");
+        assert_eq!(neoforge_branch("1.21.4").unwrap(), "21.4.");
+        assert_eq!(neoforge_branch("1.21").unwrap(), "21.0.");
+        assert!(neoforge_branch("snapshot").is_err());
+    }
+
+    #[test]
     fn library_artifact_fabric_with_sha1() {
         // Реальная запись из meta.fabricmc.net: url — корень репозитория.
         let lib: Library = serde_json::from_str(
@@ -2747,16 +2874,18 @@ mod tests {
         .unwrap();
         let artifact = lib.artifact().unwrap();
         assert!(artifact.url.starts_with("https://libraries.minecraft.net/"));
-        assert_eq!(artifact.sha1.as_deref(), Some("5eed2b8c8ff6e4a0d1a5a0b5a0a5a0a5a0a5a0a5"));
+        assert_eq!(
+            artifact.sha1.as_deref(),
+            Some("5eed2b8c8ff6e4a0d1a5a0b5a0a5a0a5a0a5a0a5")
+        );
     }
 
     #[test]
     fn library_artifact_rejects_broken_name() {
         // Меньше трёх координат — не maven-имя, артефакта нет.
-        let lib: Library = serde_json::from_str(
-            r#"{ "name": "only-two", "url": "https://maven.fabricmc.net/" }"#,
-        )
-        .unwrap();
+        let lib: Library =
+            serde_json::from_str(r#"{ "name": "only-two", "url": "https://maven.fabricmc.net/" }"#)
+                .unwrap();
         assert!(lib.artifact().is_none());
     }
 
@@ -3208,7 +3337,7 @@ mod tests {
             JavaProvider::System,
             JavaProvider::Custom,
         ] {
-            let args = jvm_tuning_args(provider);
+            let args = jvm_tuning_args(provider, 21);
             assert!(
                 args.iter().any(|a| a == "-XX:+UseZGC"),
                 "expected UseZGC for {provider:?}, got {args:?}"
@@ -3223,10 +3352,12 @@ mod tests {
             );
         }
 
-        let managed = jvm_tuning_args(JavaProvider::Temurin);
+        let managed = jvm_tuning_args(JavaProvider::Temurin, 21);
         assert!(managed.iter().any(|a| a == "-XX:+ZGenerational"));
+        let newer = jvm_tuning_args(JavaProvider::Auto, 25);
+        assert!(!newer.iter().any(|a| a == "-XX:+ZGenerational"));
 
-        let system = jvm_tuning_args(JavaProvider::System);
+        let system = jvm_tuning_args(JavaProvider::System, 21);
         assert!(!system.iter().any(|a| a == "-XX:+ZGenerational"));
     }
 

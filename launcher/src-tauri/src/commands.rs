@@ -814,10 +814,7 @@ fn sweep_orphaned_temp_files(data_dir: &std::path::Path) {
     };
     // Загрузки Minecraft раскладаны глубже — обходим рекурсивно, но неглубоко:
     // assets/ и libraries/ создают 1-2 уровня каталогов.
-    let roots = [
-        data_dir.join("minecraft"),
-        data_dir.join("runtime"),
-    ];
+    let roots = [data_dir.join("minecraft"), data_dir.join("runtime")];
     let mut stack: Vec<std::path::PathBuf> = roots.to_vec();
     let mut depth_budget = 6;
     while !stack.is_empty() {
@@ -1015,10 +1012,7 @@ async fn drain_pending_sessions(
                 let token = match load_session_token(app, &s.profile_id) {
                     Some(t) => t,
                     None => {
-                        tracing::warn!(
-                            "[stats] нет сохранённого токена для {}",
-                            s.profile_id
-                        );
+                        tracing::warn!("[stats] нет сохранённого токена для {}", s.profile_id);
                         s.attempts += 1;
                         if s.attempts < MAX_SESSION_ATTEMPTS {
                             remaining.push(s);
@@ -1471,10 +1465,7 @@ async fn set_beta_updates(
 }
 
 #[tauri::command]
-async fn reset_settings(
-    state: State<'_, AppState>,
-    app: AppHandle,
-) -> Result<Settings, String> {
+async fn reset_settings(state: State<'_, AppState>, app: AppHandle) -> Result<Settings, String> {
     let settings = Settings::default();
     write_settings(&app, &settings)?;
     *state.http.lock().unwrap() = create_http_client(&settings.proxy_type);
@@ -1521,8 +1512,7 @@ async fn download_java(
     // Проверяем ПОСЛЕ захвата лока: проверка до него оставляла окно, в
     // которое play_game успевал стартовать и открывал сессию с рантаймом,
     // который мы через секунду удаляли бы.
-    if state.game.lock().unwrap().is_some()
-        || crate::game_guard::is_running(&paths::data_dir(&app))
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
     {
         return Err("Закройте Minecraft перед заменой Java".into());
     }
@@ -2088,7 +2078,9 @@ async fn account_info(state: State<'_, AppState>) -> Result<protocol::AccountInf
 /// История крашей игрока: свежие записи и их AI-вердикты (если готовы).
 /// Работает и после закрытия лаунчера — данные на сервере, а не локально.
 #[tauri::command]
-async fn crash_history(state: State<'_, AppState>) -> Result<Vec<backend::CrashHistoryEntry>, String> {
+async fn crash_history(
+    state: State<'_, AppState>,
+) -> Result<Vec<backend::CrashHistoryEntry>, String> {
     let (_uuid, token) = current_session(&state)?;
     backend::fetch_crash_history(&state.http(), &token).await
 }
@@ -2189,6 +2181,10 @@ struct LogPaths {
     minecraft_debug_log: String,
     crash_reports_dir: String,
     data_dir: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    legacy_game_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    active_game_dir: Option<String>,
     crash_reports_exists: bool,
 }
 
@@ -2373,6 +2369,7 @@ async fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
     let game_dir = game_dir(&app);
     let minecraft_logs_dir = game_dir.join("logs");
     let crash_reports_dir = game_dir.join("crash-reports");
+    let legacy_game_dir = data_dir.join("minecraft").join("game");
     let launcher_log_files = list_launcher_log_files(&log_dir);
 
     Ok(LogPaths {
@@ -2392,13 +2389,19 @@ async fn get_log_paths(app: AppHandle) -> Result<LogPaths, String> {
             .into_owned(),
         crash_reports_dir: crash_reports_dir.to_string_lossy().into_owned(),
         data_dir: data_dir.to_string_lossy().into_owned(),
+        legacy_game_dir: legacy_game_dir.is_dir().then(|| legacy_game_dir.to_string_lossy().into_owned()),
+        active_game_dir: game_dir.is_dir().then(|| game_dir.to_string_lossy().into_owned()),
         crash_reports_exists: crash_reports_dir.is_dir(),
     })
 }
 
 /// Прочитать последние N строк лог-файла (безопасно: только разрешённые каталоги).
 #[tauri::command]
-async fn read_log_tail(app: AppHandle, path: String, lines: Option<u32>) -> Result<LogTail, String> {
+async fn read_log_tail(
+    app: AppHandle,
+    path: String,
+    lines: Option<u32>,
+) -> Result<LogTail, String> {
     const MAX_LINES: usize = 2000;
     let max_lines = lines.unwrap_or(200).clamp(1, MAX_LINES as u32) as usize;
 
@@ -2444,7 +2447,9 @@ async fn open_log_folder(app: AppHandle, kind: LogFolderKind) -> Result<(), Stri
         LogFolderKind::MinecraftLogs => game_dir(&app).join("logs"),
         LogFolderKind::CrashReports => game_dir(&app).join("crash-reports"),
     };
-    let _ = std::fs::create_dir_all(&path);
+    if matches!(kind, LogFolderKind::LauncherLogs) || game_dir(&app).is_dir() {
+        let _ = std::fs::create_dir_all(&path);
+    }
     let canonical = paths::canonical_clean(&path)
         .map_err(|_| "путь не существует или недоступен".to_string())?;
     open::that(&canonical).map_err(|e| format!("не удалось открыть папку: {e}"))
@@ -2592,9 +2597,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         }
     }
 
-    archive_previous_latest_log(&data_dir);
-
-    let (child, external_mods) = minecraft::launch(
+    let (child, external_mods, launched_game_dir, launched_manifest) = minecraft::launch(
         app.clone(),
         &state.http(),
         minecraft::LaunchOptions {
@@ -2693,7 +2696,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let quick_exit = duration < EARLY_WINDOW_SECS;
         let failed_exit = exit_status.map(|s| !s.success()).unwrap_or(true);
         let exit_code = exit_status.and_then(|s| s.code());
-        let game_dir = data_dir2.join("minecraft").join("game");
+        let game_dir = launched_game_dir;
         let latest_log_path = game_dir.join("logs").join("latest.log");
         let log_content = std::fs::read_to_string(&latest_log_path).unwrap_or_default();
         let mod_report_content = read_recent_mod_crash_marker(&game_dir, child_id);
@@ -2719,8 +2722,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let marker_says_normal = mod_status.as_deref() == Some("normal");
         let log_says_normal = minecraft_log_shows_normal_shutdown(&log_content);
         let fatal_signal = exit_code.map(is_fatal_exit_code).unwrap_or(false);
-        let is_normal_shutdown =
-            (marker_says_normal || log_says_normal) && !fatal_signal;
+        let is_normal_shutdown = (marker_says_normal || log_says_normal) && !fatal_signal;
         let is_crash = !is_normal_shutdown
             && (fatal_signal
                 || failed_exit
@@ -2748,7 +2750,8 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                 // Контекст для AI-разбора: стек клиента, список модов и
                 // JVM-лог нативного краша. Сбор дешёвый и не падает сам:
                 // любая ошибка здесь не должна мешать отправить репорт.
-                let environment = collect_crash_environment(&app_handle);
+                let environment =
+                    collect_crash_environment(&app_handle, launched_manifest.as_ref());
                 let mods = collect_mod_names(&game_dir);
                 let jvm_log = collect_jvm_log(&game_dir, session_start);
                 let crash_req = backend::ReportCrashRequest {
@@ -2790,18 +2793,14 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
 }
 
 /// Окружение клиента для AI-разбора краша: стек (ОС/арх, версии лаунчера,
-/// Minecraft и загрузчика, Java, память). Только дешёвые операции: чтение
-/// кешированного манифеста и списка установленных Java, без сети и без
-/// скачивания runtime — отчёт не должен тормозить или падать из-за него.
-fn collect_crash_environment(app: &tauri::AppHandle) -> serde_json::Value {
+/// Minecraft и загрузчика, Java, память). Используем снимок манифеста запуска
+/// и список установленных Java, без сети и скачивания runtime.
+fn collect_crash_environment(
+    app: &tauri::AppHandle,
+    manifest: Option<&protocol::Manifest>,
+) -> serde_json::Value {
     let data_dir = paths::data_dir(app);
     let settings = get_settings_cached(&app.state::<AppState>(), app);
-
-    // Minecraft + загрузчик: из кешированного манифеста сборки (он же
-    // использовался при запуске). Нет кеша — поле пропускаем.
-    let manifest = std::fs::read(data_dir.join("cached-manifest.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<protocol::Manifest>(&bytes).ok());
 
     // Java: первая установленная (управляемый runtime → системная), без
     // скачивания. Версия уже спрошена java -version при установке.
@@ -2837,10 +2836,7 @@ fn collect_crash_environment(app: &tauri::AppHandle) -> serde_json::Value {
         "memoryAllocatedMb".into(),
         serde_json::json!(settings.memory_mb),
     );
-    env.insert(
-        "memoryTotalMb".into(),
-        serde_json::json!(total_ram_mb()),
-    );
+    env.insert("memoryTotalMb".into(), serde_json::json!(total_ram_mb()));
     serde_json::Value::Object(env)
 }
 
@@ -2866,7 +2862,10 @@ fn collect_mod_names(game_dir: &std::path::Path) -> Option<Vec<String>> {
 /// рядом): без него нативные падения рендерера не диагностируются. Берём
 /// самый новый, созданный ПОСЛЕ запуска сессии — иначе hs_err от прошлого
 /// краша приписывался бы текущему.
-fn collect_jvm_log(game_dir: &std::path::Path, session_start: std::time::SystemTime) -> Option<String> {
+fn collect_jvm_log(
+    game_dir: &std::path::Path,
+    session_start: std::time::SystemTime,
+) -> Option<String> {
     let newest = [game_dir.to_path_buf(), game_dir.join("logs")]
         .into_iter()
         .filter_map(|dir| std::fs::read_dir(dir).ok())
@@ -2972,8 +2971,8 @@ fn launch_failure_label(log_content: &str, exit_code: Option<i32>) -> String {
     }
 }
 
-fn archive_previous_latest_log(data_dir: &std::path::Path) {
-    let logs_dir = data_dir.join("minecraft").join("game").join("logs");
+pub(crate) fn archive_previous_latest_log(game_dir: &std::path::Path) {
+    let logs_dir = game_dir.join("logs");
     let latest = logs_dir.join("latest.log");
     if !latest.is_file() {
         return;
@@ -3165,7 +3164,7 @@ async fn get_news(state: State<'_, AppState>) -> Result<Vec<protocol::NewsPost>,
 
 /// Игровой каталог сборки внутри папки данных лаунчера.
 fn game_dir(app: &AppHandle) -> std::path::PathBuf {
-    paths::data_dir(app).join("minecraft").join("game")
+    paths::cached_game_dir(&paths::data_dir(app))
 }
 
 /// Список опциональных модов активной сборки с состоянием вкл/выкл.
@@ -3174,12 +3173,10 @@ async fn list_optional_mods(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Vec<crate::modpack::OptionalMod>, String> {
+    let _guard = state.launch_lock.lock().await;
     crate::modpack::list_optional_mods(
         &state.http(),
         &paths::data_dir(&app),
-        &paths::mod_choices_file(&app),
-        &paths::selected_profile_file(&app),
-        &game_dir(&app),
     )
     .await
 }
@@ -3194,12 +3191,13 @@ async fn set_mod_enabled(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<(), String> {
+    let _guard = state.launch_lock.lock().await;
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app)) {
+        return Err("Закройте Minecraft перед изменением модов".into());
+    }
     crate::modpack::set_mod_enabled(
         &state.http(),
         &paths::data_dir(&app),
-        &paths::mod_choices_file(&app),
-        &paths::selected_profile_file(&app),
-        &game_dir(&app),
         mod_id,
         enabled,
     )
@@ -3213,10 +3211,10 @@ async fn list_mod_profiles(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<Vec<crate::modpack::ModProfileInfo>, String> {
+    let _guard = state.launch_lock.lock().await;
     crate::modpack::mod_profile_summary(
         &state.http(),
         &paths::data_dir(&app),
-        &paths::selected_profile_file(&app),
     )
     .await
 }
@@ -3229,12 +3227,13 @@ async fn select_mod_profile(
     state: State<'_, AppState>,
     app: AppHandle,
 ) -> Result<usize, String> {
+    let _guard = state.launch_lock.lock().await;
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app)) {
+        return Err("Закройте Minecraft перед изменением профиля модов".into());
+    }
     crate::modpack::select_mod_profile(
         &state.http(),
         &paths::data_dir(&app),
-        &paths::mod_choices_file(&app),
-        &paths::selected_profile_file(&app),
-        &game_dir(&app),
         &profile_key,
     )
     .await
@@ -3654,6 +3653,36 @@ mod crash_detection_tests {
     }
 
     #[test]
+    fn log_paths_expose_legacy_folder_only_when_present() {
+        let mut paths = LogPaths {
+            launcher_log_dir: String::new(), launcher_log_latest: String::new(),
+            launcher_log_files: vec![], minecraft_logs_dir: String::new(),
+            minecraft_latest_log: String::new(), minecraft_debug_log: String::new(),
+            crash_reports_dir: String::new(), data_dir: String::new(),
+            legacy_game_dir: None, active_game_dir: None, crash_reports_exists: false,
+        };
+        assert!(serde_json::to_value(&paths).unwrap().get("legacyGameDir").is_none());
+        paths.legacy_game_dir = Some("/old/game".into());
+        assert_eq!(serde_json::to_value(&paths).unwrap()["legacyGameDir"], "/old/game");
+    }
+
+    #[test]
+    fn archive_only_touches_the_launched_game_directory() {
+        let root = temp_game_dir("archive-instance");
+        let a = root.join("a");
+        let b = root.join("b");
+        for game in [&a, &b] {
+            std::fs::create_dir_all(game.join("logs")).unwrap();
+            std::fs::write(game.join("logs/latest.log"), b"previous").unwrap();
+        }
+        archive_previous_latest_log(&a);
+        assert!(!a.join("logs/latest.log").exists());
+        assert!(b.join("logs/latest.log").exists());
+        assert!(std::fs::read_dir(a.join("logs")).unwrap().any(|entry| entry.unwrap().file_name().to_string_lossy().starts_with("latest.previous-")));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn fatal_exit_codes_are_recognized() {
         // Нативные падения Windows (те же литералы, что в реализации).
         assert!(is_fatal_exit_code(0xC0000005_u32 as i32)); // ACCESS_VIOLATION
@@ -3676,7 +3705,11 @@ mod crash_detection_tests {
         let game_dir = temp_game_dir("prev-session");
         let reports = game_dir.join("crash-reports");
         std::fs::create_dir_all(&reports).unwrap();
-        std::fs::write(reports.join("crash-2026-10-30_20.00.00-client.txt"), "old crash").unwrap();
+        std::fs::write(
+            reports.join("crash-2026-10-30_20.00.00-client.txt"),
+            "old crash",
+        )
+        .unwrap();
 
         // session_start «в будущем» относительно mtime файла — отчёт прошлой
         // сессии не должен попадать в репорт текущей.
@@ -3694,9 +3727,16 @@ mod crash_detection_tests {
 
         // Сессия «началась» до создания отчёта.
         let past = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
-        std::fs::write(reports.join("crash-2026-10-31_01.00.00-client.txt"), "fresh crash").unwrap();
+        std::fs::write(
+            reports.join("crash-2026-10-31_01.00.00-client.txt"),
+            "fresh crash",
+        )
+        .unwrap();
         let picked = latest_session_crash_report(&game_dir, past).unwrap();
-        assert_eq!(picked.file_name().unwrap(), "crash-2026-10-31_01.00.00-client.txt");
+        assert_eq!(
+            picked.file_name().unwrap(),
+            "crash-2026-10-31_01.00.00-client.txt"
+        );
 
         let _ = std::fs::remove_dir_all(&game_dir);
     }

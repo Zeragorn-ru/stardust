@@ -185,9 +185,14 @@ fn collect_installations(data_dir: &Path, deep: bool) -> Vec<JavaInstallation> {
     };
 
     for vendor in JavaVendor::managed() {
-        if let Some(runtime_dir) = bundled_runtime_dir(data_dir, vendor) {
-            if runtime_dir.exists() {
-                push_home(runtime_dir, &format!("{} (лаунчер)", vendor.name()));
+        let base = data_dir.join("runtime").join(vendor.id());
+        if let Ok(entries) = fs::read_dir(base) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let Some(major) = name.to_str().and_then(|s| s.strip_prefix("java-")).and_then(|s| s.parse::<u32>().ok()) else { continue };
+                if let Some(home) = bundled_runtime_dir(data_dir, vendor, major) {
+                    push_home(home, &format!("{} (лаунчер)", vendor.name()));
+                }
             }
         }
     }
@@ -213,6 +218,7 @@ pub async fn resolve_java(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
+    required_major: u32,
 ) -> Result<PathBuf, String> {
     tracing::info!(
         "[java] resolve: provider={:?}, custom_path={}",
@@ -227,48 +233,54 @@ pub async fn resolve_java(
                 .ok_or_else(|| "Выберите Java в настройках".to_string())?;
             let path = normalize_java_path(Path::new(raw));
             tracing::debug!("[java] custom path normalized: {}", path.display());
-            validate_java_exe(&path)?;
+            validate_java_exe(&path, required_major)?;
             Ok(launch_exe_from(&path))
         }
-        JavaProvider::System => discover_best_java(data_dir)
-            .ok_or_else(|| format!("Java {JAVA_VERSION}+ не найдена в системе")),
+        JavaProvider::System => discover_best_java(data_dir, required_major)
+            .ok_or_else(|| format!("Java {required_major}+ не найдена в системе")),
         JavaProvider::Temurin
         | JavaProvider::Corretto
         | JavaProvider::Microsoft
         | JavaProvider::Zulu => {
-            ensure_downloaded_java(provider.managed_vendor().unwrap(), progress, http, data_dir)
+            ensure_downloaded_java(provider.managed_vendor().unwrap(), progress, http, data_dir, required_major)
                 .await
         }
         JavaProvider::Auto => {
-            if let Some(path) = bundled_java(data_dir) {
+            if let Some(path) = bundled_java(data_dir, required_major) {
                 return Ok(path);
             }
-            if let Some(path) = discover_best_java(data_dir) {
+            if let Some(path) = discover_best_java(data_dir, required_major) {
                 return Ok(path);
             }
-            ensure_downloaded_java(JavaVendor::Temurin, progress, http, data_dir).await
+            ensure_downloaded_java(JavaVendor::Temurin, progress, http, data_dir, required_major).await
         }
     }
 }
 
-fn discover_best_java(data_dir: &Path) -> Option<PathBuf> {
+fn discover_best_java(data_dir: &Path, required_major: u32) -> Option<PathBuf> {
     list_installations(data_dir)
         .into_iter()
-        .find(|j| j.major >= JAVA_VERSION)
+        .find(|j| j.major >= required_major)
         .map(|j| PathBuf::from(j.path))
         .map(|p| launch_exe_from(&p))
 }
 
-fn validate_java_exe(path: &Path) -> Result<(), String> {
-    let probe = probe_java_exe(path).ok_or_else(|| {
+pub(crate) fn java_major(path: &Path) -> Result<u32, String> {
+    probe_java_exe(&console_java_exe(path))
+        .map(|p| p.major)
+        .ok_or_else(|| format!("Не удалось определить версию Java: {}", path.display()))
+}
+
+fn validate_java_exe(path: &Path, required_major: u32) -> Result<(), String> {
+    let probe = probe_java_exe(&console_java_exe(path)).ok_or_else(|| {
         format!(
             "Не удалось определить версию Java: {}",
             path.to_string_lossy()
         )
     })?;
-    if probe.major < JAVA_VERSION {
+    if probe.major < required_major {
         return Err(format!(
-            "Нужна Java {JAVA_VERSION}+, найдена {} ({})",
+            "Нужна Java {required_major}+, найдена {} ({})",
             probe.major, probe.version
         ));
     }
@@ -356,8 +368,8 @@ fn search_java_home_dirs(dir: &Path, max_depth: usize) -> Option<PathBuf> {
     None
 }
 
-fn bundled_runtime_dir(data_dir: &Path, vendor: JavaVendor) -> Option<PathBuf> {
-    let dir = data_dir.join("runtime").join(vendor.id()).join("java-21");
+fn bundled_runtime_dir(data_dir: &Path, vendor: JavaVendor, major: u32) -> Option<PathBuf> {
+    let dir = data_dir.join("runtime").join(vendor.id()).join(format!("java-{major}"));
     if !dir.exists() {
         return None;
     }
@@ -369,20 +381,20 @@ fn bundled_runtime_dir(data_dir: &Path, vendor: JavaVendor) -> Option<PathBuf> {
     find_java_home_under(&dir)
 }
 
-fn bundled_java_for(data_dir: &Path, vendor: JavaVendor) -> Option<PathBuf> {
-    let home = bundled_runtime_dir(data_dir, vendor)?;
+fn bundled_java_for(data_dir: &Path, vendor: JavaVendor, major: u32) -> Option<PathBuf> {
+    let home = bundled_runtime_dir(data_dir, vendor, major)?;
     let exe = home.join("bin").join(java_bin_name());
-    if exe.exists() && probe_java_exe(&exe).is_some_and(|p| p.major >= JAVA_VERSION) {
+    if exe.exists() && probe_java_exe(&version_check_bin(&home)).is_some_and(|p| p.major >= major) {
         Some(exe)
     } else {
         None
     }
 }
 
-fn bundled_java(data_dir: &Path) -> Option<PathBuf> {
+fn bundled_java(data_dir: &Path, major: u32) -> Option<PathBuf> {
     JavaVendor::managed()
         .into_iter()
-        .find_map(|vendor| bundled_java_for(data_dir, vendor))
+        .find_map(|vendor| bundled_java_for(data_dir, vendor, major))
 }
 
 async fn ensure_downloaded_java(
@@ -390,12 +402,13 @@ async fn ensure_downloaded_java(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
+    major: u32,
 ) -> Result<PathBuf, String> {
-    if let Some(java) = bundled_java_for(data_dir, vendor) {
+    if let Some(java) = bundled_java_for(data_dir, vendor, major) {
         return Ok(java);
     }
 
-    download_java(vendor, progress, http, data_dir).await
+    download_java_version(vendor, progress, http, data_dir, major).await
 }
 
 pub async fn download_java(
@@ -404,6 +417,18 @@ pub async fn download_java(
     http: &reqwest::Client,
     data_dir: &Path,
 ) -> Result<PathBuf, String> {
+    download_java_version(vendor, progress, http, data_dir, JAVA_VERSION).await
+}
+
+async fn download_java_version(
+    vendor: JavaVendor,
+    progress: &Progress,
+    http: &reqwest::Client,
+    data_dir: &Path,
+    major: u32,
+) -> Result<PathBuf, String> {
+    // Для остальных поставщиков в коде закреплены только проверенные URL Java 21.
+    validate_download_vendor(vendor, major)?;
     let vendor_name = list_download_vendors()
         .into_iter()
         .find(|v| v.id == vendor.id())
@@ -413,10 +438,10 @@ pub async fn download_java(
     progress.begin(
         crate::progress::Stage::Java,
         "downloading",
-        format!("Скачиваем {vendor_name} Java {JAVA_VERSION}…"),
+        format!("Скачиваем {vendor_name} Java {major}…"),
     );
 
-    let runtime_dir = data_dir.join("runtime").join(vendor.id()).join("java-21");
+    let runtime_dir = data_dir.join("runtime").join(vendor.id()).join(format!("java-{major}"));
     // Скачиваем и распаковываем в staging-каталог, старый runtime удаляем
     // только ПОСЛЕ успешной распаковки нового. Раньше remove_dir_all шёл
     // первым: сбой сети посреди загрузки оставлял юзера вообще без Java
@@ -424,53 +449,56 @@ pub async fn download_java(
     let staging_dir = data_dir
         .join("runtime")
         .join(vendor.id())
-        .join(".staging-java-21");
+        .join(format!(".staging-java-{major}"));
     let _ = fs::remove_dir_all(&staging_dir);
     fs::create_dir_all(&staging_dir)
         .map_err(|e| format!("Не удалось создать staging-каталог Java: {e}"))?;
 
-    let url = resolve_download_url(vendor, http).await?;
+    let url = resolve_download_url(vendor, http, major).await?;
     let archive_format = archive_format_for_url(&url);
 
     if archive_format == JavaArchiveFormat::Zip {
         let archive = data_dir
             .join("runtime")
-            .join(format!("java-21-{}.zip", vendor.id()));
+            .join(format!("java-{major}-{}.zip", vendor.id()));
         crate::minecraft::download_to(
             progress,
             http,
             &url,
             &archive,
-            "Java 21 runtime",
+            &format!("Java {major} runtime"),
             None,
             None,
         )
         .await?;
         validate_archive_header(&archive, JavaArchiveFormat::Zip)?;
-        progress.set_label("extracting", "Распаковываем Java 21…");
+        progress.set_label("extracting", format!("Распаковываем Java {major}…"));
         extract_java_zip(&archive, &staging_dir)?;
         let _ = fs::remove_file(&archive);
     } else {
         let archive = data_dir
             .join("runtime")
-            .join(format!("java-21-{}.tar.gz", vendor.id()));
+            .join(format!("java-{major}-{}.tar.gz", vendor.id()));
         crate::minecraft::download_to(
             progress,
             http,
             &url,
             &archive,
-            "Java 21 runtime",
+            &format!("Java {major} runtime"),
             None,
             None,
         )
         .await?;
         validate_archive_header(&archive, JavaArchiveFormat::TarGz)?;
-        progress.set_label("extracting", "Распаковываем Java 21…");
+        progress.set_label("extracting", format!("Распаковываем Java {major}…"));
         extract_java_tar_gz(&archive, &staging_dir)?;
         let _ = fs::remove_file(&archive);
     }
 
     finalize_extracted_java(&staging_dir)?;
+    let staged_home = find_java_home_under(&staging_dir)
+        .ok_or_else(|| "JAVA_HOME не найден после распаковки".to_string())?;
+    validate_java_exe(&version_check_bin(&staged_home), major)?;
 
     // Всё скачалось и распаковалось — теперь безопасно заменить старый runtime.
     if runtime_dir.exists() {
@@ -486,12 +514,19 @@ pub async fn download_java(
     })?;
     let _ = fs::remove_dir_all(&staging_dir);
 
-    bundled_java_for(data_dir, vendor).ok_or_else(|| {
+    bundled_java_for(data_dir, vendor, major).ok_or_else(|| {
         format!(
-            "Java {JAVA_VERSION} скачана, но java не найдена в {}",
+            "Java {major} скачана, но java не найдена в {}",
             runtime_dir.to_string_lossy()
         )
     })
+}
+
+fn validate_download_vendor(vendor: JavaVendor, major: u32) -> Result<(), String> {
+    if major != JAVA_VERSION && vendor != JavaVendor::Temurin {
+        return Err(format!("Для {} автоматическая загрузка Java {major} не поддерживается. Выберите Temurin, системную или свою Java {major}+.", vendor.name()));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -565,9 +600,10 @@ fn current_platform() -> Platform {
 async fn resolve_download_url(
     vendor: JavaVendor,
     http: &reqwest::Client,
+    major: u32,
 ) -> Result<String, String> {
     match vendor {
-        JavaVendor::Temurin => Ok(temurin_url()),
+        JavaVendor::Temurin => Ok(temurin_url(major)),
         JavaVendor::Corretto => Ok(corretto_url()),
         JavaVendor::Microsoft => Ok(microsoft_url()),
         JavaVendor::Oracle => Ok(oracle_url()),
@@ -575,7 +611,7 @@ async fn resolve_download_url(
     }
 }
 
-fn temurin_url() -> String {
+fn temurin_url(major: u32) -> String {
     let arch = if cfg!(target_arch = "aarch64") {
         "aarch64"
     } else {
@@ -589,7 +625,7 @@ fn temurin_url() -> String {
         "windows"
     };
     format!(
-        "https://api.adoptium.net/v3/binary/latest/{JAVA_VERSION}/ga/{os}/{arch}/jre/hotspot/normal/eclipse"
+        "https://api.adoptium.net/v3/binary/latest/{major}/ga/{os}/{arch}/jre/hotspot/normal/eclipse"
     )
 }
 
@@ -1311,6 +1347,39 @@ fn strip_archive_top_level(name: &str) -> &str {
 mod tests {
     use super::*;
     use std::io::Write;
+
+    #[test]
+    fn download_selection_preserves_java_21_and_supports_temurin_25() {
+        assert!(temurin_url(21).contains("/latest/21/"));
+        assert!(temurin_url(25).contains("/latest/25/"));
+        for vendor in JavaVendor::managed() {
+            assert!(validate_download_vendor(vendor, 21).is_ok());
+        }
+        assert!(validate_download_vendor(JavaVendor::Temurin, 25).is_ok());
+        assert!(validate_download_vendor(JavaVendor::Microsoft, 25).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn managed_runtimes_are_separate_and_requirement_is_checked() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!("stardust-java-versions-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        for major in [21, 25] {
+            let runtime = root.join("runtime/temurin").join(format!("java-{major}"));
+            fs::create_dir_all(runtime.join("bin")).unwrap();
+            fs::write(runtime.join(".complete"), b"ok").unwrap();
+            let exe = runtime.join("bin/java");
+            fs::write(&exe, format!("#!/bin/sh\nprintf 'openjdk version \\\"{major}.0.1\\\"\\n' >&2\n")).unwrap();
+            fs::set_permissions(&exe, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let j21 = bundled_java_for(&root, JavaVendor::Temurin, 21).unwrap();
+        let j25 = bundled_java_for(&root, JavaVendor::Temurin, 25).unwrap();
+        assert_ne!(j21, j25);
+        assert!(validate_java_exe(&j21, 25).is_err());
+        assert!(validate_java_exe(&j25, 25).is_ok());
+        assert!(bundled_runtime_dir(&root, JavaVendor::Temurin, 21).is_some());
+        fs::remove_dir_all(root).unwrap();
+    }
 
     #[test]
     fn parse_java_major_handles_modern_and_legacy() {

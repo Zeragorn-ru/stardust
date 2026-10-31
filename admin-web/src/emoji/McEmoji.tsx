@@ -1,25 +1,12 @@
-// Рендер эмодзи пиксельным глифом Mojangles «как в игре».
-//
-// Системные эмодзи-шрифты браузера рисуют ☠/☀/🔥 совсем не так, как Minecraft:
-// игрок не узнает то, что реально попадёт в чат. SVG-пак (public/emoji,
-// scripts/gen-emoji-svg.mjs) даёт точные контуры глифов — показываем их
-// inline. Символа в индексе нет — остаётся текстовый фолбэк (normalize
-// + font-variant-emoji), как раньше.
-//
-// Глифы — SVG с fill="currentColor". Через <img> currentColor не наследует
-// цвет страницы (документ внутри <img> изолирован, цвет схлопывается в
-// чёрный) — иконки пропадали на тёмном фоне, цвет бейджа терялся. Рисуем
-// span'ом с CSS-маской: background-color: currentColor берёт цвет текста
-// или бейджа, маска вырезает форму. См. .mc-emoji в styles.css.
+// Пиксельный глиф Mojangles: инлайн-SVG наследует цвет текста или бейджа.
 import type { CSSProperties } from "react";
 import { findMcEmoji } from "./index";
+import { EMOJI_GLYPHS } from "./glyphs";
 import { STANDARD_TO_MC } from "./standardEmojiMap";
 import { normalizeMinecraftText } from "../minecraftText";
 
 interface Props {
-  /** Символ эмодзи (как хранится в бейдже). */
   char: string;
-  /** Размер квадратной иконки (по умолчанию 1em — как глиф текста). */
   size?: number;
   className?: string;
   style?: CSSProperties;
@@ -28,28 +15,32 @@ interface Props {
 
 export default function McEmoji({ char, size, className, style, alt }: Props) {
   const normalized = normalizeMinecraftText(char);
-  // Сначала точный глиф; стандартные эмодзи из системной клавиатуры
-  // (😀 👍 ✨) в Minecraft отсутствуют — подставляем ближайший MC-эквивалент.
   const emoji = findMcEmoji(normalized) ?? findMcEmoji(STANDARD_TO_MC[normalized] ?? "");
-  if (!emoji) {
+  const slug = emoji?.file.match(/emoji-([^/]+)\.svg$/)?.[1];
+  const glyph = slug ? EMOJI_GLYPHS[slug] : undefined;
+  const sizeStyle: CSSProperties = size ? { width: size, height: size } : {};
+  if (!glyph || !emoji) {
     return (
       <span
         className={"mc-emoji-fallback" + (className ? ` ${className}` : "")}
-        style={style}
+        style={{ ...sizeStyle, ...style }}
         title={alt}
       >
-        {normalizeMinecraftText(char)}
+        {emoji?.char ?? normalized}
       </span>
     );
   }
-  const sizeStyle: CSSProperties = size ? { width: size, height: size } : {};
   return (
-    <span
+    <svg
       role="img"
       aria-label={alt ?? emoji.char}
-      title={alt}
       className={"mc-emoji" + (className ? ` ${className}` : "")}
-      style={{ ...sizeStyle, ...style, ["--mc-emoji-src" as string]: `url(${emoji.file})` }}
-    />
+      style={{ ...sizeStyle, ...style }}
+      viewBox={glyph.vb}
+      fill="currentColor"
+    >
+      {alt && <title>{alt}</title>}
+      <path d={glyph.d} fillRule="evenodd" clipRule="evenodd" />
+    </svg>
   );
 }

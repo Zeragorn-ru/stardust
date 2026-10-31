@@ -9,6 +9,53 @@
 
 use std::path::{Path, PathBuf};
 
+use sha1::{Digest, Sha1};
+
+/// Папка привязана к сборке и совместимому игровому ядру, но не к версии
+/// сборки или загрузчика: обычные обновления модов не меняют игровой каталог.
+/// На старом сервере вместо buildId используется хеш имени.
+fn build_key(manifest: &protocol::Manifest) -> String {
+    let build = match manifest.build_id.filter(|id| *id > 0) {
+        Some(id) => format!("build-{id}"),
+        None => format!("name-{:x}", Sha1::digest(manifest.name.as_bytes())),
+    };
+    let kind = match manifest.loader.kind {
+        protocol::LoaderKind::Vanilla => "vanilla",
+        protocol::LoaderKind::Fabric => "fabric",
+        protocol::LoaderKind::Quilt => "quilt",
+        protocol::LoaderKind::Forge => "forge",
+        protocol::LoaderKind::NeoForge => "neoforge",
+    };
+    let version_hash = Sha1::digest(manifest.loader.minecraft.as_bytes());
+    format!("{build}-{kind}-{version_hash:x}")
+}
+
+pub fn game_dir(data_dir: &Path, manifest: Option<&protocol::Manifest>) -> PathBuf {
+    let root = data_dir.join("minecraft");
+    match manifest {
+        Some(m) => root.join("instances").join(build_key(m)).join("game"),
+        None => root.join("instances").join("unmanaged").join("game"),
+    }
+}
+
+pub fn cached_game_dir(data_dir: &Path) -> PathBuf {
+    let manifest = std::fs::read(data_dir.join("cached-manifest.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<protocol::Manifest>(&bytes).ok());
+    game_dir(data_dir, manifest.as_ref())
+}
+
+/// Старый общий каталог не содержит идентификатора сборки. Не угадываем
+/// владельца и не переносим данные: игрок может скопировать нужные файлы.
+pub fn prepare_game_dir(
+    data_dir: &Path,
+    manifest: Option<&protocol::Manifest>,
+) -> Result<PathBuf, String> {
+    let target = game_dir(data_dir, manifest);
+    std::fs::create_dir_all(&target).map_err(|e| format!("Не удалось создать папку игры: {e}"))?;
+    canonical_clean(&target)
+}
+
 use tauri::{AppHandle, Manager};
 
 /// On Windows `fs::canonicalize` / `std::env::current_exe` return extended-
@@ -131,20 +178,11 @@ pub fn data_location_path(app: &AppHandle) -> PathBuf {
     location_file(app)
 }
 
-/// Stable launcher configuration, independent of the movable game data dir.
-pub fn mod_choices_file(app: &AppHandle) -> PathBuf {
-    location_file(app)
-        .parent()
-        .map(|dir| dir.join("mod-choices.json"))
-        .unwrap_or_else(|| PathBuf::from("mod-choices.json"))
-}
-
-/// Выбранный профиль модов (профили взаимоисключающие) — рядом с выборами.
-pub fn selected_profile_file(app: &AppHandle) -> PathBuf {
-    location_file(app)
-        .parent()
-        .map(|dir| dir.join("selected-profile.json"))
-        .unwrap_or_else(|| PathBuf::from("selected-profile.json"))
+/// Выборы относятся к тому же экземпляру, что и игровые файлы. Храним их
+/// рядом с game/, чтобы просмотр профилей не создавал игровую папку заранее.
+pub fn modpack_settings(data_dir: &Path, manifest: &protocol::Manifest) -> (PathBuf, PathBuf) {
+    let instance = data_dir.join("minecraft").join("instances").join(build_key(manifest));
+    (instance.join("mod-choices.json"), instance.join("selected-profile.json"))
 }
 
 pub fn configured_data_dir(app: &AppHandle) -> Option<PathBuf> {
@@ -211,4 +249,94 @@ pub fn skin_cache_dir(app: &AppHandle) -> PathBuf {
     let dir = data_dir(app).join("skin-cache");
     let _ = std::fs::create_dir_all(&dir);
     dir
+}
+
+#[cfg(test)]
+mod game_directory_tests {
+    use super::*;
+
+    fn manifest(id: Option<i64>, name: &str) -> protocol::Manifest {
+        serde_json::from_value(serde_json::json!({
+            "buildId": id, "name": name, "version": "1",
+            "loader": {"minecraft": "1.21.1", "kind": "fabric", "version": "0.16.14"},
+            "files": []
+        }))
+        .unwrap()
+    }
+
+    fn temp() -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "stardust-instances-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn unknown_legacy_is_preserved_and_builds_are_isolated() {
+        let root = temp();
+        let legacy = root.join("minecraft/game");
+        std::fs::create_dir_all(legacy.join("saves/world")).unwrap();
+        std::fs::write(legacy.join("saves/world/level.dat"), b"world").unwrap();
+        std::fs::write(legacy.join("managed-files.json"), b"state").unwrap();
+        let first = prepare_game_dir(&root, Some(&manifest(Some(1), "A"))).unwrap();
+        let second = prepare_game_dir(&root, Some(&manifest(Some(2), "B"))).unwrap();
+        assert_ne!(first, second);
+        assert!(!first.join("saves").exists());
+        assert!(!second.join("saves").exists());
+        assert_eq!(
+            std::fs::read(legacy.join("saves/world/level.dat")).unwrap(),
+            b"world"
+        );
+        assert_eq!(
+            std::fs::read(legacy.join("managed-files.json")).unwrap(),
+            b"state"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn game_directory_tracks_minecraft_and_loader_but_not_modpack_updates() {
+        let root = temp();
+        let original = manifest(Some(42), "test");
+        let path = game_dir(&root, Some(&original));
+        let mut updated = original.clone();
+        updated.version = "2".into();
+        updated.loader.version = "0.17.0".into();
+        assert_eq!(path, game_dir(&root, Some(&updated)));
+        updated.loader.minecraft = "1.21.4".into();
+        let newer_mc = game_dir(&root, Some(&updated));
+        assert_ne!(path, newer_mc);
+        updated.loader.kind = protocol::LoaderKind::NeoForge;
+        assert_ne!(newer_mc, game_dir(&root, Some(&updated)));
+        updated.loader.minecraft = original.loader.minecraft.clone();
+        assert_ne!(path, game_dir(&root, Some(&updated)));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn id_is_stable_and_old_cache_without_id_is_supported() {
+        let root = temp();
+        let old: protocol::Manifest = serde_json::from_str(r#"{"name":"../../unsafe","version":"1","loader":{"minecraft":"1.21.1","kind":"fabric","version":"0.16.14"},"files":[]}"#).unwrap();
+        assert!(old.build_id.is_none());
+        let old_dir = prepare_game_dir(&root, Some(&old)).unwrap();
+        std::fs::write(old_dir.join("options.txt"), b"settings").unwrap();
+        let new = manifest(Some(42), "../../unsafe");
+        let new_dir = prepare_game_dir(&root, Some(&new)).unwrap();
+        assert_ne!(old_dir, new_dir);
+        assert_eq!(
+            std::fs::read(old_dir.join("options.txt")).unwrap(),
+            b"settings"
+        );
+        assert_eq!(
+            game_dir(&root, Some(&new)),
+            game_dir(&root, Some(&manifest(Some(42), "renamed")))
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
 }

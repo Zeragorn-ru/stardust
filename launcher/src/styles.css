@@ -2177,11 +2177,14 @@ button,
     list-style: none;
     margin: 0;
     padding: 14px 20px 18px;
-    display: grid;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
+    min-height: 0;
     overflow-y: auto;
 }
 .crash-history__item {
+    flex: 0 0 auto;
     border: 1px solid var(--glass-border);
     border-left: 3px solid var(--muted);
     border-radius: var(--radius-sm);
@@ -2203,10 +2206,7 @@ button,
     font: inherit;
 }
 .crash-history__row:hover { background: rgba(255, 255, 255, 0.04); }
-/* Внутренняя обёртка строки: flex живёт здесь, а не на <button> — WebKit
-   в Tauri схлопывает flex-раскладку непосредственно внутри кнопки, и строки
-   рендерились пустыми полосами. Размеры шрифта/межстрочника заданы явно на
-   каждом уровне — защита от наследования нулевых значений (тот же дефект). */
+/* Карточки не сжимаются: при длинном списке прокручивается контейнер. */
 .crash-history__rowbox {
     display: flex;
     flex-direction: column;
@@ -2233,6 +2233,14 @@ button,
     line-height: 1.5;
     color: var(--text);
     overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+}
+.crash-history__row[aria-expanded="true"] .crash-history__summary {
+    display: block;
+    overflow: visible;
 }
 .crash-history__sev,
 .crash-history__status {
@@ -4493,18 +4501,20 @@ button.data-directory-card__path:disabled {
     line-height: 1.1;
 }
 
-/* Бейдж ника — SVG-глиф (McEmoji) через CSS-маску: размер по шрифту ника
-   +2px, цвет — из style/color бейджа. Тень живёт на обёртке: filter
-   применяется до маски и на самом глифе был бы срезан. */
+/* Отдельный отступ сохраняется и для текстовых бейджей. */
 .minecraft-nick__badge-wrap {
     display: inline-flex;
     flex-shrink: 0;
+    margin-right: 2px;
     filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.55));
 }
-.minecraft-nick__badge {
+.minecraft-nick__badge.mc-emoji {
     width: calc(var(--minecraft-nick-size, 22px) + 2px);
     height: calc(var(--minecraft-nick-size, 22px) + 2px);
     flex-shrink: 0;
+}
+.minecraft-nick__badge.mc-emoji-fallback {
+    white-space: nowrap;
 }
 
 .minecraft-nick__name-wrap {
@@ -4693,25 +4703,12 @@ select option {
     color: var(--text);
 }
 
-/* Пиксельный эмодзи-глиф Mojangles (McEmoji, SVG из public/emoji).
-   Глифы нарисованы fill="currentColor", а внутри <img> currentColor всегда
-   чёрный — иконки пропадали на тёмном фоне. Поэтому span + CSS-маска:
-   форма из SVG (--mc-emoji-src ставит McEmoji), цвет — background-color
-   наследует currentColor текста или цвет бейджа. */
+/* Инлайн-глиф Mojangles наследует цвет текста или бейджа. */
 .mc-emoji {
     display: inline-block;
     width: 1em;
     height: 1em;
     vertical-align: -0.125em;
-    background-color: currentColor;
-    -webkit-mask-image: var(--mc-emoji-src);
-    mask-image: var(--mc-emoji-src);
-    -webkit-mask-size: contain;
-    mask-size: contain;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
-    -webkit-mask-position: center;
-    mask-position: center;
     user-select: none;
     flex-shrink: 0;
 }
