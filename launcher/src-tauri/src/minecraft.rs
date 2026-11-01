@@ -1631,10 +1631,7 @@ async fn ensure_neoforge(
             let _ = fs::remove_file(&installer);
             let _ = fs::remove_file(installer.with_extension("download"));
             // Пауза перед повтором.
-            let _ = tauri::async_runtime::spawn_blocking(|| {
-                std::thread::sleep(std::time::Duration::from_secs(3));
-            })
-            .await;
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
         }
 
         if let Err(e) = download_to(
@@ -2243,10 +2240,7 @@ async fn download_inner(
             tracing::debug!(
                 "[download] повтор {attempt}/{MAX_ATTEMPTS} (ожидание {delay_secs}с): {url}"
             );
-            let _ = tauri::async_runtime::spawn_blocking(move || {
-                std::thread::sleep(std::time::Duration::from_secs(delay_secs));
-            })
-            .await;
+            tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
         }
 
         // ── Определяем offset для resume ──
@@ -2457,10 +2451,7 @@ async fn http_get_with_retry(
         if attempt > 1 {
             let delay_secs = std::cmp::min(2u64.pow(attempt - 1), 8);
             tracing::debug!("[http] повтор {attempt}/{max_attempts} ({label})");
-            let _ = tauri::async_runtime::spawn_blocking(move || {
-                std::thread::sleep(std::time::Duration::from_secs(delay_secs));
-            })
-            .await;
+            tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
         }
         match http.get(url).send().await {
             Ok(resp) => match resp.error_for_status() {

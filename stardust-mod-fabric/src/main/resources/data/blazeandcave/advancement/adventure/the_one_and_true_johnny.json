@@ -18,7 +18,7 @@
 			"conditions": {
 				"entity": {
 					"type": "vindicator",
-					"nbt": "{CustomName:\'\"Johnny\"\'}"
+					"nbt": "{CustomName:'\"Johnny\"'}"
 				}
 			}
 		},

@@ -19,17 +19,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * HTTP-провайдер кастомизации ника для серверного мода Stardust.
@@ -58,7 +59,15 @@ public final class StardustHttpProvider {
     // Пересоздаётся в stop(): после shutdownNow исполнитель отвергает новые
     // задачи, а reload() при смене периода перезапускает планировщик.
     private ScheduledExecutorService scheduler;
-    private final Map<String, Assignment> cache = new ConcurrentHashMap<>();
+    private volatile Map<String, Assignment> cache = Map.of();
+    // Один запрос не чаще чем раз в 6 секунд: оставляем часть общего IP-лимита другим клиентам.
+    private static final long REQUEST_INTERVAL_NANOS = TimeUnit.SECONDS.toNanos(6);
+    private static final long RATE_LIMIT_BACKOFF_NANOS = TimeUnit.SECONDS.toNanos(60);
+    private long nextRequestNanos;
+    private boolean requestDeadlineSet;
+    private List<String> pendingNames;
+    private Map<String, Assignment> pendingUpdates;
+    private int pendingOffset;
     private final Path cacheFile;
     private final Object cachePersistenceLock = new Object();
     private volatile Supplier<Collection<String>> onlinePlayersProvider;
@@ -104,15 +113,15 @@ public final class StardustHttpProvider {
         }
 
         if (persisted == null) return;
-        int loaded = 0;
+        Map<String, Assignment> loadedCache = new HashMap<>();
         for (Map.Entry<String, Assignment> entry : persisted.entrySet()) {
             String name = entry.getKey();
             Assignment assignment = entry.getValue();
             if (name == null || name.isBlank() || assignment == null) continue;
-            cache.put(name.trim().toLowerCase(Locale.ROOT), assignment);
-            loaded++;
+            loadedCache.put(name.trim().toLowerCase(Locale.ROOT), assignment);
         }
-        StardustFabricMod.LOGGER.info("Stardust cache: загружено {} записей из {}", loaded, cacheFile);
+        cache = Map.copyOf(loadedCache);
+        StardustFabricMod.LOGGER.info("Stardust cache: загружено {} записей из {}", cache.size(), cacheFile);
     }
 
     private void persistCache() {
@@ -266,38 +275,62 @@ public final class StardustHttpProvider {
     }
 
     /** Запрашивает кастомизацию у auth-server. */
-    private boolean fetchPlayers(Collection<String> names) {
+    private synchronized boolean fetchPlayers(Collection<String> names) {
         if (names.isEmpty()) return false;
         try {
-            String players = names.stream()
-                    .filter(name -> name != null && !name.isBlank())
-                    .map(String::trim)
-                    .map(name -> URLEncoder.encode(name, StandardCharsets.UTF_8))
-                    .reduce((a, b) -> a + "," + b)
-                    .orElse("");
-            if (players.isEmpty()) return false;
-
-            String url = authUrl + "/api/server/customization?players=" + players;
-            if (debug) StardustFabricMod.LOGGER.info("Stardust HTTP: → {}", url);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(HTTP_TIMEOUT)
-                    .GET()
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                StardustFabricMod.LOGGER.warn("Stardust HTTP: auth-server {}", response.statusCode());
-                return false;
+            long now = System.nanoTime();
+            if (requestDeadlineSet && now - nextRequestNanos < 0) return false;
+            if (pendingNames == null) {
+                pendingNames = new ArrayList<>(names.stream()
+                        .filter(name -> name != null && !name.isBlank())
+                        .map(String::trim)
+                        .map(name -> name.toLowerCase(Locale.ROOT))
+                        .collect(Collectors.toCollection(LinkedHashSet::new)));
+                if (pendingNames.isEmpty()) {
+                    pendingNames = null;
+                    return false;
+                }
+                pendingUpdates = new HashMap<>();
+                pendingOffset = 0;
             }
+            List<String> requested = pendingNames;
+            Map<String, Assignment> updates = pendingUpdates;
+            List<String> batch = requested.subList(pendingOffset, Math.min(pendingOffset + 100, requested.size()));
+            nextRequestNanos = System.nanoTime() + REQUEST_INTERVAL_NANOS;
+            requestDeadlineSet = true;
+                String players = batch.stream()
+                        .map(name -> URLEncoder.encode(name, StandardCharsets.UTF_8))
+                        .collect(Collectors.joining(","));
+                String url = authUrl + "/api/server/customization?players=" + players;
+                if (debug) StardustFabricMod.LOGGER.info("Stardust HTTP: → {}", url);
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(HTTP_TIMEOUT)
+                        .GET()
+                        .build();
 
-            Map<String, ServerResponse> raw = GSON.fromJson(
-                    response.body(),
-                    new TypeToken<Map<String, ServerResponse>>() {}.getType()
-            );
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() != 200) {
+                    StardustFabricMod.LOGGER.warn("Stardust HTTP: auth-server {}", response.statusCode());
+                    if (response.statusCode() == 429) {
+                        nextRequestNanos = System.nanoTime() + RATE_LIMIT_BACKOFF_NANOS;
+                    }
+                    pendingNames = null;
+                    pendingUpdates = null;
+                    return false;
+                }
 
-            Map<String, Assignment> updates = new HashMap<>();
-            if (raw != null) {
+                Map<String, ServerResponse> raw = GSON.fromJson(
+                        response.body(),
+                        new TypeToken<Map<String, ServerResponse>>() {}.getType()
+                );
+
+                if (raw == null) {
+                    StardustFabricMod.LOGGER.warn("Stardust HTTP: пустой ответ auth-server");
+                    pendingNames = null;
+                    pendingUpdates = null;
+                    return false;
+                }
                 for (Map.Entry<String, ServerResponse> entry : raw.entrySet()) {
                     String name = entry.getKey();
                     ServerResponse sr = entry.getValue();
@@ -316,17 +349,27 @@ public final class StardustHttpProvider {
                             sr.gradient_description
                     ));
                 }
-            }
+            pendingOffset += batch.size();
+            if (pendingOffset < requested.size()) return false;
             synchronized (cachePersistenceLock) {
-                cache.putAll(updates);
+                Map<String, Assignment> snapshot = new HashMap<>(cache);
+                requested.forEach(snapshot::remove);
+                snapshot.putAll(updates);
+                cache = Map.copyOf(snapshot);
                 persistCache();
             }
+            pendingNames = null;
+            pendingUpdates = null;
             if (debug) StardustFabricMod.LOGGER.info("Stardust HTTP: обновлено {}, кеш={}", names.size(), cache.size());
             return true;
         } catch (IOException | InterruptedException e) {
+            pendingNames = null;
+            pendingUpdates = null;
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             StardustFabricMod.LOGGER.warn("Stardust HTTP: ошибка ({})", e.toString());
         } catch (Exception e) {
+            pendingNames = null;
+            pendingUpdates = null;
             StardustFabricMod.LOGGER.warn("Stardust HTTP: ошибка", e);
         }
         return false;

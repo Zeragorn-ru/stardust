@@ -33,7 +33,7 @@ final class StardustTabIntegration {
         http.refreshNow();
         registerPlaceholders();
         updateAllPlayers();
-        StardustFabricMod.LOGGER.info("Stardust: кеш обновлён, плейсхолдеры перерегистрированы.");
+        StardustFabricMod.LOGGER.info("Stardust: обновление кеша запрошено, плейсхолдеры перерегистрированы.");
     }
 
     static synchronized void reloadConfig() {

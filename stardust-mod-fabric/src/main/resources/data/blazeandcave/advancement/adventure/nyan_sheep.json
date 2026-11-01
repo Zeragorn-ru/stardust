@@ -19,7 +19,7 @@
 					"items": [
 						"minecraft:name_tag"
 					],
-					"nbt": "{display:{Name:\'\"jeb_\"\'}}"
+					"nbt": "{display:{Name:'\"jeb_\"'}}"
 				},
 				"entity": [
 					{

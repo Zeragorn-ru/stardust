@@ -17,6 +17,50 @@ const ACCOUNT_STATUS_INTERVAL = 60_000;
 
 type ServerSamplePlayer = { name: string; id: string };
 
+/** Не опрашиваем сервер в скрытом окне; при возвращении обновляем данные сразу. */
+function pollWhileVisible(task: () => Promise<void>, interval: number): () => void {
+  let timer: ReturnType<typeof setInterval> | undefined;
+  let inFlight = false;
+  let refreshPending = false;
+  let stopped = false;
+
+  async function refresh() {
+    if (stopped || document.hidden) return;
+    if (inFlight) {
+      refreshPending = true;
+      return;
+    }
+    refreshPending = false;
+    inFlight = true;
+    try {
+      await task();
+    } finally {
+      inFlight = false;
+      if (refreshPending && !stopped && !document.hidden) {
+        refreshPending = false;
+        void refresh();
+      }
+    }
+  }
+
+  function onVisibilityChange() {
+    if (timer !== undefined) clearInterval(timer);
+    timer = undefined;
+    if (!document.hidden) {
+      void refresh();
+      timer = setInterval(() => void refresh(), interval);
+    }
+  }
+
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  onVisibilityChange();
+  return () => {
+    stopped = true;
+    if (timer !== undefined) clearInterval(timer);
+    document.removeEventListener("visibilitychange", onVisibilityChange);
+  };
+}
+
 /** Цвет индикатора пинга: зелёный <80мс, жёлтый <200мс, красный иначе. */
 function pingColor(ping: number | null): string {
   if (ping == null) return "var(--muted)";
@@ -93,7 +137,6 @@ export default function MainScreen({
   useEffect(() => {
     getStats().then(setStats).catch(() => undefined);
     getSettings().then(setSettings).catch(() => undefined);
-    accountInfo().then((info) => setBan(info.ban ?? info.profile.ban ?? null)).catch(() => undefined);
     getNewsHighlight().then((highlight) => {
       setNews(highlight);
       const seen = profile.newsSeenAt || localStorage.getItem("launcher.news.seen");
@@ -122,13 +165,15 @@ export default function MainScreen({
         // Не мешаем запуску лаунчера, если статус временно недоступен.
       }
     }
-    const id = setInterval(refreshAccountStatus, ACCOUNT_STATUS_INTERVAL);
-    return () => clearInterval(id);
+    return pollWhileVisible(refreshAccountStatus, ACCOUNT_STATUS_INTERVAL);
   }, []);
 
-  // Обновляем статистику после завершения сессии.
+  // Обновляем статистику только при переходе от запущенной игры к остановленной.
+  const wasRunningRef = useRef(running);
   useEffect(() => {
-    if (!running) {
+    const wasRunning = wasRunningRef.current;
+    wasRunningRef.current = running;
+    if (wasRunning && !running) {
       playLockRef.current = false;
       getStats().then(setStats).catch(() => undefined);
       // Если игра только что упала, история могла пополниться — обновляем счётчик.
@@ -182,9 +227,7 @@ export default function MainScreen({
         setServerSample([]);
       }
     }
-    checkServer();
-    const id = setInterval(checkServer, SERVER_STATUS_INTERVAL);
-    return () => clearInterval(id);
+    return pollWhileVisible(checkServer, SERVER_STATUS_INTERVAL);
   }, []);
 
   useEffect(() => {

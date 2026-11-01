@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readLogTail } from "../api";
 
 export interface LogTab {
@@ -46,7 +46,11 @@ export default function LogViewerModal({
     setError(null);
     try {
       const tail = await readLogTail(activeTab.path, 300);
-      setLines(tail.lines);
+      setLines((previous) =>
+        previous.length === tail.lines.length && previous.every((line, index) => line === tail.lines[index])
+          ? previous
+          : tail.lines,
+      );
       setPath(tail.path);
       setTruncated(tail.truncated);
       setExists(tail.exists);
@@ -64,10 +68,24 @@ export default function LogViewerModal({
 
   useEffect(() => {
     if (!autoRefresh) return;
-    const id = setInterval(() => {
-      void refresh();
-    }, 3000);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | undefined;
+    const startInterval = () => {
+      id = setInterval(() => void refresh(), 3000);
+    };
+    const updateVisibility = () => {
+      if (id !== undefined) clearInterval(id);
+      id = undefined;
+      if (!document.hidden) {
+        void refresh();
+        startInterval();
+      }
+    };
+    if (!document.hidden) startInterval();
+    document.addEventListener("visibilitychange", updateVisibility);
+    return () => {
+      if (id !== undefined) clearInterval(id);
+      document.removeEventListener("visibilitychange", updateVisibility);
+    };
   }, [autoRefresh, refresh]);
 
   useEffect(() => {
@@ -80,12 +98,13 @@ export default function LogViewerModal({
   }, [followEnd, lines]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase();
-  const matchIndexes = normalizedQuery
+  const matchIndexes = useMemo(() => normalizedQuery
     ? lines.reduce<number[]>((matches, line, index) => {
         if (line.toLocaleLowerCase().includes(normalizedQuery)) matches.push(index);
         return matches;
       }, [])
-    : [];
+    : [], [lines, normalizedQuery]);
+  const matchingLines = useMemo(() => new Set(matchIndexes), [matchIndexes]);
 
   // Новый запрос сбрасывает позицию на первое совпадение; авто-refresh
   // (lines меняется сам) не должен сбрасывать выбранное совпадение.
@@ -296,7 +315,7 @@ export default function LogViewerModal({
                   className={
                     "log-viewer-modal__line" +
                     (matchIndexes[matchCursor] === index ? " log-viewer-modal__line--active" : "") +
-                    (normalizedQuery && line.toLocaleLowerCase().includes(normalizedQuery)
+                    (matchingLines.has(index)
                       ? " log-viewer-modal__line--match"
                       : "")
                   }

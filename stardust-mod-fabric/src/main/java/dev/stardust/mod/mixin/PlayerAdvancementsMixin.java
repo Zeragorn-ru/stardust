@@ -19,12 +19,11 @@ public abstract class PlayerAdvancementsMixin {
     @Shadow
     private ServerPlayer player;
 
-    @Inject(method = "award", at = @At("TAIL"))
+    @Inject(method = "award", at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/advancements/AdvancementRewards;grant(Lnet/minecraft/server/level/ServerPlayer;)V"))
     private void stardust$onAdvancementGranted(AdvancementHolder advancement, String criterion,
             CallbackInfoReturnable<Boolean> cir) {
-        // award возвращает false, если критерий не завершил advancement:
-        // реакция только на полную выдачу.
-        if (!cir.getReturnValueZ()) return;
+        // Vanilla выдаёт награду только при переходе от незавершённого прогресса к завершённому.
         StardustSuperChallengeHealth.onAdvancementEarned(player, advancement.id());
     }
 }

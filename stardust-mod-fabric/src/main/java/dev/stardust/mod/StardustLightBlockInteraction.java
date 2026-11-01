@@ -2,13 +2,12 @@ package dev.stardust.mod;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.BlockItemStateProperties;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LightBlock;
 import net.minecraft.world.level.block.state.BlockState;
@@ -70,18 +69,13 @@ public final class StardustLightBlockInteraction {
         return InteractionResult.SUCCESS;
     }
 
-    /** Вызывается из LightBlockMixin (spawnAfterBreak) на серверной стороне. */
-    public static void onLightBlockDrops(ServerLevel level, BlockPos pos, BlockState state) {
+    /** Вызывается из BlockMixin после разрушения игроком. */
+    public static void onLightBlockDrops(Level level, BlockPos pos, BlockState state) {
         if (!state.is(Blocks.LIGHT)) return;
 
         ItemStack drop = new ItemStack(Blocks.LIGHT);
         LightBlock.setLightOnStack(drop, state.getValue(LightBlock.LEVEL));
-        level.addFreshEntity(new ItemEntity(
-                level,
-                pos.getX() + 0.5,
-                pos.getY() + 0.5,
-                pos.getZ() + 0.5,
-                drop));
+        Block.popResource(level, pos, drop);
     }
 
     private static BlockState getState(ItemStack stack) {

@@ -20,7 +20,7 @@
 						"items": [
 							"minecraft:diamond_sword"
 						],
-						"nbt": "{display:{Name:\'\"Diamond Edge\"\'}}"
+						"nbt": "{display:{Name:'\"Diamond Edge\"'}}"
 					}
 				]
 			}

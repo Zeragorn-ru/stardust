@@ -20,7 +20,7 @@
 					"items": [
 						"minecraft:name_tag"
 					],
-					"nbt": "{display:{Name:\'\"Dinnerbone\"\'}}"
+					"nbt": "{display:{Name:'\"Dinnerbone\"'}}"
 				}
 			}
 		},
@@ -31,7 +31,7 @@
 					"items": [
 						"minecraft:name_tag"
 					],
-					"nbt": "{display:{Name:\'\"Grumm\"\'}}"
+					"nbt": "{display:{Name:'\"Grumm\"'}}"
 				}
 			}
 		},

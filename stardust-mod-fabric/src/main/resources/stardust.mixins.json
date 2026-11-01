@@ -3,16 +3,15 @@
   "minVersion": "0.8",
   "package": "dev.stardust.mod.mixin",
   "compatibilityLevel": "JAVA_25",
-  "refmap": "stardust.refmap.json",
   "mixins": [
     "PlayerListMixin",
     "LightBlockMixin",
     "BlockBehaviourMixin",
+    "BlockMixin",
     "NoteBlockMixin",
     "PlayerAdvancementsMixin"
   ],
   "client": [
-    "ChatListenerMixin",
     "ClientLevelMixin"
   ],
   "injectors": {

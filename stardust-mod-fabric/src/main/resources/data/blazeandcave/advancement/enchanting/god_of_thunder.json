@@ -24,7 +24,7 @@
 						"items": [
 							"minecraft:trident"
 						],
-						"nbt": "{display:{Name:\'\"Mjolnir\"\'}}",
+						"nbt": "{display:{Name:'\"Mjolnir\"'}}",
 						"predicates": {
 							"enchantments": [
 								{

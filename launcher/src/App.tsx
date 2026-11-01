@@ -51,6 +51,8 @@ export default function App() {
   // её повторно при следующем плановом опросе.
   const dismissedUpdateVersion = useRef<string | null>(null);
   const updateModal = useDelayedUnmount(update != null);
+  const updateModalVisibleRef = useRef(updateModal.visible);
+  updateModalVisibleRef.current = updateModal.visible;
   const [progress, setProgress] = useState<Progress | null>(null);
   const [running, setRunning] = useState(false);
   // AI-вердикт по последнему крашу: показываем баннером, пока игрок не
@@ -248,7 +250,7 @@ export default function App() {
           (progressRef.current != null &&
             ["checking", "downloading", "extracting", "launching"].includes(progressRef.current.phase));
         if (!cancelled && info.available && info.version !== dismissedUpdateVersion.current) {
-          setAutoInstallUpdate(!manual && !busyNow && !updateModal.visible);
+          setAutoInstallUpdate(!manual && !busyNow && !updateModalVisibleRef.current);
           setUpdate(info);
         }
       } catch (err) {
@@ -267,7 +269,7 @@ export default function App() {
       window.clearInterval(timer);
       window.removeEventListener("launcher://check-update", onManualCheck);
     };
-  }, [updateModal.visible]);
+  }, []);
 
   function finishOnboarding() { setOnboarded(); navigate("login"); }
 

@@ -20,7 +20,7 @@
 						"items": [
 							"minecraft:bow"
 						],
-						"nbt": "{display:{Name:\'\"Terminator\"\'}}"
+						"nbt": "{display:{Name:'\"Terminator\"'}}"
 					}
 				]
 			}
