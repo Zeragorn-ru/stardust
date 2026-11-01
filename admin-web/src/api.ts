@@ -61,9 +61,11 @@ function onAuthRejected(): void {
 /// Ошибка с человекочитаемым сообщением от сервера.
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  data: unknown;
+  constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -127,7 +129,7 @@ async function request<T>(
       (data && typeof data === "object" && "error" in data
         ? String((data as { error: unknown }).error)
         : null) ?? `Ошибка ${resp.status}`;
-    throw new ApiError(resp.status, message);
+    throw new ApiError(resp.status, message, data);
   }
   return data as T;
 }
@@ -148,7 +150,20 @@ export interface LoginResult {
   challenge?: string;
 }
 
+export interface SftpHostKeyChanged {
+  host: string;
+  fingerprint: string;
+  knownFingerprint: string;
+}
+
+export interface SftpHostKeyConfirmation {
+  confirmed_host: string;
+  confirmed_fingerprint: string;
+  known_fingerprint: string;
+}
+
 export interface SyncStatus {
+  hostKeyChanged?: SftpHostKeyChanged | null;
   buildId?: number | null;
   state: "idle" | "running" | "success" | "error";
   phase: string;
@@ -471,8 +486,9 @@ export const api = {
 
   syncToPanel(
     buildId: number,
+    confirmation?: SftpHostKeyConfirmation,
   ): Promise<{ uploaded: number; skipped: number; deleted: number; inProgress?: boolean }> {
-    return request("POST", `/api/builds/${buildId}/sync-to-panel`);
+    return request("POST", `/api/builds/${buildId}/sync-to-panel`, confirmation);
   },
 
   syncToPanelStatus(buildId: number): Promise<SyncStatus> {
@@ -510,12 +526,8 @@ export const api = {
     return request("POST", "/api/settings/backup");
   },
 
-  syncStats(): Promise<{ updated: number }> {
-    return request("POST", "/api/settings/sync-stats");
-  },
-
-  resetFingerprint(): Promise<void> {
-    return request("POST", "/api/settings/reset-fingerprint");
+  syncStats(confirmation?: SftpHostKeyConfirmation): Promise<{ updated: number }> {
+    return request("POST", "/api/settings/sync-stats", confirmation);
   },
 
   buildCheck(buildId?: number): Promise<BuildCheckResult> {

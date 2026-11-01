@@ -33,6 +33,7 @@ public final class StardustFabricMod implements ModInitializer {
             FabricLoader.getInstance().getEnvironmentType());
 
         ServerLifecycleEvents.SERVER_STARTED.register(StardustServerLifecycle::onServerStarted);
+        ServerLifecycleEvents.SERVER_STOPPED.register(StardustServerLifecycle::onServerStopped);
         ServerTickEvents.END_SERVER_TICK.register(StardustServerLifecycle::onServerTick);
         // Чат: false = не отправлять vanilla-сообщение (заменяем своим форматом).
         ServerMessageEvents.ALLOW_CHAT_MESSAGE.register((message, sender, params) ->

@@ -1,3 +1,4 @@
+import { useSftpHostKey } from "../ui/sftpHostKey";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, PlayerStats } from "../types";
@@ -112,6 +113,7 @@ const SORT_LABELS: Record<AccountSort, string> = {
 
 export function AccountsView() {
   const toast = useToast();
+  const { syncStats: syncStatsWithConfirmation } = useSftpHostKey();
   const initialFilters = useMemo(() => readAccountFilterPreferences(), []);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,8 @@ export function AccountsView() {
   async function syncStats() {
     setSyncing(true);
     try {
-      const res = await api.syncStats();
+      const res = await syncStatsWithConfirmation();
+      if (!res) return;
       toast.success(`Статистика обновлена: ${res.updated} игроков`);
       // Подтягиваем свежие значения, иначе таблица останется устаревшей
       // до перезахода на экран.

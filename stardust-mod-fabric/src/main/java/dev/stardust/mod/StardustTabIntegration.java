@@ -31,9 +31,13 @@ final class StardustTabIntegration {
             return;
         }
         http.refreshNow();
-        registerPlaceholders();
+        try {
+            registerPlaceholders();
+        } catch (LinkageError | IllegalStateException ignored) {
+            // TAB отсутствует или ещё не готов; HTTP от него не зависит.
+        }
         updateAllPlayers();
-        StardustFabricMod.LOGGER.info("Stardust: обновление кеша запрошено, плейсхолдеры перерегистрированы.");
+        StardustFabricMod.LOGGER.info("Stardust: обновление кеша запрошено.");
     }
 
     static synchronized void reloadConfig() {
@@ -63,23 +67,7 @@ final class StardustTabIntegration {
             httpProvider.stop();
         }
         httpProvider = new StardustHttpProvider(authUrl, refreshSecs, debug);
-        httpProvider.setOnlinePlayersProvider(() -> {
-            try {
-                TabAPI a = TabAPI.getInstance();
-                if (a == null) return java.util.List.of();
-                TabPlayer[] players = a.getOnlinePlayers();
-                java.util.List<String> names = new java.util.ArrayList<>(players.length);
-                for (TabPlayer p : players) {
-                    if (p != null && p.getName() != null) names.add(p.getName());
-                }
-                return names;
-            } catch (LinkageError | IllegalStateException e) {
-                // IllegalStateException: TAB установлен, но ещё не включён
-                // (getInstance() кидает «API instance is null»). Если не
-                // гасить — исключение убивало periodic-task планировщика.
-                return java.util.List.of();
-            }
-        });
+        httpProvider.setOnlinePlayersProvider(StardustServerLifecycle::onlinePlayerNames);
         httpProvider.setAfterRefresh(StardustTabIntegration::updateAllPlayersQuietly);
         httpProvider.start();
 
@@ -204,11 +192,19 @@ final class StardustTabIntegration {
         updateAllPlayers(false);
     }
 
-    private static void updateAllPlayersQuietly() {
+    static void updateAllPlayersQuietly() {
         updateAllPlayers(true);
     }
 
     private static void updateAllPlayers(boolean quiet) {
+        try {
+            updateTabPlayers(quiet);
+        } catch (LinkageError | IllegalStateException ignored) {
+            // Опциональный TAB не должен ломать refresh и его HTTP-callback.
+        }
+    }
+
+    private static void updateTabPlayers(boolean quiet) {
         TabAPI api = TabAPI.getInstance();
         if (api == null) return;
         PlaceholderManager pm = api.getPlaceholderManager();

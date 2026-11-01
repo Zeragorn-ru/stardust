@@ -6,5 +6,5 @@
  * отрисует резервный шрифт.
  */
 export function normalizeMinecraftText(value: string): string {
-  return value.replace(/️/g, "").replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "");
+  return value.replace(/[︎️]/g, "").replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "");
 }

@@ -4521,8 +4521,8 @@ button.data-directory-card__path:disabled {
     filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.55));
 }
 .minecraft-nick__badge.mc-emoji {
-    width: calc(var(--minecraft-nick-size, 22px) + 2px);
-    height: calc(var(--minecraft-nick-size, 22px) + 2px);
+    width: calc(var(--minecraft-nick-size, 22px) * 1.25);
+    height: calc(var(--minecraft-nick-size, 22px) * 1.25);
     flex-shrink: 0;
 }
 .minecraft-nick__badge.mc-emoji-fallback {
@@ -4718,9 +4718,9 @@ select option {
 /* Инлайн-глиф Mojangles наследует цвет текста или бейджа. */
 .mc-emoji {
     display: inline-block;
-    width: 1em;
-    height: 1em;
-    vertical-align: -0.125em;
+    width: 1.25em;
+    height: 1.25em;
+    vertical-align: -0.2em;
     user-select: none;
     flex-shrink: 0;
 }

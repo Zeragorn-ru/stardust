@@ -1,3 +1,4 @@
+import { useSftpHostKey } from "../ui/sftpHostKey";
 import { useCallback, useMemo, useState } from "react";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
@@ -25,6 +26,7 @@ interface OverviewData {
 
 export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) {
   const toast = useToast();
+  const { syncStats: syncStatsWithConfirmation } = useSftpHostKey();
   const [syncing, setSyncing] = useState(false);
 
   // Тот же общий хук, что и в десктопном обзоре (план 3.1): опрос
@@ -61,7 +63,8 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
   async function syncStats() {
     setSyncing(true);
     try {
-      const res = await api.syncStats();
+      const res = await syncStatsWithConfirmation();
+      if (!res) return;
       toast.success(`Статистика обновлена: ${res.updated} игроков`);
       reload();
     } catch (err) {

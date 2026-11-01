@@ -2286,7 +2286,13 @@ async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
                 .get_setting(key)
                 .await
                 .map_err(|e| format!("db: {e}"))?
-                .filter(|s| !s.trim().is_empty())
+                .filter(|s| {
+                    if key == store::SETTING_SFTP_PASSWORD {
+                        !s.is_empty()
+                    } else {
+                        !s.trim().is_empty()
+                    }
+                })
                 .ok_or_else(|| format!("настройка `{key}` не задана"))
         }
     };

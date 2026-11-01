@@ -19,6 +19,7 @@ import type {
   DepsCheckResult,
 } from "../types";
 import { useConfirm, useToast } from "./feedback";
+import { useSftpHostKey } from "./sftpHostKey";
 import { useBodyScrollLock } from "./useBodyScrollLock";
 import { useDialogFocus } from "./useDialogFocus";
 import { useDirtyGuard } from "./useDirtyGuard";
@@ -114,10 +115,14 @@ export function useBuildActions(
 ): BuildActions {
   const toast = useToast();
   const confirm = useConfirm();
+  const { confirmHostKey } = useSftpHostKey();
 
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const lastSyncState = useRef<SyncStatus["state"] | null>(null);
+  const confirmingHostKey = useRef(false);
+  const confirmHostKeyRef = useRef(confirmHostKey);
+  confirmHostKeyRef.current = confirmHostKey;
   const [deploying, setDeploying] = useState(false);
   const [deployStatus, setDeployStatus] = useState<DeployModStatus | null>(null);
   // Опрос статуса деплоя мода: живёт в ref, чтобы пережить unmount и
@@ -181,16 +186,41 @@ export function useBuildActions(
             `SFTP-синхронизация завершена: ${status.uploaded} файлов · удалено: ${status.deleted} · пропущено: ${status.skipped}`,
           );
         }
-        if (prev === "running" && status.state === "error") {
-          toast.error(status.error ?? "SFTP-синхронизация завершилась ошибкой");
-        }
-        lastSyncState.current = status.state;
+        if (status.state !== "error") lastSyncState.current = status.state;
       } catch {
         // Следующий polling-проход повторит попытку.
       }
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [loadSyncStatus, syncStatus?.state, toast]);
+  }, [buildId, loadSyncStatus, syncStatus?.state, toast]);
+
+  useEffect(() => {
+    if (syncStatus?.state !== "error" || lastSyncState.current !== "running") return;
+    lastSyncState.current = "error";
+    if (!syncStatus.hostKeyChanged) {
+      toast.error(syncStatus.error ?? "SFTP-синхронизация завершилась ошибкой");
+      return;
+    }
+    if (confirmingHostKey.current) return;
+    confirmingHostKey.current = true;
+    void (async () => {
+      try {
+        const confirmation = await confirmHostKeyRef.current(syncStatus.hostKeyChanged!);
+        if (confirmation) {
+          setSyncing(true);
+          await api.syncToPanel(buildId, confirmation);
+          lastSyncState.current = "running";
+          await loadSyncStatus();
+          toast.success("SFTP-синхронизация запущена повторно");
+        }
+      } catch (err) {
+        setSyncing(false);
+        toast.error(err instanceof ApiError ? err.message : "Ошибка синхронизации");
+      } finally {
+        confirmingHostKey.current = false;
+      }
+    })();
+  }, [buildId, loadSyncStatus, syncStatus, toast]);
 
   async function runChecks() {
     setCheckResults((s) => ({ ...s, loading: true }));

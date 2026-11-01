@@ -15,7 +15,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-
+use axum::middleware::{self, Next};
 use axum::{
     extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, Query, State},
     http::{header, HeaderMap, StatusCode},
@@ -23,7 +23,6 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use axum::middleware::{self, Next};
 use futures_util::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -245,7 +244,13 @@ async fn main() {
     let bg_state = Arc::clone(&state);
     tokio::spawn(async move {
         loop {
-            match do_sync_stats(&bg_state).await {
+            match do_sync_stats(
+                &bg_state,
+                HostKeyConfirmation::default(),
+                Arc::new(std::sync::Mutex::new(None)),
+            )
+            .await
+            {
                 Ok(updated) if updated > 0 => {
                     tracing::info!("[stats] синхронизация: обновлено {updated} игроков");
                 }
@@ -410,7 +415,6 @@ async fn main() {
             "/api/server/external-mod-block-rules/:id",
             axum::routing::delete(remove_external_mod_block_rule),
         )
-        .route("/api/settings/reset-fingerprint", post(reset_fingerprint))
         .route(
             "/api/builds/files/:file_id/content",
             axum::routing::put(update_file_content),
@@ -471,7 +475,10 @@ async fn main() {
         .route("/public/guides/:slug", get(public_guide))
         .route("/public/leaderboards", get(public_leaderboards))
         .route("/public/seasons", get(public_seasons))
-        .route("/public/seasons/:id/leaderboards", get(public_season_leaderboards))
+        .route(
+            "/public/seasons/:id/leaderboards",
+            get(public_season_leaderboards),
+        )
         .route("/manifest", get(manifest))
         .route(
             "/authlib-injector/latest.json",
@@ -547,6 +554,7 @@ async fn bootstrap_admins(store: &Store) {
 struct ApiError {
     status: StatusCode,
     message: String,
+    host_key_changed: Option<HostKeyChanged>,
 }
 
 impl ApiError {
@@ -554,12 +562,16 @@ impl ApiError {
         Self {
             status,
             message: message.into(),
+            host_key_changed: None,
         }
     }
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        if let Some(key) = self.host_key_changed {
+            return (self.status, Json(serde_json::json!({"error": self.message, "code": "sftp_host_key_changed", "host": key.host, "fingerprint": key.fingerprint, "knownFingerprint": key.known_fingerprint}))).into_response();
+        }
         (
             self.status,
             Json(ErrorBody {
@@ -595,9 +607,7 @@ enum LoginResponse {
     /// подтверждения кода (или кнопки в боте) — тот же гейт, что у
     /// auth-server. Раньше admin-server выдавал админ-сессию по одному
     /// паролю, обходя второй фактор.
-    TwoFactorRequired {
-        challenge: String,
-    },
+    TwoFactorRequired { challenge: String },
 }
 
 #[derive(Deserialize)]
@@ -645,12 +655,8 @@ fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::I
 
 fn is_private_ip(ip: std::net::IpAddr) -> bool {
     match ip {
-        std::net::IpAddr::V4(v4) => {
-            v4.is_private() || v4.is_link_local() || v4.is_loopback()
-        }
-        std::net::IpAddr::V6(v6) => {
-            v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00
-        }
+        std::net::IpAddr::V4(v4) => v4.is_private() || v4.is_link_local() || v4.is_loopback(),
+        std::net::IpAddr::V6(v6) => v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00,
     }
 }
 
@@ -696,7 +702,12 @@ async fn login(
     // Аккаунт с привязанным Telegram требует второй фактор — как в
     // auth-server. Без этого один пароль давал бы полную админ-сессию.
     let client_ip = ip.to_string();
-    match state.store.start_2fa(&profile.id, Some(&client_ip)).await.map_err(map_store)? {
+    match state
+        .store
+        .start_2fa(&profile.id, Some(&client_ip))
+        .await
+        .map_err(map_store)?
+    {
         Some(challenge) => Ok(Json(LoginResponse::TwoFactorRequired { challenge })),
         None => {
             let token = state
@@ -726,9 +737,7 @@ async fn login_2fa(
         .store
         .verify_2fa(&req.challenge, &req.code)
         .await
-        .map_err(|_| {
-            ApiError::new(StatusCode::UNAUTHORIZED, "Неверный или истёкший код")
-        })?;
+        .map_err(|_| ApiError::new(StatusCode::UNAUTHORIZED, "Неверный или истёкший код"))?;
     let account = state
         .store
         .find_by_uuid(&uuid)
@@ -743,11 +752,7 @@ async fn login_2fa(
             "Аккаунт больше не администратор",
         ));
     }
-    let token = state
-        .store
-        .create_session(&uuid)
-        .await
-        .map_err(internal)?;
+    let token = state.store.create_session(&uuid).await.map_err(internal)?;
     Ok(Json(LoginResponse::Ok {
         token,
         username: account.username,
@@ -870,9 +875,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         telegram_bot_username: get(SETTING_TELEGRAM_USERNAME).filter(|u| !u.trim().is_empty()),
         sftp_host: get(SETTING_SFTP_HOST).filter(|s| !s.trim().is_empty()),
         sftp_username: get(SETTING_SFTP_USERNAME).filter(|s| !s.trim().is_empty()),
-        sftp_password_set: get(SETTING_SFTP_PASSWORD)
-            .map(|p| !p.trim().is_empty())
-            .unwrap_or(false),
+        sftp_password_set: get(SETTING_SFTP_PASSWORD).is_some_and(|p| sftp_password_present(&p)),
         sftp_stats_path: get(SETTING_SFTP_STATS_PATH).filter(|s| !s.trim().is_empty()),
         server_telemetry_token_set: get(store::server_telemetry::SETTING_SERVER_TELEMETRY_TOKEN)
             .is_some_and(|s| !s.trim().is_empty()),
@@ -1036,8 +1039,7 @@ async fn update_settings(
         }
     }
     if let Some(v) = req.sftp_password {
-        let v = v.trim();
-        if v.is_empty() {
+        if !sftp_password_present(&v) {
             state
                 .store
                 .delete_setting(SETTING_SFTP_PASSWORD)
@@ -1046,7 +1048,7 @@ async fn update_settings(
         } else {
             state
                 .store
-                .set_setting(SETTING_SFTP_PASSWORD, v)
+                .set_setting(SETTING_SFTP_PASSWORD, &v)
                 .await
                 .map_err(internal)?;
         }
@@ -1662,10 +1664,11 @@ async fn folder_archive(
     // делать на потоке tokio (как и бекап, уводим в spawn_blocking).
     let archive_state = Arc::clone(&state);
     let archive_folder = folder.to_string();
-    let zip_bytes =
-        tokio::task::spawn_blocking(move || build_folder_zip(&archive_state, &archive_folder, &files))
-            .await
-            .map_err(|e| internal(format!("задача архивации: {e}")))??;
+    let zip_bytes = tokio::task::spawn_blocking(move || {
+        build_folder_zip(&archive_state, &archive_folder, &files)
+    })
+    .await
+    .map_err(|e| internal(format!("задача архивации: {e}")))??;
 
     // Имя архива — последний сегмент пути. Для не-ASCII добавляем filename*
     // (RFC 5987), а в базовом filename оставляем только ASCII-символы.
@@ -1743,7 +1746,13 @@ fn build_folder_zip(
 fn archive_disposition(last_segment: &str) -> (String, String) {
     let ascii_name: String = last_segment
         .chars()
-        .map(|c| if c.is_ascii_graphic() && c != '"' && c != '\\' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_graphic() && c != '"' && c != '\\' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         + ".zip";
     let disposition = if last_segment.is_ascii() {
@@ -1761,7 +1770,10 @@ fn percent_encode_rfc5987(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for &b in s.as_bytes() {
         let ok = b.is_ascii_alphanumeric()
-            || matches!(b, b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~');
+            || matches!(
+                b,
+                b'!' | b'#' | b'$' | b'&' | b'+' | b'-' | b'.' | b'^' | b'_' | b'`' | b'|' | b'~'
+            );
         if ok {
             out.push(b as char);
         } else {
@@ -2080,7 +2092,10 @@ async fn upsert_mod_profile(
     }
     // Ключ попадает в URL DELETE-роута (`/mod-profiles/:key`) — символы вне
     // `[a-z0-9-]` ломают маршрутизацию и делают профиль неудаляемым.
-    if !key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
+    if !key
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Ключ профиля может содержать только строчные латиницу, цифры и дефис",
@@ -2208,6 +2223,7 @@ struct SyncStatus {
     skipped: usize,
     deleted: usize,
     error: Option<String>,
+    host_key_changed: Option<HostKeyChanged>,
     started_at: Option<String>,
     finished_at: Option<String>,
 }
@@ -2248,6 +2264,48 @@ async fn update_sync_status(state: &Shared, update: impl FnOnce(&mut SyncStatus)
 /// что были убраны из сборки (как `managed-files.json` в лаунчере).
 const SYNC_MANIFEST: &str = ".stardust-sync.json";
 
+fn sftp_password_present(password: &str) -> bool {
+    !password.is_empty()
+}
+
+fn sync_target_path(path: &str) -> Result<&str, ApiError> {
+    let path = path.trim_start_matches('/');
+    if path.is_empty()
+        || path.contains('\\')
+        || path
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || path == SYNC_MANIFEST
+    {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            format!("Недопустимый путь синхронизации: {path}"),
+        ));
+    }
+    Ok(path)
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HostKeyChanged {
+    host: String,
+    fingerprint: String,
+    known_fingerprint: String,
+}
+
+#[derive(Clone, Default, Deserialize)]
+struct HostKeyConfirmation {
+    confirmed_host: Option<String>,
+    confirmed_fingerprint: Option<String>,
+    known_fingerprint: Option<String>,
+}
+
+static PENDING_HOST_KEYS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::BTreeMap<String, HostKeyChanged>>,
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(std::collections::BTreeMap::new()));
+
+static KNOWN_HOSTS_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// SSH client handler. Хранит known hosts в файле `known_hosts.json` рядом с
 /// modpack-dir, отпечатки — по ключу `host:port` (смена хоста в настройках не
 /// ложно блокируется чужим отпечатком). При первом подключении ключ хоста
@@ -2261,29 +2319,43 @@ struct SftpHandler {
     known_hosts_path: std::path::PathBuf,
     /// Идентификатор подключаемого хоста (`host:port`).
     host_id: String,
+    confirmation: HostKeyConfirmation,
+    mismatch: Arc<std::sync::Mutex<Option<HostKeyChanged>>>,
 }
 
 impl SftpHandler {
-    fn new(modpack_dir: &std::path::Path, host_id: &str) -> Self {
+    fn new(
+        modpack_dir: &std::path::Path,
+        host_id: &str,
+        confirmation: HostKeyConfirmation,
+        mismatch: Arc<std::sync::Mutex<Option<HostKeyChanged>>>,
+    ) -> Self {
         Self {
             known_hosts_path: modpack_dir.join("known_hosts.json"),
             host_id: host_id.to_string(),
+            confirmation,
+            mismatch,
         }
     }
 
     /// Читает known hosts из файла.
-    fn load_hosts(&self) -> std::collections::BTreeMap<String, String> {
-        std::fs::read_to_string(&self.known_hosts_path)
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+    fn load_hosts(&self) -> Result<std::collections::BTreeMap<String, String>, russh::Error> {
+        match std::fs::read_to_string(&self.known_hosts_path) {
+            Ok(json) => serde_json::from_str(&json).map_err(|_| russh::Error::UnknownKey),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(Default::default()),
+            Err(_) => Err(russh::Error::UnknownKey),
+        }
     }
 
-    /// Сохраняет known hosts в файл.
-    fn save_hosts(&self, hosts: &std::collections::BTreeMap<String, String>) {
-        if let Ok(json) = serde_json::to_string_pretty(hosts) {
-            let _ = std::fs::write(&self.known_hosts_path, json);
-        }
+    /// Сохраняет known hosts без окна с обрезанным JSON при сбое процесса.
+    fn save_hosts(
+        &self,
+        hosts: &std::collections::BTreeMap<String, String>,
+    ) -> Result<(), russh::Error> {
+        let json = serde_json::to_string_pretty(hosts).map_err(|_| russh::Error::UnknownKey)?;
+        let tmp = self.known_hosts_path.with_extension("json.tmp");
+        std::fs::write(&tmp, json).map_err(|_| russh::Error::UnknownKey)?;
+        std::fs::rename(&tmp, &self.known_hosts_path).map_err(|_| russh::Error::UnknownKey)
     }
 }
 
@@ -2299,8 +2371,19 @@ impl russh::client::Handler for SftpHandler {
             .fingerprint(russh::keys::ssh_key::HashAlg::Sha256)
             .to_string();
 
-        // Проверяем known hosts.
-        let mut hosts = self.load_hosts();
+        // Атомарная проверка и обновление для параллельных SFTP-подключений.
+        let _guard = KNOWN_HOSTS_LOCK
+            .lock()
+            .map_err(|_| russh::Error::UnknownKey)?;
+        let mut hosts = self.load_hosts()?;
+        if self.confirmation.confirmed_host.is_some()
+            && self.confirmation.confirmed_host.as_deref() != Some(&self.host_id)
+        {
+            return Err(russh::Error::UnknownKey);
+        }
+        if self.confirmation.confirmed_fingerprint.is_some() && !hosts.contains_key(&self.host_id) {
+            return Err(russh::Error::UnknownKey);
+        }
         let host_key = hosts.get(&self.host_id);
 
         match host_key {
@@ -2308,21 +2391,38 @@ impl russh::client::Handler for SftpHandler {
                 // Ключ совпал — хост известен и доверен.
                 Ok(true)
             }
-            Some(_mismatch) => {
-                // Ключ изменился — потенциальная MITM-атака.
-                tracing::error!(
-                    "[sftp] КЛЮЧ ХОСТА ИЗМЕНИЛСЯ для {}! Возможна MITM-атака. \
-                     Удалите known_hosts.json и подключитесь заново, \
-                     если вы уверены в безопасности канала.",
-                    self.host_id
-                );
-                Err(russh::Error::UnknownKey)
+            Some(known) => {
+                let changed = HostKeyChanged {
+                    host: self.host_id.clone(),
+                    fingerprint: key_str.clone(),
+                    known_fingerprint: known.clone(),
+                };
+                let mut pending = PENDING_HOST_KEYS
+                    .lock()
+                    .map_err(|_| russh::Error::UnknownKey)?;
+                let observed = pending
+                    .get(&self.host_id)
+                    .is_some_and(|p| p.fingerprint == key_str && p.known_fingerprint == *known);
+                if observed
+                    && self.confirmation.confirmed_host.as_deref() == Some(&self.host_id)
+                    && self.confirmation.confirmed_fingerprint.as_deref() == Some(&key_str)
+                    && self.confirmation.known_fingerprint.as_deref() == Some(known)
+                {
+                    hosts.insert(self.host_id.clone(), key_str);
+                    self.save_hosts(&hosts)?;
+                    pending.remove(&self.host_id);
+                    Ok(true)
+                } else {
+                    pending.insert(self.host_id.clone(), changed.clone());
+                    *self.mismatch.lock().map_err(|_| russh::Error::UnknownKey)? = Some(changed);
+                    Err(russh::Error::UnknownKey)
+                }
             }
             None => {
                 // Первое подключение — сохраняем ключ.
                 tracing::info!("[sftp] Первое подключение, сохраняем ключ хоста");
                 hosts.insert(self.host_id.clone(), key_str);
-                self.save_hosts(&hosts);
+                self.save_hosts(&hosts)?;
                 Ok(true)
             }
         }
@@ -2354,35 +2454,11 @@ fn files_service(modpack_dir: PathBuf) -> Router {
         .layer(middleware::from_fn(guard))
 }
 
-/// Удаляет known_hosts.json — сбрасывает отпечаток SSH-ключа сервера.
-/// При следующем подключении ключ будет принят заново.
-async fn reset_fingerprint(
-    State(state): State<Shared>,
-    headers: HeaderMap,
-) -> Result<StatusCode, ApiError> {
-    require_admin(&state, &headers).await?;
-
-    let path = state.modpack_dir.join("known_hosts.json");
-    match std::fs::remove_file(&path) {
-        Ok(()) => {
-            tracing::info!("[sftp] known_hosts.json удалён — отпечаток сброшен");
-            Ok(StatusCode::NO_CONTENT)
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            tracing::info!("[sftp] known_hosts.json уже отсутствовал");
-            Ok(StatusCode::NO_CONTENT)
-        }
-        Err(e) => Err(ApiError::new(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Не удалось удалить known_hosts.json: {e}"),
-        )),
-    }
-}
-
 async fn sync_to_panel(
     State(state): State<Shared>,
     headers: HeaderMap,
     Path(build_id): Path<i64>,
+    confirmation: Option<Json<HostKeyConfirmation>>,
 ) -> Result<(StatusCode, Json<SyncResult>), ApiError> {
     require_admin(&state, &headers).await?;
 
@@ -2399,8 +2475,9 @@ async fn sync_to_panel(
     update_sync_status(&state, |status| *status = SyncStatus::started(build_id)).await;
 
     let task_state = Arc::clone(&state);
+    let confirmation = confirmation.map(|Json(c)| c).unwrap_or_default();
     tokio::spawn(async move {
-        match do_sync_to_panel(Arc::clone(&task_state), build_id).await {
+        match do_sync_to_panel(Arc::clone(&task_state), build_id, confirmation).await {
             Ok(result) => {
                 update_sync_status(&task_state, |status| {
                     status.state = SyncState::Success;
@@ -2430,6 +2507,7 @@ async fn sync_to_panel(
                     status.state = SyncState::Error;
                     status.phase = "Ошибка".to_string();
                     status.error = Some(err.message.clone());
+                    status.host_key_changed = err.host_key_changed.clone();
                     status.finished_at = Some(
                         OffsetDateTime::now_utc()
                             .format(&Rfc3339)
@@ -2477,7 +2555,11 @@ async fn sync_to_panel_status(
     }
 }
 
-async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, ApiError> {
+async fn do_sync_to_panel(
+    state: Shared,
+    build_id: i64,
+    confirmation: HostKeyConfirmation,
+) -> Result<SyncResult, ApiError> {
     let host = state
         .store
         .get_setting(SETTING_SFTP_HOST)
@@ -2497,7 +2579,7 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
         .get_setting(SETTING_SFTP_PASSWORD)
         .await
         .map_err(internal)?
-        .filter(|s| !s.trim().is_empty())
+        .filter(|s| sftp_password_present(s))
         .ok_or_else(|| ApiError::new(StatusCode::BAD_REQUEST, "sftpPassword не задан"))?;
 
     let build = state
@@ -2519,13 +2601,28 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
 
     // Устанавливаем SSH-сессию и аутентифицируемся паролем.
     let config = Arc::new(russh::client::Config::default());
+    let mismatch = Arc::new(std::sync::Mutex::new(None));
     let mut session = russh::client::connect(
         config,
         (host_part.as_str(), port),
-        SftpHandler::new(&state.modpack_dir, &format!("{host_part}:{port}")),
+        SftpHandler::new(
+            &state.modpack_dir,
+            &format!("{host_part}:{port}"),
+            confirmation,
+            mismatch.clone(),
+        ),
     )
     .await
-    .map_err(|e| internal(format!("SSH-подключение к {host_part}:{port}: {e}")))?;
+    .map_err(|e| {
+        let changed = mismatch.lock().ok().and_then(|m| m.clone());
+        let mut err = internal(format!("SSH-подключение к {host_part}:{port}: {e}"));
+        if changed.is_some() {
+            err.status = StatusCode::CONFLICT;
+            err.message = "Ключ SFTP-сервера изменился".into();
+            err.host_key_changed = changed;
+        }
+        err
+    })?;
     let auth = session
         .authenticate_password(&username, &password)
         .await
@@ -2557,6 +2654,21 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
         Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
         Err(_) => std::collections::BTreeMap::new(),
     };
+
+    // Проверяем все пути до первой записи или удаления на сервере.
+    for file in &build.files {
+        if !file.disabled && (file.side == "server" || file.side == "both") {
+            sync_target_path(&file.path)?;
+        }
+    }
+    for path in previous.keys() {
+        if sync_target_path(path)? != path {
+            return Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                format!("Недопустимый путь в манифесте: {path}"),
+            ));
+        }
+    }
 
     let mut uploaded = 0usize;
     let mut skipped = 0usize;
@@ -2593,7 +2705,7 @@ async fn do_sync_to_panel(state: Shared, build_id: i64) -> Result<SyncResult, Ap
         }
 
         // Целевой путь на сервере = относительный путь файла из сборки.
-        let target = file.path.trim_start_matches('/').to_string();
+        let target = sync_target_path(&file.path)?.to_string();
 
         // ─── Skip unchanged: если файл в манифесте с тем же SHA-1 и
         // удалённый файл существует — пропускаем загрузку. ───
@@ -2756,19 +2868,56 @@ async fn write_sftp_file_atomic(
         return Err(err);
     }
 
-    if let Err(first_err) = sftp.rename(&tmp, target).await {
-        // Некоторые SFTP-серверы не заменяют существующий файл через rename.
-        // Временный файл уже полностью записан, поэтому целевой путь трогаем
-        // только перед финальным rename, а не в начале загрузки.
-        let _ = sftp.remove_file(target).await;
-        if let Err(second_err) = sftp.rename(&tmp, target).await {
-            let _ = sftp.remove_file(&tmp).await;
-            return Err(internal(format!(
-                "атомарная замена {target}: {first_err}; повтор после удаления: {second_err}"
-            )));
-        }
+    if let Err(err) = replace_sftp_file(sftp, &tmp, target).await {
+        let _ = sftp.remove_file(&tmp).await;
+        return Err(err);
     }
 
+    Ok(())
+}
+
+/// SFTP v3 (в частности OpenSSH) не обязан заменять существующий файл через
+/// RENAME. Wings может заменять его сразу. Не удаляем оригинал при ошибке:
+/// переносим в уникальную резервную копию, а при неудаче возвращаем обратно.
+/// Fallback не атомарен: между двумя rename путь кратковременно отсутствует.
+async fn replace_sftp_file(
+    sftp: &russh_sftp::client::SftpSession,
+    tmp: &str,
+    target: &str,
+) -> Result<(), ApiError> {
+    if let Err(first_err) = sftp.rename(tmp, target).await {
+        let metadata = sftp
+            .symlink_metadata(target)
+            .await
+            .map_err(|e| internal(format!("замена {target}: {first_err}; lstat: {e}")))?;
+        // Не перемещаем каталоги и ссылки: заменяем только обычный файл.
+        if !metadata.is_regular() {
+            return Err(internal(format!("замена {target}: цель не обычный файл")));
+        }
+        // tmp создан для этой загрузки, поэтому его имя также уникально для backup.
+        let backup = format!("{tmp}.previous");
+        sftp.rename(target, &backup).await.map_err(|e| {
+            internal(format!(
+                "замена {target}: {first_err}; сохранение оригинала: {e}"
+            ))
+        })?;
+        if let Err(err) = sftp.rename(tmp, target).await {
+            if let Err(rollback) = sftp.rename(&backup, target).await {
+                // Единственная оставшаяся копия оригинала остаётся на сервере.
+                return Err(internal(format!(
+                    "замена {target}: {err}; восстановление: {rollback}; оригинал сохранён в {backup}"
+                )));
+            }
+            return Err(internal(format!(
+                "замена {target}: {err}; оригинал восстановлен"
+            )));
+        }
+        if let Err(err) = sftp.remove_file(&backup).await {
+            tracing::warn!(
+                "[sftp] файл {target} заменён, резервная копия {backup} не удалена: {err}"
+            );
+        }
+    }
     Ok(())
 }
 
@@ -2899,10 +3048,8 @@ async fn archive_season(
                 .archive_active_season(&next_name)
                 .await
                 .map_err(|e| e.to_string())?;
-            update_season_archive_status(&task_state, |s| {
-                s.phase = "Закрытие сезона".to_string()
-            })
-            .await;
+            update_season_archive_status(&task_state, |s| s.phase = "Закрытие сезона".to_string())
+                .await;
             update_season_archive_status(&task_state, |s| {
                 s.phase = "Открытие нового сезона".to_string()
             })
@@ -3068,9 +3215,16 @@ async fn read_alias_channel(
         updated_at: None,
     };
 
-    let alias_url =
-        format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{alias_tag}");
-    let resp = github_api(state, reqwest::Method::GET, &alias_url, token, GH_ACCEPT_V3, None).await?;
+    let alias_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{alias_tag}");
+    let resp = github_api(
+        state,
+        reqwest::Method::GET,
+        &alias_url,
+        token,
+        GH_ACCEPT_V3,
+        None,
+    )
+    .await?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(dto);
     }
@@ -3099,10 +3253,13 @@ async fn read_alias_channel(
         .map_err(|e| format!("latest.json {alias_tag} не парсится: {e}"))?;
     // CI кладёт в latest.json версию без префикса v (set-version срезает его),
     // а релизы в админке живут тегами vX.Y.Z — нормализуем к тегу.
-    let version = latest
-        .get("version")
-        .and_then(|v| v.as_str())
-        .map(|v| if v.starts_with('v') { v.to_string() } else { format!("v{v}") });
+    let version = latest.get("version").and_then(|v| v.as_str()).map(|v| {
+        if v.starts_with('v') {
+            v.to_string()
+        } else {
+            format!("v{v}")
+        }
+    });
 
     Ok(LauncherChannelDto {
         channel: channel.to_string(),
@@ -3128,10 +3285,12 @@ async fn launcher_channels(
         .map_err(internal)?
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())
-        .ok_or_else(|| ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "GitHub токен не задан в настройках",
-        ))?;
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "GitHub токен не задан в настройках",
+            )
+        })?;
 
     let mut channels = Vec::with_capacity(UPDATE_CHANNELS.len());
     for channel in UPDATE_CHANNELS {
@@ -3164,22 +3323,18 @@ async fn build_runs(
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty());
 
-    let runs_url = format!(
-        "https://api.github.com/repos/{GITHUB_REPO}/actions/runs?per_page=20"
-    );
+    let runs_url = format!("https://api.github.com/repos/{GITHUB_REPO}/actions/runs?per_page=20");
     let resp = match &token {
-        Some(token) => {
-            github_api(
-                &state,
-                reqwest::Method::GET,
-                &runs_url,
-                token,
-                GH_ACCEPT_ACTIONS,
-                None,
-            )
-            .await
-            .map_err(internal)?
-        }
+        Some(token) => github_api(
+            &state,
+            reqwest::Method::GET,
+            &runs_url,
+            token,
+            GH_ACCEPT_ACTIONS,
+            None,
+        )
+        .await
+        .map_err(internal)?,
         None => state
             .http
             .get(&runs_url)
@@ -3222,9 +3377,7 @@ async fn build_runs(
         .filter(|r| {
             r.name.as_deref() == Some(LAUNCHER_WORKFLOW_NAME)
                 && r.event == "push"
-                && r.head_branch
-                    .as_deref()
-                    .is_some_and(|b| b.starts_with('v'))
+                && r.head_branch.as_deref().is_some_and(|b| b.starts_with('v'))
         })
         .take(10)
         .collect();
@@ -3260,8 +3413,9 @@ async fn fetch_run_jobs(
     token: Option<&str>,
     run_id: i64,
 ) -> Result<Vec<BuildLegDto>, String> {
-    let jobs_url =
-        format!("https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{run_id}/jobs?per_page=20");
+    let jobs_url = format!(
+        "https://api.github.com/repos/{GITHUB_REPO}/actions/runs/{run_id}/jobs?per_page=20"
+    );
     let resp = match token {
         Some(token) => {
             github_api(
@@ -3516,7 +3670,10 @@ async fn set_latest(
     if !UPDATE_CHANNELS.contains(&req.channel.as_str()) {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
-            format!("Неизвестный канал {} (ожидаются beta или stable)", req.channel),
+            format!(
+                "Неизвестный канал {} (ожидаются beta или stable)",
+                req.channel
+            ),
         ));
     }
 
@@ -3617,7 +3774,15 @@ async fn do_set_latest(state: &Shared, channel: &str, tag: &str) -> Result<(), S
 
     // 2. Релиз по тегу.
     let release_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{tag}");
-    let resp = github_api(state, reqwest::Method::GET, &release_url, &token, GH_ACCEPT_V3, None).await?;
+    let resp = github_api(
+        state,
+        reqwest::Method::GET,
+        &release_url,
+        &token,
+        GH_ACCEPT_V3,
+        None,
+    )
+    .await?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Err(format!("Релиз {tag} не найден на GitHub"));
     }
@@ -3647,9 +3812,7 @@ async fn do_set_latest(state: &Shared, channel: &str, tag: &str) -> Result<(), S
         .assets
         .iter()
         .find(|a| a.name == "latest.json")
-        .ok_or_else(|| {
-            format!("В релизе {tag} нет ассета latest.json — релиз неполный")
-        })?;
+        .ok_or_else(|| format!("В релизе {tag} нет ассета latest.json — релиз неполный"))?;
 
     let latest_bytes =
         fetch_release_asset(state, &latest_asset.browser_download_url, "latest.json").await?;
@@ -3675,10 +3838,7 @@ async fn do_set_latest(state: &Shared, channel: &str, tag: &str) -> Result<(), S
     }
 
     // 4. Публикация в алиас канала.
-    update_set_latest_status(state, |s| {
-        s.phase = format!("Публикация в канал {channel}")
-    })
-    .await;
+    update_set_latest_status(state, |s| s.phase = format!("Публикация в канал {channel}")).await;
     publish_latest_to_alias(state, &token, channel, latest_bytes).await?;
 
     tracing::info!("set-latest: канал {channel} направлен на {tag}");
@@ -3733,11 +3893,7 @@ fn is_github_host(url: &str) -> bool {
 /// Скачивает ассет релиза GitHub с проверкой HTTP-статуса: на сбой GitHub
 /// отвечает телом ошибки (HTML/JSON), которое без проверки попадало бы
 /// в парсер и дальше — например, «не парсится» вместо реальной причины.
-async fn fetch_release_asset(
-    state: &Shared,
-    url: &str,
-    what: &str,
-) -> Result<Vec<u8>, String> {
+async fn fetch_release_asset(state: &Shared, url: &str, what: &str) -> Result<Vec<u8>, String> {
     let resp = state
         .http
         .get(url)
@@ -3777,8 +3933,15 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
 
     // 2. Релиз по тегу.
     let release_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{tag}");
-    let resp = github_api(state, reqwest::Method::GET, &release_url, &token, GH_ACCEPT_V3, None)
-        .await?;
+    let resp = github_api(
+        state,
+        reqwest::Method::GET,
+        &release_url,
+        &token,
+        GH_ACCEPT_V3,
+        None,
+    )
+    .await?;
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
         return Err(format!("Релиз {tag} не найден на GitHub"));
     }
@@ -3800,17 +3963,15 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
         .assets
         .iter()
         .find(|a| a.name == "latest.json")
-        .ok_or_else(|| {
-            format!("В релизе {tag} нет ассета latest.json — релиз неполный")
-        })?;
+        .ok_or_else(|| format!("В релизе {tag} нет ассета latest.json — релиз неполный"))?;
 
     let latest_bytes =
         fetch_release_asset(state, &latest_asset.browser_download_url, "latest.json").await?;
 
     // Валидация: платформы содержат все три семейства. Семейство — первый
     // токен ключа платформы, разделённый дефисами (как в CI alias job).
-    let latest: serde_json::Value =
-        serde_json::from_slice(&latest_bytes).map_err(|e| format!("latest.json не парсится: {e}"))?;
+    let latest: serde_json::Value = serde_json::from_slice(&latest_bytes)
+        .map_err(|e| format!("latest.json не парсится: {e}"))?;
     let platforms = latest
         .get("platforms")
         .and_then(|p| p.as_object())
@@ -3829,13 +3990,10 @@ async fn do_promote_release(state: &Shared, tag: &str) -> Result<(), String> {
     }
 
     // 4. Снятие pre-release метки.
-    update_promote_status(state, |s| {
-        s.phase = "Снятие pre-release метки".to_string()
-    })
-    .await;
-    let release_id = release.id.ok_or_else(|| {
-        format!("GitHub не вернул id релиза {tag} — невозможно обновить")
-    })?;
+    update_promote_status(state, |s| s.phase = "Снятие pre-release метки".to_string()).await;
+    let release_id = release
+        .id
+        .ok_or_else(|| format!("GitHub не вернул id релиза {tag} — невозможно обновить"))?;
     let patch_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/{release_id}");
     let resp = github_api(
         state,
@@ -3881,9 +4039,16 @@ async fn publish_latest_to_alias(
     };
 
     // 1. Алиас: найти или создать.
-    let alias_url =
-        format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{alias_tag}");
-    let resp = github_api(state, reqwest::Method::GET, &alias_url, token, GH_ACCEPT_V3, None).await?;
+    let alias_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases/tags/{alias_tag}");
+    let resp = github_api(
+        state,
+        reqwest::Method::GET,
+        &alias_url,
+        token,
+        GH_ACCEPT_V3,
+        None,
+    )
+    .await?;
     let alias_release: GitHubRelease = if resp.status() == reqwest::StatusCode::NOT_FOUND {
         // Создаём алиас (gh-style), ошибки статуса проверим ниже.
         let create_url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases");
@@ -3926,11 +4091,23 @@ async fn publish_latest_to_alias(
 
     // 2. Удаляем старый latest.json с алиаса, если он есть
     //    (upload не перезаписывает).
-    if let Some(old_asset) = alias_release.assets.iter().find(|a| a.name == "latest.json") {
+    if let Some(old_asset) = alias_release
+        .assets
+        .iter()
+        .find(|a| a.name == "latest.json")
+    {
         if let Some(asset_id) = old_asset.id {
             let delete_url =
                 format!("https://api.github.com/repos/{GITHUB_REPO}/releases/assets/{asset_id}");
-            let resp = github_api(state, reqwest::Method::DELETE, &delete_url, token, GH_ACCEPT_V3, None).await?;
+            let resp = github_api(
+                state,
+                reqwest::Method::DELETE,
+                &delete_url,
+                token,
+                GH_ACCEPT_V3,
+                None,
+            )
+            .await?;
             // 404 = уже удалён кем-то другим, это не ошибка.
             if !resp.status().is_success() && resp.status() != reqwest::StatusCode::NOT_FOUND {
                 return Err(format!(
@@ -4252,17 +4429,16 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
 
     let want_fabric = build.header.loader_kind.eq_ignore_ascii_case("fabric");
 
-    let jar_asset =
-        find_mod_jar(&release.assets, want_fabric).ok_or_else(|| {
-            let expected = if want_fabric { "fabric-" } else { "NeoForge-" };
-            ApiError::new(
-                StatusCode::NOT_FOUND,
-                format!(
-                    "jar-файл ({expected}версия) не найден в релизе {}",
-                    release.tag_name
-                ),
-            )
-        })?;
+    let jar_asset = find_mod_jar(&release.assets, want_fabric).ok_or_else(|| {
+        let expected = if want_fabric { "fabric-" } else { "NeoForge-" };
+        ApiError::new(
+            StatusCode::NOT_FOUND,
+            format!(
+                "jar-файл ({expected}версия) не найден в релизе {}",
+                release.tag_name
+            ),
+        )
+    })?;
 
     // Имя ассета из GitHub не должно содержать path-traversal (`..`, `/`, `\`).
     let jar_name = sanitize_asset_filename(&jar_asset.name)?;
@@ -4326,11 +4502,14 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
             .map(|name| {
                 let stem = name.strip_suffix(".jar").unwrap_or(name);
                 stem == "stardust"
-                    || (stem.starts_with("stardust-") && stem["stardust-".len()..].chars().all(|c| c.is_ascii_digit() || c == '.'))
+                    || (stem.starts_with("stardust-")
+                        && stem["stardust-".len()..]
+                            .chars()
+                            .all(|c| c.is_ascii_digit() || c == '.'))
             })
             .unwrap_or(false);
-        let is_stardust_mod =
-            f.mod_id.as_deref() == Some("stardust") || (f.path.starts_with("mods/") && matches_name);
+        let is_stardust_mod = f.mod_id.as_deref() == Some("stardust")
+            || (f.path.starts_with("mods/") && matches_name);
         if is_stardust_mod {
             old_side = f.side.clone();
             old_overwrite = f.overwrite;
@@ -4818,7 +4997,11 @@ fn parse_minecraft_stats(json: &serde_json::Value) -> MinecraftStats {
 
 /// Внутренняя логика синхронизации статистики с SFTP.
 /// Возвращает количество обновлённых аккаунтов.
-async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
+async fn do_sync_stats(
+    state: &Shared,
+    confirmation: HostKeyConfirmation,
+    mismatch: Arc<std::sync::Mutex<Option<HostKeyChanged>>>,
+) -> Result<usize, String> {
     let host = state
         .store
         .get_setting(SETTING_SFTP_HOST)
@@ -4838,7 +5021,7 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
         .get_setting(SETTING_SFTP_PASSWORD)
         .await
         .map_err(|e| format!("{e}"))?
-        .filter(|s| !s.trim().is_empty())
+        .filter(|s| sftp_password_present(s))
         .ok_or_else(|| "sftpPassword не задан".to_string())?;
     let stats_path = state
         .store
@@ -4860,7 +5043,12 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
     let mut session = russh::client::connect(
         config,
         (host_part.as_str(), port),
-        SftpHandler::new(&state.modpack_dir, &format!("{host_part}:{port}")),
+        SftpHandler::new(
+            &state.modpack_dir,
+            &format!("{host_part}:{port}"),
+            confirmation,
+            mismatch,
+        ),
     )
     .await
     .map_err(|e| format!("SSH-подключение к {host_part}:{port}: {e}"))?;
@@ -4933,11 +5121,29 @@ async fn do_sync_stats(state: &Shared) -> Result<usize, String> {
 async fn sync_stats(
     State(state): State<Shared>,
     headers: HeaderMap,
+    confirmation: Option<Json<HostKeyConfirmation>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     require_admin(&state, &headers).await?;
-    let updated = do_sync_stats(&state)
-        .await
-        .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, e))?;
+    let mismatch = Arc::new(std::sync::Mutex::new(None));
+    let updated = do_sync_stats(
+        &state,
+        confirmation.map(|Json(c)| c).unwrap_or_default(),
+        mismatch.clone(),
+    )
+    .await
+    .map_err(|e| {
+        let changed = mismatch.lock().ok().and_then(|m| m.clone());
+        let mut err = ApiError::new(
+            if changed.is_some() {
+                StatusCode::CONFLICT
+            } else {
+                StatusCode::BAD_REQUEST
+            },
+            e,
+        );
+        err.host_key_changed = changed;
+        err
+    })?;
     Ok(Json(serde_json::json!({ "updated": updated })))
 }
 
@@ -5049,11 +5255,7 @@ async fn analyze_server_log(
             "AI-анализ доступен только для крашей",
         ));
     }
-    state
-        .store
-        .reset_crash_ai(id)
-        .await
-        .map_err(map_store)?;
+    state.store.reset_crash_ai(id).await.map_err(map_store)?;
     let verdict = crash_ai::analyze_log(&state, id)
         .await
         .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, e))?;
@@ -6372,7 +6574,10 @@ fn internal(e: impl std::fmt::Display) -> ApiError {
     // Полная причина — в журнал (админ его видит), наружу — заглушка:
     // сюда доезжают и sqlx-ошибки с деталями БД, и пути на сервере.
     tracing::error!("internal: {e}");
-    ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Внутренняя ошибка сервера")
+    ApiError::new(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Внутренняя ошибка сервера",
+    )
 }
 
 fn map_store(e: store::StoreError) -> ApiError {
@@ -6383,7 +6588,10 @@ fn map_store(e: store::StoreError) -> ApiError {
         // куски SQL (детали инфраструктуры для атакующего). Лог — да, ответ — нет.
         store::StoreError::Backend(msg) => {
             tracing::error!("ошибка хранилища: {msg}");
-            ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Внутренняя ошибка сервера")
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Внутренняя ошибка сервера",
+            )
         }
         other => ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
     }
@@ -6391,7 +6599,212 @@ fn map_store(e: store::StoreError) -> ApiError {
 
 #[cfg(test)]
 mod tests {
-    use super::{find_mod_jar, tag_is_release, GitHubAsset};
+    // In-memory SFTP v3 peer: Wings заменяет цель, OpenSSH отвечает FAILURE.
+    struct RenamePeer {
+        files: std::sync::Arc<std::sync::Mutex<std::collections::BTreeMap<String, Vec<u8>>>>,
+        overwrite: bool,
+        deny_install: bool,
+        deny_backup: bool,
+    }
+
+    impl russh_sftp::server::Handler for RenamePeer {
+        type Error = russh_sftp::protocol::StatusCode;
+
+        fn unimplemented(&self) -> Self::Error {
+            russh_sftp::protocol::StatusCode::OpUnsupported
+        }
+
+        async fn lstat(
+            &mut self,
+            id: u32,
+            path: String,
+        ) -> Result<russh_sftp::protocol::Attrs, Self::Error> {
+            use russh_sftp::protocol::*;
+            if !self.files.lock().unwrap().contains_key(&path) {
+                return Err(StatusCode::NoSuchFile);
+            }
+            let mut attrs = FileAttributes::default();
+            attrs.set_regular(true);
+            Ok(Attrs { id, attrs })
+        }
+
+        async fn rename(
+            &mut self,
+            id: u32,
+            old: String,
+            new: String,
+        ) -> Result<russh_sftp::protocol::Status, Self::Error> {
+            use russh_sftp::protocol::*;
+            if (self.deny_install && old == "upload" && new == "target")
+                || (self.deny_backup && old == "target")
+            {
+                return Err(StatusCode::PermissionDenied);
+            }
+            let mut files = self.files.lock().unwrap();
+            if !self.overwrite && files.contains_key(&new) {
+                return Err(StatusCode::Failure);
+            }
+            let bytes = files.remove(&old).ok_or(StatusCode::NoSuchFile)?;
+            files.insert(new, bytes);
+            Ok(Status {
+                id,
+                status_code: StatusCode::Ok,
+                error_message: String::new(),
+                language_tag: String::new(),
+            })
+        }
+
+        async fn remove(
+            &mut self,
+            id: u32,
+            path: String,
+        ) -> Result<russh_sftp::protocol::Status, Self::Error> {
+            use russh_sftp::protocol::*;
+            self.files
+                .lock()
+                .unwrap()
+                .remove(&path)
+                .ok_or(StatusCode::NoSuchFile)?;
+            Ok(Status {
+                id,
+                status_code: StatusCode::Ok,
+                error_message: String::new(),
+                language_tag: String::new(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn sftp_replace_supports_wings_openssh_and_preserves_original_on_failure() {
+        use super::*;
+        for (overwrite, deny_install, deny_backup, existing) in [
+            (true, false, false, true),   // Wings overwrite
+            (false, false, false, true),  // OpenSSH SFTP v3
+            (false, false, false, false), // новый файл
+            (false, true, false, true),   // rollback после перемещения оригинала
+            (false, false, true, true),   // нет прав переместить оригинал
+        ] {
+            let mut initial =
+                std::collections::BTreeMap::from([("upload".into(), b"new".to_vec())]);
+            if existing {
+                initial.insert("target".into(), b"old".to_vec());
+            }
+            let files = Arc::new(std::sync::Mutex::new(initial));
+            let peer = RenamePeer {
+                files: files.clone(),
+                overwrite,
+                deny_install,
+                deny_backup,
+            };
+            let (client, server) = tokio::io::duplex(64 * 1024);
+            let task = tokio::spawn(russh_sftp::server::run(server, peer));
+            let sftp = russh_sftp::client::SftpSession::new(client).await.unwrap();
+            let result = replace_sftp_file(&sftp, "upload", "target").await;
+            let failed = deny_install || deny_backup;
+            assert_eq!(result.is_err(), failed);
+            let snapshot = files.lock().unwrap().clone();
+            assert_eq!(
+                snapshot.get("target").unwrap(),
+                if failed { b"old" } else { b"new" }
+            );
+            assert!(!snapshot.contains_key("upload.previous"));
+            assert_eq!(snapshot.contains_key("upload"), failed);
+            sftp.close().await.unwrap();
+            task.abort();
+        }
+    }
+
+    #[tokio::test]
+    async fn host_key_storage_failures_do_not_trust_new_keys() {
+        use super::*;
+        use russh::client::Handler;
+        use russh::keys::ssh_key::{public::Ed25519PublicKey, PublicKey};
+        let dir = tempfile::tempdir().unwrap();
+        let key = PublicKey::from(Ed25519PublicKey([4; 32]));
+        let mut handler = SftpHandler::new(
+            dir.path(),
+            "storage-test:22",
+            HostKeyConfirmation::default(),
+            Arc::new(std::sync::Mutex::new(None)),
+        );
+        std::fs::write(dir.path().join("known_hosts.json"), "{broken").unwrap();
+        assert!(handler.check_server_key(&key).await.is_err());
+        std::fs::remove_file(dir.path().join("known_hosts.json")).unwrap();
+        std::fs::create_dir(dir.path().join("known_hosts.json.tmp")).unwrap();
+        assert!(handler.check_server_key(&key).await.is_err());
+        assert!(!dir.path().join("known_hosts.json").exists());
+    }
+
+    #[tokio::test]
+    async fn changed_host_key_requires_matching_observed_confirmation() {
+        use super::*;
+        use russh::client::Handler;
+        use russh::keys::ssh_key::{public::Ed25519PublicKey, HashAlg, PublicKey};
+        let dir = tempfile::tempdir().unwrap();
+        let host = "unit-test-host:22";
+        let old = PublicKey::from(Ed25519PublicKey([1; 32]));
+        let new = PublicKey::from(Ed25519PublicKey([2; 32]));
+        let third = PublicKey::from(Ed25519PublicKey([3; 32]));
+        let old_fp = old.fingerprint(HashAlg::Sha256).to_string();
+        let new_fp = new.fingerprint(HashAlg::Sha256).to_string();
+        let mismatch = Arc::new(std::sync::Mutex::new(None));
+        let mut h = SftpHandler::new(
+            dir.path(),
+            host,
+            HostKeyConfirmation::default(),
+            mismatch.clone(),
+        );
+        assert!(h.check_server_key(&old).await.unwrap());
+        assert!(h.check_server_key(&new).await.is_err());
+        assert_eq!(
+            mismatch.lock().unwrap().as_ref().unwrap().fingerprint,
+            new_fp
+        );
+        let confirm = HostKeyConfirmation {
+            confirmed_host: Some(host.into()),
+            confirmed_fingerprint: Some(new_fp.clone()),
+            known_fingerprint: Some(old_fp.clone()),
+        };
+        let mut h = SftpHandler::new(dir.path(), host, confirm.clone(), mismatch.clone());
+        assert!(h.check_server_key(&third).await.is_err());
+        assert_eq!(h.load_hosts().unwrap().get(host), Some(&old_fp));
+        assert!(h.check_server_key(&new).await.is_err()); // третья попытка заменила наблюдаемый ключ
+        assert!(h.check_server_key(&new).await.unwrap());
+        assert_eq!(h.load_hosts().unwrap().get(host), Some(&new_fp));
+        assert!(h.check_server_key(&new).await.unwrap());
+    }
+
+    use super::{
+        find_mod_jar, sftp_password_present, sync_target_path, tag_is_release, GitHubAsset,
+    };
+
+    #[test]
+    fn sftp_password_whitespace_is_significant() {
+        assert!(!sftp_password_present(""));
+        for password in [" ", "\t\n", " password ", "password"] {
+            assert!(sftp_password_present(password));
+        }
+    }
+
+    #[test]
+    fn sync_paths_reject_traversal_and_reserved_manifest() {
+        assert_eq!(
+            sync_target_path("/mods/example.jar").ok(),
+            Some("mods/example.jar")
+        );
+        for path in [
+            "",
+            "/",
+            "../secret",
+            "mods/../../secret",
+            "mods//x",
+            "mods/./x",
+            "mods\\x",
+            ".stardust-sync.json",
+        ] {
+            assert!(sync_target_path(path).is_err(), "{path}");
+        }
+    }
 
     fn asset(name: &str) -> GitHubAsset {
         GitHubAsset {

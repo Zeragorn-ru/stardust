@@ -1,3 +1,4 @@
+import { useSftpHostKey } from "../ui/sftpHostKey";
 // Детали сборки (мобильный): шапка с действиями + файловый менеджер.
 //
 // Слой данных и действий — общий ui/buildActions.ts (план 3.2), под телефон
@@ -37,6 +38,7 @@ type MobileBuildDetailProps = {
 
 export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildDetailProps) {
   const toast = useToast();
+  const { syncStats: syncStatsWithConfirmation } = useSftpHostKey();
 
   const [detail, setDetail] = useState<BuildDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,7 +107,8 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
     if (syncingStats) return;
     setSyncingStats(true);
     try {
-      const res = await api.syncStats();
+      const res = await syncStatsWithConfirmation();
+      if (!res) return;
       toast.success(`Статистика обновлена: ${res.updated} игроков`);
       // Статистика влияет на панель проверок — перезагружаем детали.
       await load();

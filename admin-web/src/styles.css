@@ -5617,9 +5617,9 @@ input[type="radio"] {
 /* Инлайн-глиф Mojangles наследует цвет текста или бейджа. */
 .mc-emoji {
     display: inline-block;
-    width: 1em;
-    height: 1em;
-    vertical-align: -0.125em;
+    width: 1.25em;
+    height: 1.25em;
+    vertical-align: -0.2em;
     user-select: none;
     flex-shrink: 0;
 }

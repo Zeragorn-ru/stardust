@@ -1,3 +1,4 @@
+import { useSftpHostKey } from "../ui/sftpHostKey";
 import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -21,6 +22,7 @@ interface OverviewData {
 
 export function OverviewView() {
   const toast = useToast();
+  const { syncStats: syncStatsWithConfirmation } = useSftpHostKey();
   const [syncing, setSyncing] = useState(false);
 
   // Периодическая загрузка через общий хук (план 3.1): опрос раз в 30 с
@@ -64,7 +66,8 @@ export function OverviewView() {
   async function syncStats() {
     setSyncing(true);
     try {
-      const res = await api.syncStats();
+      const res = await syncStatsWithConfirmation();
+      if (!res) return;
       toast.success(`Статистика обновлена: ${res.updated} игроков`);
       reload();
     } catch (err) {

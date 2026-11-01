@@ -201,7 +201,7 @@ fn process_image_is_java(pid: u32) -> bool {
                 .szExeFile
                 .iter()
                 .take_while(|&&c| c != 0)
-                .map(|&c| c as char)
+                .map(|&c| c as u8 as char)
                 .collect();
             let lower = name.to_lowercase();
             found = lower == "java.exe" || lower == "javaw.exe";

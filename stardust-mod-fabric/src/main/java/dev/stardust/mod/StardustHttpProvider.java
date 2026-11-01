@@ -169,7 +169,7 @@ public final class StardustHttpProvider {
         } catch (Exception e) { StardustFabricMod.LOGGER.warn("Stardust telemetry: {}", e.toString()); }
     }
 
-    /** Устанавливает провайдер онлайн-игроков (вызывается из TAB интеграции). */
+    /** Устанавливает провайдер неизменяемого снимка игроков Minecraft-сервера. */
     public void setOnlinePlayersProvider(Supplier<Collection<String>> provider) {
         this.onlinePlayersProvider = provider;
     }

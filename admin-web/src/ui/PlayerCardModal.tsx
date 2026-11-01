@@ -460,22 +460,20 @@ function BadgesTab({
               style={{ color: data.availableBadges.find((b) => b.id === data.activeBadgeId)?.color }}
             />
           )}
-          <span
-            style={
-              data.activeGradientId != null
-                ? {
-                    background: `linear-gradient(90deg, ${data.availableGradients.find((g) => g.id === data.activeGradientId)?.colorStart}, ${data.availableGradients.find((g) => g.id === data.activeGradientId)?.colorEnd})`,
-                    WebkitBackgroundClip: "text",
-                    WebkitTextFillColor: "transparent",
-                  }
-                : undefined
-            }
-          >
-            {/* В градиентном превью — splitMcText без обёртки: background-clip:text
-                капризен к вложенным span, а здесь фрагменты лежат прямо в
-                градиентном элементе. Эмодзи (img) clip не затрагивает. */}
-            {splitMcText(account.username)}
-          </span>
+          {splitMcText(account.username).map((part, index) =>
+            typeof part === "string" && data.activeGradientId != null ? (
+              <span
+                key={index}
+                style={{
+                  background: `linear-gradient(90deg, ${data.availableGradients.find((g) => g.id === data.activeGradientId)?.colorStart}, ${data.availableGradients.find((g) => g.id === data.activeGradientId)?.colorEnd})`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}
+              >
+                {part}
+              </span>
+            ) : part,
+          )}
         </span>
       </div>
 

@@ -66,7 +66,6 @@ export function SettingsView() {
   const [savingPanel, setSavingPanel] = useState(false);
   const [telemetryToken, setTelemetryToken] = useState("");
   const [generatingTelemetryToken, setGeneratingTelemetryToken] = useState(false);
-  const [resettingFp, setResettingFp] = useState(false);
 
   // Yandex Object Storage fields. Secret values are never loaded from the API.
   const [backupEndpoint, setBackupEndpoint] = useState("");
@@ -251,7 +250,7 @@ export function SettingsView() {
         sftpUsername,
         sftpStatsPath,
       };
-      if (sftpPassword.trim()) patch.sftpPassword = sftpPassword.trim();
+      if (sftpPassword !== "") patch.sftpPassword = sftpPassword;
       const next = await api.saveSettings(patch);
       setSettings(next);
       setSftpHost(next.sftpHost ?? "");
@@ -395,29 +394,6 @@ export function SettingsView() {
     }
   }
 
-  async function resetFingerprint() {
-    const ok = await confirm({
-      title: "Сбросить отпечаток сервера?",
-      body: "Файл known_hosts.json будет удалён. При следующем подключении ключ хоста будет принят заново. Используйте, если вы сменили SSH-ключ на сервере.",
-      confirmText: "Сбросить",
-      danger: true,
-    });
-    if (!ok) return;
-    setResettingFp(true);
-    try {
-      await api.resetFingerprint();
-      toast.success("Отпечаток сброшен — подключитесь к серверу заново");
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError
-          ? err.message
-          : "Не удалось сбросить отпечаток",
-      );
-    } finally {
-      setResettingFp(false);
-    }
-  }
-
   async function generateTelemetryToken() {
     setGeneratingTelemetryToken(true);
     try {
@@ -466,7 +442,7 @@ export function SettingsView() {
 
       <div className="settings-status-row">
         <div className="metric-card metric-card--blue"><span>Telegram</span><strong>{settings?.telegramTokenSet ? "подключён" : "отключён"}</strong><small>{settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "бот не подключён"}</small></div>
-        <div className="metric-card metric-card--green"><span>SFTP</span><strong>{settings?.sftpPasswordSet ? "готов" : "настроить"}</strong><small>{settings?.sftpHost || "хост не задан"}</small></div>
+        <div className="metric-card metric-card--green"><span>SFTP</span><strong>{settings?.sftpPasswordSet ? "пароль сохранён" : "настроить"}</strong><small>{settings?.sftpHost || "хост не задан"}</small></div>
         <div className="metric-card metric-card--yellow"><span>Путь статистики</span><strong>{settings?.sftpStatsPath ? "задан" : "пусто"}</strong><small>{settings?.sftpStatsPath || "путь к stats не задан"}</small></div>
         <div className="metric-card metric-card--blue"><span>GitHub</span><strong>{settings?.githubTokenSet ? "токен задан" : "не настроен"}</strong><small>{settings?.githubTokenSet ? "релизы лаунчера доступны" : "нужен для стабильных релизов"}</small></div>
       </div>
@@ -633,13 +609,6 @@ export function SettingsView() {
                   </Field>
 
                   <div className="modal-actions">
-                    <Button
-                      variant="destructive"
-                      disabled={resettingFp}
-                      onClick={resetFingerprint}
-                    >
-                      Сбросить отпечаток
-                    </Button>
                     <Button
                       disabled={savingPanel}
                       onClick={savePanel}
