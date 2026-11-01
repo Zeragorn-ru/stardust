@@ -14,7 +14,7 @@
 
 services:
   auth-db:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
     container_name: launcher-auth-db
     restart: unless-stopped
     environment:
@@ -108,10 +108,12 @@ services:
       FILES_BASE_URL: ${FILES_BASE_URL:-http://127.0.0.1:8082/files}
       # Последний versioned StarDust injector; upstream с dummy-подписью не используем.
       # metadata JSON обновляется workflow вместе с алиасом stable.
+      # SHA256: страховочный пин — если GitHub-метаданные недоступны/подменены,
+      # jar всё равно сверяется с этим хешем. Обновляйте при релизе injector.
       AUTHLIB_INJECTOR_URL: ${AUTHLIB_INJECTOR_URL:-https://github.com/Zeragorn-ru/stardust/releases/download/authlib-injector-stable/authlib-injector.jar}
       AUTHLIB_INJECTOR_METADATA_URL: ${AUTHLIB_INJECTOR_METADATA_URL:-https://github.com/Zeragorn-ru/stardust/releases/download/authlib-injector-stable/authlib-injector.json}
       AUTHLIB_INJECTOR_VERSION: ${AUTHLIB_INJECTOR_VERSION:-stable}
-      AUTHLIB_INJECTOR_SHA256: ${AUTHLIB_INJECTOR_SHA256:-}
+      AUTHLIB_INJECTOR_SHA256: ${AUTHLIB_INJECTOR_SHA256:-1ef25763766eaef3782e9d00272ff22608a733a533ba7aeb9a74bd14c9993a41}
       # Логины (через запятую), которым при старте выдаётся роль admin.
       # Нужно для самого первого админа: регистрация всегда создаёт user.
       # Идемпотентно — можно оставить переменную навсегда.
@@ -158,11 +160,12 @@ services:
       - launcher-net
 
   squid:
-    image: ubuntu/squid:latest
+    image: ubuntu/squid@sha256:6a097f68bae708cedbabd6188d68c7e2e7a38cedd05a176e1cc0ba29e3bbe029
     container_name: launcher-squid
     restart: unless-stopped
     volumes:
       - ./squid.conf:/etc/squid/squid.conf:ro
+      - squid-logs:/var/log/squid
     ports:
       - "3128:3128"
     networks:
@@ -196,3 +199,6 @@ services:
 networks:
   launcher-net:
     driver: bridge
+
+volumes:
+  squid-logs:

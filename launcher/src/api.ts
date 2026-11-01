@@ -365,14 +365,14 @@ export async function telegramLinkStart(): Promise<TelegramLinkResponse> {
   return invoke<TelegramLinkResponse>("telegram_link_start");
 }
 
-/** Отвязать Telegram (отключить 2FA). */
-export async function telegramUnlink(): Promise<void> {
+/** Отвязать Telegram (отключить 2FA); нужен текущий пароль аккаунта. */
+export async function telegramUnlink(password: string): Promise<void> {
   const invoke = await getInvoke();
   if (!invoke) {
     await delay(300);
     return;
   }
-  await invoke<void>("telegram_unlink");
+  await invoke<void>("telegram_unlink", { password });
 }
 
 /** Открыть внешнюю ссылку в браузере/Telegram через системный обработчик. */

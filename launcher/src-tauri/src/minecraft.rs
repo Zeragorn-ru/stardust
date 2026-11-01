@@ -2035,6 +2035,22 @@ async fn ensure_authlib_injector(
         .map(str::trim)
         .filter(|hash| !hash.is_empty())
         .map(str::to_ascii_lowercase);
+    // Jar исполняется как -javaagent — это произвольный код. Без sha256 в
+    // метаданных его нельзя верифицировать: используем проверенный кеш,
+    // а не скачиваем потенциально подменённый файл. Исключение — legacy-
+    // сервер без sha256 вовсе (тогда jar скачивался и раньше).
+    if expected_sha256.is_none() && !matches!(metadata.version.as_str(), "legacy") {
+        if validated_authlib_cache(&jar, &marker).is_some() {
+            tracing::warn!(
+                "[game] metadata authlib-injector без sha256: используем проверенный кеш"
+            );
+            return Ok(jar);
+        }
+        return Err(
+            "Метаданные authlib-injector не содержат sha256: отказ скачивать неверифицируемый jar. Обновите admin-server."
+                .into(),
+        );
+    }
 
     if validated_authlib_cache(&jar, &marker).is_some_and(
         |(installed_version, installed_sha256)| {

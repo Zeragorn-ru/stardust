@@ -96,6 +96,9 @@ struct JoinRecord {
 
 /// Сколько живёт запись о `join` до проверки сервером.
 const JOIN_TTL: Duration = Duration::from_secs(30);
+/// Потолок карты ожидания hasJoined: записи живут секунды, но флуд-клиент
+/// с валидной сессией может набить их миллионами между TTL-чистками.
+const MAX_PENDING_JOINS: usize = 10_000;
 
 /// Время жизни сессии в днях. Токен — он же Yggdrasil `accessToken`, поэтому
 /// бессрочные сессии означали бы вечный доступ к аккаунту при утечке токена.
@@ -1052,6 +1055,21 @@ impl Store {
         Ok(())
     }
 
+    /// Отвязка Telegram (отключение 2FA) с подтверждением текущим паролем:
+    /// угнанной сессии (30 дней TTL) одного bearer-токена не должно хватать
+    /// на необратимое снятие второго фактора.
+    pub async fn unlink_telegram_with_password(
+        &self,
+        uuid: &str,
+        password: &str,
+    ) -> Result<(), StoreError> {
+        let account = self.find_by_uuid(uuid).await.ok_or(StoreError::NotFound)?;
+        if !verify_password(password, &account.password_hash) {
+            return Err(StoreError::BadPassword);
+        }
+        self.set_telegram(&account.uuid, None).await
+    }
+
     pub async fn set_news_seen(&self, uuid: &str, seen_at: &str) -> Result<(), StoreError> {
         let uuid = normalize_uuid(uuid);
         let changed = sqlx::query("UPDATE accounts SET news_seen_at = $1 WHERE uuid = $2")
@@ -1409,6 +1427,11 @@ impl Store {
     pub fn record_join(&self, server_id: &str, access_token: &str) {
         let mut joins = self.joins.write().unwrap();
         joins.retain(|_, r| r.created.elapsed() < JOIN_TTL);
+        // Потолок против спама hasJoined: без него флуд валидной сессией
+        // набивал бы карту до исчерпания памяти между TTL-чистками.
+        if joins.len() >= MAX_PENDING_JOINS {
+            return;
+        }
         joins.insert(
             server_id.to_string(),
             JoinRecord {

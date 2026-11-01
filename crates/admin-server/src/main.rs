@@ -319,10 +319,14 @@ async fn main() {
                 CorsLayer::new().allow_origin(origins)
             }
             None => {
+                // Больше не разрешаем всё: без явного CORS_ALLOWED_ORIGINS
+                // cross-origin запросы браузер сам не пропустит (same-origin
+                // работает и без CORS-заголовков). Для локальной разработки
+                // задайте переменную явно.
                 tracing::warn!(
-                    "CORS: allowed origins не заданы, разрешаем все (только для разработки!)"
+                    "CORS: CORS_ALLOWED_ORIGINS не заданы — cross-origin запросы запрещены (same-origin работает)"
                 );
-                CorsLayer::permissive()
+                CorsLayer::new()
             }
         }
     };
@@ -331,6 +335,7 @@ async fn main() {
         .route("/health", get(health))
         // --- Админка (нужен токен админа) ---
         .route("/api/login", post(login))
+        .route("/api/login/2fa", post(login_2fa))
         .route("/api/logout", post(logout))
         .route("/api/me", get(me))
         .route("/api/settings", get(get_settings).put(update_settings))
@@ -579,10 +584,26 @@ struct LoginRequest {
 }
 
 #[derive(Serialize)]
-struct LoginResponse {
-    token: String,
-    username: String,
-    uuid: String,
+#[serde(tag = "status", rename_all = "snake_case")]
+enum LoginResponse {
+    Ok {
+        token: String,
+        username: String,
+        uuid: String,
+    },
+    /// Аккаунт с привязанным Telegram: сессия выдаётся только после
+    /// подтверждения кода (или кнопки в боте) — тот же гейт, что у
+    /// auth-server. Раньше admin-server выдавал админ-сессию по одному
+    /// паролю, обходя второй фактор.
+    TwoFactorRequired {
+        challenge: String,
+    },
+}
+
+#[derive(Deserialize)]
+struct Login2faRequest {
+    challenge: String,
+    code: String,
 }
 
 /// IP для rate-limit. Заголовки `X-Forwarded-For` / `X-Real-IP` учитываются
@@ -598,9 +619,15 @@ fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::I
     if trust_proxy {
         if let Some(forwarded_for) = headers.get("x-forwarded-for") {
             if let Ok(val) = forwarded_for.to_str() {
-                if let Some(last_ip) = val.split(',').next_back() {
-                    if let Ok(ip) = last_ip.trim().parse::<std::net::IpAddr>() {
-                        return ip;
+                // Идём с конца: последний адрес дописал наш прокси, он самый
+                // доверенный. Приватные пропускаем — это внутренние хопы
+                // (nginx в compose-сети); иначе все клиенты за таким прокси
+                // схлопывались бы в один rate-limit-бакет.
+                for candidate in val.split(',').rev() {
+                    if let Ok(ip) = candidate.trim().parse::<std::net::IpAddr>() {
+                        if !ip.is_loopback() && !is_private_ip(ip) {
+                            return ip;
+                        }
                     }
                 }
             }
@@ -614,6 +641,17 @@ fn get_client_ip(headers: &HeaderMap, addr: std::net::SocketAddr) -> std::net::I
         }
     }
     addr.ip()
+}
+
+fn is_private_ip(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_private() || v4.is_link_local() || v4.is_loopback()
+        }
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00
+        }
+    }
 }
 
 async fn health() -> &'static str {
@@ -655,15 +693,65 @@ async fn login(
         return Err(invalid());
     }
 
+    // Аккаунт с привязанным Telegram требует второй фактор — как в
+    // auth-server. Без этого один пароль давал бы полную админ-сессию.
+    let client_ip = ip.to_string();
+    match state.store.start_2fa(&profile.id, Some(&client_ip)).await.map_err(map_store)? {
+        Some(challenge) => Ok(Json(LoginResponse::TwoFactorRequired { challenge })),
+        None => {
+            let token = state
+                .store
+                .create_session(&profile.id)
+                .await
+                .map_err(internal)?;
+            Ok(Json(LoginResponse::Ok {
+                token,
+                username: profile.name,
+                uuid: profile.id,
+            }))
+        }
+    }
+}
+
+/// Второй фактор для входа в админку: код из Telegram по `challenge`.
+/// Сессия выдаётся только админам (роль проверяется повторно — challenge
+/// мог быть открыт до отзыва роли).
+async fn login_2fa(
+    State(state): State<Shared>,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    Json(req): Json<Login2faRequest>,
+) -> Result<Json<LoginResponse>, ApiError> {
+    let _ = addr;
+    let uuid = state
+        .store
+        .verify_2fa(&req.challenge, &req.code)
+        .await
+        .map_err(|_| {
+            ApiError::new(StatusCode::UNAUTHORIZED, "Неверный или истёкший код")
+        })?;
+    let account = state
+        .store
+        .find_by_uuid(&uuid)
+        .await
+        .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+    if account.is_banned() {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Аккаунт заблокирован"));
+    }
+    if !account.is_admin() {
+        return Err(ApiError::new(
+            StatusCode::FORBIDDEN,
+            "Аккаунт больше не администратор",
+        ));
+    }
     let token = state
         .store
-        .create_session(&profile.id)
+        .create_session(&uuid)
         .await
         .map_err(internal)?;
-    Ok(Json(LoginResponse {
+    Ok(Json(LoginResponse::Ok {
         token,
-        username: profile.name,
-        uuid: profile.id,
+        username: account.username,
+        uuid,
     }))
 }
 
@@ -1806,13 +1894,15 @@ async fn upload_file(
         }
     }
 
-    // Вычисляем SHA-1 и размер из уже записанного файла на диске.
-    let bytes = tokio::fs::read(&temp_path)
-        .await
-        .map_err(|e| internal(format!("read temp: {e}")))?;
-    let size_bytes = bytes.len() as i64;
-    let sha1 = sha1_hex(&bytes);
-    drop(bytes); // освобождаем память сразу
+    // Вычисляем SHA-1 и размер потоково: 512-МБ файл больше не читается
+    // в память целиком (три таких аплоада параллельно ложили контейнер).
+    let (sha1, size_bytes) = tokio::task::spawn_blocking({
+        let path = temp_path.clone();
+        move || sha1_and_size_of_file(&path)
+    })
+    .await
+    .map_err(|e| internal(format!("join: {e}")))?
+    .map_err(|e| internal(format!("hash temp: {e}")))?;
 
     // Перемещаем в контент-адресное хранилище (одинаковые файлы не дублируются).
     let dest = state.modpack_dir.join(&sha1);
@@ -6044,6 +6134,40 @@ async fn authlib_injector(State(state): State<Shared>) -> Result<Response, ApiEr
     let metadata = resolve_injector_metadata(&state)
         .await
         .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, e))?;
+    // Jar исполняется клиентами как -javaagent. Без sha256 в метаданных
+    // раздавать его нельзя: подмена upstream-релиза осталась бы незамеченной.
+    // Отдаём только ранее закешированный (проверенный) вариант.
+    if metadata.sha256.is_none() && state.injector_sha256.is_none() {
+        let guard = state.injector.lock().await;
+        if let Some(cached) = guard.as_ref() {
+            tracing::warn!(
+                "метаданные authlib-injector без sha256: отдаю только закешированный jar"
+            );
+            let bytes = cached.bytes.clone();
+            let version = cached.version.clone();
+            return Ok((
+                StatusCode::OK,
+                [
+                    (header::CONTENT_TYPE, "application/java-archive"),
+                    (header::CACHE_CONTROL, "public, max-age=3600"),
+                    (
+                        header::HeaderName::from_static("x-authlib-injector-version"),
+                        version.as_str(),
+                    ),
+                    (
+                        header::CONTENT_DISPOSITION,
+                        "attachment; filename=\"authlib-injector.jar\"",
+                    ),
+                ],
+                bytes,
+            )
+                .into_response());
+        }
+        return Err(ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "Метаданные authlib-injector не содержат sha256: отдача неверифицируемого jar запрещена. Задайте AUTHLIB_INJECTOR_SHA256.",
+        ));
+    }
     let mut guard = state.injector.lock().await;
 
     let fresh = guard
@@ -6056,7 +6180,11 @@ async fn authlib_injector(State(state): State<Shared>) -> Result<Response, ApiEr
         .unwrap_or(false);
 
     if !fresh {
-        match fetch_injector(&state.http, &state.injector_url, metadata.sha256.as_deref()).await {
+        let pin = metadata
+            .sha256
+            .clone()
+            .or_else(|| state.injector_sha256.clone());
+        match fetch_injector(&state.http, &state.injector_url, pin.as_deref()).await {
             Ok(bytes) => {
                 *guard = Some(InjectorCache {
                     bytes,
@@ -6187,6 +6315,30 @@ fn bearer_token(headers: &HeaderMap) -> Result<String, ApiError> {
         return Err(ApiError::new(StatusCode::UNAUTHORIZED, "Пустой токен"));
     }
     Ok(token.to_string())
+}
+
+/// SHA-1 и размер файла потоковыми чанками — без чтения в память целиком.
+fn sha1_and_size_of_file(path: &std::path::Path) -> Result<(String, i64), std::io::Error> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path)?;
+    let size = file.metadata()?.len() as i64;
+    let mut hasher = Sha1::new();
+    let mut buf = vec![0u8; 1024 * 512];
+    loop {
+        let read = file.read(&mut buf)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buf[..read]);
+    }
+    let digest = hasher.finalize();
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(40);
+    for &b in &digest {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0xf) as usize] as char);
+    }
+    Ok((out, size))
 }
 
 fn sha1_hex(bytes: &[u8]) -> String {

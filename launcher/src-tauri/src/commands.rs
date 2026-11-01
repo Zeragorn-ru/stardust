@@ -2455,11 +2455,11 @@ async fn open_log_folder(app: AppHandle, kind: LogFolderKind) -> Result<(), Stri
     open::that(&canonical).map_err(|e| format!("не удалось открыть папку: {e}"))
 }
 
-/// Отвязать Telegram (отключить 2FA).
+/// Отвязать Telegram (отключить 2FA). Требует текущий пароль.
 #[tauri::command]
-async fn telegram_unlink(state: State<'_, AppState>) -> Result<(), String> {
+async fn telegram_unlink(password: String, state: State<'_, AppState>) -> Result<(), String> {
     let (_uuid, token) = current_session(&state)?;
-    backend::telegram_unlink(&state.http(), &token).await
+    backend::telegram_unlink(&state.http(), &token, &password).await
 }
 
 /// Смена ника. Обновляет runtime- и сохранённую сессию.
@@ -3295,6 +3295,22 @@ fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
 /// Пинг Minecraft-сервера: резолвит SRV-запись `_minecraft._tcp.<host>`,
 /// затем 3 раза открывает TCP и меряет ванильный Server List Ping RTT (ping→pong).
 /// Возвращает `{ online, players, max, ping, sample }`; `ping` — медиана успешных замеров.
+fn is_private_or_loopback(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                || v4.octets()[0] == 169 && v4.octets()[1] == 254
+        }
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback() || v6.is_unspecified() || (v6.segments()[0] & 0xfe00) == 0xfc00
+        }
+    }
+}
+
 static RESOLVER: std::sync::OnceLock<hickory_resolver::TokioResolver> = std::sync::OnceLock::new();
 
 const MC_PING_SAMPLES: usize = 3;
@@ -3337,7 +3353,23 @@ async fn ping_minecraft_server(host: String) -> serde_json::Value {
                 Some(srv) => {
                     let h = srv.target().to_string();
                     let h = h.trim_end_matches('.').to_string();
-                    (h, srv.port())
+                    // SRV-target приходит из DNS и не проходил гейт выше:
+                    // применяем те же правила (никаких IP/localhost/local).
+                    let h_lower = h.to_lowercase();
+                    if h.is_empty()
+                        || h.len() > 253
+                        || h_lower.parse::<std::net::IpAddr>().is_ok()
+                        || h_lower == "localhost"
+                        || h_lower.ends_with(".local")
+                        || h_lower.ends_with(".internal")
+                        || !h_lower
+                            .chars()
+                            .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+                    {
+                        (host.clone(), 25565)
+                    } else {
+                        (h, srv.port())
+                    }
                 }
                 None => (host.clone(), 25565),
             },
@@ -3398,6 +3430,16 @@ async fn mc_status_ping_once(
 
     let addr = format!("{target_host}:{target_port}");
     let mut stream = TcpStream::connect(&addr).await?;
+    // DNS мог зарезолвить имя в приватный/loopback-адрес: соединение уже
+    // установлено, но приватные сети трогать не будем — закрываем сокет.
+    if let Ok(peer) = stream.peer_addr() {
+        if is_private_or_loopback(peer.ip()) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "приватный адрес",
+            ));
+        }
+    }
 
     // Handshake (protocol -1 = status)
     let host_bytes = target_host.as_bytes();

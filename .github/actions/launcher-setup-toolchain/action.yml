@@ -20,13 +20,13 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
       with:
         node-version: 20
         cache: npm
         cache-dependency-path: launcher/package-lock.json
 
-    - uses: dtolnay/rust-toolchain@1.96.0
+    - uses: dtolnay/rust-toolchain@d86e0fa8f147d6539442c26a61ebba8becc19489
       with:
         components: clippy
 
@@ -39,7 +39,7 @@ runs:
     # инвалидирует только её запись, а не весь кеш (раньше hash всего lock
     # в ключе превращал каждый релизный бамп версии в полный ремисс: ~350
     # перекачек и ~700 компиляций на macOS).
-    - uses: Swatinem/rust-cache@v2
+    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
       with:
         workspaces: ". -> target"
         shared-key: launcher-${{ inputs.cache-key-suffix }}-${{ inputs.platform }}

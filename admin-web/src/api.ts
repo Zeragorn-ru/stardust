@@ -141,9 +141,11 @@ function safeJson(text: string): unknown {
 }
 
 export interface LoginResult {
-  token: string;
-  username: string;
-  uuid: string;
+  status: "ok" | "two_factor_required";
+  token?: string;
+  username?: string;
+  uuid?: string;
+  challenge?: string;
 }
 
 export interface SyncStatus {
@@ -162,11 +164,19 @@ export interface SyncStatus {
 
 export const api = {
   async login(username: string, password: string): Promise<LoginResult> {
-    const res = await request<LoginResult>("POST", "/api/login", {
+    return request<LoginResult>("POST", "/api/login", {
       username,
       password,
     });
-    setToken(res.token);
+  },
+
+  /** Второй фактор (Telegram): код по challenge из login(). */
+  async login2fa(challenge: string, code: string): Promise<LoginResult> {
+    const res = await request<LoginResult>("POST", "/api/login/2fa", {
+      challenge,
+      code,
+    });
+    if (res.token) setToken(res.token);
     return res;
   },
 

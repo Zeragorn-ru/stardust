@@ -818,20 +818,41 @@ async fn telegram_link_start(
 }
 
 /// Отвязка Telegram от аккаунта владельца сессии (отключает 2FA).
+/// Требует текущий пароль: как смена пароля и удаление аккаунта — угнанного
+/// bearer-токена не должно хватать на необратимое снятие второго фактора.
 async fn telegram_unlink(
     State(state): State<Shared>,
     headers: HeaderMap,
+    Json(req): Json<UnlinkTelegramRequest>,
 ) -> Result<StatusCode, ApiError> {
     let account = current_account(&state, &headers).await?;
-    state.store.set_telegram(&account.uuid, None).await?;
+    state
+        .store
+        .unlink_telegram_with_password(&account.uuid, &req.password)
+        .await
+        .map_err(|e| match e {
+            StoreError::BadPassword => {
+                ApiError::new(StatusCode::UNAUTHORIZED, "Неверный пароль")
+            }
+            other => other.into(),
+        })?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Deserialize)]
+struct UnlinkTelegramRequest {
+    password: String,
 }
 
 async fn skin_import(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<SkinImportRequest>,
 ) -> Result<Json<PlayerProfile>, ApiError> {
+    // Каждый импорт гонит 2-4 исходящих запроса к Mojang: без лимита спам
+    // ловил бы троттлинг Mojang на egress-IP платформы.
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     authorize_owner(&state, &headers, &req.uuid).await?;
 
     // Аккаунт-получатель должен существовать.
@@ -1233,6 +1254,7 @@ struct JoinReq {
 async fn ygg_profile_key(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     if !state.profile_key_enabled {
         return Err(ApiError::new(
@@ -1240,14 +1262,20 @@ async fn ygg_profile_key(
             "Поддержка ключей профиля отключена",
         ));
     }
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let account = current_account(&state, &headers).await?;
-    let response =
-        yggdrasil::profile_key_response(&state.keys, &account.uuid).ok_or_else(|| {
-            ApiError::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Не удалось создать ключ профиля",
-            )
-        })?;
+    // Генерация RSA-2048 — секунды CPU: спам этим эндпоинтом блокировал бы
+    // executor. Выносим в blocking-пул + rate-limit выше.
+    let keys = state.keys.clone();
+    let uuid = account.uuid.clone();
+    let response = tokio::task::spawn_blocking(move || {
+        yggdrasil::profile_key_response(&keys, &uuid)
+    })
+    .await
+    .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:?}")))?
+    .ok_or_else(|| {
+        ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, "Не удалось создать ключ профиля")
+    })?;
     Ok(Json(response))
 }
 
@@ -1299,7 +1327,21 @@ struct HasJoinedQuery {
 }
 
 /// `GET /sessionserver/session/minecraft/hasJoined` — сервер проверяет клиента.
-async fn ygg_has_joined(State(state): State<Shared>, Query(q): Query<HasJoinedQuery>) -> Response {
+async fn ygg_has_joined(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    Query(q): Query<HasJoinedQuery>,
+) -> Response {
+    // Публичный эндпоинт с БД-запросом и логами: без лимита флуд бил бы
+    // запросы и неограниченные warn-логи (log injection). 60/мин хватает
+    // с запасом для легитимного MC-сервера (проверка при каждом входе).
+    if state
+        .store
+        .check_rate_limit(get_client_ip(&headers, addr), 60, 60)
+    {
+        return StatusCode::TOO_MANY_REQUESTS.into_response();
+    }
     let Some(access_token) = state.store.join_access_token(&q.server_id) else {
         tracing::warn!(
             username = %q.username,
@@ -1432,8 +1474,11 @@ async fn stats_get(
 async fn stats_record_session(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<RecordSessionRequest>,
 ) -> Result<StatusCode, ApiError> {
+    // Запись в server_logs по каждому завершению сессии: лимитим частоту.
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let account = current_account(&state, &headers).await?;
     if req.duration_seconds <= 0 || req.duration_seconds > 24 * 60 * 60 {
         return Err(ApiError::new(
@@ -1749,8 +1794,12 @@ struct ExternalModEntry {
 async fn report_external_mods(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(req): Json<ExternalModReportRequest>,
 ) -> Result<StatusCode, ApiError> {
+    // Пишет в server_logs и пушит админам в Telegram — как report_crash,
+    // требует лимита, иначе замусоривается очередь доставки.
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let account = current_account(&state, &headers).await?;
     if req.mods.is_empty() {
         return Ok(StatusCode::OK);
@@ -1999,12 +2048,16 @@ struct NewsSeenInput {
 async fn update_news_seen(
     State(state): State<Shared>,
     headers: HeaderMap,
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
     Json(input): Json<NewsSeenInput>,
 ) -> Result<Json<PlayerProfile>, ApiError> {
+    // Триггерится на каждый просмотр новости: без лимита спам бил бы
+    // UPDATE в БД с произвольной строкой в колонке.
+    rate_limited(&state, get_client_ip(&headers, addr))?;
     let account = current_account(&state, &headers).await?;
     let seen_at = input.seen_at.trim();
-    if seen_at.is_empty() {
-        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой seen_at"));
+    if seen_at.is_empty() || seen_at.len() > 64 {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой или слишком длинный seen_at"));
     }
     state.store.set_news_seen(&account.uuid, seen_at).await?;
     let updated_account = state

@@ -53,7 +53,7 @@ jobs:
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       VITE_LAUNCHER_UPDATE_CHANNEL: stable
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           # Полная история не нужна: release notes генерирует GitHub API по тегу,
           # скрипты используют только рабочее дерево.
@@ -242,7 +242,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           fetch-depth: 1
       # Alias launcher-beta держит метаданные бета-апдейтера (legacy Rust flow).

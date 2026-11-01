@@ -66,6 +66,8 @@ export default function AccountSection({
   const [tgStatus, setTgStatus] = useState<"idle" | "saving">("idle");
   const [tgErr, setTgErr] = useState<string | null>(null);
   const [tgLink, setTgLink] = useState<TelegramLinkResponse | null>(null);
+  // Пароль для отключения 2FA: сервер требует подтверждение владельца.
+  const [unlinkPassword, setUnlinkPassword] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -208,8 +210,9 @@ export default function AccountSection({
     setTgErr(null);
     setTgStatus("saving");
     try {
-      await telegramUnlink();
+      await telegramUnlink(unlinkPassword);
       setTgLink(null);
+      setUnlinkPassword("");
       setInfo((prev) => (prev ? { ...prev, telegramLinked: false } : prev));
     } catch (e) {
       setTgErr(e instanceof Error ? e.message : String(e));
@@ -313,10 +316,20 @@ export default function AccountSection({
               Двухфакторная защита включена: при входе нужен код из Telegram.
             </p>
             {tgErr && <p className="form-msg form-msg--error">{tgErr}</p>}
+            <div className="field">
+              <label htmlFor="unlink-pw">Пароль для отключения 2FA</label>
+              <input
+                id="unlink-pw"
+                type="password"
+                value={unlinkPassword}
+                onChange={(e) => setUnlinkPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
             <button
               type="button"
               className="btn btn--ghost"
-              disabled={tgStatus === "saving"}
+              disabled={tgStatus === "saving" || !unlinkPassword}
               onClick={handleUnlinkTelegram}
             >
               {tgStatus === "saving" ? "Отключение…" : "Отключить 2FA"}

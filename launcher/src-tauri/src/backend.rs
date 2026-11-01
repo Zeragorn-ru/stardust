@@ -726,11 +726,17 @@ pub async fn telegram_link_start(
     }
 }
 
-/// POST `/api/account/telegram/unlink`. Отвязывает Telegram (отключает 2FA).
-pub async fn telegram_unlink(client: &reqwest::Client, token: &str) -> Result<(), String> {
+/// POST `/api/account/telegram/unlink`. Отвязывает Telegram (отключает 2FA);
+/// требуется текущий пароль аккаунта.
+pub async fn telegram_unlink(
+    client: &reqwest::Client,
+    token: &str,
+    password: &str,
+) -> Result<(), String> {
     let resp = client
         .post(format!("{}/api/account/telegram/unlink", base_url()))
         .bearer_auth(token)
+        .json(&serde_json::json!({ "password": password }))
         .send()
         .await
         .map_err(network_error)?;
