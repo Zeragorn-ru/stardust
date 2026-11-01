@@ -14,6 +14,15 @@ Upstream `authlib-injector` намеренно возвращает для
 поддержке. При выключенном флаге используется `disabled`, поэтому случайный
 upstream injector не может включить фиктивный сертификат незаметно.
 
+## Совместимость версий Minecraft
+
+Патч матчингует `validateSignature` по числу аргументов: с 1.20.5 (включая 26.x)
+Minecraft использует двухаргументную `validateSignature(SignatureValidator, UUID)`,
+более старые — одноаргументную `validateSignature(UUID)`. Сборки патча до
+`authlib-injector-v0.1.2` генерили байткод только под одноаргументную форму и
+падали на 26.2 с `VerifyError: Bad type on operand stack` внутри
+`AccountProfileKeyPairManager` (краш в фоне ещё до генерации мира).
+
 ## Реализованный endpoint
 
 Auth-server поддерживает совместимый endpoint:
@@ -40,6 +49,14 @@ RSA-2048 key pair, `expiresAt`, `refreshedAfter`, `publicKeySignature` и
 тегами вида `authlib-injector-v0.1.0`; вместе с jar публикуются `.sha256` и
 JSON-метаданные. Релиз `authlib-injector-stable` обновляется workflow как
 совместимый алиас последней версии.
+
+Установка на Minecraft-сервер — одной командой с проверкой SHA-256:
+
+```sh
+sh scripts/fetch-authlib-injector.sh /opt/mc/server
+# затем в старт-строке сервера:
+# -javaagent:/opt/mc/server/authlib-injector.jar=https://auth.example.com
+```
 
 Admin-server предоставляет:
 
