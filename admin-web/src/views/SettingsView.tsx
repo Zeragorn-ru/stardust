@@ -800,7 +800,10 @@ export function SettingsView() {
                     )}
                   </Field>
 
-                  <Field label="Модель" hint="По умолчанию gpt-4o-mini">
+                  <Field
+                    label="Модель"
+                    hint={crashAiModel.trim() ? undefined : "По умолчанию gpt-4o-mini"}
+                  >
                     {(control) => (
                       <FieldInput
                         control={control}
