@@ -1369,7 +1369,10 @@ mod tests {
             fs::create_dir_all(runtime.join("bin")).unwrap();
             fs::write(runtime.join(".complete"), b"ok").unwrap();
             let exe = runtime.join("bin/java");
-            fs::write(&exe, format!("#!/bin/sh\nprintf 'openjdk version \\\"{major}.0.1\\\"\\n' >&2\n")).unwrap();
+            // Кавычки внутри одинарных кавычек printf не экранируем: на Linux
+            // /bin/sh — это dash, который печатает \" буквально (в отличие от
+            // bash на macOS), и парсер версии не находит маркер.
+            fs::write(&exe, format!("#!/bin/sh\nprintf 'openjdk version \"{major}.0.1\"\\n' >&2\n")).unwrap();
             fs::set_permissions(&exe, fs::Permissions::from_mode(0o755)).unwrap();
         }
         let j21 = bundled_java_for(&root, JavaVendor::Temurin, 21).unwrap();
