@@ -76,8 +76,16 @@ text = text.replace(
 callback = r'''
 
 	@CallbackMethod
-		/** Verify Minecraft 1.21 ProfilePublicKey.Data with the Yggdrasil key. */
-	public static boolean verifyProfileKey(Object data, java.util.UUID profileId) {
+		/**
+		 * Verify ProfilePublicKey.Data with the Yggdrasil key.
+		 *
+		 * Minecraft 1.20.5+ (and 26.x) signature is
+		 * {@code validateSignature(SignatureValidator, UUID)} — two arguments;
+		 * older builds used a single-argument overload. The transformer picks
+		 * the matching bridge below, so the callback always receives
+		 * {@code (this, validator, profileId)}.
+		 */
+	public static boolean verifyProfileKey(Object data, Object validator, java.util.UUID profileId) {
 		try {
 			Instant expiresAt = (Instant) accessor(data, "expiresAt", "b");
 			PublicKey publicKey = (PublicKey) accessor(data, "key", "c");
@@ -107,6 +115,12 @@ callback = r'''
 		return false;
 	}
 
+	@CallbackMethod
+		/** Bridge for the legacy one-argument validateSignature(UUID) overload. */
+	public static boolean verifyProfileKeyLegacy(Object data, java.util.UUID profileId) {
+		return verifyProfileKey(data, null, profileId);
+	}
+
 	private static Object accessor(Object target, String... names) throws ReflectiveOperationException {
 		for (String name : names) {
 			try {
@@ -131,19 +145,38 @@ branch = r'''
 			return Optional.of(new ClassVisitor(ASM9, writer) {
 				@Override
 				public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {
-					if (("validateSignature".equals(name) || "a".equals(name))
-							&& desc.endsWith("Ljava/util/UUID;)Z")) {
-						ctx.markModified();
-						MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
-						mv.visitCode();
-						mv.visitVarInsn(ALOAD, 0);
-						// validateSignature(UUID) has `this` at slot 0 and its only argument at slot 1.
+					// Minecraft 1.20.5+/26.x: validateSignature(SignatureValidator, UUID) —
+					// two arguments; slots: 0=this, 1=validator, 2=profileId.
+					// Older builds: validateSignature(UUID) — slot 1 is the profile id.
+					// Matching by argument count (not `endsWith`) keeps the generated
+					// stack shape in sync with the invokedynamic callback descriptor.
+					if (("validateSignature".equals(name) || "a".equals(name)) && desc.endsWith("Ljava/util/UUID;)Z")) {
+						int argSlots = org.objectweb.asm.Type.getArgumentTypes(desc).length;
+						if (argSlots == 2) {
+							ctx.markModified();
+							MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
+							mv.visitCode();
+							mv.visitVarInsn(ALOAD, 0);
 							mv.visitVarInsn(ALOAD, 1);
-						ctx.invokeCallback(mv, YggdrasilKeyTransformUnit.class, "verifyProfileKey");
-						mv.visitInsn(IRETURN);
-						mv.visitMaxs(-1, -1);
-						mv.visitEnd();
-						return null;
+							mv.visitVarInsn(ALOAD, 2);
+							ctx.invokeCallback(mv, YggdrasilKeyTransformUnit.class, "verifyProfileKey");
+							mv.visitInsn(IRETURN);
+							mv.visitMaxs(-1, -1);
+							mv.visitEnd();
+							return null;
+						}
+						if (argSlots == 1) {
+							ctx.markModified();
+							MethodVisitor mv = super.visitMethod(access, name, desc, signature, exceptions);
+							mv.visitCode();
+							mv.visitVarInsn(ALOAD, 0);
+							mv.visitVarInsn(ALOAD, 1);
+							ctx.invokeCallback(mv, YggdrasilKeyTransformUnit.class, "verifyProfileKeyLegacy");
+							mv.visitInsn(IRETURN);
+							mv.visitMaxs(-1, -1);
+							mv.visitEnd();
+							return null;
+						}
 					}
 					return super.visitMethod(access, name, desc, signature, exceptions);
 				}
