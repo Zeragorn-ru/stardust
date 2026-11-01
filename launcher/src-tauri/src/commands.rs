@@ -2722,10 +2722,16 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         let marker_says_normal = mod_status.as_deref() == Some("normal");
         let log_says_normal = minecraft_log_shows_normal_shutdown(&log_content);
         let fatal_signal = exit_code.map(is_fatal_exit_code).unwrap_or(false);
-        let is_normal_shutdown = (marker_says_normal || log_says_normal) && !fatal_signal;
+        // Маркер краш-обработчика в логе — Java-краш без crash-report
+        // (краш-обработчик упал до записи файла). Краш даже при успешном
+        // коде выхода и «Stopping server» в эпилоге.
+        let log_has_crash = minecraft_log_has_crash_marker(&log_content);
+        let is_normal_shutdown =
+            (marker_says_normal || log_says_normal) && !fatal_signal && !log_has_crash;
         let is_crash = !is_normal_shutdown
             && (fatal_signal
                 || failed_exit
+                || log_has_crash
                 || recent_crash_content.is_some()
                 || mod_status.as_deref() == Some("crash"));
 
@@ -3010,12 +3016,31 @@ fn minecraft_log_snippet(log_content: &str, max_lines: usize) -> Option<String> 
 }
 
 fn minecraft_log_shows_normal_shutdown(log_content: &str) -> bool {
+    // «Stopping server» печатается не только при выходе игрока: после
+    // Java-краша клиент сам останавливает интегрированный сервер. Поэтому
+    // сначала ищем маркер краш-обработчика — он означает, что «Stopping»
+    // ниже — это уже эпилог падения, а не нормальный выход.
+    if minecraft_log_has_crash_marker(log_content) {
+        return false;
+    }
     log_content.lines().rev().take(80).any(|line| {
         let line = line.to_ascii_lowercase();
         line.contains("stopping!")
             || line.contains("stopping server")
             || line.contains("shutting down")
             || line.contains("goodbye")
+    })
+}
+
+/// Маркер краш-обработчика Minecraft в latest.log. Печатается ТОЛЬКО при
+/// необработанном исключении (например «Unreported exception thrown!» или
+/// «Reported exception thrown!»), за ним следует печать стека и остановка
+/// сервера. Это точный признак краша, в отличие от обычных ERROR-строк:
+/// Realms-шум (RealmsServiceException от authlib-подмены) есть почти в
+/// каждом логе и крашем не является.
+fn minecraft_log_has_crash_marker(log_content: &str) -> bool {
+    log_content.lines().rev().take(300).any(|line| {
+        line.to_ascii_lowercase().contains("exception thrown!")
     })
 }
 
@@ -3761,5 +3786,46 @@ mod crash_detection_tests {
         assert!(minecraft_log_shows_normal_shutdown(log));
         let crash_log = "[20:00:00] [Render thread/FATAL]: Reported exception thrown!\n";
         assert!(!minecraft_log_shows_normal_shutdown(crash_log));
+    }
+
+    #[test]
+    fn crash_marker_overrides_shutdown_epilogue() {
+        // Java-краш без crash-report: VerifyError в CompletableFuture —
+        // краш-обработчик Minecraft печатает стек и штатно останавливает
+        // сервер. Реальный лог с 26.2 (сокращён).
+        let log = "[11:11:38] [Server thread/INFO]: Zeragorn присоединился к игре\n\
+[11:11:39] [Render thread/ERROR]: Unreported exception thrown!\n\
+java.util.concurrent.CompletionException: java.lang.VerifyError: Bad type on operand stack\n\
+    at java.base/java.util.concurrent.CompletableFuture.wrapInCompletionException(Unknown Source)\n\
+[11:11:40] [Server thread/INFO]: Stopping server\n\
+[11:11:40] [Server thread/INFO]: Saving worlds\n\
+[11:11:41] [Server thread/INFO]: Stopping!\n";
+        assert!(minecraft_log_has_crash_marker(log));
+        assert!(!minecraft_log_shows_normal_shutdown(log));
+    }
+
+    #[test]
+    fn realms_noise_is_not_a_crash_marker() {
+        // Realms-шум от authlib-подмены есть почти в каждом логе: ERROR с
+        // исключением, но не краш.
+        let log = "[11:10:49] [Download-1/INFO]: Could not authorize you against Realms server: java.lang.RuntimeException: Failed to parse into SignedJWT: 51a9...\n\
+[11:10:49] [Download-1/ERROR]: Failed to fetch Realms feature flags\n\
+com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication error\n\
+[11:11:41] [Server thread/INFO]: Stopping!\n";
+        assert!(!minecraft_log_has_crash_marker(log));
+        assert!(minecraft_log_shows_normal_shutdown(log));
+    }
+
+    #[test]
+    fn crash_marker_far_from_tail_is_found() {
+        // Длинный эпилог шатдауна (сохранение чанков) не должен вытеснять
+        // маркер краша из окна.
+        let mut log = String::from("[19:00:00] [Render thread/ERROR]: Unreported exception thrown!\njava.lang.VerifyError\n");
+        for i in 0..150 {
+            log.push_str(&format!("[19:00:{:02}] [Server thread/INFO]: Saving chunks\n", i % 60));
+        }
+        log.push_str("[19:00:59] [Server thread/INFO]: Stopping!\n");
+        assert!(minecraft_log_has_crash_marker(&log));
+        assert!(!minecraft_log_shows_normal_shutdown(&log));
     }
 }
