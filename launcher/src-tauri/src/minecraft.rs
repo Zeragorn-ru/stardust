@@ -126,8 +126,7 @@ pub async fn launch(
 
     let progress = Progress::new(app.clone());
     let version = ensure_version(&progress, http, &root, &version_id).await?;
-    let required_java =
-        preferred_java_major(&version_id, version.required_java_major()?);
+    let required_java = version.required_java_major()?;
     let java = crate::java::resolve_java(
         java_provider,
         java_custom_path.as_deref(),
@@ -2533,24 +2532,6 @@ impl VersionJson {
     }
 }
 
-/// Для новых версий Minecraft ставим более свежую Java, чем минимум из
-/// метаданных Mojang: Minecraft 26.x объявляет `majorVersion: 25`
-/// (java-runtime-epsilon), но экосистема Fabric для 26.x рассчитана на
-/// Java 26 — моды, собранные классами Java 26, падают на 25 с VerifyError
-/// ещё до экрана мира. Поднимаем ровно до 26 (не до мажора MC): минимум
-/// из метаданных остаётся нижней границей, поэтому более строгие будущие
-/// требования Mojang сохраняются автоматически.
-fn preferred_java_major(version_id: &str, required: u32) -> u32 {
-    let mc_major = version_id
-        .split('.')
-        .next()
-        .and_then(|part| part.parse::<u32>().ok());
-    match mc_major {
-        Some(m) if m >= 26 => required.max(26),
-        _ => required,
-    }
-}
-
 /// Профиль ядра сборки (NeoForge installer или Fabric с meta.fabricmc.net),
 /// наследуемый от vanilla-версии. Формат общий (Mojang version-JSON):
 /// main class (BootstrapLauncher/KnotClient), аргументы и список библиотек.
@@ -2788,21 +2769,6 @@ mod tests {
         assert_eq!(version.required_java_major().unwrap(), 21);
         version.java_version = serde_json::from_str(r#"{"majorVersion":0}"#).unwrap();
         assert!(version.required_java_major().is_err());
-    }
-
-    #[test]
-    fn java_26_is_preferred_for_minecraft_26() {
-        // Mojang заявляет минимум 25, но для 26.x ставим Java 26.
-        assert_eq!(preferred_java_major("26.2", 25), 26);
-        assert_eq!(preferred_java_major("26", 25), 26);
-        assert_eq!(preferred_java_major("27.1", 26), 26);
-        assert_eq!(preferred_java_major("27.1", 21), 26);
-        // Прежние версии: минимум из метаданных без изменений.
-        assert_eq!(preferred_java_major("1.21.1", 21), 21);
-        assert_eq!(preferred_java_major("25.5", 24), 24);
-        // Не-числовые префиксы не трактуются как версия.
-        assert_eq!(preferred_java_major("w26.2", 21), 21);
-        assert_eq!(preferred_java_major("", 21), 21);
     }
 
     #[test]
