@@ -1032,7 +1032,7 @@ export default function SettingsScreen({
               <div className="info-card stagger-item">
                 <div className="info-card__row">
                   <span className="muted">Режим</span>
-                  <span className="badge">
+                  <span className="badge badge--muted">
                     {info.mode === "portable" ? "Портативный" : "Установленный"}
                   </span>
                 </div>
