@@ -138,8 +138,18 @@ fn process_alive(pid: u32) -> bool {
 }
 
 /// Жив ли процесс с данным PID.
+///
+/// Дополнительно сверяем имя образа: PID на Windows быстро переиспользуются,
+/// и после закрытия игры номер мог достаться другому процессу — тогда
+/// лаунчер продолжал считать игру запущенной («закрыл майн, а лаунчер
+/// пишет, что он запущен»). Сначала проверяем имя, потом сигнализацию.
 #[cfg(windows)]
 fn process_alive(pid: u32) -> bool {
+    // Имя образа процесса: java/javaw (запуск игры) — иначе PID
+    // переиспользован чужим процессом, игры больше нет.
+    if !process_image_is_java(pid) {
+        return false;
+    }
     use windows_sys::Win32::Foundation::{CloseHandle, WAIT_TIMEOUT};
     use windows_sys::Win32::System::Threading::{
         OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
@@ -155,6 +165,52 @@ fn process_alive(pid: u32) -> bool {
     let wait = unsafe { WaitForSingleObject(handle, 0) };
     unsafe { CloseHandle(handle) };
     wait == WAIT_TIMEOUT
+}
+
+/// Имя образа процесса по PID совпадает с java/javaw (без учёта регистра).
+#[cfg(windows)]
+fn process_image_is_java(pid: u32) -> bool {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
+    };
+
+    let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+    if snapshot == INVALID_HANDLE_VALUE {
+        // Не смогли получить список — считаем, что совпадает: пусть решает
+        // WaitForSingleObject (прежнее поведение).
+        return true;
+    }
+    let mut entry = PROCESSENTRY32 {
+        dwSize: std::mem::size_of::<PROCESSENTRY32>() as u32,
+        cntUsage: 0,
+        th32ProcessID: 0,
+        th32DefaultHeapID: 0,
+        th32ModuleID: 0,
+        cntThreads: 0,
+        th32ParentProcessID: 0,
+        pcPriClassBase: 0,
+        dwFlags: 0,
+        szExeFile: [0; 260],
+    };
+    let mut found = false;
+    let mut success = unsafe { Process32First(snapshot, &mut entry) };
+    while success != 0 {
+        if entry.th32ProcessID == pid {
+            let name: String = entry
+                .szExeFile
+                .iter()
+                .take_while(|&&c| c != 0)
+                .map(|&c| c as char)
+                .collect();
+            let lower = name.to_lowercase();
+            found = lower == "java.exe" || lower == "javaw.exe";
+            break;
+        }
+        success = unsafe { Process32Next(snapshot, &mut entry) };
+    }
+    unsafe { CloseHandle(snapshot) };
+    found
 }
 
 /// Заглушка для прочих платформ: считаем, что параллельной игры нет.
