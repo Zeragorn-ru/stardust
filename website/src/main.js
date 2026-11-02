@@ -1,5 +1,6 @@
-const RELEASE_URL = 'https://github.com/Zeragorn-ru/stardust/releases/latest';
-const RELEASE_API_URL = 'https://api.github.com/repos/Zeragorn-ru/stardust/releases/latest';
+const RELEASE_URL = 'https://github.com/Zeragorn-ru/stardust/releases/tag/launcher-stable';
+const RELEASE_API_URL = 'https://api.github.com/repos/Zeragorn-ru/stardust/releases/tags/launcher-stable';
+const RELEASE_TAG_API = 'https://api.github.com/repos/Zeragorn-ru/stardust/releases/tags/';
 
 const html = document.documentElement;
 const adminBase = (html.getAttribute('data-admin-api-url') || '').replace(/\/$/, '');
@@ -85,25 +86,35 @@ async function applyReleaseLinks() {
   const links = [...document.querySelectorAll('[data-platform]')];
   links.forEach((link) => { link.href = RELEASE_URL; });
   const platform = detectPlatform();
-  const active = links.find((link) => link.dataset.platform === platform) || links[0];
+  const active = links.find((link) => link.dataset.platform === platform);
   active?.classList.add('active');
   const primary = document.querySelector('[data-primary-download]');
   if (primary && active) primary.href = active.href;
   try {
-    const release = await fetchJson(RELEASE_API_URL);
+    // Алиас содержит только latest.json; установщики лежат в релизе указанной версии.
+    const alias = await fetchJson(RELEASE_API_URL);
+    const metadataAsset = alias.assets?.find((asset) => asset.name === 'latest.json');
+    if (!metadataAsset?.url?.startsWith('https://api.github.com/repos/Zeragorn-ru/stardust/releases/assets/')) throw new Error('Нет метаданных stable');
+    const response = await fetch(metadataAsset.url, { headers: { Accept: 'application/octet-stream' } });
+    if (!response.ok) throw new Error('Метаданные stable недоступны');
+    const metadata = await response.json();
+    const version = String(metadata.version || '').replace(/^v/, '');
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Некорректная версия stable');
+    const release = await fetchJson(`${RELEASE_TAG_API}v${version}`);
+    if (release.tag_name !== `v${version}` || release.draft) throw new Error('Некорректный релиз stable');
     const assets = Array.isArray(release.assets) ? release.assets : [];
     const urls = {
       windows: findAsset(assets, /\.(exe|msi)$/i),
       macos: findAsset(assets, /\.dmg$/i),
       linux: findAsset(assets, /\.(AppImage|deb|rpm)$/i),
     };
-    links.forEach((link) => { if (urls[link.dataset.platform]) link.href = urls[link.dataset.platform]; });
+    links.forEach((link) => { link.href = urls[link.dataset.platform] || release.html_url; });
     if (primary && active && urls[active.dataset.platform]) primary.href = urls[active.dataset.platform];
     const status = document.querySelector('[data-release-status]');
-    if (status) status.textContent = `Последний релиз ${release.tag_name || 'готов'} · прямые ссылки обновлены из GitHub.`;
+    if (status) status.textContent = `Стабильная версия ${release.tag_name} · установщики из GitHub.`;
   } catch {
     const status = document.querySelector('[data-release-status]');
-    if (status) status.textContent = 'GitHub временно не ответил — откроется страница последнего релиза.';
+    if (status) status.textContent = 'Не удалось определить стабильную версию — откроется страница канала stable.';
   }
 }
 
@@ -113,6 +124,7 @@ function findAsset(assets, pattern) {
 
 function detectPlatform() {
   const value = `${navigator.userAgent} ${navigator.platform}`.toLowerCase();
+  if (/android|iphone|ipad|ipod|mobile/.test(value) || (value.includes('mac') && navigator.maxTouchPoints > 1)) return '';
   if (value.includes('win')) return 'windows';
   if (value.includes('mac')) return 'macos';
   if (value.includes('linux')) return 'linux';

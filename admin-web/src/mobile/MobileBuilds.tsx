@@ -24,20 +24,21 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
   const confirm = useConfirm();
   const [builds, setBuilds] = useState<BuildHeader[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState<number | null>(null);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       setBuilds(await api.listBuilds());
+      setLoadError(null);
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось загрузить сборки",
-      );
+      setLoadError(err instanceof ApiError ? err.message : "Не удалось загрузить сборки");
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -94,6 +95,12 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
           <span className="spinner" />
           Загрузка…
         </p>
+      ) : loadError ? (
+        <div className="pad" role="alert">
+          <strong>Не удалось загрузить сборки</strong>
+          <p>{loadError}</p>
+          <button onClick={() => void load()}>Повторить</button>
+        </div>
       ) : builds.length === 0 ? (
         <p className="muted pad">Сборок пока нет. Создайте первую.</p>
       ) : (
@@ -107,7 +114,7 @@ export function MobileBuilds({ onOpenBuild }: MobileBuildsProps) {
               aria-label={`Открыть сборку ${b.name}`}
               onClick={() => onOpenBuild(b.id)}
               onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
+                if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
                   event.preventDefault();
                   onOpenBuild(b.id);
                 }

@@ -67,7 +67,7 @@ export default function AdminSettingsSection({ settings, onChange }: Props) {
         </button>
       </div>
 
-      {betaError && <div className="alert alert--error">Не удалось сохранить: {betaError}</div>}
+      {betaError && <div className="alert alert--error" role="alert">Не удалось сохранить: {betaError}</div>}
     </div>
   );
 }

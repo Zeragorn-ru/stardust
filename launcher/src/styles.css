@@ -4101,6 +4101,21 @@ button.data-directory-card__path:disabled {
     cursor: default;
 }
 
+button.info-card__path--link {
+    border: 0;
+    padding: 2px 0;
+    background: transparent;
+    font-family: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    border-bottom: 1px dashed transparent;
+}
+
+button.info-card__path--link:hover:not(:disabled) {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
 /* ============ Логи (настройки + просмотр) ============ */
 
 .logs-card {

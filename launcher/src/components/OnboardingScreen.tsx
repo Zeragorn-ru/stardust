@@ -75,6 +75,7 @@ export default function OnboardingScreen({ dataDirectory, onDone }: Props) {
       <div className="choice-grid">
         <button
           className={"choice" + (choice ? " choice--active" : "")}
+          aria-pressed={choice}
           onClick={() => apply(true)}
         >
           <div className="choice__visual choice__visual--anim">
@@ -89,6 +90,7 @@ export default function OnboardingScreen({ dataDirectory, onDone }: Props) {
 
         <button
           className={"choice" + (!choice ? " choice--active" : "")}
+          aria-pressed={!choice}
           onClick={() => apply(false)}
         >
           <div className="choice__visual choice__visual--calm">
@@ -103,7 +105,7 @@ export default function OnboardingScreen({ dataDirectory, onDone }: Props) {
         </button>
       </div>
 
-      {error && <div className="alert alert--error">{error}</div>}
+      {error && <div className="alert alert--error" role="alert">{error}</div>}
 
       <button className="btn btn--primary onboarding__cta" onClick={() => void finish()} disabled={selecting}>
         {selecting ? "Подготавливаем папку…" : "Продолжить"}

@@ -14,7 +14,6 @@ import { CreateBuildForm } from "../CreateBuildForm";
 import type { BuildHeader } from "../types";
 
 export function BuildsPage() {
-  const toast = useToast();
   const navigate = useNavigate();
   const params = useParams();
   const selected = params.id && params.id !== "new" ? Number(params.id) : null;
@@ -22,6 +21,7 @@ export function BuildsPage() {
 
   const [loading, setLoading] = useState(true);
   const [builds, setBuilds] = useState<BuildHeader[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const select = useCallback(
     (id: number | null) => {
@@ -31,9 +31,11 @@ export function BuildsPage() {
   );
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const list = await api.listBuilds();
       setBuilds(list);
+      setLoadError(null);
       // Если URL указывает на несуществующую сборку — возвращаем в хаб сборок.
       const validSelection =
         selected !== null && list.some((b) => b.id === selected);
@@ -41,13 +43,11 @@ export function BuildsPage() {
         select(null);
       }
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Не удалось загрузить сборки",
-      );
+      setLoadError(err instanceof ApiError ? err.message : "Не удалось загрузить сборки");
     } finally {
       setLoading(false);
     }
-  }, [selected, creating, select, toast]);
+  }, [selected, creating, select]);
 
   useEffect(() => {
     load();
@@ -67,7 +67,13 @@ export function BuildsPage() {
   return (
     <div className="view builds-layout-compact">
       <div className="builds-main-full">
-        {selected !== null ? (
+        {loadError ? (
+          <div className="empty-state" role="alert">
+            <strong>Не удалось загрузить сборки</strong>
+            <p>{loadError}</p>
+            <button onClick={() => void load()}>Повторить</button>
+          </div>
+        ) : selected !== null ? (
           <BuildDetail
             key={selected}
             buildId={selected}
@@ -105,6 +111,8 @@ function BuildsHub({
   onActivated: () => void;
 }) {
   const active = builds.find((b) => b.isActive);
+  const countForm = new Intl.PluralRules("ru").select(builds.length);
+  const countLabel = countForm === "one" ? "сборка" : countForm === "few" ? "сборки" : "сборок";
   return (
     <div className="builds-hub">
       {/* Третий уровень заголовков упразднён (план 2.5): топбар уже
@@ -113,7 +121,7 @@ function BuildsHub({
           topbar. */}
       <header className="view-head page-head">
         <p className="muted">
-          {builds.length} сборок · {active ? `активна «${active.name}»` : "активная сборка не выбрана"}
+          {builds.length} {countLabel} · {active ? `активна «${active.name}»` : "активная сборка не выбрана"}
         </p>
         <button className="primary" onClick={onCreate}>
           <IconPlus size={15} /> Создать сборку

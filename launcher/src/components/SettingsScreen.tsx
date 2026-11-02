@@ -467,7 +467,7 @@ export default function SettingsScreen({
         </button>
         <h2>Настройки</h2>
         {["game", "interface", "admin"].includes(section) && (
-          <span className="settings__save-state">
+          <span className="settings__save-state" role="status" aria-live={saveError ? "assertive" : "polite"}>
             {saveError ? `Не сохранено: ${saveError}` : saving ? "Сохраняем…" : isDirty ? "Ожидает сохранения" : "Сохранено"}
           </span>
         )}
@@ -778,7 +778,7 @@ export default function SettingsScreen({
               </div>
 
               {updateStatus === "error" && updateError && (
-                <p className="muted update-card__msg">Ошибка: {updateError}</p>
+                <p className="muted update-card__msg" role="alert">Ошибка: {updateError}</p>
               )}
 
               {update && update.available && updateStatus !== "installing" && (
@@ -861,6 +861,8 @@ export default function SettingsScreen({
                 >−</button>
                 <input
                   type="range"
+                  aria-label="Память для Minecraft"
+                  aria-valuetext={`${settings.memoryMb} МБ`}
                   min={memoryLimits?.minMb ?? settings.memoryMb}
                   max={memoryLimits?.maxMb ?? settings.memoryMb}
                   step={MEM_STEP}
@@ -894,6 +896,7 @@ export default function SettingsScreen({
               </span>
               <input
                 type="range"
+                aria-label="Одновременных загрузок"
                 min={DL_MIN}
                 max={DL_MAX}
                 step={1}
@@ -921,6 +924,7 @@ export default function SettingsScreen({
               <button
                 type="button"
                 role="switch"
+                aria-label="Анимации"
                 aria-checked={animations}
                 className={"switch" + (animations ? " switch--on" : "")}
                 onClick={() => setAnimations(!animations)}
@@ -940,6 +944,7 @@ export default function SettingsScreen({
                 <button
                   type="button"
                   role="switch"
+                  aria-label="3D-модель скина"
                   aria-checked={settings.show3dModel}
                   className={"switch" + (settings.show3dModel ? " switch--on" : "")}
                   onClick={() => setSettings({ ...settings, show3dModel: !settings.show3dModel })}
@@ -959,6 +964,7 @@ export default function SettingsScreen({
               <button
                 type="button"
                 className="data-directory-card__path"
+                aria-label={dataDirectory ? `Открыть папку данных: ${dataDirectory.path}` : "Папка данных загружается"}
                 title={dataDirectory?.path}
                 disabled={!dataDirectory}
                 onClick={() => {
@@ -1016,7 +1022,7 @@ export default function SettingsScreen({
                   </span>
                 </div>
               )}
-              {relocationError && <div className="alert alert--error">{relocationError}</div>}
+              {relocationError && <div className="alert alert--error" role="alert">{relocationError}</div>}
             </div>}
 
             {section === "about" && <button
@@ -1038,9 +1044,12 @@ export default function SettingsScreen({
                 </div>
                 <div className="info-card__row">
                   <span className="muted">Папка exe</span>
-                  <span
+                  <button
+                    type="button"
                     className="info-card__path info-card__path--link"
+                    aria-label={`Открыть папку exe: ${info.exeDir}`}
                     title={info.exeDir}
+                    disabled={saving}
                     onClick={() => {
                       openPath(info.exeDir).catch((e) => {
                         console.error("openPath:", e);
@@ -1048,7 +1057,7 @@ export default function SettingsScreen({
                     }}
                   >
                     {info.exeDir}
-                  </span>
+                  </button>
                 </div>
                 <div className="info-card__row">
                   <span className="muted">portable.txt</span>
@@ -1178,10 +1187,10 @@ export default function SettingsScreen({
                 </div>
 
                 {javaDownloadError && (
-                  <p className="muted java-card__msg">Ошибка скачивания: {javaDownloadError}</p>
+                  <p className="muted java-card__msg" role="alert">Ошибка скачивания: {javaDownloadError}</p>
                 )}
                 {javaListError && (
-                  <p className="muted java-card__msg">Ошибка поиска: {javaListError}</p>
+                  <p className="muted java-card__msg" role="alert">Ошибка поиска: {javaListError}</p>
                 )}
 
                 {javaInstalls === null && !javaListError && (
