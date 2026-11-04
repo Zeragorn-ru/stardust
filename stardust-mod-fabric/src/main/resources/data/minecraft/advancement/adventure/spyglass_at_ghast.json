@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/fire_blast_shield",
 	"rewards": {
-		"function": "bc_rewards:nether/is_it_a_balloon"
+		"function": "bacap_rewards:nether/is_it_a_balloon"
 	},		
 	"criteria": {
 		"spyglass_at_ghast": {
@@ -19,10 +19,10 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"looking_at": {
-									"type": "minecraft:ghast"
+									"entity_type": "minecraft:ghast"
 								}
 							}
 						},

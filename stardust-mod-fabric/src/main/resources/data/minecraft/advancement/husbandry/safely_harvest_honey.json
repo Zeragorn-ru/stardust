@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/ya_like_jazz",
 	"rewards": {
-		"function": "bc_rewards:animal/bee_our_guest"
+		"function": "bacap_rewards:animal/bee_our_guest"
 	},
 	"criteria": {
 		"safely_harvest_honey": {

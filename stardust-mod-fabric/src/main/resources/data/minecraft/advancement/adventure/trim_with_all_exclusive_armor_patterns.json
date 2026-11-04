@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/the_sound_of_silence",
 	"rewards": {
-		"function": "bc_rewards:adventure/smithing_with_style"
+		"function": "bacap_rewards:adventure/smithing_with_style"
 	},		
 	"criteria": {
 		"coast_armor_trim": {

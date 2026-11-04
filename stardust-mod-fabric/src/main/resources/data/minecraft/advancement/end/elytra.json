@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:end/off_with_his_head",
 	"rewards": {
-		"function": "bc_rewards:end/skys_the_limit"
+		"function": "bacap_rewards:end/skys_the_limit"
 	},	
 	"criteria": {
 		"elytra": {

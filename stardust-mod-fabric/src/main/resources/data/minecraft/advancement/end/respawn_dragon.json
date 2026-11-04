@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:end/the_start_of_something",
 	"rewards": {
-		"function": "bc_rewards:end/the_end_again"
+		"function": "bacap_rewards:end/the_end_again"
 	},	
 	"criteria": {
 		"summoned_dragon": {
 			"trigger": "minecraft:summoned_entity",
 			"conditions": {
 				"entity": {
-					"type": "ender_dragon"
+					"entity_type": "ender_dragon"
 				}
 			}
 		}

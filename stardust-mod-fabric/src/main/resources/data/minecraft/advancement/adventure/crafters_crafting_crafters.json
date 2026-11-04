@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/craftception",
 	"rewards": {
-		"function": "bc_rewards:redstone/crafters_crafting_crafters"
+		"function": "bacap_rewards:redstone/crafters_crafting_crafters"
 	},
 	"criteria": {
 		"crafter_crafted_crafter": {

@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:animal/high_steaks",
 	"rewards": {
-		"function": "bc_rewards:animal/repopulation"
+		"function": "bacap_rewards:animal/repopulation"
 	},		
 	"criteria": {
 		"cow": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:cow"
+					"entity_type": "minecraft:cow"
 				},
 				"partner": {
-					"type": "minecraft:cow"
+					"entity_type": "minecraft:cow"
 				}
 			}
 		}

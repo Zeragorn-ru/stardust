@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:end/shulker_breaker",
 	"rewards": {
-		"function": "bc_rewards:end/great_view_from_up_here"
+		"function": "bacap_rewards:end/great_view_from_up_here"
 	},	
 	"criteria": {
 		"levitated": {

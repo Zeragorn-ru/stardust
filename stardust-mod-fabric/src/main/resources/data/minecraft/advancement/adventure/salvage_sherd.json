@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/brushed_away",
 	"rewards": {
-		"function": "bc_rewards:adventure/respecting_the_remnants"
+		"function": "bacap_rewards:adventure/respecting_the_remnants"
 	},	
 	"criteria": {
 		"has_sherd": {

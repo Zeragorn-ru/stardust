@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:potion/a_weak_brew",
 	"rewards": {
-		"function": "bc_rewards:potion/zombie_doctor"
+		"function": "bacap_rewards:potion/zombie_doctor"
 	},		
 	"criteria": {
 		"cured_zombie": {

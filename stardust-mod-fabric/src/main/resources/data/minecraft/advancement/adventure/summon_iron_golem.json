@@ -10,14 +10,14 @@
 	},
 	"parent": "minecraft:adventure/trade",
 	"rewards": {
-		"function": "bc_rewards:adventure/body_guard"
+		"function": "bacap_rewards:adventure/body_guard"
 	},		
 	"criteria": {
 		"summoned": {
 			"trigger": "minecraft:summoned_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:iron_golem"
+					"entity_type": "minecraft:iron_golem"
 				}
 			}
 		}

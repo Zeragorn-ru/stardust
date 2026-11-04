@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/grate_expectations",
 	"rewards": {
-		"function": "bc_rewards:mining/wax_on"
+		"function": "bacap_rewards:mining/wax_on"
 	},		
 	"criteria": {
 		"minecraft:waxed_copper_block_from_honeycomb": {
@@ -228,6 +228,150 @@
 				"recipe_id": "minecraft:waxed_oxidized_copper_bulb_from_honeycomb"
 			}
 		},
+		"minecraft:waxed_copper_bars_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_copper_bars_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_exposed_copper_bars_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_exposed_copper_bars_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_weathered_copper_bars_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_weathered_copper_bars_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_oxidized_copper_bars_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_oxidized_copper_bars_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_copper_chain_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_copper_chain_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_exposed_copper_chain_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_exposed_copper_chain_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_weathered_copper_chain_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_weathered_copper_chain_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_oxidized_copper_chain_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_oxidized_copper_chain_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_copper_lantern_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_copper_lantern_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_exposed_copper_lantern_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_exposed_copper_lantern_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_weathered_copper_lantern_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_weathered_copper_lantern_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_oxidized_copper_lantern_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_oxidized_copper_lantern_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_copper_chest_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_copper_chest_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_exposed_copper_chest_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_exposed_copper_chest_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_weathered_copper_chest_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_weathered_copper_chest_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_oxidized_copper_chest_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_oxidized_copper_chest_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_copper_golem_statue_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_copper_golem_statue_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_exposed_copper_golem_statue_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_exposed_copper_golem_statue_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_weathered_copper_golem_statue_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_weathered_copper_golem_statue_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_oxidized_copper_golem_statue_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_oxidized_copper_golem_statue_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_lightning_rod_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_lightning_rod_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_exposed_lightning_rod_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_exposed_lightning_rod_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_weathered_lightning_rod_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_weathered_lightning_rod_from_honeycomb"
+			}
+		},
+		"minecraft:waxed_oxidized_lightning_rod_from_honeycomb": {
+			"trigger": "minecraft:recipe_crafted",
+			"conditions": {
+				"recipe_id": "minecraft:waxed_oxidized_lightning_rod_from_honeycomb"
+			}
+		},
 		"directly_wax_block": {
 			"trigger": "minecraft:item_used_on_block",
 			"conditions": {
@@ -290,6 +434,30 @@
 			"minecraft:waxed_exposed_copper_bulb_from_honeycomb",
 			"minecraft:waxed_weathered_copper_bulb_from_honeycomb",
 			"minecraft:waxed_oxidized_copper_bulb_from_honeycomb",
+			"minecraft:waxed_copper_bars_from_honeycomb",
+			"minecraft:waxed_exposed_copper_bars_from_honeycomb",
+			"minecraft:waxed_weathered_copper_bars_from_honeycomb",
+			"minecraft:waxed_oxidized_copper_bars_from_honeycomb",
+			"minecraft:waxed_copper_chain_from_honeycomb",
+			"minecraft:waxed_exposed_copper_chain_from_honeycomb",
+			"minecraft:waxed_weathered_copper_chain_from_honeycomb",
+			"minecraft:waxed_oxidized_copper_chain_from_honeycomb",
+			"minecraft:waxed_copper_lantern_from_honeycomb",
+			"minecraft:waxed_exposed_copper_lantern_from_honeycomb",
+			"minecraft:waxed_weathered_copper_lantern_from_honeycomb",
+			"minecraft:waxed_oxidized_copper_lantern_from_honeycomb",
+			"minecraft:waxed_copper_chest_from_honeycomb",
+			"minecraft:waxed_exposed_copper_chest_from_honeycomb",
+			"minecraft:waxed_weathered_copper_chest_from_honeycomb",
+			"minecraft:waxed_oxidized_copper_chest_from_honeycomb",
+			"minecraft:waxed_copper_golem_statue_from_honeycomb",
+			"minecraft:waxed_exposed_copper_golem_statue_from_honeycomb",
+			"minecraft:waxed_weathered_copper_golem_statue_from_honeycomb",
+			"minecraft:waxed_oxidized_copper_golem_statue_from_honeycomb",
+			"minecraft:waxed_lightning_rod_from_honeycomb",
+			"minecraft:waxed_exposed_lightning_rod_from_honeycomb",
+			"minecraft:waxed_weathered_lightning_rod_from_honeycomb",
+			"minecraft:waxed_oxidized_lightning_rod_from_honeycomb",
 			"directly_wax_block"
 		]
 	]

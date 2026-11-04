@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/summon_wither",
 	"rewards": {
-		"function": "bc_rewards:nether/bring_home_the_beacon"
+		"function": "bacap_rewards:nether/bring_home_the_beacon"
 	},	
 	"criteria": {
 		"beacon": {

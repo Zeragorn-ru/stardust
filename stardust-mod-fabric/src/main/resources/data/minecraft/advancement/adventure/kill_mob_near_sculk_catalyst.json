@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/avoid_vibration",
 	"rewards": {
-		"function": "bc_rewards:mining/it_spreads"
+		"function": "bacap_rewards:mining/it_spreads"
 	},
 	"criteria": {
 		"kill_mob_near_sculk_catalyst": {

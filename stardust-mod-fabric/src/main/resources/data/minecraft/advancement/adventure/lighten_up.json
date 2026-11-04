@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/bulbous",
 	"rewards": {
-		"function": "bc_rewards:building/lighten_up"
+		"function": "bacap_rewards:building/lighten_up"
 	},
 	"criteria": {
 		"lighten_up": {

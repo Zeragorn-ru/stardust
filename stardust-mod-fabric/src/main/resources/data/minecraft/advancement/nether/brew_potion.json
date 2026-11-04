@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/basis_of_brewing",
 	"rewards": {
-		"function": "bc_rewards:nether/local_brewery"
+		"function": "bacap_rewards:nether/local_brewery"
 	},	
 	"criteria": {
 		"brewing_stand": {

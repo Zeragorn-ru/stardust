@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/your_door_was_locked",
 	"rewards": {
-		"function": "bc_rewards:building/sweet_dreams"
+		"function": "bacap_rewards:building/sweet_dreams"
 	},		
 	"criteria": {
 		"slept_in_bed": {

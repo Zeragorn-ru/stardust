@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/come_to_the_countryside",
 	"rewards": {
-		"function": "bc_rewards:farming/serious_dedication"
+		"function": "bacap_rewards:farming/serious_dedication"
 	},		
 	"criteria": {
 		"break_hoe": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:bacap/getting_wood",
 	"rewards": {
-		"function": "bc_rewards:bacap/benchmarking"
+		"function": "bacap_rewards:bacap/benchmarking"
 	},		
 	"criteria": {
 		"crafting_table": {

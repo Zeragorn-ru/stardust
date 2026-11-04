@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/minecraft_trials_edition",
 	"rewards": {
-		"function": "bc_rewards:adventure/under_lock_and_key"
+		"function": "bacap_rewards:adventure/under_lock_and_key"
 	},
 	"criteria": {
 		"under_lock_and_key": {

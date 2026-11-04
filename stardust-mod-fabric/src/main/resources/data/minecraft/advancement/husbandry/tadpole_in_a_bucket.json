@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/frog_family",
 	"rewards": {
-		"function": "bc_rewards:animal/bukkit_bukkit"
+		"function": "bacap_rewards:animal/bukkit_bukkit"
 	},		
 	"criteria": {
 		"tadpole_bucket": {

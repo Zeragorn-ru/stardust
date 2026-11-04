@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/iconic_merchandising_prop",
 	"rewards": {
-		"function": "bc_rewards:mining/cover_me_with_diamonds"
+		"function": "bacap_rewards:mining/cover_me_with_diamonds"
 	},			
 	"criteria": {
 		"diamond_helmet": {

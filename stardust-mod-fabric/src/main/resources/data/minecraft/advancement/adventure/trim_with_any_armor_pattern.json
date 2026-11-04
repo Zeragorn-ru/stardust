@@ -15,7 +15,7 @@
 	},
 	"parent": "blazeandcave:adventure/good_lookin_treasure",
 	"rewards": {
-		"function": "bc_rewards:adventure/crafting_a_new_look"
+		"function": "bacap_rewards:adventure/crafting_a_new_look"
 	},
 	"criteria": {
 		"coast_armor_trim": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/the_descent",
 	"rewards": {
-		"function": "bc_rewards:nether/nether_say_die"
+		"function": "bacap_rewards:nether/nether_say_die"
 	},	
 	"criteria": {
 		"ancient_debris": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/puppies_yipe",
 	"rewards": {
-		"function": "bc_rewards:animal/isnt_it_scute"
+		"function": "bacap_rewards:animal/isnt_it_scute"
 	},
 	"criteria": {
 		"brush_armadillo": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:armadillo"
+							"entity_type": "minecraft:armadillo"
 						}
 					}
 				],

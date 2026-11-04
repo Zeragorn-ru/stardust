@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/comparing_comparator",
 	"rewards": {
-		"function": "bc_rewards:redstone/the_power_of_books"
+		"function": "bacap_rewards:redstone/the_power_of_books"
 	},
 	"criteria": {
 		"chiseled_bookshelf": {

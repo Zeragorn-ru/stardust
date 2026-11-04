@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/fishy_business",
 	"rewards": {
-		"function": "bc_rewards:animal/tactical_fishing"
+		"function": "bacap_rewards:animal/tactical_fishing"
 	},		
 	"criteria": {
 		"cod_bucket": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/armadoggo",
 	"rewards": {
-		"function": "bc_rewards:animal/good_as_new"
+		"function": "bacap_rewards:animal/good_as_new"
 	},
 	"criteria": {
 		"repair_wolf_armor": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf",
+							"entity_type": "minecraft:wolf",
 							"equipment": {
 								"body": {
 									"items": "minecraft:wolf_armor",

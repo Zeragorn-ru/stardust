@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:adventure/wololo",
 	"rewards": {
-		"function": "bc_rewards:adventure/postmortal"
+		"function": "bacap_rewards:adventure/postmortal"
 	},	
 	"criteria": {
 		"used_totem": {

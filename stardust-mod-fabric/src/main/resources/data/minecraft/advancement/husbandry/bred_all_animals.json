@@ -3,21 +3,21 @@
 		"icon": {
 			"id": "minecraft:hay_block"
 		},
-		"title": {"translate":"Overpopulation"},
+		"title": {"translate":"Two By Two"},
 		"description": {"color":"dark_purple","translate":"Breed every type of animal"},
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
 	"parent": "blazeandcave:animal/milkshroom",
 	"rewards": {
-		"function": "bc_rewards:animal/overpopulation"
+		"function": "bacap_rewards:animal/two_by_two"
 	},		
 	"criteria": {
 	"minecraft:horse": {
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"child": {
-		  "type": "minecraft:horse"
+		  "entity_type": "minecraft:horse"
 		}
 	  }
 	},
@@ -25,7 +25,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:sheep"
+		  "entity_type": "minecraft:sheep"
 		}
 	  }
 	},
@@ -33,7 +33,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:cow"
+		  "entity_type": "minecraft:cow"
 		}
 	  }
 	},
@@ -41,7 +41,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:mooshroom"
+		  "entity_type": "minecraft:mooshroom"
 		}
 	  }
 	},
@@ -49,7 +49,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:pig"
+		  "entity_type": "minecraft:pig"
 		}
 	  }
 	},
@@ -57,7 +57,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:chicken"
+		  "entity_type": "minecraft:chicken"
 		}
 	  }
 	},
@@ -65,7 +65,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:wolf"
+		  "entity_type": "minecraft:wolf"
 		}
 	  }
 	},
@@ -73,7 +73,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:ocelot"
+		  "entity_type": "minecraft:ocelot"
 		}
 	  }
 	},
@@ -81,7 +81,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:rabbit"
+		  "entity_type": "minecraft:rabbit"
 		}
 	  }
 	},
@@ -89,7 +89,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:llama"
+		  "entity_type": "minecraft:llama"
 		}
 	  }
 	},
@@ -97,7 +97,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:turtle"
+		  "entity_type": "minecraft:turtle"
 		}
 	  }
 	},
@@ -105,7 +105,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:cat"
+		  "entity_type": "minecraft:cat"
 		}
 	  }
 	},
@@ -113,7 +113,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:panda"
+		  "entity_type": "minecraft:panda"
 		}
 	  }
 	},
@@ -121,7 +121,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:fox"
+		  "entity_type": "minecraft:fox"
 		}
 	  }
 	},
@@ -129,7 +129,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:bee"
+		  "entity_type": "minecraft:bee"
 		}
 	  }
 	},
@@ -137,7 +137,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:hoglin"
+		  "entity_type": "minecraft:hoglin"
 		}
 	  }
 	},
@@ -145,7 +145,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:strider"
+		  "entity_type": "minecraft:strider"
 		}
 	  }
 	},
@@ -153,7 +153,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:axolotl"
+		  "entity_type": "minecraft:axolotl"
 		}
 	  }
 	},
@@ -161,7 +161,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:goat"
+		  "entity_type": "minecraft:goat"
 		}
 	  }
 	},
@@ -169,7 +169,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:trader_llama"
+		  "entity_type": "minecraft:trader_llama"
 		}
 	  }
 	},
@@ -177,7 +177,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"child": {
-		  "type": "minecraft:donkey"
+		  "entity_type": "minecraft:donkey"
 		}
 	  }
 	},
@@ -185,7 +185,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"child": {
-		  "type": "minecraft:mule"
+		  "entity_type": "minecraft:mule"
 		}
 	  }
 	},
@@ -193,7 +193,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:frog"
+		  "entity_type": "minecraft:frog"
 		}
 	  }
 	},
@@ -201,7 +201,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:camel"
+		  "entity_type": "minecraft:camel"
 		}
 	  }
 	},
@@ -209,7 +209,7 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:sniffer"
+		  "entity_type": "minecraft:sniffer"
 		}
 	  }
 	},
@@ -217,7 +217,15 @@
 	  "trigger": "minecraft:bred_animals",
 	  "conditions": {
 		"parent": {
-		  "type": "minecraft:armadillo"
+		  "entity_type": "minecraft:armadillo"
+		}
+	  }
+	},
+	"minecraft:nautilus": {
+	  "trigger": "minecraft:bred_animals",
+	  "conditions": {
+		"parent": {
+		  "entity_type": "minecraft:nautilus"
 		}
 	  }
 	}

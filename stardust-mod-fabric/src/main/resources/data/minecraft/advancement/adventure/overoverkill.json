@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:weaponry/nice_to_mace_you",
 	"rewards": {
-		"function": "bc_rewards:weaponry/meteor_strike"
+		"function": "bacap_rewards:weaponry/meteor_strike"
 	},
 	"criteria": {
 		"overoverkill": {
@@ -19,7 +19,7 @@
 				"damage": {
 					"type": {
 						"direct_entity": {
-							"type": "minecraft:player",
+							"entity_type": "minecraft:player",
 							"equipment": {
 								"mainhand": {
 									"items": "minecraft:mace"
@@ -28,7 +28,7 @@
 						},
 						"tags": [
 							{
-								"id": "minecraft:is_player_attack",
+								"id": "minecraft:mace_smash",
 								"expected": true
 							}
 						]

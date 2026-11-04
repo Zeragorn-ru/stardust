@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/x_bow",
 	"rewards": {
-		"function": "bc_rewards:weaponry/ol_betsy"
+		"function": "bacap_rewards:weaponry/ol_betsy"
 	},
 	"criteria": {
 		"shot_crossbow": {

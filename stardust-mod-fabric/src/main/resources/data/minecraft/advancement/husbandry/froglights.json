@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/cerulean",
 	"rewards": {
-		"function": "bc_rewards:building/incandescent"
+		"function": "bacap_rewards:building/incandescent"
 	},		
 	"criteria": {
 		"verdant_froglight": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/what_a_fungi",
 	"rewards": {
-		"function": "bc_rewards:nether/oh_shiny"
+		"function": "bacap_rewards:nether/oh_shiny"
 	},
 	"criteria": {
 		"distract_piglin": {
@@ -88,7 +88,7 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:piglin",
+							"entity_type": "minecraft:piglin",
 							"flags": {
 								"is_baby": false
 							}
@@ -174,7 +174,7 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:piglin",
+							"entity_type": "minecraft:piglin",
 							"flags": {
 								"is_baby": false
 							}

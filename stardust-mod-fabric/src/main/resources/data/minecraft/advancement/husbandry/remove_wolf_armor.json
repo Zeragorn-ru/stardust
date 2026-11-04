@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/repair_wolf_armor",
 	"rewards": {
-		"function": "bc_rewards:animal/shear_brilliance"
+		"function": "bacap_rewards:animal/shear_brilliance"
 	},
 	"criteria": {
 		"remove_wolf_armor": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],

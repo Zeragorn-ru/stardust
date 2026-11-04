@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/and_make_it_double",
 	"rewards": {
-		"function": "bc_rewards:adventure/birthday_song"
+		"function": "bacap_rewards:adventure/birthday_song"
 	},		
 	"criteria": {
 		"allay_deliver_cake_to_note_block": {

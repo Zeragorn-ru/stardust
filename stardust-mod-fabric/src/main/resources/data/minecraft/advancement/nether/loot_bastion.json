@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/brute_force",
 	"rewards": {
-		"function": "bc_rewards:nether/war_pigs"
+		"function": "bacap_rewards:nether/war_pigs"
 	},
 	"criteria": {
 		"loot_bastion_other": {

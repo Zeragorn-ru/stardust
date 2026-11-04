@@ -40,13 +40,13 @@
 			}
 		},
 		"title": {"translate":"I've got a bad feeling about this"},
-		"description": {"color":"green","translate":"Kill a raid captain. Maybe consider staying away from villages for the time being..."},
+		"description": {"color":"green","translate":"Kill a raid captain. I’d warn against drinking that bottle they dropped…"},
 		"announce_to_chat": true
 
 	},
 	"parent": "blazeandcave:adventure/riot_shield",
 	"rewards": {
-		"function": "bc_rewards:adventure/ive_got_a_bad_feeling_about_this"
+		"function": "bacap_rewards:adventure/ive_got_a_bad_feeling_about_this"
 	},		
 	"criteria": {
 		"bad_omen": {
@@ -57,9 +57,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#minecraft:raiders",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "#minecraft:raiders",
+							"minecraft:type_specific/raider": {
 								"is_captain": true
 							}
 						}

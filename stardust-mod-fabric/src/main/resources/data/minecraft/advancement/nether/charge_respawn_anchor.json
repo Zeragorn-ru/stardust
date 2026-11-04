@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/anchorman",
 	"rewards": {
-		"function": "bc_rewards:nether/not_quite_nine_lives"
+		"function": "bacap_rewards:nether/not_quite_nine_lives"
 	},
 	"criteria": {
 		"charge_respawn_anchor": {

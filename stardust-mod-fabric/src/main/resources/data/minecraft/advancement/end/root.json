@@ -5,12 +5,12 @@
 		},
 		"title": {"translate":"The End"},
 		"description": {"color":"#CCCCCC","translate":"Or the beginning?"},
-		"background": "minecraft:textures/gui/advancements/backgrounds/end.png",
+		"background": "gui/advancements/backgrounds/end",
 		"show_toast": false,
 		"announce_to_chat": false
 	},
 	"rewards": {
-		"function": "bc_rewards:end/root"
+		"function": "bacap_rewards:end/root"
 	},	
 	"criteria": {
 		"entered_end": {

@@ -11,7 +11,7 @@
 	},
 	"parent": "blazeandcave:challenges/global_vaccination",
 	"rewards": {
-		"function": "bc_rewards:challenges/how_did_we_get_here"
+		"function": "bacap_rewards:challenges/how_did_we_get_here"
 	},	
 	"criteria": {
 		"all_effects": {
@@ -50,7 +50,8 @@
 					"minecraft:oozing": {},
 					"minecraft:weaving": {},
 					"minecraft:infested": {},
-					"minecraft:wind_charged": {}
+					"minecraft:wind_charged": {},
+					"minecraft:breath_of_the_nautilus": {}
 				}
 			}
 		}

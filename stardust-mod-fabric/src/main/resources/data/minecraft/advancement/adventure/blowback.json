@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/from_under_your_feet",
 	"rewards": {
-		"function": "bc_rewards:adventure/blowback"
+		"function": "bacap_rewards:adventure/blowback"
 	},
 	"criteria": {
 		"blowback": {
@@ -21,13 +21,13 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:breeze"
+							"entity_type": "minecraft:breeze"
 						}
 					}
 				],
 				"killing_blow": {
 					"direct_entity": {
-						"type": "minecraft:breeze_wind_charge"
+						"entity_type": "minecraft:breeze_wind_charge"
 					},
 					"tags": [
 						{

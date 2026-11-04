@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:story/form_obsidian",
 	"rewards": {
-		"function": "bc_rewards:mining/enchanter"
+		"function": "bacap_rewards:mining/enchanter"
 	},		
 	"criteria": {
 		"enchanting_table": {

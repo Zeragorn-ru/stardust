@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:story/follow_ender_eye",
 	"rewards": {
-		"function": "bc_rewards:nether/the_end"
+		"function": "bacap_rewards:nether/the_end"
 	},	
 	"criteria": {
 		"entered_end_portal": {

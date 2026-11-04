@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/budget_channeling",
 	"rewards": {
-		"function": "bc_rewards:mining/surge_protector"
+		"function": "bacap_rewards:mining/surge_protector"
 	},		
 	"criteria": {
 		"lightning_rod_with_villager_no_fire": {
@@ -25,8 +25,7 @@
 									"max": 30.0
 								}
 							},
-							"type_specific": {
-								"type": "lightning",
+							"minecraft:type_specific/lightning": {
 								"blocks_set_on_fire": 0
 							}
 						},
@@ -37,7 +36,7 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						},
 						"entity": "this"
 					}

@@ -33,7 +33,7 @@
 	},
 	"parent": "blazeandcave:monsters/boned",
 	"rewards": {
-		"function": "bc_rewards:monsters/not_today_thank_you"
+		"function": "bacap_rewards:monsters/not_today_thank_you"
 	},
 	"criteria": {
 		"deflected_skeleton": {
@@ -50,7 +50,7 @@
 					},
 					"blocked": true,
 					"source_entity": {
-						"type": "#minecraft:skeletons"
+						"entity_type": "#minecraft:skeletons"
 					}
 				}
 			}

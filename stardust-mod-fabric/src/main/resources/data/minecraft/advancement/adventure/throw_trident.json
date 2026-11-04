@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/root",
 	"rewards": {
-		"function": "bc_rewards:weaponry/a_throwaway_joke"
+		"function": "bacap_rewards:weaponry/a_throwaway_joke"
 	},
 	"criteria": {
 		"shot_trident": {
@@ -24,7 +24,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:trident"
+							"entity_type": "minecraft:trident"
 						}
 					}
 				}

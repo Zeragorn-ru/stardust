@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/root",
 	"rewards": {
-		"function": "bc_rewards:mining/stone_age"
+		"function": "bacap_rewards:mining/stone_age"
 	},		
 	"criteria": {
 		"cobblestone": {

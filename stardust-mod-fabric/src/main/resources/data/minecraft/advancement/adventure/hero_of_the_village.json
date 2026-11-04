@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/feeling_ill",
 	"rewards": {
-		"function": "bc_rewards:adventure/hero_of_the_village"
+		"function": "bacap_rewards:adventure/hero_of_the_village"
 	},		
 	"criteria": {
 		"hero_of_the_village": {

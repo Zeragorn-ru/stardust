@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/hive_mind",
 	"rewards": {
-		"function": "bc_rewards:animal/total_beelocation"
+		"function": "bacap_rewards:animal/total_beelocation"
 	},		
 	"criteria": {
 		"silk_touch_nest": {

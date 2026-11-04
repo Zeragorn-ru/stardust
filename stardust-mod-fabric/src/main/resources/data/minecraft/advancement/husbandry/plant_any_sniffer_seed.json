@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/feed_snifflet",
 	"rewards": {
-		"function": "bc_rewards:adventure/planting_the_past"
+		"function": "bacap_rewards:adventure/planting_the_past"
 	},
 	"criteria": {
 		"pitcher_pod": {

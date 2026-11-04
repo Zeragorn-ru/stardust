@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/enders_chest",
 	"rewards": {
-		"function": "bc_rewards:nether/eye_spy"
+		"function": "bacap_rewards:nether/eye_spy"
 	},	
 	"criteria": {
 		"in_stronghold": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

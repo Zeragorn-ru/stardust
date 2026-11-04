@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:end/kill_dragon",
 	"rewards": {
-		"function": "bc_rewards:end/the_next_generation"
+		"function": "bacap_rewards:end/the_next_generation"
 	},	
 	"criteria": {
 		"dragon_egg": {

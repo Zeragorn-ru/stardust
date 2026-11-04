@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/billy_the_kid",
 	"rewards": {
-		"function": "bc_rewards:animal/whatever_floats_your_goat"
+		"function": "bacap_rewards:animal/whatever_floats_your_goat"
 	},		
 	"criteria": {
 		"ride_a_boat_with_a_goat": {
@@ -20,9 +20,9 @@
 						"condition": "minecraft:entity_properties",
 						"predicate": {
 							"vehicle": {
-								"type": "minecraft:boat",
+								"entity_type": "#minecraft:boat",
 								"passenger": {
-									"type": "minecraft:goat"
+									"entity_type": "minecraft:goat"
 								}
 							}
 						},

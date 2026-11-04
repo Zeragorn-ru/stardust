@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/allayance",
 	"rewards": {
-		"function": "bc_rewards:adventure/youve_got_a_friend_in_me"
+		"function": "bacap_rewards:adventure/youve_got_a_friend_in_me"
 	},		
 	"criteria": {
 		"allay_deliver_item_to_player": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:allay"
+							"entity_type": "minecraft:allay"
 						}
 					}
 				]

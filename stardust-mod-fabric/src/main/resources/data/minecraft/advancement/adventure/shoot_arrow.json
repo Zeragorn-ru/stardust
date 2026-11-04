@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/root",
 	"rewards": {
-		"function": "bc_rewards:weaponry/take_aim"
+		"function": "bacap_rewards:weaponry/take_aim"
 	},		
 	"criteria": {
 		"shot_arrow": {
@@ -24,7 +24,8 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:arrow"
+							"entity_type": "minecraft:arrow",
+							"nbt": "{weapon:{id:\"minecraft:bow\"}}"
 						}
 					}
 				}
@@ -42,7 +43,8 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:spectral_arrow"
+							"entity_type": "minecraft:spectral_arrow",
+							"nbt": "{weapon:{id:\"minecraft:bow\"}}"
 						}
 					}
 				}

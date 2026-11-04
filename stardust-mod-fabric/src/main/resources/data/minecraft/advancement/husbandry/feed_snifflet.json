@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/jurassic_sniff",
 	"rewards": {
-		"function": "bc_rewards:adventure/little_sniffs"
+		"function": "bacap_rewards:adventure/little_sniffs"
 	},
 	"criteria": {
 		"feed_snifflet": {
@@ -23,7 +23,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sniffer",
+							"entity_type": "minecraft:sniffer",
 							"flags": {
 								"is_baby": true
 							}

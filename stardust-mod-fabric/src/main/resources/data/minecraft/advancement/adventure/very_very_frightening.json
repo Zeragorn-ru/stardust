@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/zeus",
 	"rewards": {
-		"function": "bc_rewards:enchanting/very_very_frightening"
+		"function": "bacap_rewards:enchanting/very_very_frightening"
 	},
 	"criteria": {
 		"struck_villager": {
@@ -18,7 +18,7 @@
 			"conditions": {
 				"victims": [
 						{
-					"type": "minecraft:villager"
+					"entity_type": "minecraft:villager"
 					}
 				]
 			}

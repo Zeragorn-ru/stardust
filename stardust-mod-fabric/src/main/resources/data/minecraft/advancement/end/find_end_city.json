@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:end/enter_end_gateway",
 	"rewards": {
-		"function": "bc_rewards:end/the_city_at_the_end_of_the_game"
+		"function": "bacap_rewards:end/the_city_at_the_end_of_the_game"
 	},	
 	"criteria": {
 		"in_city": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

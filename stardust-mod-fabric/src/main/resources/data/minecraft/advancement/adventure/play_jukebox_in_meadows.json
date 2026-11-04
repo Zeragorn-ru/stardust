@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/music_to_my_ears",
 	"rewards": {
-		"function": "bc_rewards:adventure/the_sound_of_music"
+		"function": "bacap_rewards:adventure/the_sound_of_music"
 	},
 	"criteria": {
 		"play_jukebox_in_meadows": {

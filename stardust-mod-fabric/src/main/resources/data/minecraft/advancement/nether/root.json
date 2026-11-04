@@ -5,12 +5,12 @@
 		},
 		"title": {"translate":"Nether"},
 		"description": {"color":"#CCCCCC","translate":"Bring summer clothes"},
-		"background": "minecraft:textures/block/netherrack.png",
+		"background": "block/netherrack",
 		"show_toast": false,
 		"announce_to_chat": false
 	},
 	"rewards": {
-		"function": "bc_rewards:nether/root"
+		"function": "bacap_rewards:nether/root"
 	},	
 	"criteria": {
 		"nether": {

@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:husbandry/root",
 	"rewards": {
-		"function": "bc_rewards:animal/leader_of_the_pack"
+		"function": "bacap_rewards:animal/leader_of_the_pack"
 	},		
 	"criteria": {
 		"tamed_animal": {
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:wolf"
+					"entity_type": "minecraft:wolf"
 				}
 			}
 		}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/the_hunt_begins",
 	"rewards": {
-		"function": "bc_rewards:nether/spooky_scary_skeleton"
+		"function": "bacap_rewards:nether/spooky_scary_skeleton"
 	},	
 	"criteria": {
 		"wither_skull": {

@@ -5,12 +5,12 @@
 		},
 		"title": {"translate":"Adventure"},
 		"description": {"color":"#CCCCCC","translate":"Village, pillage and exploration"},
-		"background": "minecraft:textures/gui/advancements/backgrounds/adventure.png",
+		"background": "gui/advancements/backgrounds/adventure",
 		"show_toast": false,
 		"announce_to_chat": false
 	},
 	"rewards": {
-		"function": "bc_rewards:adventure/root"
+		"function": "bacap_rewards:adventure/root"
 	},		
 	"criteria": {
 		"killed_something": {

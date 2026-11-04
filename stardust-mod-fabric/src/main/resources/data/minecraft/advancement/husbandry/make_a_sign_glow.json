@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/cephalight",
 	"rewards": {
-		"function": "bc_rewards:animal/glow_and_behold"
+		"function": "bacap_rewards:animal/glow_and_behold"
 	},		
 	"criteria": {
 		"glow_ink_sac": {

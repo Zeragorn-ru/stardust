@@ -12,7 +12,7 @@
 	},
 	"parent": "blazeandcave:biomes/this_snow_is_snowier",
 	"rewards": {
-		"function": "bc_rewards:biomes/light_as_a_rabbit"
+		"function": "bacap_rewards:biomes/light_as_a_rabbit"
 	},		
 	"criteria": {
 		"walk_on_powder_snow_with_leather_boots": {
@@ -45,8 +45,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

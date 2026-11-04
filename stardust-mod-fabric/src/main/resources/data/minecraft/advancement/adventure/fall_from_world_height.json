@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/lucky_break",
 	"rewards": {
-		"function": "bc_rewards:mining/caves_and_cliffs"
+		"function": "bacap_rewards:mining/caves_and_cliffs"
 	},
 	"criteria": {
 		"fall_from_world_height": {

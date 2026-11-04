@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/iron_tools",
 	"rewards": {
-		"function": "bc_rewards:mining/suit_up"
+		"function": "bacap_rewards:mining/suit_up"
 	},
 	"criteria": {
 		"iron_helmet": {

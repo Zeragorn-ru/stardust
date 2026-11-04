@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:end/kill_dragon",
 	"rewards": {
-		"function": "bc_rewards:end/remote_getaway"
+		"function": "bacap_rewards:end/remote_getaway"
 	},	
 	"criteria": {
 		"outer_pos_x": {
@@ -36,8 +36,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -70,8 +70,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -104,8 +104,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -138,8 +138,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

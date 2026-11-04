@@ -2237,6 +2237,10 @@ button,
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
     overflow: hidden;
+    /* Глобальный button { user-select: none } (см. начало файла) блокирует
+       выделение в свёрнутой строке — она лежит внутри <button>. Разрешаем
+       явно: Ctrl/Cmd+C теперь копирует текст сводки. */
+    user-select: text;
 }
 .crash-history__row[aria-expanded="true"] .crash-history__summary {
     display: block;

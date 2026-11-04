@@ -10,14 +10,14 @@
 	},
 	"parent": "minecraft:nether/get_wither_skull",
 	"rewards": {
-		"function": "bc_rewards:nether/withering_heights"
+		"function": "bacap_rewards:nether/withering_heights"
 	},	
 	"criteria": {
 		"summoned": {
 			"trigger": "minecraft:summoned_entity",
 			"conditions": {
 				"entity": {
-					"type": "wither"
+					"entity_type": "wither"
 				}
 			}
 		}

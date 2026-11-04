@@ -213,7 +213,8 @@ public final class StardustServerLifecycle {
     private static long lastTickNanos;
     private static long telemetryTickCount;
 
-    // Снимок публикуется серверным потоком; HTTP-поток не читает живой PlayerList.
+    // Снимок публикуется серверным потоком; HTTP-поток получает immutable copy,
+    // поэтому никакой гонки: read-side не видит мутации write-side.
     private static volatile java.util.List<String> onlinePlayerNames = java.util.List.of();
     private static boolean chatObserved;
 
@@ -228,16 +229,19 @@ public final class StardustServerLifecycle {
     }
 
     static void onServerTick(MinecraftServer server) {
-        // Мутаем существующий список вместо создания нового ArrayList каждый тик (~20 раз/сек).
-        // .toList() создавал новые объекты для каждого серверного тика — главный источник GC pressure.
-        if (!(onlinePlayerNames instanceof java.util.ArrayList<?> list)) {
-            onlinePlayerNames = new java.util.ArrayList<>();
-        }
-        @SuppressWarnings("unchecked")
-        var namesList = (java.util.ArrayList<String>) onlinePlayerNames;
-        namesList.clear();
-        for (var p : server.getPlayerList().getPlayers()) {
-            namesList.add(p.getGameProfile().name());
+        // Снимок — immutable-список, публикуемый одной volatile-записью после
+        // полной сборки: HTTP-поток никогда не видит полустёртый/полутный
+        // список (мутация общего ArrayList давала ConcurrentModificationException).
+        // Новый список создаём только когда ростер изменился — при стабильном
+        // онлайне тик не аллоцирует ничего (исходный .toList() аллоцировал
+        // каждый тик, ~20 раз/сек).
+        var players = server.getPlayerList().getPlayers();
+        if (!sameRoster(onlinePlayerNames, players)) {
+            java.util.ArrayList<String> snapshot = new java.util.ArrayList<>(players.size());
+            for (var p : players) {
+                snapshot.add(p.getGameProfile().name());
+            }
+            onlinePlayerNames = java.util.Collections.unmodifiableList(snapshot);
         }
         // Телеметрия — только с выделенного сервера: одиночная игра (даже
         // открытая в LAN) — это клиентская машина, её TPS/MSPT не нужны
@@ -273,5 +277,20 @@ public final class StardustServerLifecycle {
             telemetryTickCount = 0;
             lastTickNanos = now;
         }
+    }
+
+    /**
+     * Тот ли это ростер, что в опубликованном снимке. Порядок обхода
+     * PlayerList (LinkedHashMap, порядок входа) стабилен, пока состав не
+     * меняется, поэтому поэлементного сравнения достаточно; ложное «изменился»
+     * всего лишь пересобирает снимок — корректность не зависит от порядка.
+     */
+    private static boolean sameRoster(java.util.List<String> snapshot,
+                                      java.util.List<? extends ServerPlayer> players) {
+        if (snapshot.size() != players.size()) return false;
+        for (int i = 0; i < players.size(); i++) {
+            if (!snapshot.get(i).equals(players.get(i).getGameProfile().name())) return false;
+        }
+        return true;
     }
 }

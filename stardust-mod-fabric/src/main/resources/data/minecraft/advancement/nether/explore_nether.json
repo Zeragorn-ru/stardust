@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/twisted",	
 	"rewards": {
-		"function": "bc_rewards:nether/hot_tourist_destination"
+		"function": "bacap_rewards:nether/hot_tourist_destination"
 	},	
 	"criteria": {
 		"nether_wastes": {
@@ -32,8 +32,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -61,8 +61,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -90,8 +90,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -119,8 +119,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -148,8 +148,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

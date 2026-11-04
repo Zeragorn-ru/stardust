@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/iconic_merchandising_prop",
 	"rewards": {
-		"function": "bc_rewards:mining/hot_stuff"
+		"function": "bacap_rewards:mining/hot_stuff"
 	},			
 	"criteria": {
 		"lava_bucket": {

@@ -10,20 +10,23 @@
 	},
 	"parent": "blazeandcave:monsters/anti_air",
 	"rewards": {
-		"function": "bc_rewards:monsters/two_birds_one_arrow"
+		"function": "bacap_rewards:monsters/two_birds_one_arrow"
 	},
 	"criteria": {
 		"two_birds": {
-			"trigger": "minecraft:killed_by_crossbow",
+			"trigger": "minecraft:killed_by_arrow",
 			"conditions": {
 				"victims": [
 					{
-						"type": "minecraft:phantom"
+						"entity_type": "minecraft:phantom"
 					},
 					{
-						"type": "minecraft:phantom"
+						"entity_type": "minecraft:phantom"
 					}
-				]
+				],
+				"fired_from_weapon": {
+					"items": "minecraft:crossbow"
+				}
 			}
 		}
 	}

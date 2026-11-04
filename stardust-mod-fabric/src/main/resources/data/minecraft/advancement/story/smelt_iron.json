@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/renewable_energy",
 	"rewards": {
-		"function": "bc_rewards:mining/acquire_hardware"
+		"function": "bacap_rewards:mining/acquire_hardware"
 	},		
 	"criteria": {
 		"iron": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:potion/hopping_mad",
 	"rewards": {
-		"function": "bc_rewards:potion/a_furious_cocktail"
+		"function": "bacap_rewards:potion/a_furious_cocktail"
 	},		
 	"criteria": {
 		"all_effects": {

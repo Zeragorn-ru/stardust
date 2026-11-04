@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Look at the Ender Dragon through a Spyglass"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:end/dragon_shield",
+	"parent": "minecraft:end/root",
 	"rewards": {
-		"function": "bc_rewards:end/is_it_a_plane"
+		"function": "bacap_rewards:end/is_it_a_plane"
 	},		
 	"criteria": {
 		"spyglass_at_dragon": {
@@ -19,10 +19,10 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"looking_at": {
-									"type": "minecraft:ender_dragon"
+									"entity_type": "minecraft:ender_dragon"
 								}
 							}
 						},

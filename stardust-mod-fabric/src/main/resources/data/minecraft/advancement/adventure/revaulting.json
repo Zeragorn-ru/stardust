@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/hard_mode_activated",
 	"rewards": {
-		"function": "bc_rewards:adventure/revaulting"
+		"function": "bacap_rewards:adventure/revaulting"
 	},
 	"criteria": {
 		"revaulting": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/root",
 	"rewards": {
-		"function": "bc_rewards:farming/a_seedy_place"
+		"function": "bacap_rewards:farming/a_seedy_place"
 	},		
 	"criteria": {
 		"wheat": {

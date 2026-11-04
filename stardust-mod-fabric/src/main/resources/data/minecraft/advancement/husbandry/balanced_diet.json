@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/meat_lovers",
 	"rewards": {
-		"function": "bc_rewards:farming/a_balanced_diet"
+		"function": "bacap_rewards:farming/a_balanced_diet"
 	},		
 	"criteria": {
 		"apple": {

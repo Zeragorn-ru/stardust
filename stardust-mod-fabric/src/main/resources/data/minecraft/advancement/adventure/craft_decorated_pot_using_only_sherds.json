@@ -18,7 +18,7 @@
 	},
 	"parent": "minecraft:adventure/salvage_sherd",
 	"rewards": {
-		"function": "bc_rewards:adventure/careful_restoration"
+		"function": "bacap_rewards:adventure/careful_restoration"
 	},		
 	"criteria": {
 		"pot_crafted_using_only_sherds": {
@@ -27,16 +27,16 @@
 				"recipe_id": "minecraft:decorated_pot",
 				"ingredients": [
 					{
-						"tag": "minecraft:decorated_pot_sherds"
+						"items": "#minecraft:decorated_pot_sherds"
 					},
 					{
-						"tag": "minecraft:decorated_pot_sherds"
+						"items": "#minecraft:decorated_pot_sherds"
 					},
 					{
-						"tag": "minecraft:decorated_pot_sherds"
+						"items": "#minecraft:decorated_pot_sherds"
 					},
 					{
-						"tag": "minecraft:decorated_pot_sherds"
+						"items": "#minecraft:decorated_pot_sherds"
 					}
 				]
 			}

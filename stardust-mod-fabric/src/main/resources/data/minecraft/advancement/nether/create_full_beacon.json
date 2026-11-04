@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/create_beacon",
 	"rewards": {
-		"function": "bc_rewards:nether/beaconator"
+		"function": "bacap_rewards:nether/beaconator"
 	},	
 	"criteria": {
 		"beacon": {
