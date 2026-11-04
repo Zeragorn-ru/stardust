@@ -192,7 +192,7 @@ function Shell() {
         aria-label="Навигация админки"
       >
         <div className="m-drawer-brand">
-          <img className="m-brand-mark" src="/stardust-logo.svg?v=star-transparent" alt="" />
+          <img className="m-brand-mark" src="/stardust-logo.svg?v=palette-lunar" alt="" />
           <div>
             <strong>StarDust</strong>
             <small>Панель управления</small>

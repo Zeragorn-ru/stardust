@@ -40,7 +40,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (username: string) => void }
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="login-brand">
-          <img className="login-brand-mark" src="/stardust-logo.svg?v=star-transparent" alt="" />
+          <img className="login-brand-mark" src="/stardust-logo.svg?v=palette-lunar" alt="" />
           <span>StarDust</span>
         </div>
         <p className="muted login-card__sub">Вход в панель управления</p>
