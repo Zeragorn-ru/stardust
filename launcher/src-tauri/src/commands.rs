@@ -27,12 +27,12 @@ use crate::paths;
 #[serde(rename_all = "camelCase")]
 pub enum ProxyType {
     System,
-    #[cfg_attr(not(target_os = "macos"), default)]
     Builtin,
     BuiltinSocks,
-    // На macOS встроенный proxy не нужен для обычной сети и может ломать доступ
-    // к сервисам. Уже сохранённые настройки не затрагиваются.
-    #[cfg_attr(target_os = "macos", default)]
+    /// Без прокси: прямой доступ к серверам.
+    /// Универсальный дефолт — встроенный прокси не нужен и ломается при
+    /// сетевых ошибках (см. https://meta.fabricmc.net).
+    #[default]
     None,
 }
 
@@ -493,11 +493,8 @@ mod settings_tests {
     }
 
     #[test]
-    fn default_proxy_matches_platform() {
-        #[cfg(target_os = "macos")]
+    fn default_proxy_is_none() {
         assert_eq!(ProxyType::default(), ProxyType::None);
-        #[cfg(not(target_os = "macos"))]
-        assert_eq!(ProxyType::default(), ProxyType::Builtin);
     }
 
     #[test]

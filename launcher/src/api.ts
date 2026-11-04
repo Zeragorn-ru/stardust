@@ -53,7 +53,7 @@ const FALLBACK_SETTINGS: Settings = {
   memoryMb: 6144,
   downloadConcurrency: 6,
   show3dModel: true,
-  proxyType: "builtin",
+  proxyType: "none",
   javaProvider: "temurin",
   javaCustomPath: null,
   skipBuildCheck: false,
