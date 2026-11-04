@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/gi_geode",
 	"rewards": {
-		"function": "bc_rewards:mining/galileo_figaro"
+		"function": "bacap_rewards:mining/galileo_figaro"
 	},		
 	"criteria": {
 		"spyglass": {

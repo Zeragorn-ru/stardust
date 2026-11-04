@@ -13,15 +13,15 @@
 	},
 	"parent": "blazeandcave:statistics/sneaky_snitch",
 	"rewards": {
-		"function": "bc_rewards:statistics/black_belt_ninja"
+		"function": "bacap_rewards:statistics/black_belt_ninja"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

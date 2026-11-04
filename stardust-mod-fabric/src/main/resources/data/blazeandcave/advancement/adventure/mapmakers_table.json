@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/mapmaker",
 	"rewards": {
-		"function": "bc_rewards:adventure/mapmakers_table"
+		"function": "bacap_rewards:adventure/mapmakers_table"
 	},		
 	"criteria": {
 		"cartography_table": {

@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/master_fisher",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_tridenteer"
+		"function": "bacap_rewards:enchanting/master_tridenteer"
 	},		
 	"criteria": {
 		"perfect_trident_loyalty": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/ultra_hardcore",
 	"rewards": {
-		"function": "bc_rewards:farming/an_apple_a_day"
+		"function": "bacap_rewards:farming/an_apple_a_day"
 	},		
 	"criteria": {
 		"an_apple_a_day": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/all_chained_up",
 	"rewards": {
-		"function": "bc_rewards:adventure/retro_future_knight"
+		"function": "bacap_rewards:adventure/retro_future_knight"
 	},		
 	"criteria": {
 		"chainmail_helmet": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/pushed_around",
 	"rewards": {
-		"function": "bc_rewards:biomes/atlantis"
+		"function": "bacap_rewards:biomes/atlantis"
 	},		
 	"criteria": {
 		"ocean_ruin": {
@@ -45,8 +45,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

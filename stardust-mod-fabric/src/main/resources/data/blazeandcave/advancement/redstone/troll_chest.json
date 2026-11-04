@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/tripping_over",
 	"rewards": {
-		"function": "bc_rewards:redstone/troll_chest"
+		"function": "bacap_rewards:redstone/troll_chest"
 	},
 	"criteria": {
 		"trapped_chest": {

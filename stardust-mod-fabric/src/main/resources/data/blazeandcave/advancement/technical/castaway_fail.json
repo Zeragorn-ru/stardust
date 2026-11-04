@@ -401,7 +401,7 @@
 			}
 		},
 		"cake": {
-			"trigger": "minecraft:item_used_on_block",
+			"trigger": "minecraft:default_block_use",
 			"conditions": {
 				"location": [
 					{
@@ -423,6 +423,16 @@
 				"item": {
 					"items": [
 						"minecraft:glow_berries"
+					]
+				}
+			}
+		},
+		"ominous_bottle": {
+			"trigger": "consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:ominous_bottle"
 					]
 				}
 			}
@@ -471,7 +481,8 @@
 			"milk_bucket",
 			"honey_bottle",
 			"cake",
-			"glow_berries"
+			"glow_berries",
+			"ominous_bottle"
 		]
 	]
 }

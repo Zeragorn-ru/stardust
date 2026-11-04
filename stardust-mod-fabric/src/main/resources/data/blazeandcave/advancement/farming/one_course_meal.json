@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/natural_fertiliser",
 	"rewards": {
-		"function": "bc_rewards:farming/one_course_meal"
+		"function": "bacap_rewards:farming/one_course_meal"
 	},
 	"criteria": {
 		"bone_meal": {

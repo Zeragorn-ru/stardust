@@ -11,7 +11,7 @@
 	},
 	"parent": "minecraft:story/cure_zombie_villager",
 	"rewards": {
-		"function": "bc_rewards:potion/mad_scientist"
+		"function": "bacap_rewards:potion/mad_scientist"
 	},		
 	"criteria": {
 		"farmer": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:end/sky_high",
 	"rewards": {
-		"function": "bc_rewards:end/uh_houston_we_have_a_problem"
+		"function": "bacap_rewards:end/uh_houston_we_have_a_problem"
 	},		
 	"criteria": {
 		"world_height": {
@@ -36,8 +36,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

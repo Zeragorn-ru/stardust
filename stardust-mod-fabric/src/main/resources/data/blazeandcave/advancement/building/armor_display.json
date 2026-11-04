@@ -4,13 +4,13 @@
 			"id": "minecraft:netherite_helmet"
 		},
 		"title": {"translate":"Armor Display"},
-		"description": {"color":"dark_purple","translate":"Place all six sets of armor on six different armor stands"},
+		"description": {"color":"dark_purple","translate":"Put every full set of armor on different armor stands"},
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
 	"parent": "blazeandcave:building/living_dummy",
 	"rewards": {
-		"function": "bc_rewards:building/armor_display"
+		"function": "bacap_rewards:building/armor_display"
 	},		
 	"criteria": {
 		"leather": {
@@ -21,7 +21,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:armor_stand",
+							"entity_type": "minecraft:armor_stand",
 							"equipment": {
 								"head": {
 									"items": [
@@ -49,6 +49,42 @@
 				]
 			}
 		},
+		"copper": {
+			"trigger": "minecraft:player_interacted_with_entity",
+			"conditions": {
+				"entity": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"entity_type": "minecraft:armor_stand",
+							"equipment": {
+								"head": {
+									"items": [
+										"minecraft:copper_helmet"
+									]
+								},
+								"chest": {
+									"items": [
+										"minecraft:copper_chestplate"
+									]
+								},
+								"legs": {
+									"items": [
+										"minecraft:copper_leggings"
+									]
+								},
+								"feet": {
+									"items": [
+										"minecraft:copper_boots"
+									]
+								}
+							}
+						}
+					}
+				]
+			}
+		},
 		"golden": {
 			"trigger": "minecraft:player_interacted_with_entity",
 			"conditions": {
@@ -57,7 +93,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:armor_stand",
+							"entity_type": "minecraft:armor_stand",
 							"equipment": {
 								"head": {
 									"items": [
@@ -93,7 +129,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:armor_stand",
+							"entity_type": "minecraft:armor_stand",
 							"equipment": {
 								"head": {
 									"items": [
@@ -129,7 +165,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:armor_stand",
+							"entity_type": "minecraft:armor_stand",
 							"equipment": {
 								"head": {
 									"items": [
@@ -165,7 +201,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:armor_stand",
+							"entity_type": "minecraft:armor_stand",
 							"equipment": {
 								"head": {
 									"items": [
@@ -201,7 +237,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:armor_stand",
+							"entity_type": "minecraft:armor_stand",
 							"equipment": {
 								"head": {
 									"items": [

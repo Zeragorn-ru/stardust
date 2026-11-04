@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Get stuck in a cobweb"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:mining/gold_mine",
+	"parent": "blazeandcave:mining/this_is_mine_now",
 	"rewards": {
-		"function": "bc_rewards:mining/eeuuwww"
+		"function": "bacap_rewards:mining/eeuuwww"
 	},
 	"criteria": {
 		"cobweb": {

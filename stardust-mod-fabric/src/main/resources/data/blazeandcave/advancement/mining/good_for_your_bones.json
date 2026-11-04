@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/gi_geode",
 	"rewards": {
-		"function": "bc_rewards:mining/good_for_your_bones"
+		"function": "bacap_rewards:mining/good_for_your_bones"
 	},		
 	"criteria": {
 		"calcite": {

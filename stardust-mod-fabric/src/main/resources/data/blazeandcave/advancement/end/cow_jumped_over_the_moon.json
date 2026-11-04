@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:end/the_point_of_no_return",
 	"rewards": {
-		"function": "bc_rewards:end/cow_jumped_over_the_moon"
+		"function": "bacap_rewards:end/cow_jumped_over_the_moon"
 	},		
 	"criteria": {
 		"killed_cow": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:cow",
+					"entity_type": "minecraft:cow",
 					"location": {
 						"dimension": "the_end"
 					}

@@ -4,13 +4,13 @@ tellraw @s {"color":"gray","bold":false,"text":" ","extra":[{"color":"gray","bol
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}
 
 # How
-tellraw @s ["",{"translate":"The mod in question is named Advancement Info, which displays the requirements that have been completed on each advancement."}]
+tellraw @s ["",{"translate":"The mod in question is named Advancement Info Reloaded, which displays the requirements that have been completed on each advancement."}]
 tellraw @s ["",{"translate":"It is extremely useful, especially for Super Challenges with many requirements such as 'All the Blocks'."}]
 tellraw @s ["",{"translate":"It can be downloaded here:"}]
-tellraw @s ["",{"color":"aqua","underlined": true,"text":"https://www.curseforge.com/minecraft/mc-mods/advancementinfo ","clickEvent":{"action":"open_url","value":"https://bit.ly/3T1qzV7"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to follow link","color":"gold"}]}}]
+tellraw @s ["",{"color":"aqua","underlined": true,"text":"https://modrinth.com/mod/advancements-reloaded","click_event":{"action":"open_url","url":"https://modrinth.com/mod/advancements-reloaded"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to follow link","color":"gold"}]}}]
 
 # Go back
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}
-tellraw @s ["",{"text":"[ «« ]","color":"red","clickEvent":{"action":"run_command","value":"/function blazeandcave:config/help_faq"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to go back","color":"gold"}]}}," ",{"translate":"Go back"}]
+tellraw @s ["",{"text":"[ «« ]","color":"red","click_event":{"action":"run_command","command":"/function blazeandcave:config/help_faq"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to go back","color":"gold"}]}}," ",{"translate":"Go back"}]
 
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}

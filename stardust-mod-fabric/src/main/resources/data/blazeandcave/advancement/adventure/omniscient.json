@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:adventure/tricky_treasures",
 	"rewards": {
-		"function": "bc_rewards:adventure/omniscient"
+		"function": "bacap_rewards:adventure/omniscient"
 	},
 	"criteria": {
 		"ominous_bottle": {

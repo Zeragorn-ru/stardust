@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:statistics/the_first_night",
 	"rewards": {
-		"function": "bc_rewards:statistics/passing_the_time"
+		"function": "bacap_rewards:statistics/passing_the_time"
 	},		
 	"criteria": {
 		"trigger": {

@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/out_for_a_stroll",
 	"rewards": {
-		"function": "bc_rewards:statistics/who_needs_cars"
+		"function": "bacap_rewards:statistics/who_needs_cars"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

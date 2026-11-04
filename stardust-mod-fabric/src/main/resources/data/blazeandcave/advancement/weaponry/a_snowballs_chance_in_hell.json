@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:weaponry/snowball_fight",
 	"rewards": {
-		"function": "bc_rewards:weaponry/a_snowballs_chance_in_hell"
+		"function": "bacap_rewards:weaponry/a_snowballs_chance_in_hell"
 	},		
 	"criteria": {
 		"snowball": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "blaze"
+					"entity_type": "blaze"
 				},
 				"killing_blow": {
 					"tags": [
@@ -27,7 +27,7 @@
 							}
 						],
 					"direct_entity": {
-						"type": "minecraft:snowball"
+						"entity_type": "minecraft:snowball"
 					}
 				}
 			}

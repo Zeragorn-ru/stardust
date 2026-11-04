@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/whos_the_pillager_now",
 	"rewards": {
-		"function": "bc_rewards:weaponry/fireworks_display"
+		"function": "bacap_rewards:weaponry/fireworks_display"
 	},		
 	"criteria": {
 		"firework_rocket": {

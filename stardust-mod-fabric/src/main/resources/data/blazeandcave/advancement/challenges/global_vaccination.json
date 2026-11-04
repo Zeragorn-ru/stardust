@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/stockbroker",
 	"rewards": {
-		"function": "bc_rewards:challenges/global_vaccination"
+		"function": "bacap_rewards:challenges/global_vaccination"
 	},		
 	"criteria": {
 		"farmer_plains": {

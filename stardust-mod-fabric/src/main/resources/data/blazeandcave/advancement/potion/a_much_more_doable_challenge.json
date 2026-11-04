@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/all_potions",
 	"rewards": {
-		"function": "bc_rewards:potion/a_much_more_doable_challenge"
+		"function": "bacap_rewards:potion/a_much_more_doable_challenge"
 	},		
 	"criteria": {
 		"speed": {
@@ -282,6 +282,14 @@
 			"conditions": {
 				"effects": {
 					"minecraft:wind_charged": {}
+				}
+			}
+		},
+		"breath_of_the_nautilus": {
+			"trigger": "minecraft:effects_changed",
+			"conditions": {
+				"effects": {
+					"minecraft:breath_of_the_nautilus": {}
 				}
 			}
 		}

@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/play_jukebox_in_meadows",	
 	"rewards": {
-		"function": "bc_rewards:adventure/disc_jockey"
+		"function": "bacap_rewards:adventure/disc_jockey"
 	},		
 	"criteria": {
 		"music_disc_cat": {
@@ -539,6 +539,90 @@
 						"predicate": {
 							"items": [
 								"minecraft:music_disc_precipice"
+							]
+						}
+					}
+				]
+			}
+		},
+		"music_disc_tears": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:jukebox"
+								],
+								"state": {
+									"has_record": "true"
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:music_disc_tears"
+							]
+						}
+					}
+				]
+			}
+		},
+		"music_disc_lava_chicken": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:jukebox"
+								],
+								"state": {
+									"has_record": "true"
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:music_disc_lava_chicken"
+							]
+						}
+					}
+				]
+			}
+		},
+		"music_disc_bounce": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:jukebox"
+								],
+								"state": {
+									"has_record": "true"
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:music_disc_bounce"
 							]
 						}
 					}

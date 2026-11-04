@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/complete_enchanter",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_enchanter"
+		"function": "bacap_rewards:enchanting/master_enchanter"
 	},			
 	"criteria": {
 		"protection": {
@@ -806,6 +806,25 @@
 									"enchantments": "minecraft:breach",
 									"levels": {
 										"min": 4
+									}
+								}
+							]
+						}
+					}
+				]
+			}
+		},
+		"lunge": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"predicates": {
+							"enchantments": [
+								{
+									"enchantments": "minecraft:lunge",
+									"levels": {
+										"min": 3
 									}
 								}
 							]
@@ -1611,6 +1630,25 @@
 					}
 				]
 			}
+		},
+		"lunge_book": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"predicates": {
+							"stored_enchantments": [
+								{
+									"enchantments": "minecraft:lunge",
+									"levels": {
+										"min": 3
+									}
+								}
+							]
+						}
+					}
+				]
+			}
 		}
 	},	
 	"requirements": [
@@ -1781,6 +1819,10 @@
 		[
 			"breach",
 			"breach_book"
+		],
+		[
+			"lunge",
+			"lunge_book"
 		]
 	]
 }

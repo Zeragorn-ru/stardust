@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/bring_down_the_beast",
 	"rewards": {
-		"function": "bc_rewards:nether/ghast_slayer"
+		"function": "bacap_rewards:nether/ghast_slayer"
 	},		
 	"criteria": {
 		"ghast_tear": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/fake_stronghold",
 	"rewards": {
-		"function": "bc_rewards:building/jailhouse_block"
+		"function": "bacap_rewards:building/jailhouse_block"
 	},		
 	"criteria": {
 		"iron_bars": {

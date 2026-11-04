@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:end/for_mother_clarence",
 	"rewards": {
-		"function": "bc_rewards:end/portable_storage"
+		"function": "bacap_rewards:end/portable_storage"
 	},	
 	"criteria": {
 		"shulker_box": {

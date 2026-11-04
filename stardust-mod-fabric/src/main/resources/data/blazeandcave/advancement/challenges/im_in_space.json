@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/ad_astra",
 	"rewards": {
-		"function": "bc_rewards:challenges/im_in_space"
+		"function": "bacap_rewards:challenges/im_in_space"
 	},	
 	"criteria": {
 		"levitated": {

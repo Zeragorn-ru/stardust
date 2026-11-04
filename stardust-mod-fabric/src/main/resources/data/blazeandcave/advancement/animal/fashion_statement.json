@@ -12,7 +12,7 @@
 	},
 	"parent": "blazeandcave:animal/cool_kids",
 	"rewards": {
-		"function": "bc_rewards:animal/fashion_statement"
+		"function": "bacap_rewards:animal/fashion_statement"
 	},		
 	"criteria": {
 		"white": {

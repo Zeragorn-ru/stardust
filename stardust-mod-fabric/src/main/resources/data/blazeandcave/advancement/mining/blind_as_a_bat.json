@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:mining/nananananananana",
 	"rewards": {
-		"function": "bc_rewards:mining/blind_as_a_bat"
+		"function": "bacap_rewards:mining/blind_as_a_bat"
 	},		
 	"criteria": {
 		"blind_as_a_bat": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "bat"
+					"entity_type": "bat"
 				},
 				"player": [
 					{

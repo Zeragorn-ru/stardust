@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/fast_travel",
 	"rewards": {
-		"function": "bc_rewards:nether/inception"
+		"function": "bacap_rewards:nether/inception"
 	},
 	"criteria": {
 		"enter_cave": {
@@ -23,7 +23,7 @@
 						"predicate": {
 							"location": {
 								"block": {
-									"blocks": "#minecraft:non_underwater_blocks"
+									"blocks": "#blazeandcave:non_underwater_blocks"
 								},
 								"position": {
 									"y": {
@@ -41,8 +41,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/bapple",
 	"rewards": {
-		"function": "bc_rewards:farming/ultra_hardcore"
+		"function": "bacap_rewards:farming/ultra_hardcore"
 	},		
 	"criteria": {
 		"golden_apple": {

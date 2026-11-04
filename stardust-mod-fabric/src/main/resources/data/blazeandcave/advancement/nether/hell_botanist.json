@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/explore_nether",
 	"rewards": {
-		"function": "bc_rewards:nether/hell_botanist"
+		"function": "bacap_rewards:nether/hell_botanist"
 	},		
 	"criteria": {
 		"crimson_fungus": {

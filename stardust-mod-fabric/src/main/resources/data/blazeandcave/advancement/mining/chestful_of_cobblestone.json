@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/moar_tools",
 	"rewards": {
-		"function": "bc_rewards:mining/chestful_of_cobblestone"
+		"function": "bacap_rewards:mining/chestful_of_cobblestone"
 	},
 	"criteria": {
 		"chestful_of_cobblestone": {

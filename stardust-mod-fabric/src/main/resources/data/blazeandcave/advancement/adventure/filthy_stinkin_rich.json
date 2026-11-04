@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/filthy_rich",	
 	"rewards": {
-		"function": "bc_rewards:adventure/filthy_stinkin_rich"
+		"function": "bacap_rewards:adventure/filthy_stinkin_rich"
 	},		
 	"criteria": {
 		"emerald_blocks": {

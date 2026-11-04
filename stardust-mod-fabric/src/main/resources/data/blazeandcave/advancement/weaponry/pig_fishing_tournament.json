@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:weaponry/root",
 	"rewards": {
-		"function": "bc_rewards:weaponry/pig_fishing_tournament"
+		"function": "bacap_rewards:weaponry/pig_fishing_tournament"
 	},		
 	"criteria": {
 		"pig": {
 			"trigger": "minecraft:fishing_rod_hooked",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:pig"
+					"entity_type": "minecraft:pig"
 				}
 			}
 		}

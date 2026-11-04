@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:animal/poacher",
 	"rewards": {
-		"function": "bc_rewards:animal/hey_look_mom"
+		"function": "bacap_rewards:animal/hey_look_mom"
 	},		
 	"criteria": {
 		"turtle": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:turtle"
+					"entity_type": "minecraft:turtle"
 				},
 				"partner": {
-					"type": "minecraft:turtle"
+					"entity_type": "minecraft:turtle"
 				}
 			}
 		}

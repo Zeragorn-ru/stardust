@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:end/im_coming_back_murph",
 	"rewards": {
-		"function": "bc_rewards:end/no_dont_let_me_leave_murph"
+		"function": "bacap_rewards:end/no_dont_let_me_leave_murph"
 	},		
 	"criteria": {
 		"outer_pos_x": {
@@ -37,8 +37,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -71,8 +71,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -105,8 +105,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -139,8 +139,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

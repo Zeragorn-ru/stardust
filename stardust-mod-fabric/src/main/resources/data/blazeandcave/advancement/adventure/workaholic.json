@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/town_planner",
 	"rewards": {
-		"function": "bc_rewards:adventure/workaholic"
+		"function": "bacap_rewards:adventure/workaholic"
 	},		
 	"criteria": {
 		"composter": {

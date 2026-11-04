@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/hell_hunter",
 	"rewards": {
-		"function": "bc_rewards:monsters/void_ender"
+		"function": "bacap_rewards:monsters/void_ender"
 	},	
 	"criteria": {
 		"enderman": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "enderman",
+					"entity_type": "enderman",
 					"location": {
 						"dimension": "the_end"
 					}
@@ -28,7 +28,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "endermite"
+					"entity_type": "endermite"
 				}
 			}
 		},
@@ -36,7 +36,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "shulker"
+					"entity_type": "shulker"
 				}
 			}
 		},
@@ -44,7 +44,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "ender_dragon"
+					"entity_type": "ender_dragon"
 				}
 			}
 		}

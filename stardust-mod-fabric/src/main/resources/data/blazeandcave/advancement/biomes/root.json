@@ -5,12 +5,12 @@
 		},
 		"title": {"translate":"Biomes"},
 		"description": {"color":"#CCCCCC","translate":"All around the world!"},
-		"background": "minecraft:textures/block/snow.png",
+		"background": "block/snow",
 		"show_toast": false,
 		"announce_to_chat": false
 	},
 	"rewards": {
-		"function": "bc_rewards:biomes/root"
+		"function": "bacap_rewards:biomes/root"
 	},		
 	"criteria": {
 		"killed_something": {

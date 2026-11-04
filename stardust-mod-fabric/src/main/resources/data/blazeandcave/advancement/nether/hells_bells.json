@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:nether/root",
 	"rewards": {
-		"function": "bc_rewards:nether/hells_bells"
+		"function": "bacap_rewards:nether/hells_bells"
 	},		
 	"criteria": {
 		"bell": {

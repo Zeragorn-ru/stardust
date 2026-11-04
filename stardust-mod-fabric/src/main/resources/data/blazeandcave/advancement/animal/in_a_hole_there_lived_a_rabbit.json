@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/getting_into_a_stew",
 	"rewards": {
-		"function": "bc_rewards:animal/in_a_hole_there_lived_a_rabbit"
+		"function": "bacap_rewards:animal/in_a_hole_there_lived_a_rabbit"
 	},		
 	"criteria": {
 		"rabbit": {

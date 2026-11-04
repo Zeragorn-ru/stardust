@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:animal/loud_and_proud",
 	"rewards": {
-		"function": "bc_rewards:animal/silence_of_the_lambs"
+		"function": "bacap_rewards:animal/silence_of_the_lambs"
 	},		
 	"criteria": {
 		"rabbit": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "sheep",
+					"entity_type": "sheep",
 					"location": {
 						"structures": "ancient_city"
 					}

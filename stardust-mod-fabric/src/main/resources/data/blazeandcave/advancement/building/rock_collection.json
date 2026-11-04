@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/root",
 	"rewards": {
-		"function": "bc_rewards:building/rock_collection"
+		"function": "bacap_rewards:building/rock_collection"
 	},		
 	"criteria": {
 		"cobblestone": {
@@ -115,6 +115,30 @@
 					{
 						"items": [
 							"minecraft:smooth_basalt"
+						]
+					}
+				]
+			}
+		},
+		"sulfur": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:sulfur"
+						]
+					}
+				]
+			}
+		},
+		"cinnabar": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:cinnabar"
 						]
 					}
 				]

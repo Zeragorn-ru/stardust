@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:story/deflect_arrow",
 	"rewards": {
-		"function": "bc_rewards:monsters/skeleton_smiter"
+		"function": "bacap_rewards:monsters/skeleton_smiter"
 	},		
 	"criteria": {
 		"bone": {

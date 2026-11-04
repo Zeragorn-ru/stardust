@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/crafters_crafting_crafters",
 	"rewards": {
-		"function": "bc_rewards:redstone/factorio"
+		"function": "bacap_rewards:redstone/factorio"
 	},
 	"criteria": {
 		"factorio": {

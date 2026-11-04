@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/its_so_beast_like",
 	"rewards": {
-		"function": "bc_rewards:adventure/feeling_ill"
+		"function": "bacap_rewards:adventure/feeling_ill"
 	},		
 	"criteria": {
 		"vindicator": {
@@ -21,9 +21,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "vindicator",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "vindicator",
+							"minecraft:type_specific/raider": {
 								"has_raid": true
 							}
 						}
@@ -39,9 +38,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "pillager",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "pillager",
+							"minecraft:type_specific/raider": {
 								"has_raid": true
 							}
 						}
@@ -57,9 +55,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "ravager",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "ravager",
+							"minecraft:type_specific/raider": {
 								"has_raid": true
 							}
 						}
@@ -75,9 +72,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "witch",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "witch",
+							"minecraft:type_specific/raider": {
 								"has_raid": true
 							}
 						}
@@ -93,9 +89,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "evoker",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "evoker",
+							"minecraft:type_specific/raider": {
 								"has_raid": true
 							}
 						}

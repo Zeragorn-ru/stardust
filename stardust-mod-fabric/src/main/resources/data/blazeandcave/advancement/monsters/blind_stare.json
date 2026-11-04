@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:monsters/now_thats_a_lot_of_damage",
 	"rewards": {
-		"function": "bc_rewards:monsters/blind_stare"
+		"function": "bacap_rewards:monsters/blind_stare"
 	},		
 	"criteria": {
 		"spyglass_at_warden": {
@@ -19,10 +19,10 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"looking_at": {
-									"type": "minecraft:warden"
+									"entity_type": "minecraft:warden"
 								}
 							}
 						},

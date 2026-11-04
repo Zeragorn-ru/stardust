@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/nugget_in_a_biscuit",
 	"rewards": {
-		"function": "bc_rewards:nether/im_in_lava_with_you"
+		"function": "bacap_rewards:nether/im_in_lava_with_you"
 	},		
 	"criteria": {
 		"hit_in_lava": {

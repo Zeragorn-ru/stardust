@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:monsters/ender_worm",
 	"rewards": {
-		"function": "bc_rewards:monsters/tele_morph"
+		"function": "bacap_rewards:monsters/tele_morph"
 	},		
 	"criteria": {
 		"ender_pearl": {
@@ -24,7 +24,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:ender_pearl"
+							"entity_type": "minecraft:ender_pearl"
 						}
 					}
 				}

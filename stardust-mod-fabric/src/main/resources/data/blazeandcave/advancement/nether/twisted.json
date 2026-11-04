@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/dont_blink",
 	"rewards": {
-		"function": "bc_rewards:nether/twisted"
+		"function": "bacap_rewards:nether/twisted"
 	},
 	"criteria": {
 		"twisting_vines_plant": {

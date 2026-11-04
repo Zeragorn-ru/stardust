@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/root",
 	"rewards": {
-		"function": "bc_rewards:weaponry/x_bow"
+		"function": "bacap_rewards:weaponry/x_bow"
 	},		
 	"criteria": {
 		"crossbow": {

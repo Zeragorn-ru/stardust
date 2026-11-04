@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/boing_boing",
 	"rewards": {
-		"function": "bc_rewards:statistics/jumping_jacks"
+		"function": "bacap_rewards:statistics/jumping_jacks"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/metal_plate",
 	"rewards": {
-		"function": "bc_rewards:redstone/bling_plate"
+		"function": "bacap_rewards:redstone/bling_plate"
 	},
 	"criteria": {
 		"light_weighted_pressure_plate": {

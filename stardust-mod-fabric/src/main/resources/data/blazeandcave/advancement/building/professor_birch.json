@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/spruce_lee",
 	"rewards": {
-		"function": "bc_rewards:building/professor_birch"
+		"function": "bacap_rewards:building/professor_birch"
 	},		
 	"criteria": {
 		"birch_planks": {
@@ -212,6 +212,18 @@
 					{
 						"items": [
 							"minecraft:birch_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"birch_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:birch_shelf"
 						]
 					}
 				]

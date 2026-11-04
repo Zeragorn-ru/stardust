@@ -8,9 +8,9 @@
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
-	"parent": "blazeandcave:redstone/dispense_with_this",
+	"parent": "blazeandcave:redstone/splatfest",
 	"rewards": {
-		"function": "bc_rewards:redstone/we_have_liftoff"
+		"function": "bacap_rewards:redstone/we_have_liftoff"
 	},
 	"criteria": {
 		"we_have_liftoff": {
@@ -21,7 +21,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:tnt"
+							"entity_type": "minecraft:tnt"
 						}
 					}
 				],

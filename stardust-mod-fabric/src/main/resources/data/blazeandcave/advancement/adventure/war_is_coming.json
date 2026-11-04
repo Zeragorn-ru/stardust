@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/buy_low_sell_high",
 	"rewards": {
-		"function": "bc_rewards:adventure/war_is_coming"
+		"function": "bacap_rewards:adventure/war_is_coming"
 	},		
 	"criteria": {
 		"bad_omen": {

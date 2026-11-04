@@ -9,15 +9,15 @@
 	},
 	"parent": "blazeandcave:statistics/root",
 	"rewards": {
-		"function": "bc_rewards:statistics/horse_training"
+		"function": "bacap_rewards:statistics/horse_training"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

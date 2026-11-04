@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:nether/what_a_fungi",
 	"rewards": {
-		"function": "bc_rewards:nether/hot_reels"
+		"function": "bacap_rewards:nether/hot_reels"
 	},		
 	"criteria": {
 		"strider": {
 			"trigger": "minecraft:fishing_rod_hooked",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:strider"
+					"entity_type": "minecraft:strider"
 				}
 			}
 		}

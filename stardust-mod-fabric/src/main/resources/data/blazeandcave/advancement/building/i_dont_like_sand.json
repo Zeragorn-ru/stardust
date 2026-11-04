@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/root",
 	"rewards": {
-		"function": "bc_rewards:building/i_dont_like_sand"
+		"function": "bacap_rewards:building/i_dont_like_sand"
 	},		
 	"criteria": {
 		"sand": {
@@ -18,12 +18,29 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:sand",
+							"minecraft:sand"
+						]
+					}
+				]
+			}
+		},
+		"red_sand": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
 							"minecraft:red_sand"
 						]
 					}
 				]
 			}
 		}
-	}
+	},
+	"requirements": [
+		[
+			"sand",
+			"red_sand"
+		]
+	]
 }

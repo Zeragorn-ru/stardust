@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:monsters/blast_shield",
 	"rewards": {
-		"function": "bc_rewards:monsters/controlled_detonation"
+		"function": "bacap_rewards:monsters/controlled_detonation"
 	},		
 	"criteria": {
 		"controlled_detonation": {
@@ -23,7 +23,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:creeper"
+							"entity_type": "minecraft:creeper"
 						}
 					}
 				]

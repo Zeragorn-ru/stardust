@@ -11,7 +11,7 @@
 	},
 	"parent": "minecraft:husbandry/allay_deliver_cake_to_note_block",
 	"rewards": {
-		"function": "bc_rewards:adventure/awards_ceremony"
+		"function": "bacap_rewards:adventure/awards_ceremony"
 	},		
 	"criteria": {
 		"spruce_sapling": {
@@ -22,13 +22,15 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:allay"
+							"entity_type": "minecraft:allay"
 						}
 					}
 				],
 				"item": {
-					"custom_data": {
-						"Trophy": 1
+					"predicates": {
+						"custom_data": {
+							"Trophy": 1
+						}
 					}
 				}
 			}

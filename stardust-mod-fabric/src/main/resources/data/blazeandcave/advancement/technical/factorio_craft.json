@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:factorio_craft"
+		"function": "blazeandcave:advancement/count/factorio_craft"
 	},
 	"criteria": {
 		"factorio_craft": {

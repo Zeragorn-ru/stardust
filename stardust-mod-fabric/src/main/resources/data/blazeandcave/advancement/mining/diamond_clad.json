@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:story/shiny_gear",
 	"rewards": {
-		"function": "bc_rewards:mining/diamond_clad"
+		"function": "bacap_rewards:mining/diamond_clad"
 	},			
 	"criteria": {
 		"diamond_armor": {

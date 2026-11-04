@@ -11,14 +11,14 @@
 	},
 	"parent": "minecraft:end/kill_dragon",
 	"rewards": {
-		"function": "bc_rewards:end/the_actual_end"
+		"function": "bacap_rewards:end/the_actual_end"
 	},		
 	"criteria": {
 		"enderman": {
 			"trigger": "minecraft:entity_killed_player",
 			"conditions": {
 				"entity": {
-					"type": "enderman",
+					"entity_type": "enderman",
 					"location": {
 						"dimension": "the_end"
 					}

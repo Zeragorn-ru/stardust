@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/rise_of_the_skeletons",
 	"rewards": {
-		"function": "bc_rewards:challenges/creepergeddon"
+		"function": "bacap_rewards:challenges/creepergeddon"
 	},		
 	"criteria": {
 		"creeper_head": {

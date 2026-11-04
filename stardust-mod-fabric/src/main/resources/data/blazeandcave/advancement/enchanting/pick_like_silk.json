@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/fortunate_son",
 	"rewards": {
-		"function": "bc_rewards:enchanting/pick_like_silk"
+		"function": "bacap_rewards:enchanting/pick_like_silk"
 	},		
 	"criteria": {
 		"diamond_ore": {

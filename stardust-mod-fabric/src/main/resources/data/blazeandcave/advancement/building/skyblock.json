@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/grass_type",
 	"rewards": {
-		"function": "bc_rewards:building/skyblock"
+		"function": "bacap_rewards:building/skyblock"
 	},		
 	"criteria": {
 		"grass_block": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/hanging_around",
 	"rewards": {
-		"function": "bc_rewards:building/sign_off"
+		"function": "bacap_rewards:building/sign_off"
 	},		
 	"criteria": {
 		"honeycomb": {

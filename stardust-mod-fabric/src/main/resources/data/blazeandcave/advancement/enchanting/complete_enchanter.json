@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/let_it_go",
 	"rewards": {
-		"function": "bc_rewards:enchanting/complete_enchanter"
+		"function": "bacap_rewards:enchanting/complete_enchanter"
 	},			
 	"criteria": {
 		"protection": {
@@ -678,6 +678,22 @@
 							"enchantments": [
 								{
 									"enchantments": "minecraft:breach"
+								}
+							]
+						}
+					}
+				]
+			}
+		},
+		"lunge": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"predicates": {
+							"enchantments": [
+								{
+									"enchantments": "minecraft:lunge"
 								}
 							]
 						}
@@ -1356,6 +1372,22 @@
 					}
 				]
 			}
+		},
+		"lunge_book": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"predicates": {
+							"stored_enchantments": [
+								{
+									"enchantments": "minecraft:lunge"
+								}
+							]
+						}
+					}
+				]
+			}
 		}
 	},	
 	"requirements": [
@@ -1526,6 +1558,10 @@
 		[
 			"breach",
 			"breach_book"
+		],
+		[
+			"lunge",
+			"lunge_book"
 		]
 	]
 }

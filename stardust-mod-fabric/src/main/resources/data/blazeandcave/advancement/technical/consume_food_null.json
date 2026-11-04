@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:statistics/consume_food_null"
+		"function": "blazeandcave:advancement/statistics/consume_food_null"
 	},
 	"criteria": {
 		"consume_food_null": {
@@ -9,7 +9,8 @@
 				"item": {
 					"items": [
 						"minecraft:potion",
-						"minecraft:milk_bucket"
+						"minecraft:milk_bucket",
+						"minecraft:ominous_bottle"
 					]
 				}
 			}

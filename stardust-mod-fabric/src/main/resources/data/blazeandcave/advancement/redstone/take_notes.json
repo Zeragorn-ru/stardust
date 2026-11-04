@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/mozart",
 	"rewards": {
-		"function": "bc_rewards:redstone/take_notes"
+		"function": "bacap_rewards:redstone/take_notes"
 	},		
 	"criteria": {
 		"note0": {

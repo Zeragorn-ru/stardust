@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/good_lookin_treasure",
 	"rewards": {
-		"function": "bc_rewards:adventure/genesis_of_the_end"
+		"function": "bacap_rewards:adventure/genesis_of_the_end"
 	},		
 	"criteria": {
 		"eye_armor_trim_smithing_template": {

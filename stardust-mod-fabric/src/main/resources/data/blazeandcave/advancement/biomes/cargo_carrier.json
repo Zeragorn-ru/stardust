@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/boaty_mcboatface",
 	"rewards": {
-		"function": "bc_rewards:biomes/cargo_carrier"
+		"function": "bacap_rewards:biomes/cargo_carrier"
 	},		
 	"criteria": {
 		"boat": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"predicate": {
 							"vehicle": {
-								"type": "minecraft:chest_boat"
+								"entity_type": "#blazeandcave:chest_boats"
 							}
 						},
 						"entity": "this"

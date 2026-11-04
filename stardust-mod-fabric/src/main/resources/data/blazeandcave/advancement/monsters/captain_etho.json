@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/mollusc_man",
 	"rewards": {
-		"function": "bc_rewards:monsters/captain_etho"
+		"function": "bacap_rewards:monsters/captain_etho"
 	},		
 	"criteria": {
 		"drowned": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "drowned",
+					"entity_type": "drowned",
 					"equipment": {
 						"mainhand": {
 							"items": [

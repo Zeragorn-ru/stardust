@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/freezing",
 	"rewards": {
-		"function": "bc_rewards:monsters/custom_boss_fight"
+		"function": "bacap_rewards:monsters/custom_boss_fight"
 	},		
 	"criteria": {
 		"zombie": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie",
+					"entity_type": "minecraft:zombie",
 					"equipment": {
 						"head": {
 							"items": [

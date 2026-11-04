@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/ultimate_enchanter",
 	"rewards": {
-		"function": "bc_rewards:challenges/stockbroker"
+		"function": "bacap_rewards:challenges/stockbroker"
 	},
 	"criteria": {
 		"farmer_plains": {

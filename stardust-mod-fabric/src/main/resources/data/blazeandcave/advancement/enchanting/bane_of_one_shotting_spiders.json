@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/undead_slayer",
 	"rewards": {
-		"function": "bc_rewards:enchanting/bane_of_one_shotting_spiders"
+		"function": "bacap_rewards:enchanting/bane_of_one_shotting_spiders"
 	},			
 	"criteria": {
 		"bane_of_arthropods": {

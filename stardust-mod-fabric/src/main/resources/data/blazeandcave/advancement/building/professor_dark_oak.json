@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/the_acacia_king",
 	"rewards": {
-		"function": "bc_rewards:building/professor_dark_oak"
+		"function": "bacap_rewards:building/professor_dark_oak"
 	},		
 	"criteria": {
 		"dark_oak_planks": {
@@ -212,6 +212,18 @@
 					{
 						"items": [
 							"minecraft:dark_oak_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"dark_oak_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:dark_oak_shelf"
 						]
 					}
 				]

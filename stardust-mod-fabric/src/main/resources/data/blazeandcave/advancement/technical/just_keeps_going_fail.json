@@ -426,6 +426,16 @@
 					]
 				}
 			}
+		},
+		"ominous_bottle": {
+			"trigger": "consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:ominous_bottle"
+					]
+				}
+			}
 		}
 	},
 	"requirements": [
@@ -471,7 +481,8 @@
 			"milk_bucket",
 			"honey_bottle",
 			"cake",
-			"glow_berries"
+			"glow_berries",
+			"ominous_bottle"
 		]
 	]
 }

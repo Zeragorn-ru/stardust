@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:adventure/truffle_worm",
 	"rewards": {
-		"function": "bc_rewards:adventure/jurassic_sniff"
+		"function": "bacap_rewards:adventure/jurassic_sniff"
 	},		
 	"criteria": {
 		"sniffer": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:sniffer"
+					"entity_type": "minecraft:sniffer"
 				},
 				"partner": {
-					"type": "minecraft:sniffer"
+					"entity_type": "minecraft:sniffer"
 				}
 			}
 		}

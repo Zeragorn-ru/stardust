@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/root",
 	"rewards": {
-		"function": "bc_rewards:enchanting/like_a_cat"
+		"function": "bacap_rewards:enchanting/like_a_cat"
 	},			
 	"criteria": {
 		"feather_falling": {
@@ -20,6 +20,7 @@
 					{
 						"items": [
 							"minecraft:leather_boots",
+							"minecraft:copper_boots",
 							"minecraft:chainmail_boots",
 							"minecraft:golden_boots",
 							"minecraft:iron_boots",

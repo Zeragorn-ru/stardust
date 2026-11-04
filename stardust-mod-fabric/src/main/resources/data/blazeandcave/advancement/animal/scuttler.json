@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/hey_look_mom",
 	"rewards": {
-		"function": "bc_rewards:animal/scuttler"
+		"function": "bacap_rewards:animal/scuttler"
 	},		
 	"criteria": {
 		"scute": {

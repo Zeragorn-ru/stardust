@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/galileo_figaro",
 	"rewards": {
-		"function": "bc_rewards:mining/blackout"
+		"function": "bacap_rewards:mining/blackout"
 	},		
 	"criteria": {
 		"tinted_glass": {

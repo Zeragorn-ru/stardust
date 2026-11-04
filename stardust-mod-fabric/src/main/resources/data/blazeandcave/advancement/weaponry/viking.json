@@ -9,28 +9,27 @@
 	},
 	"parent": "blazeandcave:weaponry/root",
 	"rewards": {
-		"function": "bc_rewards:weaponry/viking"
+		"function": "bacap_rewards:weaponry/viking"
 	},		
 	"criteria": {
 		"axe": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},
 				"damage": {
 					"type": {
 						"source_entity": {
 							"equipment": {
 								"mainhand": {
-									"items": "#minecraft:axes"
+									"items": "#blazeandcave:axes"
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/trimming_the_treetops",
 	"rewards": {
-		"function": "bc_rewards:farming/foliage"
+		"function": "bacap_rewards:farming/foliage"
 	},		
 	"criteria": {
 		"grass": {
@@ -18,29 +18,14 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:short_grass"
-						]
-					}
-				]
-			}
-		},
-		"fern": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:fern"
+							"minecraft:short_grass",
+							"minecraft:fern",
+							"minecraft:short_dry_grass",
+							"minecraft:tall_dry_grass"
 						]
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-			"grass",
-			"fern"
-		]
-	]
+	}
 }

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/stationary_storage",
 	"rewards": {
-		"function": "bc_rewards:building/barrel_rider"
+		"function": "bacap_rewards:building/barrel_rider"
 	},		
 	"criteria": {
 		"barrel": {

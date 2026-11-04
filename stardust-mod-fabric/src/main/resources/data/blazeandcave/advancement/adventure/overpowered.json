@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/disc_jockey",
 	"rewards": {
-		"function": "bc_rewards:adventure/overpowered"
+		"function": "bacap_rewards:adventure/overpowered"
 	},		
 	"criteria": {
 		"golden_apple": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/smooth_dude",
 	"rewards": {
-		"function": "bc_rewards:building/blast_it"
+		"function": "bacap_rewards:building/blast_it"
 	},		
 	"criteria": {
 		"blast_furnace": {

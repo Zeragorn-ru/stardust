@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/this_dirt_is_dirtier",
 	"rewards": {
-		"function": "bc_rewards:mining/leaflet_drop"
+		"function": "bacap_rewards:mining/leaflet_drop"
 	},
 	"criteria": {
 		"big_dripleaf": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/heart_of_darkness",
 	"rewards": {
-		"function": "bc_rewards:mining/lichen_subscribe"
+		"function": "bacap_rewards:mining/lichen_subscribe"
 	},		
 	"criteria": {
 		"glow_lichen": {

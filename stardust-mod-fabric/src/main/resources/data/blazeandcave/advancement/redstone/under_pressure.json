@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/leveraging_synergy",
 	"rewards": {
-		"function": "bc_rewards:redstone/under_pressure"
+		"function": "bacap_rewards:redstone/under_pressure"
 	},
 	"criteria": {
 		"oak_pressure_plate": {
@@ -122,6 +122,33 @@
 					"powered": "true"
 				}
 			}
+		},
+		"cherry_pressure_plate": {
+			"trigger": "minecraft:enter_block",
+			"conditions": {
+				"block": "minecraft:cherry_pressure_plate",
+				"state": {
+					"powered": "true"
+				}
+			}
+		},
+		"bamboo_pressure_plate": {
+			"trigger": "minecraft:enter_block",
+			"conditions": {
+				"block": "minecraft:bamboo_pressure_plate",
+				"state": {
+					"powered": "true"
+				}
+			}
+		},
+		"pale_oak_pressure_plate": {
+			"trigger": "minecraft:enter_block",
+			"conditions": {
+				"block": "minecraft:pale_oak_pressure_plate",
+				"state": {
+					"powered": "true"
+				}
+			}
 		}
 	},
 	"requirements": [
@@ -138,7 +165,10 @@
 		"light_weighted_pressure_plate",
 		"heavy_weighted_pressure_plate",
 		"polished_blackstone_pressure_plate",
-		"mangrove_pressure_plate"
+		"mangrove_pressure_plate",
+		"cherry_pressure_plate",
+		"bamboo_pressure_plate",
+		"pale_oak_pressure_plate"
 		]
-	]	
+	]
 }

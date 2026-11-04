@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/ram",
 	"rewards": {
-		"function": "bc_rewards:animal/loud_and_proud"
+		"function": "bacap_rewards:animal/loud_and_proud"
 	},			
 	"criteria": {
 		"goat_horn": {

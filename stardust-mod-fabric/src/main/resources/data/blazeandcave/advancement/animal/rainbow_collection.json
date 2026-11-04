@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/live_and_let_dye",
 	"rewards": {
-		"function": "bc_rewards:animal/rainbow_collection"
+		"function": "bacap_rewards:animal/rainbow_collection"
 	},		
 	"criteria": {
 		"white_wool": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/torched",
 	"rewards": {
-		"function": "bc_rewards:building/halloween"
+		"function": "bacap_rewards:building/halloween"
 	},		
 	"criteria": {
 		"jack_o_lantern": {

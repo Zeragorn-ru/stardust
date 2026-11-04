@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/what_about_corruption_planks",
 	"rewards": {
-		"function": "bc_rewards:nether/welcome_to_warp_zone"
+		"function": "bacap_rewards:nether/welcome_to_warp_zone"
 	},		
 	"criteria": {
 		"warped_planks": {
@@ -188,6 +188,18 @@
 					{
 						"items": [
 							"minecraft:warped_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"warped_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:warped_shelf"
 						]
 					}
 				]

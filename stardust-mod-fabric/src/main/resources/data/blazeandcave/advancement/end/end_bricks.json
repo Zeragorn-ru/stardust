@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:end/enter_end_gateway",
 	"rewards": {
-		"function": "bc_rewards:end/end_bricks"
+		"function": "bacap_rewards:end/end_bricks"
 	},	
 	"criteria": {
 		"end_stone_bricks": {

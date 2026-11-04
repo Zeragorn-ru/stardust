@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/horse_training",
 	"rewards": {
-		"function": "bc_rewards:statistics/sheriff_firearm"
+		"function": "bacap_rewards:statistics/sheriff_firearm"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

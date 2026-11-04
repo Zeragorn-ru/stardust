@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/rock_bottom",
 	"rewards": {
-		"function": "bc_rewards:mining/bottom_to_top"
+		"function": "bacap_rewards:mining/bottom_to_top"
 	},		
 	"criteria": {
 		"stone": {
@@ -322,6 +322,76 @@
 							"block": {
 								"blocks": [
 									"minecraft:sculk"
+								]
+							},
+							"dimension": "minecraft:overworld",
+							"position": {
+								"y": {
+									"min": 319
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"sulfur": {
+			"trigger": "minecraft:placed_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:sulfur",
+									"minecraft:potent_sulfur"
+								]
+							},
+							"dimension": "minecraft:overworld",
+							"position": {
+								"y": {
+									"min": 319
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"cinnabar": {
+			"trigger": "minecraft:placed_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:cinnabar"
+								]
+							},
+							"dimension": "minecraft:overworld",
+							"position": {
+								"y": {
+									"min": 319
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"sulfur_spike": {
+			"trigger": "minecraft:placed_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:sulfur_spike"
 								]
 							},
 							"dimension": "minecraft:overworld",

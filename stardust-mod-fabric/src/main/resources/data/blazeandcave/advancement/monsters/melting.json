@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/the_undead_cavalry",
 	"rewards": {
-		"function": "bc_rewards:monsters/melting"
+		"function": "bacap_rewards:monsters/melting"
 	},	
 	"criteria": {
 		"desert": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:stray",
+					"entity_type": "minecraft:stray",
 					"location": {
 						"biomes": "desert",
 						"position": {

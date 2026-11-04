@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/mine_stone",
 	"rewards": {
-		"function": "bc_rewards:mining/this_dirt_is_dirtier"
+		"function": "bacap_rewards:mining/this_dirt_is_dirtier"
 	},		
 	"criteria": {
 		"rooted_dirt": {

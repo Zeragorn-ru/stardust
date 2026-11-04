@@ -11,7 +11,7 @@
 	},
 	"parent": "blazeandcave:adventure/a_suspicious_advancement",
 	"rewards": {
-		"function": "bc_rewards:adventure/sus"
+		"function": "bacap_rewards:adventure/sus"
 	},		
 	"criteria": {
 		"suspicious_sand": {

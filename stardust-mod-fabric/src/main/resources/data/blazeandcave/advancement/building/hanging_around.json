@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/its_a_sign",
 	"rewards": {
-		"function": "bc_rewards:building/hanging_around"
+		"function": "bacap_rewards:building/hanging_around"
 	},		
 	"criteria": {
 		"hanging_sign": {

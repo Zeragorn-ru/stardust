@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/obtain_sniffer_egg",
 	"rewards": {
-		"function": "bc_rewards:adventure/truffle_worm"
+		"function": "bacap_rewards:adventure/truffle_worm"
 	},		
 	"criteria": {
 		"torchflower_seeds": {

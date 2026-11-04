@@ -4,13 +4,13 @@
 			"id": "minecraft:bundle"
 		},
 		"title": {"translate":"Humble Bundle"},
-		"description": {"color":"light_purple","translate":"Craft a Bundle using Rabbit Hide and String"},
+		"description": {"color":"green","translate":"Craft a Bundle using Leather and String"},
 		"announce_to_chat": true,
-		"hidden": true
+		"hidden": false
 	},
-	"parent": "blazeandcave:animal/bunny_lover",
+	"parent": "blazeandcave:animal/cow_tipper",
 	"rewards": {
-		"function": "bc_rewards:animal/humble_bundle"
+		"function": "bacap_rewards:animal/humble_bundle"
 	},		
 	"criteria": {
 		"bundle": {
@@ -18,9 +18,7 @@
 			"conditions": {
 				"items": [
 					{
-						"items": [
-							"minecraft:bundle"
-						]
+						"items": "#minecraft:bundles"
 					}
 				]
 			}

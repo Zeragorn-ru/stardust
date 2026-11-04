@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/sleep_in_bed",
 	"rewards": {
-		"function": "bc_rewards:building/change_of_sheets"
+		"function": "bacap_rewards:building/change_of_sheets"
 	},		
 	"criteria": {
 		"orange_bed": {

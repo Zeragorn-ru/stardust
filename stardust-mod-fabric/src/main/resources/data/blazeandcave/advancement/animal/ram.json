@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/goat_simulator",
 	"rewards": {
-		"function": "bc_rewards:animal/ram"
+		"function": "bacap_rewards:animal/ram"
 	},		
 	"criteria": {
 		"goat_horn": {

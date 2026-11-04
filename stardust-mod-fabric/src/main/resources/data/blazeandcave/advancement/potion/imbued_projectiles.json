@@ -14,7 +14,7 @@
 	},
 	"parent": "blazeandcave:potion/gas",
 	"rewards": {
-		"function": "bc_rewards:potion/imbued_projectiles"
+		"function": "bacap_rewards:potion/imbued_projectiles"
 	},		
 	"criteria": {
 		"tipped_arrow": {

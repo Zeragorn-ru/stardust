@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Craft and ride a boat to sail on the high seas"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:biomes/the_sea_calls_you",
+	"parent": "blazeandcave:biomes/just_keep_swimming",
 	"rewards": {
-		"function": "bc_rewards:biomes/boaty_mcboatface"
+		"function": "bacap_rewards:biomes/boaty_mcboatface"
 	},		
 	"criteria": {
 		"boat": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"predicate": {
 							"vehicle": {
-								"type": "#minecraft:boats"
+								"entity_type": "#blazeandcave:all_boats"
 							}
 						},
 						"entity": "this"

@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/all_potions",
 	"rewards": {
-		"function": "bc_rewards:potion/a_furious_test_subject"
+		"function": "bacap_rewards:potion/a_furious_test_subject"
 	},		
 	"criteria": {
 		"phantom": {

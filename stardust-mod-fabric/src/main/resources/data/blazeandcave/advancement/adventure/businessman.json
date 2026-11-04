@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/professional",
 	"rewards": {
-		"function": "bc_rewards:adventure/businessman"
+		"function": "bacap_rewards:adventure/businessman"
 	},		
 	"criteria": {
 		"farmer": {

@@ -16,7 +16,7 @@
 	},
 	"parent": "blazeandcave:end/some_breakthrough",
 	"rewards": {
-		"function": "bc_rewards:end/rocketman"
+		"function": "bacap_rewards:end/rocketman"
 	},		
 	"criteria": {
 		"rocketman": {

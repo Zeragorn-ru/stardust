@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/spring_in_your_step",
 	"rewards": {
-		"function": "bc_rewards:statistics/boing_boing"
+		"function": "bacap_rewards:statistics/boing_boing"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/knowledge_is_power",
 	"rewards": {
-		"function": "bc_rewards:adventure/all_chained_up"
+		"function": "bacap_rewards:adventure/all_chained_up"
 	},		
 	"criteria": {
 		"chainmail_helmet": {

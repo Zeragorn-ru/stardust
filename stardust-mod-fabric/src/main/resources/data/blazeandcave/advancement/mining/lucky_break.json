@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/dripstone_drop",
 	"rewards": {
-		"function": "bc_rewards:mining/lucky_break"
+		"function": "bacap_rewards:mining/lucky_break"
 	},		
 	"criteria": {
 		"lucky_break": {

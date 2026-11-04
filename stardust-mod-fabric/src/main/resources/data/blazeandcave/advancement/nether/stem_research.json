@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:nether/root",
 	"rewards": {
-		"function": "bc_rewards:nether/stem_research"
+		"function": "bacap_rewards:nether/stem_research"
 	},	
 	"criteria": {
 		"crimson_stem": {

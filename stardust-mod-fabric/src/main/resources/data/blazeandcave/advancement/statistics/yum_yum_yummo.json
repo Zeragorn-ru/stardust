@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:statistics/om_nom_nom",
 	"rewards": {
-		"function": "bc_rewards:statistics/yum_yum_yummo"
+		"function": "bacap_rewards:statistics/yum_yum_yummo"
 	},		
 	"criteria": {
 		"trigger": {

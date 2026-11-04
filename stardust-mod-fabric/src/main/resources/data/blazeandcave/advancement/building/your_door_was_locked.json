@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/root",
 	"rewards": {
-		"function": "bc_rewards:building/your_door_was_locked"
+		"function": "bacap_rewards:building/your_door_was_locked"
 	},		
 	"criteria": {
 		"door": {

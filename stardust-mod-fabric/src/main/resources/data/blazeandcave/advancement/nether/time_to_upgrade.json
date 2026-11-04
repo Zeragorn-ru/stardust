@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/loot_bastion",
 	"rewards": {
-		"function": "bc_rewards:nether/time_to_upgrade"
+		"function": "bacap_rewards:nether/time_to_upgrade"
 	},	
 	"criteria": {
 		"netherite_upgrade_smithing_template": {

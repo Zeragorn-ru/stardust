@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/upgrade_tools",
 	"rewards": {
-		"function": "bc_rewards:mining/moar_tools"
+		"function": "bacap_rewards:mining/moar_tools"
 	},
 	"criteria": {
 		"stone_pickaxe": {

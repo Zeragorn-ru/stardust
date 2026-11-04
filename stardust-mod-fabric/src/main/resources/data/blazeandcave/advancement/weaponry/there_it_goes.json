@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/sniper_duel",
 	"rewards": {
-		"function": "bc_rewards:weaponry/there_it_goes"
+		"function": "bacap_rewards:weaponry/there_it_goes"
 	},	
 	"criteria": {
 		"there_it_goes": {

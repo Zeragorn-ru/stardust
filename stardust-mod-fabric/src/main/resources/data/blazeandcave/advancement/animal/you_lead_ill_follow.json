@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/beeloons",
 	"rewards": {
-		"function": "bc_rewards:animal/you_lead_ill_follow"
+		"function": "bacap_rewards:animal/you_lead_ill_follow"
 	},		
 	"criteria": {
 		"lead": {
@@ -25,7 +25,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:llamas"
+							"entity_type": "#blazeandcave:llamas"
 						}
 					}
 				]

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/in_a_pickle",
 	"rewards": {
-		"function": "bc_rewards:biomes/just_a_sample"
+		"function": "bacap_rewards:biomes/just_a_sample"
 	},		
 	"criteria": {
 		"tube_coral": {

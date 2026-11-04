@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/glows_in_the_dark",
 	"rewards": {
-		"function": "bc_rewards:nether/glowstone_miner"
+		"function": "bacap_rewards:nether/glowstone_miner"
 	},		
 	"criteria": {
 		"glowstone": {

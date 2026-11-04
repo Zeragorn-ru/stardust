@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/scuttler",
 	"rewards": {
-		"function": "bc_rewards:animal/turtle_soldier"
+		"function": "bacap_rewards:animal/turtle_soldier"
 	},		
 	"criteria": {
 		"turtle_helmet": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/root",
 	"rewards": {
-		"function": "bc_rewards:animal/rabbit_season"
+		"function": "bacap_rewards:animal/rabbit_season"
 	},		
 	"criteria": {
 		"cooked_rabbit": {

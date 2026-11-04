@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/root",
 	"rewards": {
-		"function": "bc_rewards:challenges/i_am_loot"
+		"function": "bacap_rewards:challenges/i_am_loot"
 	},		
 	"criteria": {
 		"abandoned_mineshaft": {
@@ -263,6 +263,12 @@
 			"trigger": "minecraft:player_generates_container_loot",
 			"conditions": {
 				"loot_table": "minecraft:chests/trial_chambers/entrance"
+			}
+		},
+		"trial_chambers_intersection": {
+			"trigger": "minecraft:player_generates_container_loot",
+			"conditions": {
+				"loot_table": "minecraft:chests/trial_chambers/intersection"
 			}
 		},
 		"trial_chambers_intersection_barrel": {

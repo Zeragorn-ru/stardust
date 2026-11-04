@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/et_tu_brute",
 	"rewards": {
-		"function": "bc_rewards:nether/astrobrute"
+		"function": "bacap_rewards:nether/astrobrute"
 	},		
 	"criteria": {
 		"astrobrute": {
@@ -21,7 +21,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "piglin_brute",
+							"entity_type": "piglin_brute",
 							"location": {
 								"dimension": "the_end"
 							}

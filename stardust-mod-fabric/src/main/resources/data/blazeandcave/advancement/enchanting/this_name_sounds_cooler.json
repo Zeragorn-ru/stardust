@@ -9,40 +9,23 @@
 	},
 	"parent": "blazeandcave:enchanting/heavy_metal",
 	"rewards": {
-		"function": "bc_rewards:enchanting/this_name_sounds_cooler"
+		"function": "bacap_rewards:enchanting/this_name_sounds_cooler"
 	},	
 	"criteria": {
 		"diamond_edge": {
-			"trigger": "minecraft:impossible",
+			"trigger": "minecraft:inventory_changed",
 			"conditions": {
 				"items": [
 					{
 						"items": [
 							"minecraft:diamond_sword"
 						],
-						"nbt": "{display:{Name:'\"Diamond Edge\"'}}"
-					}
-				]
-			}
-		},
-		"diamond_edge_old": {
-			"trigger": "minecraft:impossible",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:diamond_sword"
-						],
-						"nbt": "{display:{Name:\"{\\\"text\\\":\\\"Diamond Edge\\\"}\"}}"
+						"components": {
+							"minecraft:custom_name": "Diamond Edge"
+						}
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-			"diamond_edge",
-			"diamond_edge_old"
-		]
-	]
+	}
 }

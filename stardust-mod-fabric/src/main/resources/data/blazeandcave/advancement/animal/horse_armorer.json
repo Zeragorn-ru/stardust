@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/foal_play",
 	"rewards": {
-		"function": "bc_rewards:animal/horse_armorer"
+		"function": "bacap_rewards:animal/horse_armorer"
 	},		
 	"criteria": {
 		"leather_horse_armor": {

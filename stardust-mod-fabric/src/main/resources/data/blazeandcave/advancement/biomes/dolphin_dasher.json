@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/flipper",
 	"rewards": {
-		"function": "bc_rewards:biomes/dolphin_dasher"
+		"function": "bacap_rewards:biomes/dolphin_dasher"
 	},	
 	"criteria": {
 		"dolphins_grace": {

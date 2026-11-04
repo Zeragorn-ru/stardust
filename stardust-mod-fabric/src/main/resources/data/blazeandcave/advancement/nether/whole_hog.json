@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:nether/when_hoglins_breed",
 	"rewards": {
-		"function": "bc_rewards:nether/whole_hog"
+		"function": "bacap_rewards:nether/whole_hog"
 	},		
 	"criteria": {
 		"hoglin": {
 			"trigger": "minecraft:entity_killed_player",
 			"conditions": {
 				"entity": {
-					"type": "hoglin"
+					"entity_type": "hoglin"
 				}
 			}
 		}

@@ -1,42 +1,26 @@
 {
 	"display": {
 		"icon": {
-			"id": "minecraft:oxidized_copper"
+			"id": "minecraft:oxidized_copper_golem_statue"
 		},
 		"title": {"translate":"The Statue of Liberty"},
-		"description": {"color":"#75E1FF","translate":"Obtain a fully oxidized Block of Copper"},
+		"description": {"color":"#75E1FF","translate":"Have a Copper Golem completely oxidize into a statue, then mine it"},
 		"announce_to_chat": true,
 		"frame": "goal"
 	},
-	"parent": "minecraft:husbandry/wax_off",
+	"parent": "blazeandcave:mining/total_copout",
 	"rewards": {
-		"function": "bc_rewards:mining/the_statue_of_liberty"
+		"function": "bacap_rewards:mining/the_statue_of_liberty"
 	},		
 	"criteria": {
-		"oxidized_copper": {
+		"oxidized_copper_golem_statue": {
 			"trigger": "minecraft:inventory_changed",
 			"conditions": {
 				"items": [
 					{
 						"items": [
-							"oxidized_copper",
-							"oxidized_cut_copper",
-							"oxidized_cut_copper_stairs",
-							"oxidized_cut_copper_slab",
-							"oxidized_chiseled_copper",
-							"oxidized_copper_grate",
-							"oxidized_copper_door",
-							"oxidized_copper_trapdoor",
-							"oxidized_copper_bulb",
-							"waxed_oxidized_copper",
-							"waxed_oxidized_cut_copper",
-							"waxed_oxidized_cut_copper_stairs",
-							"waxed_oxidized_cut_copper_slab",
-							"waxed_oxidized_chiseled_copper",
-							"waxed_oxidized_copper_grate",
-							"waxed_oxidized_copper_door",
-							"waxed_oxidized_copper_trapdoor",
-							"waxed_oxidized_copper_bulb"
+							"oxidized_copper_golem_statue",
+							"waxed_oxidized_copper_golem_statue"
 						]
 					}
 				]

@@ -1,21 +1,6 @@
 {	
 	"criteria": {
-		"below_void": {
-			"trigger": "minecraft:location",
-			"conditions": {
-				"player": {
-					"location": {
-						"position": {
-							"y": {
-								"max": -64.0
-							}
-						},
-						"dimension": "minecraft:the_end"
-					}
-				}
-			}
-		},
-		"below_void": {
+		"below_void2": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player": [

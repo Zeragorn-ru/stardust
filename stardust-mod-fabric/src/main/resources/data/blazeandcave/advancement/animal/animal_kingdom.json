@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:husbandry/bred_all_animals",
 	"rewards": {
-		"function": "bc_rewards:animal/animal_kingdom"
+		"function": "bacap_rewards:animal/animal_kingdom"
 	},		
 	"criteria": {
 		"animal_kingdom": {

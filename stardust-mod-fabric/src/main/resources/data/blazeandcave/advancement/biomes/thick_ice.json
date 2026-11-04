@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/spike_ice",
 	"rewards": {
-		"function": "bc_rewards:biomes/thick_ice"
+		"function": "bacap_rewards:biomes/thick_ice"
 	},		
 	"criteria": {
 		"blue_ice": {

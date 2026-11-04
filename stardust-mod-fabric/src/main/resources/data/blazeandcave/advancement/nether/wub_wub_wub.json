@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/time_to_upgrade",
 	"rewards": {
-		"function": "bc_rewards:nether/wub_wub_wub"
+		"function": "bacap_rewards:nether/wub_wub_wub"
 	},	
 	"criteria": {
 		"music_disc_pigstep": {

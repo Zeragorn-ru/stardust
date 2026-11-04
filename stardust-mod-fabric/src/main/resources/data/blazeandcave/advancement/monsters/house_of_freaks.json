@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/not_afraid_of_heights",
 	"rewards": {
-		"function": "bc_rewards:monsters/house_of_freaks"
+		"function": "bacap_rewards:monsters/house_of_freaks"
 	},		
 	"criteria": {
 		"house_of_freaks": {

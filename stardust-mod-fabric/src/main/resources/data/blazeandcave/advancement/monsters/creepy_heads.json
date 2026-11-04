@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/creeper_killer",
 	"rewards": {
-		"function": "bc_rewards:monsters/creepy_heads"
+		"function": "bacap_rewards:monsters/creepy_heads"
 	},		
 	"criteria": {
 		"creeper_head": {

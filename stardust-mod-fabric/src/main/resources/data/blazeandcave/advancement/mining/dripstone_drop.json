@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/thats_the_point",
 	"rewards": {
-		"function": "bc_rewards:mining/dripstone_drop"
+		"function": "bacap_rewards:mining/dripstone_drop"
 	},		
 	"criteria": {
 		"dropstone_caves": {

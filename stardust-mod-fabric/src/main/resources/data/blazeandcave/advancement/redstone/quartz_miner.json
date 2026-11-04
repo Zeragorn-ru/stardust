@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/observer_buddy",
 	"rewards": {
-		"function": "bc_rewards:redstone/quartz_miner"
+		"function": "bacap_rewards:redstone/quartz_miner"
 	},		
 	"criteria": {
 		"quartz_block": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/eeuuwww",
 	"rewards": {
-		"function": "bc_rewards:mining/steals_on_wheels"
+		"function": "bacap_rewards:mining/steals_on_wheels"
 	},		
 	"criteria": {
 		"heart_of_the_sea": {

@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/black_belt_ninja",
 	"rewards": {
-		"function": "bc_rewards:statistics/ancient_kung_fu_master"
+		"function": "bacap_rewards:statistics/ancient_kung_fu_master"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

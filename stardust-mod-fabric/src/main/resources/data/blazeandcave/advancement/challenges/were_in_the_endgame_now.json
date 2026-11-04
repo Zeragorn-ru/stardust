@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/root",
 	"rewards": {
-		"function": "bc_rewards:challenges/were_in_the_endgame_now"
+		"function": "bacap_rewards:challenges/were_in_the_endgame_now"
 	},		
 	"criteria": {
 		"start_raid_end": {

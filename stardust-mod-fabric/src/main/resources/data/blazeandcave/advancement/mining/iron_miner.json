@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/iron_man",
 	"rewards": {
-		"function": "bc_rewards:mining/iron_miner"
+		"function": "bacap_rewards:mining/iron_miner"
 	},		
 	"criteria": {
 		"raw_iron": {

@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Come across a coral reef in the ocean"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:biomes/dolphin_dasher",	
+	"parent": "blazeandcave:biomes/the_sea_calls_you",
 	"rewards": {
-		"function": "bc_rewards:biomes/the_great_blocky_reef"
+		"function": "bacap_rewards:biomes/the_great_blocky_reef"
 	},	
 	"criteria": {
 		"warm_ocean": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

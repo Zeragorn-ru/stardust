@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/mushroom_mushroom",
 	"rewards": {
-		"function": "bc_rewards:farming/suspicious_looking_stew"
+		"function": "bacap_rewards:farming/suspicious_looking_stew"
 	},		
 	"criteria": {
 		"suspicious_stew": {

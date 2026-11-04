@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/berry_nice",
 	"rewards": {
-		"function": "bc_rewards:farming/disen_berry_berry_bad"
+		"function": "bacap_rewards:farming/disen_berry_berry_bad"
 	},
 	"criteria": {
 		"age1": {

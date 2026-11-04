@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:monsters/iron_belly",
 	"rewards": {
-		"function": "bc_rewards:monsters/a_watery_grave"
+		"function": "bacap_rewards:monsters/a_watery_grave"
 	},		
 	"criteria": {
 		"drowned": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "drowned"
+					"entity_type": "drowned"
 				}
 			}
 		}

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/stealth_is_optional",
 	"rewards": {
-		"function": "bc_rewards:monsters/not_afraid_of_heights"
+		"function": "bacap_rewards:monsters/not_afraid_of_heights"
 	},		
 	"criteria": {
 		"not_afraid_of_heights": {

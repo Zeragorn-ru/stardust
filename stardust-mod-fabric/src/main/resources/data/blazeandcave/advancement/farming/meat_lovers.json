@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/vegetarian",
 	"rewards": {
-		"function": "bc_rewards:farming/meat_lovers"
+		"function": "bacap_rewards:farming/meat_lovers"
 	},		
 	"criteria": {
 		"porkchop": {

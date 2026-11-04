@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/nuclear_fusion",
 	"rewards": {
-		"function": "bc_rewards:challenges/zombie_apocalypse"
+		"function": "bacap_rewards:challenges/zombie_apocalypse"
 	},		
 	"criteria": {
 		"zombie_head": {

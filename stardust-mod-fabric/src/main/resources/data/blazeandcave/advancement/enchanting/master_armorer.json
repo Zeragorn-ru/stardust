@@ -11,9 +11,9 @@
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
-	"parent": "blazeandcave:enchanting/master_arbalist",
+	"parent": "blazeandcave:enchanting/unbreakable",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_armorer"
+		"function": "bacap_rewards:enchanting/master_armorer"
 	},		
 	"criteria": {
 		"helmet_protection": {

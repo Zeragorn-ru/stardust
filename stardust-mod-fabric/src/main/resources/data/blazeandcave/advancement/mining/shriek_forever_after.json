@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/kill_mob_near_sculk_catalyst",
 	"rewards": {
-		"function": "bc_rewards:mining/shriek_forever_after"
+		"function": "bacap_rewards:mining/shriek_forever_after"
 	},		
 	"criteria": {
 		"darkness": {

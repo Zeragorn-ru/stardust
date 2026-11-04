@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/space_dropper",
 	"rewards": {
-		"function": "bc_rewards:redstone/craftception"
+		"function": "bacap_rewards:redstone/craftception"
 	},
 	"criteria": {
 		"crafter": {

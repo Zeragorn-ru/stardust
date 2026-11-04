@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/agent_smithing_table",
 	"rewards": {
-		"function": "bc_rewards:building/bubble_bubble_toil_and_trouble"
+		"function": "bacap_rewards:building/bubble_bubble_toil_and_trouble"
 	},
 	"criteria": {
 		"fill_cauldron": {

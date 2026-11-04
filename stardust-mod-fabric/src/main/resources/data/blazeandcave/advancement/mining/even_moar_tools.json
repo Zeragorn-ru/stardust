@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/stabcraft",
 	"rewards": {
-		"function": "bc_rewards:mining/even_moar_tools"
+		"function": "bacap_rewards:mining/even_moar_tools"
 	},			
 	"criteria": {
 		"diamond_pickaxe": {

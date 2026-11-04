@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/the_haggler",
 	"rewards": {
-		"function": "bc_rewards:statistics/big_spender"
+		"function": "bacap_rewards:statistics/big_spender"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

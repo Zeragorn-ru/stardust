@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/the_nethers_shield",
 	"rewards": {
-		"function": "bc_rewards:nether/blaze_extinguisher"
+		"function": "bacap_rewards:nether/blaze_extinguisher"
 	},		
 	"criteria": {
 		"blaze_rod": {

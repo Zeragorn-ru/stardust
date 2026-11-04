@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:redstone/cataclyst",
 	"rewards": {
-		"function": "bc_rewards:redstone/monstrous_sacrifices"
+		"function": "bacap_rewards:redstone/monstrous_sacrifices"
 	},	
 	"criteria": {
 	"minecraft:cave_spider": {
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:cave_spider"
+		  "entity_type": "minecraft:cave_spider"
 		}
 	  }
 	},
@@ -25,7 +25,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:spider"
+		  "entity_type": "minecraft:spider"
 		}
 	  }
 	},
@@ -33,7 +33,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:zombified_piglin"
+		  "entity_type": "minecraft:zombified_piglin"
 		}
 	  }
 	},
@@ -41,7 +41,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:enderman"
+		  "entity_type": "minecraft:enderman"
 		}
 	  }
 	},
@@ -49,7 +49,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:blaze"
+		  "entity_type": "minecraft:blaze"
 		}
 	  }
 	},
@@ -57,7 +57,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:creeper"
+		  "entity_type": "minecraft:creeper"
 		}
 	  }
 	},
@@ -65,7 +65,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:evoker"
+		  "entity_type": "minecraft:evoker"
 		}
 	  }
 	},
@@ -73,7 +73,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:ghast"
+		  "entity_type": "minecraft:ghast"
 		}
 	  }
 	},
@@ -81,7 +81,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:guardian"
+		  "entity_type": "minecraft:guardian"
 		}
 	  }
 	},
@@ -89,7 +89,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:husk"
+		  "entity_type": "minecraft:husk"
 		}
 	  }
 	},
@@ -97,7 +97,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:magma_cube"
+		  "entity_type": "minecraft:magma_cube"
 		}
 	  }
 	},
@@ -105,7 +105,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:shulker"
+		  "entity_type": "minecraft:shulker"
 		}
 	  }
 	},
@@ -113,7 +113,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:silverfish"
+		  "entity_type": "minecraft:silverfish"
 		}
 	  }
 	},
@@ -121,7 +121,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:skeleton"
+		  "entity_type": "minecraft:skeleton"
 		}
 	  }
 	},
@@ -129,7 +129,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:slime"
+		  "entity_type": "minecraft:slime"
 		}
 	  }
 	},
@@ -137,7 +137,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:stray"
+		  "entity_type": "minecraft:stray"
 		}
 	  }
 	},
@@ -145,7 +145,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:vindicator"
+		  "entity_type": "minecraft:vindicator"
 		}
 	  }
 	},
@@ -153,7 +153,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:witch"
+		  "entity_type": "minecraft:witch"
 		}
 	  }
 	},
@@ -161,7 +161,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:wither_skeleton"
+		  "entity_type": "minecraft:wither_skeleton"
 		}
 	  }
 	},
@@ -169,7 +169,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:zombie"
+		  "entity_type": "minecraft:zombie"
 		}
 	  }
 	},
@@ -177,7 +177,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:zombie_villager"
+		  "entity_type": "minecraft:zombie_villager"
 		}
 	  }
 	},
@@ -185,7 +185,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:phantom"
+		  "entity_type": "minecraft:phantom"
 		}
 	  }
 	},
@@ -193,7 +193,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:drowned"
+		  "entity_type": "minecraft:drowned"
 		}
 	  }
 	},
@@ -201,7 +201,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:pillager"
+		  "entity_type": "minecraft:pillager"
 		}
 	  }
 	},
@@ -209,7 +209,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:ravager"
+		  "entity_type": "minecraft:ravager"
 		}
 	  }
 	},
@@ -217,7 +217,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:endermite"
+		  "entity_type": "minecraft:endermite"
 		}
 	  }
 	},
@@ -225,7 +225,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:vex"
+		  "entity_type": "minecraft:vex"
 		}
 	  }
 	},
@@ -233,7 +233,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:piglin"
+		  "entity_type": "minecraft:piglin"
 		}
 	  }
 	},
@@ -241,7 +241,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:hoglin"
+		  "entity_type": "minecraft:hoglin"
 		}
 	  }
 	},
@@ -249,7 +249,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:zoglin"
+		  "entity_type": "minecraft:zoglin"
 		}
 	  }
 	},
@@ -257,7 +257,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:wither"
+		  "entity_type": "minecraft:wither"
 		}
 	  }
 	},
@@ -265,7 +265,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:piglin_brute"
+		  "entity_type": "minecraft:piglin_brute"
 		}
 	  }
 	},
@@ -273,7 +273,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:warden"
+		  "entity_type": "minecraft:warden"
 		}
 	  }
 	},
@@ -281,7 +281,7 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:breeze"
+		  "entity_type": "minecraft:breeze"
 		}
 	  }
 	},
@@ -289,7 +289,47 @@
 	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
 	  "conditions": {
 		"entity": {
-		  "type": "minecraft:bogged"
+		  "entity_type": "minecraft:bogged"
+		}
+	  }
+	},
+	"minecraft:skeleton_horse": {
+	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
+	  "conditions": {
+		"entity": {
+		  "entity_type": "minecraft:skeleton_horse"
+		}
+	  }
+	},
+	"minecraft:zombie_horse": {
+	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
+	  "conditions": {
+		"entity": {
+		  "entity_type": "minecraft:zombie_horse"
+		}
+	  }
+	},
+	"minecraft:zombie_nautilus": {
+	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
+	  "conditions": {
+		"entity": {
+		  "entity_type": "minecraft:zombie_nautilus"
+		}
+	  }
+	},
+	"minecraft:camel_husk": {
+	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
+	  "conditions": {
+		"entity": {
+		  "entity_type": "minecraft:camel_husk"
+		}
+	  }
+	},
+	"minecraft:parched": {
+	  "trigger": "minecraft:kill_mob_near_sculk_catalyst",
+	  "conditions": {
+		"entity": {
+		  "entity_type": "minecraft:parched"
 		}
 	  }
 	}

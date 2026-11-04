@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/skeleton_smiter",
 	"rewards": {
-		"function": "bc_rewards:monsters/paleontologist"
+		"function": "bacap_rewards:monsters/paleontologist"
 	},		
 	"criteria": {
 		"bone_block": {

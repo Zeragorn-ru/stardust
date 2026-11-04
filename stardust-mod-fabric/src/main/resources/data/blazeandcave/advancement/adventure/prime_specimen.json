@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/do_you_want_to_trade",
 	"rewards": {
-		"function": "bc_rewards:adventure/prime_specimen"
+		"function": "bacap_rewards:adventure/prime_specimen"
 	},		
 	"criteria": {
 		"tall_grass": {

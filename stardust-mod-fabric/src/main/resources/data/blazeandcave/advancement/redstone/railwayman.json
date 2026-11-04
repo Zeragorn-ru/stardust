@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/electric_rails",
 	"rewards": {
-		"function": "bc_rewards:redstone/railwayman"
+		"function": "bacap_rewards:redstone/railwayman"
 	},		
 	"criteria": {
 		"rail": {

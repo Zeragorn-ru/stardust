@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/shrooms",
 	"rewards": {
-		"function": "bc_rewards:farming/mushroom_mushroom"
+		"function": "bacap_rewards:farming/mushroom_mushroom"
 	},		
 	"criteria": {
 		"mushroom_stew": {

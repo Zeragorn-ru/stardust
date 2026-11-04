@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/root",
 	"rewards": {
-		"function": "bc_rewards:adventure/now_youre_thinking_with_portals"
+		"function": "bacap_rewards:adventure/now_youre_thinking_with_portals"
 	},		
 	"criteria": {
 		"ruined_portal": {
@@ -97,8 +97,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

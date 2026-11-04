@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/electric",
 	"rewards": {
-		"function": "bc_rewards:building/expensive"
+		"function": "bacap_rewards:building/expensive"
 	},		
 	"criteria": {
 		"sea_lantern": {

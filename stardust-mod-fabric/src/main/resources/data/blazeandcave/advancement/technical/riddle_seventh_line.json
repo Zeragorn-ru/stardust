@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:riddle/seventh_line"
+		"function": "blazeandcave:advancement/riddle/seventh_line"
 	},
 	"criteria": {
 		"seventh_line": {
@@ -13,7 +13,7 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:piglin",
+							"entity_type": "minecraft:piglin",
 							"flags": {
 								"is_baby": true
 							}
@@ -22,8 +22,8 @@
 					}
 				],
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:technical/riddle_sixth_line": true
 						}
@@ -41,7 +41,7 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:piglin",
+							"entity_type": "minecraft:piglin",
 							"flags": {
 								"is_baby": true
 							}
@@ -50,8 +50,8 @@
 					}
 				],
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:technical/riddle_sixth_line": true
 						}

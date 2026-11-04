@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/theres_a_zombie_on_the_lawn",	
 	"rewards": {
-		"function": "bc_rewards:biomes/enchanted_forest"
+		"function": "bacap_rewards:biomes/enchanted_forest"
 	},	
 	"criteria": {
 		"flower_forest": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

@@ -10,16 +10,16 @@
 	},
 	"parent": "blazeandcave:nether/bobbleheads",
 	"rewards": {
-		"function": "bc_rewards:nether/this_ones_mine"
+		"function": "bacap_rewards:nether/this_ones_mine"
 	},	
 	"criteria": {
 		"zombified_piglin": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombified_piglin",
+					"entity_type": "zombified_piglin",
 					"vehicle": {
-						"type": "strider"
+						"entity_type": "strider"
 					}
 				}
 			}
@@ -33,8 +33,12 @@
 						"entity": "this",
 						"predicate": {
 							"vehicle": {
-								"type": "strider",
-								"nbt": "{Tags:[zp_ridden]}"
+								"entity_type": "strider",
+								"entity_tags": {
+									"all_of": [
+										"zp_ridden"
+									]
+								}
 							}
 						}
 					}

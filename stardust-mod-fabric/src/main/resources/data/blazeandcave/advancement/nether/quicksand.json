@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/nugget_in_a_biscuit",
 	"rewards": {
-		"function": "bc_rewards:nether/quicksand"
+		"function": "bacap_rewards:nether/quicksand"
 	},		
 	"criteria": {
 		"soul_sand": {

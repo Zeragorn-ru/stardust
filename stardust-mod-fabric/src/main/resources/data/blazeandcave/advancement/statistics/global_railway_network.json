@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/i_like_trains",
 	"rewards": {
-		"function": "bc_rewards:statistics/global_railway_network"
+		"function": "bacap_rewards:statistics/global_railway_network"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

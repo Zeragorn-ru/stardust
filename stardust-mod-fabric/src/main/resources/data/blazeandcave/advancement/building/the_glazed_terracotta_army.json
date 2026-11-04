@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/the_terracotta_army",
 	"rewards": {
-		"function": "bc_rewards:building/the_glazed_terracotta_army"
+		"function": "bacap_rewards:building/the_glazed_terracotta_army"
 	},		
 	"criteria": {
 		"white_glazed_terracotta": {

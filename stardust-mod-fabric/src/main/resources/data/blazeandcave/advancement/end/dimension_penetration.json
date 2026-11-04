@@ -15,7 +15,7 @@
 	},
 	"parent": "blazeandcave:end/unending_hell",
 	"rewards": {
-		"function": "bc_rewards:end/dimension_penetration"
+		"function": "bacap_rewards:end/dimension_penetration"
 	},
 	"criteria": {
 		"dimension_penetration": {
@@ -30,11 +30,17 @@
 							}
 						],
 						"direct_entity": {
-							"type": [
+							"entity_type": [
 								"arrow",
 								"spectral_arrow"
 							],
-							"nbt": "{Tags:[dimpen_overworld,dimpen_nether,dimpen_end]}"
+							"entity_tags": {
+								"all_of": [
+									"dimpen_overworld",
+									"dimpen_nether",
+									"dimpen_end"
+								]
+							}
 						}
 					},
 					"blocked": false

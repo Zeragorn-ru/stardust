@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/the_great_blocky_reef",
 	"rewards": {
-		"function": "bc_rewards:biomes/in_a_pickle"
+		"function": "bacap_rewards:biomes/in_a_pickle"
 	},		
 	"criteria": {
 		"sea_pickle": {

@@ -15,7 +15,7 @@
 	},
 	"parent": "blazeandcave:potion/noxious_fumes",
 	"rewards": {
-		"function": "bc_rewards:potion/gas"
+		"function": "bacap_rewards:potion/gas"
 	},	
 	"criteria": {
 		"kill_magic": {
@@ -23,8 +23,12 @@
 			"conditions": {
 				"killing_blow": {
 					"direct_entity": {
-						"type": "minecraft:area_effect_cloud",
-						"nbt": "{Particle:{type:\"minecraft:entity_effect\"}}"
+						"entity_type": "minecraft:area_effect_cloud",
+						"entity_tags": {
+							"all_of": [
+								"aec_player_created"
+							]
+						}
 					}
 				}
 			}

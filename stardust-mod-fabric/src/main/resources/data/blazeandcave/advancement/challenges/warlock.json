@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/constellation",
 	"rewards": {
-		"function": "bc_rewards:challenges/warlock"
+		"function": "bacap_rewards:challenges/warlock"
 	},		
 	"criteria": {
 		"beacon": {

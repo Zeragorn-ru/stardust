@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/like_a_ninja",
 	"rewards": {
-		"function": "bc_rewards:enchanting/silent_but_deadly"
+		"function": "bacap_rewards:enchanting/silent_but_deadly"
 	},
 	"criteria": {
 		"silent_but_deadly": {
@@ -52,8 +52,8 @@
 								}
 							},
 							"flags": {
-								"is_sprinting": true,
-								"is_sneaking": true
+								"is_sneaking": true,
+								"is_sprinting": true
 							}
 						},
 						"entity": "this"
@@ -64,8 +64,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

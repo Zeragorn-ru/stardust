@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/who_needs_cars",
 	"rewards": {
-		"function": "bc_rewards:statistics/i_enjoy_long_walks_and_playing_minecraft"
+		"function": "bacap_rewards:statistics/i_enjoy_long_walks_and_playing_minecraft"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

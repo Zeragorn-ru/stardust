@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/i_hereby_dub_thee",
 	"rewards": {
-		"function": "bc_rewards:adventure/beethoven"
+		"function": "bacap_rewards:adventure/beethoven"
 	},			
 	"criteria": {
 		"jukebox": {

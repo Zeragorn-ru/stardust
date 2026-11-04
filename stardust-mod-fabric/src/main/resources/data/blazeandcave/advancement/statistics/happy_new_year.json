@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:statistics/passing_the_time",
 	"rewards": {
-		"function": "bc_rewards:statistics/happy_new_year"
+		"function": "bacap_rewards:statistics/happy_new_year"
 	},		
 	"criteria": {
 		"trigger": {

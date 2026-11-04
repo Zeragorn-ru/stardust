@@ -33,5 +33,4 @@ datapack enable "file/BlazeandCave's Advancements Pack Terralith" last
 
 # Fanpack handling
 
-function blazeandcave:install
-
+function #bacap_fanpacks:install

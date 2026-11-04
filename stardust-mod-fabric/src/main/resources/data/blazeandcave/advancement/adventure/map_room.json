@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/im_not_lost_anymore",
 	"rewards": {
-		"function": "bc_rewards:adventure/map_room"
+		"function": "bacap_rewards:adventure/map_room"
 	},		
 	"criteria": {
 		"filled_map": {
@@ -28,14 +28,14 @@
 								"condition": "minecraft:entity_properties",
 								"entity": "this",
 								"predicate": {
-									"type": "minecraft:item_frame"
+									"entity_type": "minecraft:item_frame"
 								}
 							},
 							{
 								"condition": "minecraft:entity_properties",
 								"entity": "this",
 								"predicate": {
-									"type": "minecraft:glow_item_frame"
+									"entity_type": "minecraft:glow_item_frame"
 								}
 							}
 						]

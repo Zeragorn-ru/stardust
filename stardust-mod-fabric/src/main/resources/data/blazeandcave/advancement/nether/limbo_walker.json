@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/im_in_lava_with_you",
 	"rewards": {
-		"function": "bc_rewards:nether/limbo_walker"
+		"function": "bacap_rewards:nether/limbo_walker"
 	},		
 	"criteria": {
 		"world_height": {
@@ -37,8 +37,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

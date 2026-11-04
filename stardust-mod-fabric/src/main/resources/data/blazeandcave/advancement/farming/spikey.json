@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/its_a_cactus",
 	"rewards": {
-		"function": "bc_rewards:farming/spikey"
+		"function": "bacap_rewards:farming/spikey"
 	},
 	"criteria": {
 		"cactus": {

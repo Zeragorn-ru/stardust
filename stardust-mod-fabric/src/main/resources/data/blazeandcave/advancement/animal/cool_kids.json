@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/cow_tipper",
 	"rewards": {
-		"function": "bc_rewards:animal/cool_kids"
+		"function": "bacap_rewards:animal/cool_kids"
 	},		
 	"criteria": {
 		"leather_chestplate": {

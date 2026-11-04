@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/diamonds_are_not_forever",
 	"rewards": {
-		"function": "bc_rewards:nether/netherite_miner"
+		"function": "bacap_rewards:nether/netherite_miner"
 	},	
 	"criteria": {
 		"ancient_debris": {

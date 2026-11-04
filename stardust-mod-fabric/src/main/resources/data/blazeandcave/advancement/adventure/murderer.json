@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:adventure/your_daily_fix",
 	"rewards": {
-		"function": "bc_rewards:adventure/murderer"
+		"function": "bacap_rewards:adventure/murderer"
 	},		
 	"criteria": {
 		"villager": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "villager"
+					"entity_type": "villager"
 				}
 			}
 		}

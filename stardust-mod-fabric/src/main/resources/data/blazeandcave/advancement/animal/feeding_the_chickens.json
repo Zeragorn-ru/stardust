@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:animal/which_came_first",
 	"rewards": {
-		"function": "bc_rewards:animal/feeding_the_chickens"
+		"function": "bacap_rewards:animal/feeding_the_chickens"
 	},		
 	"criteria": {
 		"chicken": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:chicken"
+					"entity_type": "minecraft:chicken"
 				},
 				"partner": {
-					"type": "minecraft:chicken"
+					"entity_type": "minecraft:chicken"
 				}
 			}
 		}

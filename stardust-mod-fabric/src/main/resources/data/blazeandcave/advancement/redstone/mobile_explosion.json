@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/moving_moving_storage",
 	"rewards": {
-		"function": "bc_rewards:redstone/mobile_explosion"
+		"function": "bacap_rewards:redstone/mobile_explosion"
 	},			
 	"criteria": {
 		"tnt_minecart": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/trade",
 	"rewards": {
-		"function": "bc_rewards:adventure/traveller"
+		"function": "bacap_rewards:adventure/traveller"
 	},		
 	"criteria": {
 		"plains": {

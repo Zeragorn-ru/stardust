@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/classic_pocket_edition_block",
 	"rewards": {
-		"function": "bc_rewards:building/agent_smithing_table"
+		"function": "bacap_rewards:building/agent_smithing_table"
 	},		
 	"criteria": {
 		"smithing_table": {

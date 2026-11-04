@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/construction_worker",
 	"rewards": {
-		"function": "bc_rewards:biomes/top_of_the_world"
+		"function": "bacap_rewards:biomes/top_of_the_world"
 	},		
 	"criteria": {
 		"scaffolding": {

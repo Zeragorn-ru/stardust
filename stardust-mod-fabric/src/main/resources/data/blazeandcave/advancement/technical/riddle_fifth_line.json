@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:riddle/fifth_line"
+		"function": "blazeandcave:advancement/riddle/fifth_line"
 	},		
 	"criteria": {
 		"fifth_line": {
@@ -11,8 +11,8 @@
 					"minecraft:glowing": {}
 				},
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:technical/riddle_fourth_line": true
 						}

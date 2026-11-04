@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/diamond_clad",
 	"rewards": {
-		"function": "bc_rewards:mining/diamond_miner"
+		"function": "bacap_rewards:mining/diamond_miner"
 	},		
 	"criteria": {
 		"diamond": {

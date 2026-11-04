@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/gilty",
 	"rewards": {
-		"function": "bc_rewards:nether/gilded_miner"
+		"function": "bacap_rewards:nether/gilded_miner"
 	},	
 	"criteria": {
 		"gilded_blackstone": {

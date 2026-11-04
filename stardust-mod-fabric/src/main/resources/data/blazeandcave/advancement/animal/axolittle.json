@@ -9,17 +9,17 @@
 	},
 	"parent": "minecraft:husbandry/kill_axolotl_target",
 	"rewards": {
-		"function": "bc_rewards:animal/axolittle"
+		"function": "bacap_rewards:animal/axolittle"
 	},		
 	"criteria": {
 		"axolotl": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:axolotl"
+					"entity_type": "minecraft:axolotl"
 				},
 				"partner": {
-					"type": "minecraft:axolotl"
+					"entity_type": "minecraft:axolotl"
 				}
 			}
 		}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/cut_in_half",
 	"rewards": {
-		"function": "bc_rewards:building/stairs_no"
+		"function": "bacap_rewards:building/stairs_no"
 	},		
 	"criteria": {
 		"stairs": {

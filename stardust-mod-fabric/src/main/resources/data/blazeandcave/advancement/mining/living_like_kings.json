@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/gold_rush",
 	"rewards": {
-		"function": "bc_rewards:mining/living_like_kings"
+		"function": "bacap_rewards:mining/living_like_kings"
 	},
 	"criteria": {
 		"golden_helmet": {

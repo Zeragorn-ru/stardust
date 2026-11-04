@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/take_to_the_skies",
 	"rewards": {
-		"function": "bc_rewards:statistics/supersonic"
+		"function": "bacap_rewards:statistics/supersonic"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

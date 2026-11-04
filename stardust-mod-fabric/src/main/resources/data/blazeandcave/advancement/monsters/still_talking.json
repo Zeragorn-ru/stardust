@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/freezing",
 	"rewards": {
-		"function": "bc_rewards:monsters/still_talking"
+		"function": "bacap_rewards:monsters/still_talking"
 	},		
 	"criteria": {
 		"zombie_head": {

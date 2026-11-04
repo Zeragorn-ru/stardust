@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/plant_seed",
 	"rewards": {
-		"function": "bc_rewards:farming/souperman"
+		"function": "bacap_rewards:farming/souperman"
 	},		
 	"criteria": {
 		"beetroot_soup": {

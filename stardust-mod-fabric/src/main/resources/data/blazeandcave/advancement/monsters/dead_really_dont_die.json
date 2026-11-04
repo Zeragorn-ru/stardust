@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/zombie_slayer",
 	"rewards": {
-		"function": "bc_rewards:monsters/dead_really_dont_die"
+		"function": "bacap_rewards:monsters/dead_really_dont_die"
 	},
 	"criteria": {
 		"totem_of_undying": {
@@ -26,7 +26,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:zombie"
+							"entity_type": "minecraft:zombie"
 						}
 					}
 				]

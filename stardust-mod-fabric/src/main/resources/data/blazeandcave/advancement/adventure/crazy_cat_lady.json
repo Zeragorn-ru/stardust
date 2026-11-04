@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:adventure/trade",
 	"rewards": {
-		"function": "bc_rewards:adventure/crazy_cat_lady"
+		"function": "bacap_rewards:adventure/crazy_cat_lady"
 	},		
 	"criteria": {
 		"tamed_animal": {
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:cat"
+					"entity_type": "minecraft:cat"
 				}
 			}
 		}

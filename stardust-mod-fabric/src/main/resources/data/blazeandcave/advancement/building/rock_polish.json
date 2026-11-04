@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/rock_collection",
 	"rewards": {
-		"function": "bc_rewards:building/rock_polish"
+		"function": "bacap_rewards:building/rock_polish"
 	},		
 	"criteria": {
 		"polished_granite": {
@@ -91,6 +91,30 @@
 					{
 						"items": [
 							"minecraft:polished_tuff"
+						]
+					}
+				]
+			}
+		},
+		"polished_sulfur": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:polished_sulfur"
+						]
+					}
+				]
+			}
+		},
+		"polished_cinnabar": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:polished_cinnabar"
 						]
 					}
 				]

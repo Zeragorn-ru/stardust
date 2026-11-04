@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:end/purpurfect",
 	"rewards": {
-		"function": "bc_rewards:end/a_wizards_breakfast"
+		"function": "bacap_rewards:end/a_wizards_breakfast"
 	},		
 	"criteria": {
 		"event_horizon": {

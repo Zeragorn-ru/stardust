@@ -13,7 +13,7 @@
 	},
 	"parent": "minecraft:husbandry/remove_wolf_armor",
 	"rewards": {
-		"function": "bc_rewards:animal/paw_patrol"
+		"function": "bacap_rewards:animal/paw_patrol"
 	},
 	"criteria": {
 		"blue": {
@@ -24,7 +24,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],
@@ -44,7 +44,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],
@@ -64,7 +64,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],
@@ -84,7 +84,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],
@@ -104,7 +104,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],
@@ -124,7 +124,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],

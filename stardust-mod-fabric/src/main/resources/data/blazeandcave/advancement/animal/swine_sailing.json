@@ -8,9 +8,9 @@
 		"announce_to_chat": true,
 		"frame": "goal"
 	},
-	"parent": "blazeandcave:animal/pig_slaughterer",
+	"parent": "blazeandcave:animal/when_pigs_used_to_fly",
 	"rewards": {
-		"function": "bc_rewards:animal/swine_sailing"
+		"function": "bacap_rewards:animal/swine_sailing"
 	},		
 	"criteria": {
 		"swine_sailing": {
@@ -22,11 +22,11 @@
 						"entity": "this",
 						"predicate": {
 							"vehicle": {
-								"type": "pig",
+								"entity_type": "pig",
 								"vehicle": {
-									"type": "#minecraft:boats",
+									"entity_type": "#blazeandcave:all_boats",
 									"vehicle": {
-										"type": "minecart"
+										"entity_type": "minecart"
 									}
 								}
 							}

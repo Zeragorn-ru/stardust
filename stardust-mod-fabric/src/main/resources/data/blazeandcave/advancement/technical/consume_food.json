@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:statistics/consume_food"
+		"function": "blazeandcave:advancement/statistics/consume_food"
 	},
 	"criteria": {
 		"consume_food": {

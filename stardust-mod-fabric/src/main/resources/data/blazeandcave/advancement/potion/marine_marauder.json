@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/stayin_frosty",
 	"rewards": {
-		"function": "bc_rewards:potion/marine_marauder"
+		"function": "bacap_rewards:potion/marine_marauder"
 	},		
 	"criteria": {
 		"water_breathing": {
@@ -49,8 +49,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/root",
 	"rewards": {
-		"function": "bc_rewards:potion/stayin_frosty"
+		"function": "bacap_rewards:potion/stayin_frosty"
 	},	
 	"criteria": {
 		"fire_resistance": {
@@ -49,8 +49,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

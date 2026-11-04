@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/change_of_sheets",
 	"rewards": {
-		"function": "bc_rewards:building/rainbow_dreams"
+		"function": "bacap_rewards:building/rainbow_dreams"
 	},		
 	"criteria": {
 		"white_bed": {

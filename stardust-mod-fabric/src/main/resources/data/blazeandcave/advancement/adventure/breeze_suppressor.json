@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/who_needs_rockets",
 	"rewards": {
-		"function": "bc_rewards:adventure/breeze_suppressor"
+		"function": "bacap_rewards:adventure/breeze_suppressor"
 	},		
 	"criteria": {
 		"breeze_rod": {

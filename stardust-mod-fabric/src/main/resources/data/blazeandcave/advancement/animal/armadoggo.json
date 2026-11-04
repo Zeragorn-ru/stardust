@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/farmadillo",
 	"rewards": {
-		"function": "bc_rewards:animal/armadoggo"
+		"function": "bacap_rewards:animal/armadoggo"
 	},
 	"criteria": {
 		"wolf_armor": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:wolf"
+							"entity_type": "minecraft:wolf"
 						}
 					}
 				],

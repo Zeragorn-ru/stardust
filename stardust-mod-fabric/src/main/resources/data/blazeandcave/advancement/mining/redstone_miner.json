@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/whats_the_time_mr_wolf",
 	"rewards": {
-		"function": "bc_rewards:mining/redstone_miner"
+		"function": "bacap_rewards:mining/redstone_miner"
 	},		
 	"criteria": {
 		"redstone_block": {

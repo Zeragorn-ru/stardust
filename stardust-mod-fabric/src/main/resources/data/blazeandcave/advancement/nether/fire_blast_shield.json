@@ -20,7 +20,7 @@
 	},
 	"parent": "blazeandcave:nether/giant_floating_jellyfish",
 	"rewards": {
-		"function": "bc_rewards:nether/fire_blast_shield"
+		"function": "bacap_rewards:nether/fire_blast_shield"
 	},
 	"criteria": {
 		"deflected_explosion": {
@@ -29,7 +29,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "ghast"
+						"entity_type": "ghast"
 					}
 				}
 			}

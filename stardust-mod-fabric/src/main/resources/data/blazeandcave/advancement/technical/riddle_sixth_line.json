@@ -1,13 +1,13 @@
 {
 	"rewards": {
-		"function": "blazeandcave:riddle/sixth_line"
+		"function": "blazeandcave:advancement/riddle/sixth_line"
 	},		
 	"criteria": {
 		"sixth_line": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
 				"entity": {
-					"type": "chicken",
+					"entity_type": "chicken",
 					"flags": {
 						"is_on_ground": false
 					}
@@ -21,13 +21,13 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:egg"
+							"entity_type": "minecraft:egg"
 						}
 					}
 				},
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:technical/riddle_fifth_line": true
 						}

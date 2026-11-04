@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/librarian",
 	"rewards": {
-		"function": "bc_rewards:enchanting/magical_stockpile"
+		"function": "bacap_rewards:enchanting/magical_stockpile"
 	},		
 	"criteria": {
 		"experience_bottle": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/root",
 	"rewards": {
-		"function": "bc_rewards:building/a_good_start"
+		"function": "bacap_rewards:building/a_good_start"
 	},		
 	"criteria": {
 		"oak_log": {
@@ -171,6 +171,22 @@
 					}
 				]
 			}
+		},
+		"pale_oak_log": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:pale_oak_log",
+							"minecraft:stripped_pale_oak_log",
+							"minecraft:pale_oak_wood",
+							"minecraft:stripped_pale_oak_wood"
+						],
+						"count": 64
+					}
+				]
+			}
 		}
 	},
 	"requirements": [
@@ -184,7 +200,8 @@
 		"crimson_stem",
 		"warped_stem",
 		"mangrove_log",
-		"cherry_log"
+		"cherry_log",
+		"pale_oak_log"
 		]
 	]
 }

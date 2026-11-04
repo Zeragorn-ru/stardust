@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/travelling_merchant",
 	"rewards": {
-		"function": "bc_rewards:adventure/florist"
+		"function": "bacap_rewards:adventure/florist"
 	},		
 	"criteria": {
 		"flower": {
@@ -32,11 +32,16 @@
 						"minecraft:rose_bush",
 						"minecraft:peony",
 						"minecraft:cornflower",
-						"minecraft:lily_of_the_valley"
+						"minecraft:lily_of_the_valley",
+						"minecraft:closed_eyeblossom",
+						"minecraft:open_eyeblossom",
+						"minecraft:wildflowers",
+						"minecraft:cactus_flower",
+						"minecraft:golden_dandelion"
 					]
 				},
 				"villager": {
-					"type": "wandering_trader"
+					"entity_type": "wandering_trader"
 				}
 			}
 		}

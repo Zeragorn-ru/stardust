@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/ricochet_swoop",
 	"rewards": {
-		"function": "bc_rewards:monsters/phantom_slayer"
+		"function": "bacap_rewards:monsters/phantom_slayer"
 	},		
 	"criteria": {
 		"phantom_membrane": {

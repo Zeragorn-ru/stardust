@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/undersea_gardener",
 	"rewards": {
-		"function": "bc_rewards:farming/castaway"
+		"function": "bacap_rewards:farming/castaway"
 	},
 	"criteria": {
 		"castaway": {

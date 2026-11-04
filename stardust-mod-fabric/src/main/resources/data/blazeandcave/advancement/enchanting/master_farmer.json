@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/master_axeman",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_farmer"
+		"function": "bacap_rewards:enchanting/master_farmer"
 	},		
 	"criteria": {
 		"perfect_hoe_fortune": {

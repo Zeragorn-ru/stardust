@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/tridented_shield",
 	"rewards": {
-		"function": "bc_rewards:monsters/because_im_aquaman"
+		"function": "bacap_rewards:monsters/because_im_aquaman"
 	},		
 	"criteria": {
 		"trident": {

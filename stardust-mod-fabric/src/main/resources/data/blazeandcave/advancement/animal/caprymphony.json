@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/battle_of_the_bands",
 	"rewards": {
-		"function": "bc_rewards:animal/caprymphony"
+		"function": "bacap_rewards:animal/caprymphony"
 	},			
 	"criteria": {
 		"ponder": {

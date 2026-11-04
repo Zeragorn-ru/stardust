@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/dive_bomb",
 	"rewards": {
-		"function": "bc_rewards:biomes/free_diver"
+		"function": "bacap_rewards:biomes/free_diver"
 	},		
 	"criteria": {
 		"trigger": {

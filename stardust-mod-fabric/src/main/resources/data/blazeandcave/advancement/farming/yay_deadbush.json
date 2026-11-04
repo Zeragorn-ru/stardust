@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/foliage",
 	"rewards": {
-		"function": "bc_rewards:farming/yay_deadbush"
+		"function": "bacap_rewards:farming/yay_deadbush"
 	},		
 	"criteria": {
 		"dead_bush": {

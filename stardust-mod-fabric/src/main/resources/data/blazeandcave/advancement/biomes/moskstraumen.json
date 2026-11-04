@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/x_marks_the_spot",
 	"rewards": {
-		"function": "bc_rewards:biomes/moskstraumen"
+		"function": "bacap_rewards:biomes/moskstraumen"
 	},	
 	"criteria": {
 		"conduit_power": {
@@ -26,8 +26,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

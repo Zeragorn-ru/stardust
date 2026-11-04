@@ -13,7 +13,7 @@
 	},
 	"parent": "minecraft:end/elytra",
 	"rewards": {
-		"function": "bc_rewards:end/some_breakthrough"
+		"function": "bacap_rewards:end/some_breakthrough"
 	},		
 	"criteria": {
 		"exhaust_elytra": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/a_masterpiece",
 	"rewards": {
-		"function": "bc_rewards:building/art_gallery"
+		"function": "bacap_rewards:building/art_gallery"
 	},		
 	"criteria": {
 		"kebab": {
@@ -149,6 +149,9 @@
 			"trigger": "minecraft:impossible"
 		},
 		"orb": {
+			"trigger": "minecraft:impossible"
+		},
+		"dennis": {
 			"trigger": "minecraft:impossible"
 		}
 	}

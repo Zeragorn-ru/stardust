@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/a_good_start",
 	"rewards": {
-		"function": "bc_rewards:building/barking_mad"
+		"function": "bacap_rewards:building/barking_mad"
 	},		
 	"criteria": {
 		"oak_wood": {
@@ -27,7 +27,8 @@
 							"mangrove_wood",
 							"cherry_wood",
 							"crimson_hyphae",
-							"warped_hyphae"
+							"warped_hyphae",
+							"pale_oak_wood"
 						]
 					}
 				]

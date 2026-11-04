@@ -7,33 +7,17 @@
 			}
 		},
 		"title": {"translate":"WHERE'S THE HONEY LEBOWSKI"},
-		"description": {"color":"dark_purple","translate":"Drink 100 bottles of honey"},
+		"description": {"color":"dark_purple","translate":"Drink 100 bottles of honey","extra":[{"text":"\n\n"},{"italic":true,"color":"dark_gray","translate":"To view progress, run:"},{"color":"gray","text":"\n/trigger bac_progress"}]},
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
 	"parent": "minecraft:adventure/honey_block_slide",
 	"rewards": {
-		"function": "bc_rewards:animal/wheres_the_honey_lebowski"
+		"function": "bacap_rewards:animal/wheres_the_honey_lebowski"
 	},		
 	"criteria": {
 		"ten_withers": {
-			"trigger": "minecraft:location",
-			"conditions": {
-				"player":  {
-					"type_specific": {
-						"type": "player",
-						"stats": [
-							{
-								"type": "minecraft:used",
-								"stat": "minecraft:honey_bottle",
-								"value": {
-									"min": 200
-								}
-							}
-						]
-					}
-				}
-			}
+			"trigger": "minecraft:impossible"
 		}
 	}
 }

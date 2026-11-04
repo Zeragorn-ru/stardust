@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Craft or collect all forms of nether brick and red nether brick"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:building/deepslate_conspiracy",
+	"parent": "blazeandcave:building/fake_stronghold",
 	"rewards": {
-		"function": "bc_rewards:building/fake_fortress"
+		"function": "bacap_rewards:building/fake_fortress"
 	},		
 	"criteria": {
 		"nether_brick": {

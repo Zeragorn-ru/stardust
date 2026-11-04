@@ -11,14 +11,14 @@
 	},
 	"parent": "blazeandcave:monsters/blast_shield",
 	"rewards": {
-		"function": "bc_rewards:monsters/aww_man"
+		"function": "bacap_rewards:monsters/aww_man"
 	},		
 	"criteria": {
 		"creeper": {
 			"trigger": "minecraft:entity_killed_player",
 			"conditions": {
 				"entity": {
-					"type": "creeper"
+					"entity_type": "creeper"
 				}
 			}
 		}

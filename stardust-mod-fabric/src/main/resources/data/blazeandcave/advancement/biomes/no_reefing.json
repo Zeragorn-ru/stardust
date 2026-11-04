@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/just_a_sample",
 	"rewards": {
-		"function": "bc_rewards:biomes/no_reefing"
+		"function": "bacap_rewards:biomes/no_reefing"
 	},		
 	"criteria": {
 		"tube_coral": {

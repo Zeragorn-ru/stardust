@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/the_tribal_villagers",
 	"rewards": {
-		"function": "bc_rewards:adventure/lilypad_hatter"
+		"function": "bacap_rewards:adventure/lilypad_hatter"
 	},		
 	"criteria": {
 		"swamp": {

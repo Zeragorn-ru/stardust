@@ -4,13 +4,13 @@
 			"id": "minecraft:copper_block"
 		},
 		"title": {"translate":"Master Copper Miner"},
-		"description": {"color":"dark_purple","translate":"Mine enough copper to make a stack of Copper Blocks"},
+		"description": {"color":"#75E1FF","translate":"Mine enough copper to make a stack of Copper Blocks"},
 		"announce_to_chat": true,
-		"frame": "challenge"
+		"frame": "goal"
 	},
-	"parent": "blazeandcave:mining/copper_miner",
+	"parent": "blazeandcave:mining/copper_golem_overlord",
 	"rewards": {
-		"function": "bc_rewards:mining/master_copper_miner"
+		"function": "bacap_rewards:mining/master_copper_miner"
 	},		
 	"criteria": {
 		"copper_block": {

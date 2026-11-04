@@ -5,12 +5,14 @@ execute if score goal bac_settings matches 1 run scoreboard players set goal bac
 execute if score challenge bac_settings matches 1 run scoreboard players set challenge bac_settings -2
 execute if score super_challenge bac_settings matches 1 run scoreboard players set super_challenge bac_settings -2
 execute if score milestone bac_settings matches 1 run scoreboard players set milestone bac_settings -2
+execute if score hidden bac_settings matches 1 run scoreboard players set hidden bac_settings -2
 
 execute if score task bac_settings matches -1 run scoreboard players set task bac_settings -2
 execute if score goal bac_settings matches -1 run scoreboard players set goal bac_settings -2
 execute if score challenge bac_settings matches -1 run scoreboard players set challenge bac_settings -2
 execute if score super_challenge bac_settings matches -1 run scoreboard players set super_challenge bac_settings -2
 execute if score milestone bac_settings matches -1 run scoreboard players set milestone bac_settings -2
+execute if score hidden bac_settings matches -1 run scoreboard players set hidden bac_settings -2
 
 execute if score reward bac_settings matches 1 run scoreboard players set reward bac_settings -2
 execute if score exp bac_settings matches 1 run scoreboard players set exp bac_settings -2

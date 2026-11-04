@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/iron_tools",
 	"rewards": {
-		"function": "bc_rewards:mining/gi_geode"
+		"function": "bacap_rewards:mining/gi_geode"
 	},		
 	"criteria": {
 		"amethyst_shard": {

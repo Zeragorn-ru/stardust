@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/seeing_red",
 	"rewards": {
-		"function": "bc_rewards:mining/the_way_to_spawn"
+		"function": "bacap_rewards:mining/the_way_to_spawn"
 	},		
 	"criteria": {
 		"compass": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/librarian",
 	"rewards": {
-		"function": "bc_rewards:enchanting/machine_bow"
+		"function": "bacap_rewards:enchanting/machine_bow"
 	},			
 	"criteria": {
 		"shot_crossbow": {

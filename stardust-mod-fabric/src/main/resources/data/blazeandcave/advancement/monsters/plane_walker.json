@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/enderman_destroyer",
 	"rewards": {
-		"function": "bc_rewards:monsters/plane_walker"
+		"function": "bacap_rewards:monsters/plane_walker"
 	},	
 	"criteria": {
 		"overworld": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"location": {
 						"dimension": "overworld"
 					}
@@ -28,7 +28,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"location": {
 						"dimension": "the_nether"
 					}
@@ -39,7 +39,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"location": {
 						"dimension": "the_end"
 					}

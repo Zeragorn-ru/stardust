@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:riddle/tenth_line"
+		"function": "blazeandcave:advancement/riddle/tenth_line"
 	},		
 	"criteria": {
 		"tenth_line": {

@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:animal/artificial_selection",
 	"rewards": {
-		"function": "bc_rewards:animal/master_farrier"
+		"function": "bacap_rewards:animal/master_farrier"
 	},		
 	"criteria": {
 		"white_none": {
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:0}"
 				}
 			}
@@ -26,7 +26,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1}"
 				}
 			}
@@ -35,7 +35,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:2}"
 				}
 			}
@@ -44,7 +44,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:3}"
 				}
 			}
@@ -53,7 +53,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:4}"
 				}
 			}
@@ -62,7 +62,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:5}"
 				}
 			}
@@ -71,7 +71,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:6}"
 				}
 			}
@@ -80,7 +80,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:256}"
 				}
 			}
@@ -89,7 +89,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:257}"
 				}
 			}
@@ -98,7 +98,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:258}"
 				}
 			}
@@ -107,7 +107,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:259}"
 				}
 			}
@@ -116,7 +116,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:260}"
 				}
 			}
@@ -125,7 +125,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:261}"
 				}
 			}
@@ -134,7 +134,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:262}"
 				}
 			}
@@ -143,7 +143,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:512}"
 				}
 			}
@@ -152,7 +152,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:513}"
 				}
 			}
@@ -161,7 +161,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:514}"
 				}
 			}
@@ -170,7 +170,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:515}"
 				}
 			}
@@ -179,7 +179,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:516}"
 				}
 			}
@@ -188,7 +188,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:517}"
 				}
 			}
@@ -197,7 +197,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:518}"
 				}
 			}
@@ -206,7 +206,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:768}"
 				}
 			}
@@ -215,7 +215,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:769}"
 				}
 			}
@@ -224,7 +224,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:770}"
 				}
 			}
@@ -233,7 +233,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:771}"
 				}
 			}
@@ -242,7 +242,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:772}"
 				}
 			}
@@ -251,7 +251,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:773}"
 				}
 			}
@@ -260,7 +260,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:774}"
 				}
 			}
@@ -269,7 +269,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1024}"
 				}
 			}
@@ -278,7 +278,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1025}"
 				}
 			}
@@ -287,7 +287,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1026}"
 				}
 			}
@@ -296,7 +296,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1027}"
 				}
 			}
@@ -305,7 +305,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1028}"
 				}
 			}
@@ -314,7 +314,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1029}"
 				}
 			}
@@ -323,7 +323,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse",
+					"entity_type": "minecraft:horse",
 					"nbt": "{Variant:1030}"
 				}
 			}

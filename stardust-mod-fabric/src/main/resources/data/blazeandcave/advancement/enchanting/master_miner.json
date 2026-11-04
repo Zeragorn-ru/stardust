@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/unbreakable",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_miner"
+		"function": "bacap_rewards:enchanting/master_miner"
 	},		
 	"criteria": {
 		"perfect_pickaxe_fortune": {

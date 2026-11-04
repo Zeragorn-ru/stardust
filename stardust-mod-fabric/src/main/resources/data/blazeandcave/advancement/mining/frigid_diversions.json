@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/fallen_kingdom",
 	"rewards": {
-		"function": "bc_rewards:mining/frigid_diversions"
+		"function": "bacap_rewards:mining/frigid_diversions"
 	},		
 	"criteria": {
 		"ancient_city_ice_box": {

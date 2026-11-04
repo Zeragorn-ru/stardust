@@ -9,17 +9,17 @@
 	},
 	"parent": "minecraft:husbandry/tame_an_animal",
 	"rewards": {
-		"function": "bc_rewards:animal/puppies_yipe"
+		"function": "bacap_rewards:animal/puppies_yipe"
 	},		
 	"criteria": {
 		"wolf": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:wolf"
+					"entity_type": "minecraft:wolf"
 				},
 				"partner": {
-					"type": "minecraft:wolf"
+					"entity_type": "minecraft:wolf"
 				}
 			}
 		}

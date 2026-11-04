@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:weaponry/shovel_knight",
 	"rewards": {
-		"function": "bc_rewards:weaponry/spleaf"
+		"function": "bacap_rewards:weaponry/spleaf"
 	},		
 	"criteria": {
 		"wooden_shovel": {
@@ -34,7 +34,7 @@
 					"source_entity": {
 						"equipment": {
 							"mainhand": {
-								"items": "#minecraft:shovels"
+								"items": "#blazeandcave:shovels"
 							}
 						},
 						"stepping_on": {
@@ -47,7 +47,7 @@
 					},
 					"tags": [
 						{
-							"id": "minecraft:player_attack",
+							"id": "minecraft:is_player_attack",
 							"expected": true
 						}
 					]

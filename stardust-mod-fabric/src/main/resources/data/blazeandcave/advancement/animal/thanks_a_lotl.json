@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:husbandry/kill_axolotl_target",
 	"rewards": {
-		"function": "bc_rewards:animal/thanks_a_lotl"
+		"function": "bacap_rewards:animal/thanks_a_lotl"
 	},		
 	"criteria": {
 		"kill_axolotl_target": {
@@ -19,24 +19,26 @@
 				"source": [
 					{
 						"condition": "minecraft:entity_properties",
+						"entity": "this",
 						"predicate": {
-							"type": "minecraft:axolotl",
+							"entity_type": "minecraft:axolotl",
 							"location": {
 								"structures": "monument"
 							}
-						},
-						"entity": "this"
-					}
-				],
-				"player": {
-					"condition": "minecraft:entity_properties",
-					"entity": "this",
-					"predicate": {
-						"location": {
-							"structures": "monument"
 						}
 					}
-				}
+				],
+				"player": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"location": {
+								"structures": "monument"
+							}
+						}
+					}
+				]
 			}
 		}
 	}

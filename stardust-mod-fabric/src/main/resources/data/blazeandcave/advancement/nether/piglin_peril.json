@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/a_piglins_best_friend",
 	"rewards": {
-		"function": "bc_rewards:nether/piglin_peril"
+		"function": "bacap_rewards:nether/piglin_peril"
 	},	
 	"criteria": {
 		"piglin_head": {

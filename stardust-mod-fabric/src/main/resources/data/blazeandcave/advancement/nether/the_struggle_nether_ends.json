@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/spreading_corruption",
 	"rewards": {
-		"function": "bc_rewards:nether/the_struggle_nether_ends"
+		"function": "bacap_rewards:nether/the_struggle_nether_ends"
 	},		
 	"criteria": {
 		"netherrack": {

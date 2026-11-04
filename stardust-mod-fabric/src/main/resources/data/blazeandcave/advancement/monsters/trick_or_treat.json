@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/desert_nomad",
 	"rewards": {
-		"function": "bc_rewards:monsters/trick_or_treat"
+		"function": "bacap_rewards:monsters/trick_or_treat"
 	},		
 	"criteria": {
 		"trick_or_treat": {

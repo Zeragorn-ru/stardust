@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:end/end_bricks",
 	"rewards": {
-		"function": "bc_rewards:end/getting_chorus"
+		"function": "bacap_rewards:end/getting_chorus"
 	},	
 	"criteria": {
 		"chorus_fruit": {

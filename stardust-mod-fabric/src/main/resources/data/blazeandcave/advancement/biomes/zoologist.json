@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:biomes/construction_worker",
 	"rewards": {
-		"function": "bc_rewards:biomes/zoologist"
+		"function": "bacap_rewards:biomes/zoologist"
 	},		
 	"criteria": {
 		"panda": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:panda"
+					"entity_type": "minecraft:panda"
 				},
 				"partner": {
-					"type": "minecraft:panda"
+					"entity_type": "minecraft:panda"
 				}
 			}
 		}

@@ -46,7 +46,7 @@
 	},
 	"parent": "blazeandcave:animal/ram",
 	"rewards": {
-		"function": "bc_rewards:animal/battle_of_the_bands"
+		"function": "bacap_rewards:animal/battle_of_the_bands"
 	},		
 	"criteria": {
 		"battle_of_the_bands": {

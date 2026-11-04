@@ -46,7 +46,7 @@
 	},
 	"parent": "blazeandcave:adventure/its_so_beast_like",
 	"rewards": {
-		"function": "bc_rewards:adventure/i_am_ravager_hear_me_roar"
+		"function": "bacap_rewards:adventure/i_am_ravager_hear_me_roar"
 	},
 	"criteria": {
 		"deflected_crossbow": {
@@ -55,7 +55,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "ravager"
+						"entity_type": "ravager"
 					}
 				}
 			}

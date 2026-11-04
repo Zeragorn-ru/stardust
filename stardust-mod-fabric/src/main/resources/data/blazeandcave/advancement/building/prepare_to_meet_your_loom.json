@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/raise_the_flag",
 	"rewards": {
-		"function": "bc_rewards:building/prepare_to_meet_your_loom"
+		"function": "bacap_rewards:building/prepare_to_meet_your_loom"
 	},		
 	"criteria": {
 		"loom": {

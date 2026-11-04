@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/youll_never_take_me_alive_copper",
 	"rewards": {
-		"function": "bc_rewards:mining/budget_channeling"
+		"function": "bacap_rewards:mining/budget_channeling"
 	},		
 	"criteria": {
 		"lightning_rod": {
@@ -18,7 +18,14 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:lightning_rod"
+							"lightning_rod",
+							"exposed_lightning_rod",
+							"weathered_lightning_rod",
+							"oxidized_lightning_rod",
+							"waxed_lightning_rod",
+							"waxed_exposed_lightning_rod",
+							"waxed_weathered_lightning_rod",
+							"waxed_oxidized_lightning_rod"
 						]
 					}
 				]

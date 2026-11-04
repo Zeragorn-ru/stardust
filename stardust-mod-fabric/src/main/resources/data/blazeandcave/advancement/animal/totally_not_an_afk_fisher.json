@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:animal/someones_been_here_before",
 	"rewards": {
-		"function": "bc_rewards:animal/totally_not_an_afk_fisher"
+		"function": "bacap_rewards:animal/totally_not_an_afk_fisher"
 	},		
 	"criteria": {
 		"cod": {

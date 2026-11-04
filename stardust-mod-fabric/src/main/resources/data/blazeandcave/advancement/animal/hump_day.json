@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:animal/desert_rider",
 	"rewards": {
-		"function": "bc_rewards:animal/hump_day"
+		"function": "bacap_rewards:animal/hump_day"
 	},		
 	"criteria": {
 		"camel": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:camel"
+					"entity_type": "minecraft:camel"
 				},
 				"partner": {
-					"type": "minecraft:camel"
+					"entity_type": "minecraft:camel"
 				}
 			}
 		}

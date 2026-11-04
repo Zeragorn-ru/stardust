@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/holy_scrap",
 	"rewards": {
-		"function": "bc_rewards:nether/diamonds_are_not_forever"
+		"function": "bacap_rewards:nether/diamonds_are_not_forever"
 	},	
 	"criteria": {
 		"netherite_ingot": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/traveller",
 	"rewards": {
-		"function": "bc_rewards:adventure/professional"
+		"function": "bacap_rewards:adventure/professional"
 	},		
 	"criteria": {
 		"master": {

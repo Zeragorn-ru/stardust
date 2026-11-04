@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/shoot_arrow",
 	"rewards": {
-		"function": "bc_rewards:weaponry/that_is_so_fletch"
+		"function": "bacap_rewards:weaponry/that_is_so_fletch"
 	},		
 	"criteria": {
 		"fletching_table": {

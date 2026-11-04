@@ -1,7 +1,7 @@
 {
 	"display": {
 		"icon": {
-			"id": "minecraft:bone"
+			"id": "minecraft:skeleton_horse_spawn_egg"
 		},
 		"title": {"translate":"The Undead Cavalry"},
 		"description": {"color":"#75E1FF","translate":"Ride a Skeleton Horse"},
@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/poison_dart",
 	"rewards": {
-		"function": "bc_rewards:monsters/the_undead_cavalry"
+		"function": "bacap_rewards:monsters/the_undead_cavalry"
 	},		
 	"criteria": {
 		"skeleton_horse": {
@@ -21,7 +21,7 @@
 						"condition": "minecraft:entity_properties",
 						"predicate": {
 							"vehicle": {
-								"type": "minecraft:skeleton_horse"
+								"entity_type": "minecraft:skeleton_horse"
 							}
 						},
 						"entity": "this"

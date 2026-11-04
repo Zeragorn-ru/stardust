@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:mining/chestful_of_cobblestone",
 	"rewards": {
-		"function": "bc_rewards:mining/bulldozer"
+		"function": "bacap_rewards:mining/bulldozer"
 	},		
 	"criteria": {
 		"mine_nether_gold_ore": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:mined",

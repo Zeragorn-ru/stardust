@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/death_pointer",
 	"rewards": {
-		"function": "bc_rewards:mining/echonomy"
+		"function": "bacap_rewards:mining/echonomy"
 	},		
 	"criteria": {
 		"echo_shard": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/scuba_gear",
 	"rewards": {
-		"function": "bc_rewards:enchanting/fiery"
+		"function": "bacap_rewards:enchanting/fiery"
 	},			
 	"criteria": {
 		"fire_protection": {

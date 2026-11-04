@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:redstone/target_acquired",
 	"rewards": {
-		"function": "bc_rewards:redstone/target_practise"
+		"function": "bacap_rewards:redstone/target_practise"
 	},	
 	"criteria": {
 		"arrow": {
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:arrow"
+					"entity_type": "minecraft:arrow"
 				}
 			}
 		},
@@ -25,7 +25,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:trident"
+					"entity_type": "minecraft:trident"
 				}
 			}
 		},
@@ -33,7 +33,26 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:egg"
+					"entity_type": "minecraft:egg",
+					"nbt": "{Item:{id:\"minecraft:egg\"}}"
+				}
+			}
+		},
+		"brown_egg": {
+			"trigger": "minecraft:target_hit",
+			"conditions": {
+				"projectile": {
+					"entity_type": "minecraft:egg",
+					"nbt": "{Item:{id:\"minecraft:brown_egg\"}}"
+				}
+			}
+		},
+		"blue_egg": {
+			"trigger": "minecraft:target_hit",
+			"conditions": {
+				"projectile": {
+					"entity_type": "minecraft:egg",
+					"nbt": "{Item:{id:\"minecraft:blue_egg\"}}"
 				}
 			}
 		},
@@ -41,7 +60,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:snowball"
+					"entity_type": "minecraft:snowball"
 				}
 			}
 		},
@@ -49,7 +68,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:potion"
+					"entity_type": "minecraft:splash_potion"
 				}
 			}
 		},
@@ -57,7 +76,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:firework_rocket"
+					"entity_type": "minecraft:firework_rocket"
 				}
 			}
 		},
@@ -65,7 +84,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:experience_bottle"
+					"entity_type": "minecraft:experience_bottle"
 				}
 			}
 		},
@@ -73,7 +92,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:ender_pearl"
+					"entity_type": "minecraft:ender_pearl"
 				}
 			}
 		},
@@ -81,7 +100,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:fishing_bobber"
+					"entity_type": "minecraft:fishing_bobber"
 				}
 			}
 		},
@@ -89,7 +108,7 @@
 			"trigger": "minecraft:target_hit",
 			"conditions": {
 				"projectile": {
-					"type": "minecraft:wind_charge"
+					"entity_type": "minecraft:wind_charge"
 				}
 			}
 		}

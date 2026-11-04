@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/armor_for_the_masses",
 	"rewards": {
-		"function": "bc_rewards:enchanting/knocking_your_socks_off"
+		"function": "bacap_rewards:enchanting/knocking_your_socks_off"
 	},			
 	"criteria": {
 		"knockback": {

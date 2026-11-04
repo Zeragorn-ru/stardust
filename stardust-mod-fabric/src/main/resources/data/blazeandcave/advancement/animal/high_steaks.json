@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/cow_tipper",
 	"rewards": {
-		"function": "bc_rewards:animal/high_steaks"
+		"function": "bacap_rewards:animal/high_steaks"
 	},		
 	"criteria": {
 		"cooked_beef": {

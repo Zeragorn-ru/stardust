@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/qinling",
 	"rewards": {
-		"function": "bc_rewards:biomes/pandamonium"
+		"function": "bacap_rewards:biomes/pandamonium"
 	},
 	"criteria": {
 		"normal": {
@@ -22,7 +22,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"normal\"}"
 				}
 			}
@@ -36,7 +36,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"weak\",HiddenGene:\"normal\"}"
 				}
 			}
@@ -50,7 +50,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"weak\",HiddenGene:\"aggressive\"}"
 				}
 			}
@@ -64,7 +64,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"weak\",HiddenGene:\"lazy\"}"
 				}
 			}
@@ -78,7 +78,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"weak\",HiddenGene:\"worried\"}"
 				}
 			}
@@ -92,7 +92,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"weak\",HiddenGene:\"playful\"}"
 				}
 			}
@@ -106,7 +106,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"weak\",HiddenGene:\"brown\"}"
 				}
 			}
@@ -120,7 +120,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"normal\"}"
 				}
 			}
@@ -134,7 +134,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"aggressive\"}"
 				}
 			}
@@ -148,7 +148,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"lazy\"}"
 				}
 			}
@@ -162,7 +162,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"worried\"}"
 				}
 			}
@@ -176,7 +176,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"playful\"}"
 				}
 			}
@@ -190,7 +190,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"weak\"}"
 				}
 			}
@@ -204,7 +204,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"aggressive\"}"
 				}
 			}
@@ -218,7 +218,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"lazy\"}"
 				}
 			}
@@ -232,7 +232,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"worried\"}"
 				}
 			}
@@ -246,7 +246,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"playful\"}"
 				}
 			}
@@ -260,7 +260,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"weak\",HiddenGene:\"weak\"}"
 				}
 			}
@@ -274,7 +274,7 @@
 					]
 				},
 				"entity": {
-					"type": "panda",
+					"entity_type": "panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"brown\"}"
 				}
 			}

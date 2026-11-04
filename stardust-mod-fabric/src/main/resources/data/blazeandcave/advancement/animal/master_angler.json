@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/someones_been_here_before",
 	"rewards": {
-		"function": "bc_rewards:animal/master_angler"
+		"function": "bacap_rewards:animal/master_angler"
 	},		
 	"criteria": {
 		"cod": {

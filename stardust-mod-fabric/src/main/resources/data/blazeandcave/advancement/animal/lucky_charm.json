@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/theyre_breeding_like_rabbits",
 	"rewards": {
-		"function": "bc_rewards:animal/lucky_charm"
+		"function": "bacap_rewards:animal/lucky_charm"
 	},		
 	"criteria": {
 		"rabbit_foot": {

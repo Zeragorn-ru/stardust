@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/its_a_trap",
 	"rewards": {
-		"function": "bc_rewards:building/and_open"
+		"function": "bacap_rewards:building/and_open"
 	},		
 	"criteria": {
 		"iron_door": {

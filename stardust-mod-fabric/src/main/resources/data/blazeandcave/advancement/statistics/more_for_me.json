@@ -15,7 +15,7 @@
 	},
 	"parent": "blazeandcave:statistics/loot_em",
 	"rewards": {
-		"function": "bc_rewards:statistics/more_for_me"
+		"function": "bacap_rewards:statistics/more_for_me"
 	},		
 	"criteria": {
 		"trigger": {

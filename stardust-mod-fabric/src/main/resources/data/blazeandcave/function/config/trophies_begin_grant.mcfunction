@@ -6,6 +6,6 @@ function blazeandcave:config
 
 tellraw @s {"color":"green","translate":"All players have been granted trophies."}
 execute if entity @p[scores={bac_trophy_given=1}] run tellraw @s {"color":"red","translate":"Players that have been granted trophies by this function in the past did not receive any now. To manually re-enable trophy granting for them use the command:"}
-execute if entity @p[scores={bac_trophy_given=1}] run tellraw @s {"color":"gray","text":"/scoreboard players set <Player's Name> bac_trophy_given 0","clickEvent":{"action":"suggest_command","value":"/scoreboard players set <Player's Name> bac_trophy_given 0"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to insert command into chat","color":"gold"}]}}
+execute if entity @p[scores={bac_trophy_given=1}] run tellraw @s {"color":"gray","text":"/scoreboard players set <Player's Name> bac_trophy_given 0","click_event":{"action":"suggest_command","command":"/scoreboard players set <Player's Name> bac_trophy_given 0"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to insert command into chat","color":"gold"}]}}
 
 scoreboard players set @a bac_trophy_given 1

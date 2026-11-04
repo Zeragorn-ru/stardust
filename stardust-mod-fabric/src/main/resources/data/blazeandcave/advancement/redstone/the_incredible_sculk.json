@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/the_block_of_eternal_screaming",
 	"rewards": {
-		"function": "bc_rewards:redstone/the_incredible_sculk"
+		"function": "bacap_rewards:redstone/the_incredible_sculk"
 	},		
 	"criteria": {
 		"sculk": {

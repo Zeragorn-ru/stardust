@@ -13,6 +13,6 @@ tellraw @s ["",{"translate":"6) If you messed up, go to your backup, make a back
 
 # Go back
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}
-tellraw @s ["",{"text":"[ «« ]","color":"red","clickEvent":{"action":"run_command","value":"/function blazeandcave:config/help_menu"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to go back","color":"gold"}]}}," ",{"translate":"Go back"}]
+tellraw @s ["",{"text":"[ «« ]","color":"red","click_event":{"action":"run_command","command":"/function blazeandcave:config/help_menu"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to go back","color":"gold"}]}}," ",{"translate":"Go back"}]
 
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}

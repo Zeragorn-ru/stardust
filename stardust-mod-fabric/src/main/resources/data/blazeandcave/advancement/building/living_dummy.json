@@ -14,14 +14,14 @@
 	},
 	"parent": "blazeandcave:building/mannequin",
 	"rewards": {
-		"function": "bc_rewards:building/living_dummy"
+		"function": "bacap_rewards:building/living_dummy"
 	},		
 	"criteria": {
 		"armor_stand": {
 			"trigger": "minecraft:entity_killed_player",
 			"conditions": {
 				"entity": {
-					"type": "armor_stand"
+					"entity_type": "armor_stand"
 				}
 			}
 		}

@@ -16,7 +16,7 @@
 	},
 	"parent": "blazeandcave:weaponry/fireworks_display",
 	"rewards": {
-		"function": "bc_rewards:weaponry/pyrotechnic"
+		"function": "bacap_rewards:weaponry/pyrotechnic"
 	},		
 	"criteria": {
 		"small_ball": {

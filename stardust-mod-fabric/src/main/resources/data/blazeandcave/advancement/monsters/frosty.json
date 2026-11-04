@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:story/deflect_arrow",
 	"rewards": {
-		"function": "bc_rewards:monsters/frosty"
+		"function": "bacap_rewards:monsters/frosty"
 	},		
 	"criteria": {
 		"stray": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "stray"
+					"entity_type": "stray"
 				}
 			}
 		}

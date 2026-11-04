@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Craft all forms of quartz blocks"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:building/fake_fortress",
+	"parent": "blazeandcave:building/blackstonehenge",
 	"rewards": {
-		"function": "bc_rewards:building/greek_art_decor"
+		"function": "bacap_rewards:building/greek_art_decor"
 	},		
 	"criteria": {
 		"quartz_block": {

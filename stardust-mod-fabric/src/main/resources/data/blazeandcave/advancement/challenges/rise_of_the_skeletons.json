@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/zombie_apocalypse",
 	"rewards": {
-		"function": "bc_rewards:challenges/rise_of_the_skeletons"
+		"function": "bacap_rewards:challenges/rise_of_the_skeletons"
 	},		
 	"criteria": {
 		"skeleton_skull": {

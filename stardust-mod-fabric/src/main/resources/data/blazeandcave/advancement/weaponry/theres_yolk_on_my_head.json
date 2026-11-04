@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:weaponry/egging_dude",
 	"rewards": {
-		"function": "bc_rewards:weaponry/theres_yolk_on_my_head"
+		"function": "bacap_rewards:weaponry/theres_yolk_on_my_head"
 	},		
 	"criteria": {
 		"egg": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie"
+					"entity_type": "#blazeandcave:zombies"
 				},
 				"damage": {
 					"type": {
@@ -28,11 +28,63 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:egg"
+							"entity_type": "minecraft:egg",
+							"nbt": "{Item:{id:\"minecraft:egg\"}}"
+						}
+					}
+				}
+			}
+		},
+		"blue_egg": {
+			"trigger": "minecraft:player_hurt_entity",
+			"conditions": {
+				"entity": {
+					"entity_type": "#blazeandcave:zombies"
+				},
+				"damage": {
+					"type": {
+						"tags": [
+							{
+								"id": "minecraft:is_projectile",
+								"expected": true
+							}
+						],
+						"direct_entity": {
+							"entity_type": "minecraft:egg",
+							"nbt": "{Item:{id:\"minecraft:blue_egg\"}}"
+						}
+					}
+				}
+			}
+		},
+		"brown_egg": {
+			"trigger": "minecraft:player_hurt_entity",
+			"conditions": {
+				"entity": {
+					"entity_type": "#blazeandcave:zombies"
+				},
+				"damage": {
+					"type": {
+						"tags": [
+							{
+								"id": "minecraft:is_projectile",
+								"expected": true
+							}
+						],
+						"direct_entity": {
+							"entity_type": "minecraft:egg",
+							"nbt": "{Item:{id:\"minecraft:brown_egg\"}}"
 						}
 					}
 				}
 			}
 		}
-	}
+	},
+	"requirements": [
+		[
+			"egg",
+			"blue_egg",
+			"brown_egg"
+		]
+	]
 }

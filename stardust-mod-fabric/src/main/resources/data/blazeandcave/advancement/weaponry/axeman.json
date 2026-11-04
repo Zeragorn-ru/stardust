@@ -4,25 +4,18 @@
 			"id": "minecraft:diamond_axe"
 		},
 		"title": {"translate":"Axeman"},
-		"description": {"color":"#75E1FF","translate":"Attack a mob using all six types of axes"},
+		"description": {"color":"#75E1FF","translate":"Attack mobs using every kind of axe"},
 		"announce_to_chat": true,
 		"frame": "goal"
 	},
 	"parent": "blazeandcave:weaponry/viking",
 	"rewards": {
-		"function": "bc_rewards:weaponry/axeman"
+		"function": "bacap_rewards:weaponry/axeman"
 	},		
 	"criteria": {
 		"wooden_axe": {
 			"trigger": "minecraft:player_hurt_entity",
-			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},			
+			"conditions": {		
 				"damage": {
 					"type": {
 						"source_entity": {
@@ -33,7 +26,13 @@
 									]
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}
@@ -41,13 +40,6 @@
 		"stone_axe": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},
 				"damage": {
 					"type": {
 						"source_entity": {
@@ -58,7 +50,37 @@
 									]
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
+					}
+				}
+			}
+		},
+		"copper_axe": {
+			"trigger": "minecraft:player_hurt_entity",
+			"conditions": {
+				"damage": {
+					"type": {
+						"source_entity": {
+							"equipment": {
+								"mainhand": {
+									"items": [
+										"minecraft:copper_axe"
+									]
+								}
+							}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}
@@ -66,13 +88,6 @@
 		"iron_axe": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},
 				"damage": {
 					"type": {
 						"source_entity": {
@@ -83,7 +98,13 @@
 									]
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}
@@ -91,13 +112,6 @@
 		"golden_axe": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},
 				"damage": {
 					"type": {
 						"source_entity": {
@@ -108,7 +122,13 @@
 									]
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}
@@ -116,13 +136,6 @@
 		"diamond_axe": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},
 				"damage": {
 					"type": {
 						"source_entity": {
@@ -133,7 +146,13 @@
 									]
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}
@@ -141,13 +160,6 @@
 		"netherite_axe": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},
 				"damage": {
 					"type": {
 						"source_entity": {
@@ -158,7 +170,13 @@
 									]
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}

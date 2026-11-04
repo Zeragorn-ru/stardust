@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:monsters/spooky_skeleton",
 	"rewards": {
-		"function": "bc_rewards:monsters/boned"
+		"function": "bacap_rewards:monsters/boned"
 	},		
 	"criteria": {
 		"bone_meal": {

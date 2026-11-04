@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:weaponry/flying_colors",
 	"rewards": {
-		"function": "bc_rewards:weaponry/master_shieldsman"
+		"function": "bacap_rewards:weaponry/master_shieldsman"
 	},
 	"criteria": {
 		"cave_spider": {
@@ -22,7 +22,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "cave_spider"
+						"entity_type": "cave_spider"
 					}
 				}
 			}
@@ -33,7 +33,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "spider"
+						"entity_type": "spider"
 					}
 				}
 			}
@@ -44,7 +44,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "zombified_piglin"
+						"entity_type": "zombified_piglin"
 					}
 				}
 			}
@@ -55,7 +55,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "enderman"
+						"entity_type": "enderman"
 					}
 				}
 			}
@@ -66,7 +66,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "blaze"
+						"entity_type": "blaze"
 					}
 				}
 			}
@@ -77,7 +77,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "creeper"
+						"entity_type": "creeper"
 					}
 				}
 			}
@@ -88,7 +88,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "ghast"
+						"entity_type": "ghast"
 					}
 				}
 			}
@@ -99,7 +99,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "husk"
+						"entity_type": "husk"
 					}
 				}
 			}
@@ -110,7 +110,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "magma_cube"
+						"entity_type": "magma_cube"
 					}
 				}
 			}
@@ -121,7 +121,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "shulker"
+						"entity_type": "shulker"
 					}
 				}
 			}
@@ -132,7 +132,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "silverfish"
+						"entity_type": "silverfish"
 					}
 				}
 			}
@@ -143,7 +143,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "skeleton"
+						"entity_type": "minecraft:skeleton"
 					}
 				}
 			}
@@ -154,7 +154,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "slime"
+						"entity_type": "slime"
 					}
 				}
 			}
@@ -165,7 +165,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "stray"
+						"entity_type": "stray"
 					}
 				}
 			}
@@ -176,7 +176,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "vindicator"
+						"entity_type": "vindicator"
 					}
 				}
 			}
@@ -187,7 +187,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "wither_skeleton"
+						"entity_type": "wither_skeleton"
 					}
 				}
 			}
@@ -198,7 +198,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "zombie"
+						"entity_type": "minecraft:zombie"
 					}
 				}
 			}
@@ -209,7 +209,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "zombie_villager"
+						"entity_type": "zombie_villager"
 					}
 				}
 			}
@@ -220,7 +220,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "phantom"
+						"entity_type": "phantom"
 					}
 				}
 			}
@@ -231,7 +231,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "drowned"
+						"entity_type": "drowned"
 					}
 				}
 			}
@@ -242,7 +242,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "pillager"
+						"entity_type": "pillager"
 					}
 				}
 			}
@@ -253,7 +253,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "ravager"
+						"entity_type": "ravager"
 					}
 				}
 			}
@@ -264,7 +264,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "endermite"
+						"entity_type": "endermite"
 					}
 				}
 			}
@@ -275,7 +275,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "vex"
+						"entity_type": "vex"
 					}
 				}
 			}
@@ -286,7 +286,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "piglin"
+						"entity_type": "piglin"
 					}
 				}
 			}
@@ -297,7 +297,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "hoglin"
+						"entity_type": "hoglin"
 					}
 				}
 			}
@@ -308,7 +308,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "zoglin"
+						"entity_type": "zoglin"
 					}
 				}
 			}
@@ -319,7 +319,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "piglin_brute"
+						"entity_type": "piglin_brute"
 					}
 				}
 			}
@@ -330,7 +330,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "ender_dragon"
+						"entity_type": "ender_dragon"
 					}
 				}
 			}
@@ -341,7 +341,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "warden"
+						"entity_type": "warden"
 					}
 				}
 			}
@@ -352,7 +352,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "breeze"
+						"entity_type": "breeze"
 					}
 				}
 			}
@@ -363,7 +363,40 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "bogged"
+						"entity_type": "bogged"
+					}
+				}
+			}
+		},
+		"creaking": {
+			"trigger": "minecraft:entity_hurt_player",
+			"conditions": {
+				"damage": {
+					"blocked": true,
+					"source_entity": {
+						"entity_type": "creaking"
+					}
+				}
+			}
+		},
+		"zombie_nautilus": {
+			"trigger": "minecraft:entity_hurt_player",
+			"conditions": {
+				"damage": {
+					"blocked": true,
+					"source_entity": {
+						"entity_type": "zombie_nautilus"
+					}
+				}
+			}
+		},
+		"parched": {
+			"trigger": "minecraft:entity_hurt_player",
+			"conditions": {
+				"damage": {
+					"blocked": true,
+					"source_entity": {
+						"entity_type": "parched"
 					}
 				}
 			}

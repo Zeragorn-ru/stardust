@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/genesis_of_the_end",
 	"rewards": {
-		"function": "bc_rewards:adventure/vexingly_hard_to_find"
+		"function": "bacap_rewards:adventure/vexingly_hard_to_find"
 	},		
 	"criteria": {
 		"vex_armor_trim_smithing_template": {

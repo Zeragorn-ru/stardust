@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/master_miner",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_digger"
+		"function": "bacap_rewards:enchanting/master_digger"
 	},		
 	"criteria": {
 		"perfect_shovel_fortune": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/professor_birch",
 	"rewards": {
-		"function": "bc_rewards:building/the_jungler"
+		"function": "bacap_rewards:building/the_jungler"
 	},		
 	"criteria": {
 		"jungle_planks": {
@@ -212,6 +212,18 @@
 					{
 						"items": [
 							"minecraft:jungle_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"jungle_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:jungle_shelf"
 						]
 					}
 				]

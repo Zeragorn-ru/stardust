@@ -15,14 +15,14 @@
 	},
 	"parent": "blazeandcave:animal/llama_festival",
 	"rewards": {
-		"function": "bc_rewards:animal/heavy_duty_caravan"
+		"function": "bacap_rewards:animal/heavy_duty_caravan"
 	},		
 	"criteria": {
 		"strength": {
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "#blazeandcave:llamas",
+					"entity_type": "#blazeandcave:llamas",
 					"nbt": "{Strength:5}"
 				}
 			}

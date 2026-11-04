@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/click",
 	"rewards": {
-		"function": "bc_rewards:redstone/leveraging_synergy"
+		"function": "bacap_rewards:redstone/leveraging_synergy"
 	},
 	"criteria": {
 		"lever": {

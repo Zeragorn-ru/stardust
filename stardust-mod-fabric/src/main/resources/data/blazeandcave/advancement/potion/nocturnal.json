@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/hyper_healing",
 	"rewards": {
-		"function": "bc_rewards:potion/nocturnal"
+		"function": "bacap_rewards:potion/nocturnal"
 	},	
 	"criteria": {
 		"night_vision": {

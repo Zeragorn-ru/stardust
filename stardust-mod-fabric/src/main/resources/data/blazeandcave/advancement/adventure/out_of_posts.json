@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/root",
 	"rewards": {
-		"function": "bc_rewards:adventure/out_of_posts"
+		"function": "bacap_rewards:adventure/out_of_posts"
 	},		
 	"criteria": {
 		"pillager_outpost": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/unbreakable",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_knight"
+		"function": "bacap_rewards:enchanting/master_knight"
 	},		
 	"criteria": {
 		"perfect_sword": {

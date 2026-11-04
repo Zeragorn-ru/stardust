@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/tomb_raider",
 	"rewards": {
-		"function": "bc_rewards:adventure/witchcraft"
+		"function": "bacap_rewards:adventure/witchcraft"
 	},		
 	"criteria": {
 		"swamp_hut": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

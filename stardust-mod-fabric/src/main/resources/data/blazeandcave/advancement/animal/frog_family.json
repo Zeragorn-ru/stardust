@@ -9,17 +9,17 @@
 	},
 	"parent": "minecraft:husbandry/root",
 	"rewards": {
-		"function": "bc_rewards:animal/frog_family"
+		"function": "bacap_rewards:animal/frog_family"
 	},		
 	"criteria": {
 		"frog": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:frog"
+					"entity_type": "minecraft:frog"
 				},
 				"partner": {
-					"type": "minecraft:frog"
+					"entity_type": "minecraft:frog"
 				}
 			}
 		}

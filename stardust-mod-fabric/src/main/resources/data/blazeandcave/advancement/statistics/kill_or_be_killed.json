@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/bloodthirsty",
 	"rewards": {
-		"function": "bc_rewards:statistics/kill_or_be_killed"
+		"function": "bacap_rewards:statistics/kill_or_be_killed"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

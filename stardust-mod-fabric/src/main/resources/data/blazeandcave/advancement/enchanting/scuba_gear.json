@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/knocking_your_socks_off",
 	"rewards": {
-		"function": "bc_rewards:enchanting/scuba_gear"
+		"function": "bacap_rewards:enchanting/scuba_gear"
 	},			
 	"criteria": {
 		"respiration": {

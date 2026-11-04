@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/voluntary_exile",
 	"rewards": {
-		"function": "bc_rewards:adventure/were_being_attacked"
+		"function": "bacap_rewards:adventure/were_being_attacked"
 	},
 	"criteria": {
 		"triggered_raid": {

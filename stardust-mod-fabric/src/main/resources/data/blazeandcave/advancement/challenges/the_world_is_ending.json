@@ -11,7 +11,7 @@
 	},
 	"parent": "blazeandcave:challenges/i_am_loot",
 	"rewards": {
-		"function": "bc_rewards:challenges/the_world_is_ending"
+		"function": "bacap_rewards:challenges/the_world_is_ending"
 	},		
 	"criteria": {
 		"ten_withers": {

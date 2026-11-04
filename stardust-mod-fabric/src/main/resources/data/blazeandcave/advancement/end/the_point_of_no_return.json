@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:end/the_actual_end",
 	"rewards": {
-		"function": "bc_rewards:end/the_point_of_no_return"
+		"function": "bacap_rewards:end/the_point_of_no_return"
 	},		
 	"criteria": {
 		"world_height": {
@@ -36,8 +36,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

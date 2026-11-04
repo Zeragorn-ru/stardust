@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:adventure/kill_a_mob",
 	"rewards": {
-		"function": "bc_rewards:monsters/the_ender_of_ender"
+		"function": "bacap_rewards:monsters/the_ender_of_ender"
 	},		
 	"criteria": {
 		"enderman": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "enderman"
+					"entity_type": "enderman"
 				}
 			}
 		}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/the_invisible_player",
 	"rewards": {
-		"function": "bc_rewards:potion/true_feather_falling"
+		"function": "bacap_rewards:potion/true_feather_falling"
 	},	
 	"criteria": {
 		"slow_falling": {

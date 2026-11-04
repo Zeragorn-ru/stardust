@@ -9,19 +9,20 @@
 	},
 	"parent": "blazeandcave:biomes/this_snow_is_snowier",
 	"rewards": {
-		"function": "bc_rewards:biomes/powder_full"
+		"function": "bacap_rewards:biomes/powder_full"
 	},		
 	"criteria": {
 		"powder_snow_bucket": {
-			"trigger": "minecraft:filled_bucket",
+			"trigger": "minecraft:inventory_changed",
 			"conditions": {
-				"item":
-				{
-					"items": [
-						"minecraft:powder_snow_bucket"
-					]
-				}
+				"items": [
+					{
+						"items": [
+							"minecraft:powder_snow_bucket"
+						]
+					}
+				]
 			}
-		}		
+		}
 	}
 }

@@ -11,54 +11,30 @@
 	},
 	"parent": "blazeandcave:adventure/the_one_and_true_johnny",
 	"rewards": {
-		"function": "bc_rewards:adventure/nerds_never_die"
+		"function": "bacap_rewards:adventure/nerds_never_die"
 	},		
 	"criteria": {
 		"technoblade": {
-			"trigger": "minecraft:impossible",
+			"trigger": "minecraft:player_interacted_with_entity",
 			"conditions": {
 				"item": {
 					"items": [
 						"minecraft:name_tag"
 					],
-					"nbt": "{display:{Name:'\"Technoblade\"'}}"
-				},
-				"entity": [
-					{
-						"condition": "minecraft:entity_properties",
-						"predicate": {
-							"type": "minecraft:piglin_brute"
-						},
-						"entity": "this"
+					"components": {
+						"minecraft:custom_name": "Technoblade"
 					}
-				]
-			}
-		},
-		"technoblade_old": {
-			"trigger": "minecraft:impossible",
-			"conditions": {
-				"item": {
-					"items": [
-						"minecraft:name_tag"
-					],
-					"nbt": "{display:{Name:\"{\\\"text\\\":\\\"Technoblade\\\"}\"}}"
 				},
 				"entity": [
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:piglin_brute"
+							"entity_type": "minecraft:piglin_brute"
 						},
 						"entity": "this"
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-			"technoblade",
-			"technoblade_old"
-		]
-	]
+	}
 }

@@ -9,90 +9,18 @@
 	},
 	"parent": "minecraft:story/root",
 	"rewards": {
-		"function": "bc_rewards:bacap/time_to_mine"
+		"function": "bacap_rewards:bacap/time_to_mine"
 	},		
 	"criteria": {
-		"wooden_pickaxe": {
+		"pickaxes": {
 			"trigger": "minecraft:inventory_changed",
 			"conditions": {
 				"items": [
 					{
-						"items": [
-							"minecraft:wooden_pickaxe"
-						]
-					}
-				]
-			}
-		},
-		"stone_pickaxe": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:stone_pickaxe"
-						]
-					}
-				]
-			}
-		},
-		"iron_pickaxe": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:iron_pickaxe"
-						]
-					}
-				]
-			}
-		},
-		"diamond_pickaxe": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:diamond_pickaxe"
-						]
-					}
-				]
-			}
-		},
-		"golden_pickaxe": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:golden_pickaxe"
-						]
-					}
-				]
-			}
-		},
-		"netherite_pickaxe": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:netherite_pickaxe"
-						]
+						"items": "#blazeandcave:pickaxes"
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-		"wooden_pickaxe",
-		"stone_pickaxe",
-		"iron_pickaxe",
-		"diamond_pickaxe",
-		"golden_pickaxe",
-		"netherite_pickaxe"
-		]
-	]
+	}
 }

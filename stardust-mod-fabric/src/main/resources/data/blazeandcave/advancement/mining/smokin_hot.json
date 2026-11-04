@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/renewable_energy",
 	"rewards": {
-		"function": "bc_rewards:mining/smokin_hot"
+		"function": "bacap_rewards:mining/smokin_hot"
 	},		
 	"criteria": {
 		"smoker": {

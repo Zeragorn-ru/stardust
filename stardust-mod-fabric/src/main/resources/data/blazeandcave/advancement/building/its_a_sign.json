@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/your_door_was_locked",
 	"rewards": {
-		"function": "bc_rewards:building/its_a_sign"
+		"function": "bacap_rewards:building/its_a_sign"
 	},		
 	"criteria": {
 		"sign": {

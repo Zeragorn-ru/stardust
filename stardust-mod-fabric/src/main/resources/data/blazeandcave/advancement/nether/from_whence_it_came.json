@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:nether/root",
 	"rewards": {
-		"function": "bc_rewards:nether/from_whence_it_came"
+		"function": "bacap_rewards:nether/from_whence_it_came"
 	},		
 	"criteria": {
 		"ruined_portal": {
@@ -97,8 +97,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

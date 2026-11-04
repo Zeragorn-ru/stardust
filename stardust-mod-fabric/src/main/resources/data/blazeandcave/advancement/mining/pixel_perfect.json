@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/blind_as_a_bat",
 	"rewards": {
-		"function": "bc_rewards:mining/pixel_perfect"
+		"function": "bacap_rewards:mining/pixel_perfect"
 	},		
 	"criteria": {
 		"pixel_perfect": {
@@ -20,10 +20,10 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"looking_at": {
-									"type": "minecraft:bat",
+									"entity_type": "minecraft:bat",
 									"distance": {
 										"absolute": {
 											"min": 50

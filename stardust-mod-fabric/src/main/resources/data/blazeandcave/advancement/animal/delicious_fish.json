@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/fishy_business",
 	"rewards": {
-		"function": "bc_rewards:animal/delicious_fish"
+		"function": "bacap_rewards:animal/delicious_fish"
 	},		
 	"criteria": {
 		"cooked_cod": {

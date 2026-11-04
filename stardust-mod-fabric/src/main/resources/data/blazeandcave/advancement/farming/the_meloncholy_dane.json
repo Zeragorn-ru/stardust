@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/scientific_inaccuracy",
 	"rewards": {
-		"function": "bc_rewards:farming/the_meloncholy_dane"
+		"function": "bacap_rewards:farming/the_meloncholy_dane"
 	},		
 	"criteria": {
 		"melon_block": {

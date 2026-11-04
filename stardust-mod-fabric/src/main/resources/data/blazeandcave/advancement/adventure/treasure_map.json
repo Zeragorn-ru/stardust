@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/mapmaker",
 	"rewards": {
-		"function": "bc_rewards:adventure/treasure_map"
+		"function": "bacap_rewards:adventure/treasure_map"
 	},		
 	"criteria": {
 		"trade": {

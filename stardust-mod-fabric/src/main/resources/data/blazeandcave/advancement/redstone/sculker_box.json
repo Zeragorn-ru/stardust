@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/the_incredible_sculk",
 	"rewards": {
-		"function": "bc_rewards:redstone/sculker_box"
+		"function": "bacap_rewards:redstone/sculker_box"
 	},		
 	"criteria": {
 		"sculker_box": {

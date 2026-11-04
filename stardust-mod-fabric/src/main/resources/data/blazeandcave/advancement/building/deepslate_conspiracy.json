@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/tuff_stuff",
 	"rewards": {
-		"function": "bc_rewards:building/deepslate_conspiracy"
+		"function": "bacap_rewards:building/deepslate_conspiracy"
 	},		
 	"criteria": {
 		"deepslate": {

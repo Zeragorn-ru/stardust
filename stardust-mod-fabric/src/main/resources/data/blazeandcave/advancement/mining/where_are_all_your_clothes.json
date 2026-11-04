@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/weve_broken_our_last_shovel",
 	"rewards": {
-		"function": "bc_rewards:mining/where_are_all_your_clothes"
+		"function": "bacap_rewards:mining/where_are_all_your_clothes"
 	},		
 	"criteria": {
 		"leather_helmet": {
@@ -58,6 +58,58 @@
 				"item": {
 					"items": [
 						"minecraft:leather_boots"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
+			}
+		},
+		"copper_helmet": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_helmet"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
+			}
+		},
+		"copper_chestplate": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_chestplate"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
+			}
+		},
+		"copper_leggings": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_leggings"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
+			}
+		},
+		"copper_boots": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_boots"
 					]
 				},
 				"durability": {
@@ -347,6 +399,58 @@
 					]
 				},
 				"durability": 1
+			}
+		},
+		"copper_helmet": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_helmet"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
+			}
+		},
+		"copper_chestplate": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_chestplate"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
+			}
+		},
+		"copper_leggings": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_leggings"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
+			}
+		},
+		"copper_boots": {
+			"trigger": "minecraft:item_durability_changed",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:copper_boots"
+					]
+				},
+				"durability": {
+					"max": 0
+				}
 			}
 		}
 	}

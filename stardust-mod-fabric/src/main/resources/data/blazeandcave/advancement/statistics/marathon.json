@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/natural_sprinter",
 	"rewards": {
-		"function": "bc_rewards:statistics/marathon"
+		"function": "bacap_rewards:statistics/marathon"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

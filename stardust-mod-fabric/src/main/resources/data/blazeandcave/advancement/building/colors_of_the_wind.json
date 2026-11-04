@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/sign_off",
 	"rewards": {
-		"function": "bc_rewards:building/colors_of_the_wind"
+		"function": "bacap_rewards:building/colors_of_the_wind"
 	},		
 	"criteria": {
 		"white_dye": {

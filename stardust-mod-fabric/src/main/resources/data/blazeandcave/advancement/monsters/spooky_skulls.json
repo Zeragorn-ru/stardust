@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/melting",
 	"rewards": {
-		"function": "bc_rewards:monsters/spooky_skulls"
+		"function": "bacap_rewards:monsters/spooky_skulls"
 	},		
 	"criteria": {
 		"skeleton_skull": {

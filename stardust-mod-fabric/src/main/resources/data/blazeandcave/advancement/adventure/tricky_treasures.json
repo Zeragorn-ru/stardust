@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/revaulting",
 	"rewards": {
-		"function": "bc_rewards:adventure/tricky_treasures"
+		"function": "bacap_rewards:adventure/tricky_treasures"
 	},		
 	"criteria": {
 		"music_disc_creator": {

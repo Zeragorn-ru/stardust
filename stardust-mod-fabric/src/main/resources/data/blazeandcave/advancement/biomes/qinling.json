@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:biomes/zoologist",
 	"rewards": {
-		"function": "bc_rewards:biomes/qinling"
+		"function": "bacap_rewards:biomes/qinling"
 	},		
 	"criteria": {
 		"panda": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"child": {
-					"type": "minecraft:panda",
+					"entity_type": "minecraft:panda",
 					"nbt": "{MainGene:\"brown\",HiddenGene:\"brown\"}"
 				}
 			}

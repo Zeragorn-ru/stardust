@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/quirky_quartz",
 	"rewards": {
-		"function": "bc_rewards:redstone/comparing_comparator"
+		"function": "bacap_rewards:redstone/comparing_comparator"
 	},	
 	"criteria": {
 		"comparator": {

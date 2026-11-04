@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/fiery",
 	"rewards": {
-		"function": "bc_rewards:enchanting/like_a_ninja"
+		"function": "bacap_rewards:enchanting/like_a_ninja"
 	},			
 	"criteria": {
 		"swift_sneak_book": {

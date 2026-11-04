@@ -9,18 +9,18 @@
 	},
 	"parent": "blazeandcave:animal/puppies_yipe",
 	"rewards": {
-		"function": "bc_rewards:animal/what_does_the_fox_say"
+		"function": "bacap_rewards:animal/what_does_the_fox_say"
 	},		
 	"criteria": {
 		"fox": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:fox",
+					"entity_type": "minecraft:fox",
 					"nbt": "{Type:red}"
 				},
 				"partner": {
-					"type": "minecraft:fox",
+					"entity_type": "minecraft:fox",
 					"nbt": "{Type:red}"
 				}
 			}

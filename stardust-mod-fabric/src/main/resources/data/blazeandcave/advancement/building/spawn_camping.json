@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/delicious_hot_schmoes",
 	"rewards": {
-		"function": "bc_rewards:building/spawn_camping"
+		"function": "bacap_rewards:building/spawn_camping"
 	},		
 	"criteria": {
 		"campfire": {
@@ -22,7 +22,8 @@
 						"predicate": {
 							"block": {
 								"blocks": [
-									"minecraft:campfire"
+									"minecraft:campfire",
+									"minecraft:soul_campfire"
 								]
 							},
 							"position": {
@@ -31,7 +32,7 @@
 									"min": -10
 								},
 								"z": {
-										"max": 10,
+									"max": 10,
 									"min": -10
 								}
 							}

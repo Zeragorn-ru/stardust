@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/root",
 	"rewards": {
-		"function": "bc_rewards:adventure/i_hereby_dub_thee"
+		"function": "bacap_rewards:adventure/i_hereby_dub_thee"
 	},		
 	"criteria": {
 		"name_tag": {

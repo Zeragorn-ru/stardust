@@ -13,9 +13,9 @@
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
-	"parent": "blazeandcave:potion/imbued_projectiles",
+	"parent": "blazeandcave:potion/string_shot",
 	"rewards": {
-		"function": "bc_rewards:potion/furious_ammunition"
+		"function": "bacap_rewards:potion/furious_ammunition"
 	},	
 	"criteria": {
 		"water": {

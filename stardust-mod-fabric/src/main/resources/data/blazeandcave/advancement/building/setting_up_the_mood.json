@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/one_pickle_two_pickle_sea_pickle_four",
 	"rewards": {
-		"function": "bc_rewards:building/setting_up_the_mood"
+		"function": "bacap_rewards:building/setting_up_the_mood"
 	},		
 	"criteria": {
 		"candle": {

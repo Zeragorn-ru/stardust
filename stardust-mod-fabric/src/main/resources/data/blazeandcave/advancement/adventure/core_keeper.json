@@ -11,7 +11,7 @@
 	},
 	"parent": "blazeandcave:adventure/omniscient",
 	"rewards": {
-		"function": "bc_rewards:adventure/core_keeper"
+		"function": "bacap_rewards:adventure/core_keeper"
 	},
 	"criteria": {
 		"heavy_core": {

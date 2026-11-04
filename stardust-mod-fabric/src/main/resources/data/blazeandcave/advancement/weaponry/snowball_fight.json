@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/root",
 	"rewards": {
-		"function": "bc_rewards:weaponry/snowball_fight"
+		"function": "bacap_rewards:weaponry/snowball_fight"
 	},		
 	"criteria": {
 		"snowball": {
@@ -24,7 +24,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:snowball"
+							"entity_type": "minecraft:snowball"
 						}
 					}
 				}

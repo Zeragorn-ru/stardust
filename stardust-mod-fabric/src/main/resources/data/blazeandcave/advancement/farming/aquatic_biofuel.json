@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/kelp_me",
 	"rewards": {
-		"function": "bc_rewards:farming/aquatic_biofuel"
+		"function": "bacap_rewards:farming/aquatic_biofuel"
 	},		
 	"criteria": {
 		"dried_kelp_block": {

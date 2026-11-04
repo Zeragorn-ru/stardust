@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:check_paintings"
+		"function": "blazeandcave:advancement/check/paintings"
 	},
 	"criteria": {
 		"painting": {

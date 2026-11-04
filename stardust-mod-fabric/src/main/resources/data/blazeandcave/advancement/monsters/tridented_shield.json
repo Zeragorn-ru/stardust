@@ -34,7 +34,7 @@
 	},
 	"parent": "blazeandcave:monsters/a_watery_grave",
 	"rewards": {
-		"function": "bc_rewards:monsters/tridented_shield"
+		"function": "bacap_rewards:monsters/tridented_shield"
 	},
 	"criteria": {
 		"deflected_trident": {
@@ -51,7 +51,7 @@
 					},
 					"blocked": true,
 					"source_entity": {
-						"type": "drowned"
+						"entity_type": "drowned"
 					}
 				}
 			}

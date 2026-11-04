@@ -1,5 +1,7 @@
 # Function that updates everyone's shared advancements based on what everyone currently has
 
+function #bacap_fanpacks:config/coop_update_team_dark_aqua
+
 # Go through every advancement, and adds 1 to score if you have obtained that advancement
 execute if score blazeandcave:adventure/businessman bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/businessman
 execute if score blazeandcave:adventure/disc_jockey bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/disc_jockey
@@ -24,7 +26,7 @@ execute if score blazeandcave:adventure/overpowered bac_obtained_dark_aqua match
 execute if score blazeandcave:adventure/raidin_master bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/raidin_master
 execute if score blazeandcave:adventure/rekt bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/rekt
 execute if score blazeandcave:adventure/secret_of_the_igloo bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/secret_of_the_igloo
-execute if score blazeandcave:adventure/spear_fishing bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/spear_fishing
+execute if score blazeandcave:adventure/seafood_skewer bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/seafood_skewer
 execute if score blazeandcave:adventure/sponge_miner bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/sponge_miner
 execute if score blazeandcave:adventure/the_deep_end bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/the_deep_end
 execute if score blazeandcave:adventure/the_shielding bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/the_shielding
@@ -42,7 +44,7 @@ execute if score blazeandcave:animal/artificial_selection bac_obtained_dark_aqua
 execute if score blazeandcave:animal/bacon bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/bacon
 execute if score blazeandcave:animal/blistering_barnacles bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/blistering_barnacles
 execute if score blazeandcave:animal/catching_nemo bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/catching_nemo
-execute if score blazeandcave:animal/chatterbox bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/chatterbox
+execute if score blazeandcave:biomes/chatterbox bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/chatterbox
 execute if score blazeandcave:animal/chicken_cooper bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/chicken_cooper
 execute if score blazeandcave:animal/cow_tipper bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/cow_tipper
 execute if score blazeandcave:animal/cowboy bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/cowboy
@@ -575,7 +577,7 @@ execute if score blazeandcave:animal/which_came_first bac_obtained_dark_aqua mat
 execute if score blazeandcave:animal/horse_armorer bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/horse_armorer
 execute if score blazeandcave:animal/colorful_cavalry bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/colorful_cavalry
 execute if score blazeandcave:animal/master_farrier bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/master_farrier
-execute if score blazeandcave:animal/birdkeeper bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/birdkeeper
+execute if score blazeandcave:biomes/birdkeeper bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/birdkeeper
 execute if score blazeandcave:animal/llama_llama_duck_king bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/llama_llama_duck_king
 execute if score blazeandcave:animal/bunny_lover bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/bunny_lover
 execute if score blazeandcave:animal/what_does_the_fox_say bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/what_does_the_fox_say
@@ -683,7 +685,7 @@ execute if score blazeandcave:adventure/superhero_of_the_village bac_obtained_da
 
 execute if score blazeandcave:monsters/aww_man bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/aww_man
 execute if score blazeandcave:monsters/spider_skeleton bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/spider_skeleton
-execute if score blazeandcave:monsters/iskallium_collector bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/iskallium_collector
+execute if score blazeandcave:monsters/oh_no_guys_im_oozing bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/oh_no_guys_im_oozing
 
 execute if score blazeandcave:weaponry/artillery bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/artillery
 
@@ -722,7 +724,7 @@ execute if score blazeandcave:statistics/supersonic bac_obtained_dark_aqua match
 execute if score blazeandcave:statistics/frequent_flyer bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/frequent_flyer
 execute if score blazeandcave:statistics/the_parrots_and_the_bats bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/the_parrots_and_the_bats
 execute if score blazeandcave:statistics/cupid bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/cupid
-execute if score blazeandcave:statistics/two_by_two bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/two_by_two
+execute if score blazeandcave:statistics/overpopulation bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/overpopulation
 execute if score blazeandcave:statistics/novice_enchanter bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/novice_enchanter
 execute if score blazeandcave:statistics/journeyman_enchanter bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/journeyman_enchanter
 execute if score blazeandcave:statistics/elderly_enchanter bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/elderly_enchanter
@@ -925,9 +927,9 @@ execute if score blazeandcave:nether/moar_upgraded_tools bac_obtained_dark_aqua 
 execute if score minecraft:nether/netherite_armor bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:nether/netherite_armor
 execute if score blazeandcave:nether/soul_runnings bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/soul_runnings
 execute if score blazeandcave:nether/fool_me_twice bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/fool_me_twice
-execute if score blazeandcave:nether/get_a_lode_of_this bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/get_a_lode_of_this
-execute if score minecraft:nether/use_lodestone bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:nether/use_lodestone
-execute if score blazeandcave:nether/lodes_of_applications bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/lodes_of_applications
+execute if score blazeandcave:mining/get_a_lode_of_this bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/get_a_lode_of_this
+execute if score minecraft:adventure/use_lodestone bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:adventure/use_lodestone
+execute if score blazeandcave:mining/lodes_of_applications bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/lodes_of_applications
 execute if score blazeandcave:nether/netherite_miner bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/netherite_miner
 
 execute if score blazeandcave:potion/failed_concoctions bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:potion/failed_concoctions
@@ -1170,7 +1172,7 @@ execute if score blazeandcave:adventure/expedition_of_discovery bac_obtained_dar
 
 # The following advancements were added in version 1.14
 execute if score minecraft:adventure/avoid_vibration bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:adventure/avoid_vibration
-execute if score minecraft:adventure/kill_mob_near_sculk_catalyst bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:mining/kill_mob_near_sculk_catalyst
+execute if score minecraft:adventure/kill_mob_near_sculk_catalyst bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:adventure/kill_mob_near_sculk_catalyst
 execute if score blazeandcave:mining/shriek_forever_after bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/shriek_forever_after
 execute if score blazeandcave:redstone/the_block_of_eternal_screaming bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:redstone/the_block_of_eternal_screaming
 execute if score blazeandcave:redstone/cataclyst bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:redstone/cataclyst
@@ -1294,7 +1296,7 @@ execute if score blazeandcave:nether/piglin_peril bac_obtained_dark_aqua matches
 
 execute if score blazeandcave:challenges/poglin bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:challenges/poglin
 
-execute if score blazeandcave:adventure/a_chiptune_relic bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:challenges/a_chiptune_relic
+execute if score blazeandcave:adventure/a_chiptune_relic bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/a_chiptune_relic
 execute if score minecraft:husbandry/feed_snifflet bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:husbandry/feed_snifflet
 execute if score minecraft:husbandry/plant_any_sniffer_seed bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:husbandry/plant_any_sniffer_seed
 execute if score minecraft:adventure/read_power_of_chiseled_bookshelf bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:adventure/read_power_of_chiseled_bookshelf
@@ -1357,3 +1359,141 @@ execute if score blazeandcave:end/divers_dozen bac_obtained_dark_aqua matches 1.
 execute if score blazeandcave:end/dimension_penetration bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:end/dimension_penetration
 
 execute if score blazeandcave:challenges/overwarden bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:challenges/overwarden
+
+
+execute if score blazeandcave:biomes/eyeball_forest bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/eyeball_forest
+execute if score blazeandcave:biomes/heart_breaker bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/heart_breaker
+execute if score blazeandcave:biomes/pale_in_comparison bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/pale_in_comparison
+execute if score blazeandcave:biomes/resinance bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/resinance
+execute if score blazeandcave:biomes/fake_copper bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/fake_copper
+
+execute if score blazeandcave:building/pale_gardener bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:building/pale_gardener
+
+execute if score blazeandcave:animal/flamboyant_range bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/flamboyant_range
+
+execute if score blazeandcave:nether/light_show bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/light_show
+
+execute if score blazeandcave:mining/i_yearned_for_the_mines bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/i_yearned_for_the_mines
+
+
+execute if score blazeandcave:farming/booshes bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:farming/booshes
+execute if score blazeandcave:farming/you_cant_take_the_sky_from_me bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:farming/you_cant_take_the_sky_from_me
+execute if score blazeandcave:farming/certified_spud_chomper bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:farming/certified_spud_chomper
+
+execute if score blazeandcave:animal/piglets_big_advancement bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/piglets_big_advancement
+execute if score blazeandcave:animal/the_three_little_pigs bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/the_three_little_pigs
+execute if score blazeandcave:animal/beef_moover bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/beef_moover
+execute if score blazeandcave:animal/omelette bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/omelette
+execute if score blazeandcave:animal/chick_buffet bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/chick_buffet
+
+execute if score minecraft:adventure/heart_transplanter bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:adventure/heart_transplanter
+execute if score blazeandcave:biomes/le_creak_cest_chic bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/le_creak_cest_chic
+
+execute if score blazeandcave:adventure/all_around_the_world bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:adventure/all_around_the_world
+
+execute if score blazeandcave:monsters/look_out bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/look_out
+execute if score blazeandcave:monsters/absolute_cinema bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/absolute_cinema
+
+execute if score blazeandcave:redstone/splatfest bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:redstone/splatfest
+
+execute if score blazeandcave:enchanting/oh_baby_a_triple bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:enchanting/oh_baby_a_triple
+
+execute if score blazeandcave:statistics/test_flight bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/test_flight
+execute if score blazeandcave:statistics/who_needs_elytra bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/who_needs_elytra
+execute if score blazeandcave:statistics/big_blimp_enthusiast bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/big_blimp_enthusiast
+
+execute if score minecraft:husbandry/place_dried_ghast_in_water bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:husbandry/place_dried_ghast_in_water
+execute if score blazeandcave:nether/snow_cone bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/snow_cone
+execute if score blazeandcave:nether/hot_air_balloon bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/hot_air_balloon
+execute if score blazeandcave:nether/midport_village bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/midport_village
+execute if score blazeandcave:nether/lead_zeppelin bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/lead_zeppelin
+execute if score blazeandcave:nether/pillow_fight bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/pillow_fight
+execute if score blazeandcave:nether/collateral_damage bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:nether/collateral_damage
+
+execute if score blazeandcave:potion/string_shot bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:potion/string_shot
+
+execute if score blazeandcave:end/why_do_i_hear_boss_music bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:end/why_do_i_hear_boss_music
+execute if score blazeandcave:end/unstoppable_force_vs_immovable_object bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:end/unstoppable_force_vs_immovable_object
+execute if score blazeandcave:end/youre_doing_it_wrong bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:end/youre_doing_it_wrong
+
+execute if score blazeandcave:challenges/at_the_rim_of_the_sky bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:challenges/at_the_rim_of_the_sky
+execute if score blazeandcave:challenges/lets_take_it_up_a_notch bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:challenges/lets_take_it_up_a_notch
+
+
+execute if score blazeandcave:mining/copper_age bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/copper_age
+execute if score blazeandcave:mining/copper_golem_overlord bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/copper_golem_overlord
+execute if score blazeandcave:mining/beep_bop bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/beep_bop
+execute if score blazeandcave:mining/wax_treatment bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/wax_treatment
+execute if score blazeandcave:mining/total_copout bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/total_copout
+execute if score blazeandcave:mining/such_a_poser bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/such_a_poser
+execute if score blazeandcave:mining/statue_of_limitations bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/statue_of_limitations
+execute if score blazeandcave:mining/conductive_conglomerate bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/conductive_conglomerate
+execute if score blazeandcave:mining/d_b_copper bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/d_b_copper
+execute if score blazeandcave:mining/life_sentence bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/life_sentence
+execute if score blazeandcave:mining/chain_gang bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/chain_gang
+execute if score blazeandcave:mining/gratest_of_all_time bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/gratest_of_all_time
+execute if score blazeandcave:mining/green_lanterns bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/green_lanterns
+execute if score blazeandcave:mining/copper_computer bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/copper_computer
+execute if score blazeandcave:mining/school_of_hard_knocks bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/school_of_hard_knocks
+
+execute if score blazeandcave:building/chartreuse bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:building/chartreuse
+execute if score blazeandcave:building/shelfception bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:building/shelfception
+execute if score blazeandcave:building/locked_and_loaded bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:building/locked_and_loaded
+
+execute if score blazeandcave:enchanting/echidna bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:enchanting/echidna
+
+
+execute if score minecraft:adventure/spear_many_mobs bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:adventure/spear_many_mobs
+
+
+execute if score blazeandcave:mining/mitosis bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/mitosis
+execute if score blazeandcave:mining/punching_bag bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/punching_bag
+execute if score blazeandcave:mining/truly_an_all_purpose_tool bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/truly_an_all_purpose_tool
+execute if score minecraft:husbandry/uh_oh bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only minecraft:husbandry/uh_oh
+execute if score blazeandcave:mining/stink_bomb bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/stink_bomb
+execute if score blazeandcave:mining/all_the_balls bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/all_the_balls
+execute if score blazeandcave:mining/bouncy_beats bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:mining/bouncy_beats
+
+execute if score blazeandcave:building/the_smell_of_rotten_eggs bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:building/the_smell_of_rotten_eggs
+execute if score blazeandcave:building/cinnabar_island bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:building/cinnabar_island
+
+execute if score blazeandcave:animal/whole_horse bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/whole_horse
+execute if score blazeandcave:animal/counting_sheep bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/counting_sheep
+execute if score blazeandcave:animal/fountain_of_youth bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:animal/fountain_of_youth
+
+execute if score blazeandcave:monsters/grim_neigh bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/grim_neigh
+execute if score blazeandcave:monsters/lancelot bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/lancelot
+execute if score blazeandcave:monsters/sands_the_skeleton bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/sands_the_skeleton
+execute if score blazeandcave:monsters/unwanted_passenger bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/unwanted_passenger
+execute if score blazeandcave:monsters/ride_or_dry bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/ride_or_dry
+execute if score blazeandcave:monsters/the_wicked_witch_of_the_west bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/the_wicked_witch_of_the_west
+
+execute if score blazeandcave:weaponry/time_to_hunt bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/time_to_hunt
+execute if score blazeandcave:weaponry/spear_fishing bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/spear_fishing
+execute if score blazeandcave:weaponry/toasted_marshmallow bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/toasted_marshmallow
+execute if score blazeandcave:weaponry/britney_spears bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/britney_spears
+execute if score blazeandcave:weaponry/hit_and_run bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/hit_and_run
+execute if score blazeandcave:weaponry/arrow_of_ultimate_obliteration bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/arrow_of_ultimate_obliteration
+execute if score blazeandcave:weaponry/impiled bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/impiled
+execute if score blazeandcave:weaponry/death_star bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:weaponry/death_star
+
+execute if score blazeandcave:biomes/welcome_to_neverland bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/welcome_to_neverland
+execute if score blazeandcave:biomes/equiangular_spiral bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/equiangular_spiral
+execute if score blazeandcave:biomes/a_scute_off_the_old_shell bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/a_scute_off_the_old_shell
+execute if score blazeandcave:biomes/naughtylus bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/naughtylus
+execute if score blazeandcave:biomes/coralful_shell bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/coralful_shell
+execute if score blazeandcave:biomes/submarine_fleet bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/submarine_fleet
+execute if score blazeandcave:biomes/20_leagues_under_the_sea bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:biomes/20_leagues_under_the_sea
+
+execute if score blazeandcave:enchanting/classic_cartoon_comedy bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:enchanting/classic_cartoon_comedy
+execute if score blazeandcave:enchanting/master_jouster bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:enchanting/master_jouster
+
+execute if score blazeandcave:statistics/shell_testing bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/shell_testing
+execute if score blazeandcave:statistics/captain_nemo bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/captain_nemo
+execute if score blazeandcave:statistics/lord_helix bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:statistics/lord_helix
+
+execute if score blazeandcave:potion/water_balloon bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:potion/water_balloon
+
+execute if score blazeandcave:end/taking_the_scenic_route bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:end/taking_the_scenic_route
+
+execute if score blazeandcave:monsters/jockey_jamboree bac_obtained_dark_aqua matches 1.. run advancement grant @a[team=bac_team_dark_aqua] only blazeandcave:monsters/jockey_jamboree

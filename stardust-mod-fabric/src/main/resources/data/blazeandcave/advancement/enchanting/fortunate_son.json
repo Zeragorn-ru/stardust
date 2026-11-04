@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/super_efficient",
 	"rewards": {
-		"function": "bc_rewards:enchanting/fortunate_son"
+		"function": "bacap_rewards:enchanting/fortunate_son"
 	},			
 	"criteria": {
 		"fortune": {

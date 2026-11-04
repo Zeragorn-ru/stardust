@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/olaf",
 	"rewards": {
-		"function": "bc_rewards:farming/unmasked"
+		"function": "bacap_rewards:farming/unmasked"
 	},		
 	"criteria": {
 		"shears": {
@@ -25,7 +25,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:snow_golem"
+							"entity_type": "minecraft:snow_golem"
 						}
 					}
 				]

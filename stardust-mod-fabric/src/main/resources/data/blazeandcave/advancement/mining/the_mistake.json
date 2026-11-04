@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:mining/living_like_kings",
 	"rewards": {
-		"function": "bc_rewards:mining/the_mistake"
+		"function": "bacap_rewards:mining/the_mistake"
 	},
 	"criteria": {
 		"the_mistake": {

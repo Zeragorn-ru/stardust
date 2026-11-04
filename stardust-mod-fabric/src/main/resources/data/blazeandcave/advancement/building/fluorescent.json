@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/expensive",
 	"rewards": {
-		"function": "bc_rewards:building/fluorescent"
+		"function": "bacap_rewards:building/fluorescent"
 	},		
 	"criteria": {
 		"end_rod": {

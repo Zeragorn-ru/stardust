@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/fast_travel",
 	"rewards": {
-		"function": "bc_rewards:nether/let_me_out"
+		"function": "bacap_rewards:nether/let_me_out"
 	},
 	"criteria": {
 		"let_me_out": {

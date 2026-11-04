@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/fuel_engine",
 	"rewards": {
-		"function": "bc_rewards:redstone/moving_storage"
+		"function": "bacap_rewards:redstone/moving_storage"
 	},			
 	"criteria": {
 		"chest_minecart": {

@@ -5,12 +5,12 @@
 		},
 		"title": {"translate":"Weaponry"},
 		"description": {"color":"#CCCCCC","translate":"Weapons of choice for combat"},
-		"background": "minecraft:textures/block/smithing_table_top.png",
+		"background": "block/smithing_table_top",
 		"show_toast": false,
 		"announce_to_chat": false
 	},
 	"rewards": {
-		"function": "bc_rewards:weaponry/root"
+		"function": "bacap_rewards:weaponry/root"
 	},		
 	"criteria": {
 		"sword": {
@@ -18,7 +18,7 @@
 			"conditions": {
 				"items": [
 					{
-						"items": "#minecraft:swords"
+						"items": "#blazeandcave:swords"
 					}
 				]
 			}

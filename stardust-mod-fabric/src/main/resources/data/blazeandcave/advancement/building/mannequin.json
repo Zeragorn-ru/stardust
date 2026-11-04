@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/smooth_dude",
 	"rewards": {
-		"function": "bc_rewards:building/mannequin"
+		"function": "bacap_rewards:building/mannequin"
 	},		
 	"criteria": {
 		"armor_stand": {

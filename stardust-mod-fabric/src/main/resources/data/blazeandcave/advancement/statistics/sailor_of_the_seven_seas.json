@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/pirate_captain",
 	"rewards": {
-		"function": "bc_rewards:statistics/sailor_of_the_seven_seas"
+		"function": "bacap_rewards:statistics/sailor_of_the_seven_seas"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

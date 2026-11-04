@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/my_work_here_is_done",
 	"rewards": {	
-		"function": "bc_rewards:mining/meet_the_flintstones"
+		"function": "bacap_rewards:mining/meet_the_flintstones"
 	},		
 	"criteria": {
 		"flint": {

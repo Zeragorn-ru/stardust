@@ -4,13 +4,13 @@
 			"id": "minecraft:netherite_axe"
 		},
 		"title": {"translate":"Over-Overkill"},
-		"description": {"color":"dark_purple","translate":"Deal sixteen hearts of damage in a single melee blow without using a Mace"},
+		"description": {"color":"dark_purple","translate":"Deal sixteen hearts of damage in a single melee blow without using a Mace or a Spear's charge attack"},
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
 	"parent": "blazeandcave:enchanting/overkill",
 	"rewards": {
-		"function": "bc_rewards:enchanting/over_overkill"
+		"function": "bacap_rewards:enchanting/over_overkill"
 	},		
 	"criteria": {
 		"overkill": {
@@ -24,28 +24,20 @@
 					"type": {
 						"tags": [
 							{
-								"id": "minecraft:player_attack",
+								"id": "minecraft:is_player_attack",
 								"expected": true
+							},
+							{
+								"id": "minecraft:mace_smash",
+								"expected": false
+							},
+							{
+								"id": "blazeandcave:spear",
+								"expected": false
 							}
 						]
 					}
-				},
-				"player": [
-					{
-						"condition": "minecraft:inverted",
-						"term": {
-							"condition": "minecraft:entity_properties",
-							"entity": "this",
-							"predicate": {
-								"equipment": {
-									"mainhand": {
-										"items": "minecraft:mace"
-									}
-								}
-							}
-						}
-					}
-				]
+				}
 			}
 		}
 	}

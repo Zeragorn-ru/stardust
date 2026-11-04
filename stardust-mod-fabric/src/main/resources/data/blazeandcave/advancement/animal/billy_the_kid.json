@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:animal/goat_out_of_here",
 	"rewards": {
-		"function": "bc_rewards:animal/billy_the_kid"
+		"function": "bacap_rewards:animal/billy_the_kid"
 	},		
 	"criteria": {
 		"goat": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:goat"
+					"entity_type": "minecraft:goat"
 				},
 				"partner": {
-					"type": "minecraft:goat"
+					"entity_type": "minecraft:goat"
 				}
 			}
 		}

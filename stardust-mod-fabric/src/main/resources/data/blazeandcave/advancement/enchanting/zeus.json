@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/do_a_barrel_roll",
 	"rewards": {
-		"function": "bc_rewards:enchanting/zeus"
+		"function": "bacap_rewards:enchanting/zeus"
 	},			
 	"criteria": {
 		"power": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/setting_up_the_mood",
 	"rewards": {
-		"function": "bc_rewards:building/happy_birthday"
+		"function": "bacap_rewards:building/happy_birthday"
 	},		
 	"criteria": {
 		"candle_cake": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/powerful_light",
 	"rewards": {
-		"function": "bc_rewards:redstone/repeating_repeater"
+		"function": "bacap_rewards:redstone/repeating_repeater"
 	},
 	"criteria": {
 		"repeater": {

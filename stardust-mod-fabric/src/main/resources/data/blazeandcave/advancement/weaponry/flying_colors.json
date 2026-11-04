@@ -12,7 +12,7 @@
 	},
 	"parent": "blazeandcave:weaponry/shield_luck",
 	"rewards": {
-		"function": "bc_rewards:weaponry/flying_colors"
+		"function": "bacap_rewards:weaponry/flying_colors"
 	},		
 	"criteria": {
 		"white": {

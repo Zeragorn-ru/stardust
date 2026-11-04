@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:monsters/frosty",
 	"rewards": {
-		"function": "bc_rewards:monsters/bogged_down"
+		"function": "bacap_rewards:monsters/bogged_down"
 	},		
 	"criteria": {
 		"bogged": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "bogged"
+					"entity_type": "bogged"
 				}
 			}
 		}

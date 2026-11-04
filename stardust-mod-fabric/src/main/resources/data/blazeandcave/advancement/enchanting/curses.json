@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/heavy_metal",
 	"rewards": {
-		"function": "bc_rewards:enchanting/curses"
+		"function": "bacap_rewards:enchanting/curses"
 	},			
 	"criteria": {
 		"binding_curse": {

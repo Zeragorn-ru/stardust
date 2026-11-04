@@ -14,7 +14,7 @@
 	},
 	"parent": "blazeandcave:monsters/bogged_down",
 	"rewards": {
-		"function": "bc_rewards:monsters/poison_dart"
+		"function": "bacap_rewards:monsters/poison_dart"
 	},	
 	"criteria": {
 		"normal_poison": {
@@ -29,7 +29,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:arrow",
+							"entity_type": "minecraft:arrow",
 							"nbt": "{item:{components:{\"minecraft:potion_contents\":{potion:\"minecraft:poison\"}}}}"
 						}
 					}
@@ -48,7 +48,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:arrow",
+							"entity_type": "minecraft:arrow",
 							"nbt": "{item:{components:{\"minecraft:potion_contents\":{potion:\"minecraft:long_poison\"}}}}"
 						}
 					}
@@ -67,7 +67,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:arrow",
+							"entity_type": "minecraft:arrow",
 							"nbt": "{item:{components:{\"minecraft:potion_contents\":{potion:\"minecraft:strong_poison\"}}}}"
 						}
 					}

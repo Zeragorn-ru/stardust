@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/out_of_posts",
 	"rewards": {
-		"function": "bc_rewards:adventure/allayance"
+		"function": "bacap_rewards:adventure/allayance"
 	},		
 	"criteria": {
 		"allay": {
@@ -19,7 +19,7 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:allay"
+							"entity_type": "minecraft:allay"
 						},
 						"entity": "this"
 					}

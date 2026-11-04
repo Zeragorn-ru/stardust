@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/war_is_coming",
 	"rewards": {
-		"function": "bc_rewards:adventure/veteran_of_the_village"
+		"function": "bacap_rewards:adventure/veteran_of_the_village"
 	},		
 	"criteria": {
 		"hero_of_the_village": {

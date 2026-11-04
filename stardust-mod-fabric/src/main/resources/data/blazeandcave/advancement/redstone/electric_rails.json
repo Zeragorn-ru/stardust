@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/fuel_engine",
 	"rewards": {
-		"function": "bc_rewards:redstone/electric_rails"
+		"function": "bacap_rewards:redstone/electric_rails"
 	},		
 	"criteria": {
 		"powered_rail": {

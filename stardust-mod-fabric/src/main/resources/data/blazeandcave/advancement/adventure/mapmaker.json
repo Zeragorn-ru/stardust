@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/knowledge_is_power",
 	"rewards": {
-		"function": "bc_rewards:adventure/mapmaker"
+		"function": "bacap_rewards:adventure/mapmaker"
 	},		
 	"criteria": {
 		"map": {

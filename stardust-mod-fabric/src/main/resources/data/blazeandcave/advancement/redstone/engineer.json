@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/sticky_parts",
 	"rewards": {
-		"function": "bc_rewards:redstone/engineer"
+		"function": "bacap_rewards:redstone/engineer"
 	},
 	"criteria": {
 		"redstone": {
@@ -103,7 +103,18 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:oak_button"
+							"minecraft:oak_button",
+							"minecraft:spruce_button",
+							"minecraft:birch_button",
+							"minecraft:jungle_button",
+							"minecraft:acacia_button",
+							"minecraft:dark_oak_button",
+							"minecraft:mangrove_button",
+							"minecraft:cherry_button",
+							"minecraft:pale_oak_button",
+							"minecraft:bamboo_button",
+							"minecraft:crimson_button",
+							"minecraft:warped_button"
 						]
 					}
 				]
@@ -115,7 +126,8 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:stone_button"
+							"minecraft:stone_button",
+							"minecraft:polished_blackstone_button"
 						]
 					}
 				]
@@ -127,7 +139,18 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:oak_pressure_plate"
+							"minecraft:oak_pressure_plate",
+							"minecraft:spruce_pressure_plate",
+							"minecraft:birch_pressure_plate",
+							"minecraft:jungle_pressure_plate",
+							"minecraft:acacia_pressure_plate",
+							"minecraft:dark_oak_pressure_plate",
+							"minecraft:mangrove_pressure_plate",
+							"minecraft:cherry_pressure_plate",
+							"minecraft:pale_oak_pressure_plate",
+							"minecraft:bamboo_pressure_plate",
+							"minecraft:crimson_pressure_plate",
+							"minecraft:warped_pressure_plate"
 						]
 					}
 				]
@@ -139,7 +162,8 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:stone_pressure_plate"
+							"minecraft:stone_pressure_plate",
+							"minecraft:polished_blackstone_pressure_plate"
 						]
 					}
 				]
@@ -283,7 +307,14 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:lightning_rod"
+							"minecraft:lightning_rod",
+							"minecraft:exposed_lightning_rod",
+							"minecraft:weathered_lightning_rod",
+							"minecraft:oxidized_lightning_rod",
+							"minecraft:waxed_lightning_rod",
+							"minecraft:waxed_exposed_lightning_rod",
+							"minecraft:waxed_weathered_lightning_rod",
+							"minecraft:waxed_oxidized_lightning_rod"
 						]
 					}
 				]
@@ -607,7 +638,15 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:oak_chest_boat"
+							"minecraft:oak_chest_boat",
+							"minecraft:spruce_chest_boat",
+							"minecraft:birch_chest_boat",
+							"minecraft:jungle_chest_boat",
+							"minecraft:acacia_chest_boat",
+							"minecraft:dark_oak_chest_boat",
+							"minecraft:mangrove_chest_boat",
+							"minecraft:cherry_chest_boat",
+							"minecraft:pale_oak_chest_boat"
 						]
 					}
 				]
@@ -631,7 +670,18 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:oak_door"
+							"minecraft:oak_door",
+							"minecraft:spruce_door",
+							"minecraft:birch_door",
+							"minecraft:jungle_door",
+							"minecraft:acacia_door",
+							"minecraft:dark_oak_door",
+							"minecraft:mangrove_door",
+							"minecraft:cherry_door",
+							"minecraft:pale_oak_door",
+							"minecraft:bamboo_door",
+							"minecraft:crimson_door",
+							"minecraft:warped_door"
 						]
 					}
 				]
@@ -655,7 +705,18 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:oak_fence_gate"
+							"minecraft:oak_fence_gate",
+							"minecraft:spruce_fence_gate",
+							"minecraft:birch_fence_gate",
+							"minecraft:jungle_fence_gate",
+							"minecraft:acacia_fence_gate",
+							"minecraft:dark_oak_fence_gate",
+							"minecraft:mangrove_fence_gate",
+							"minecraft:cherry_fence_gate",
+							"minecraft:pale_oak_fence_gate",
+							"minecraft:bamboo_fence_gate",
+							"minecraft:crimson_fence_gate",
+							"minecraft:warped_fence_gate"
 						]
 					}
 				]
@@ -667,7 +728,18 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:oak_trapdoor"
+							"minecraft:oak_trapdoor",
+							"minecraft:spruce_trapdoor",
+							"minecraft:birch_trapdoor",
+							"minecraft:jungle_trapdoor",
+							"minecraft:acacia_trapdoor",
+							"minecraft:dark_oak_trapdoor",
+							"minecraft:mangrove_trapdoor",
+							"minecraft:cherry_trapdoor",
+							"minecraft:pale_oak_trapdoor",
+							"minecraft:bamboo_trapdoor",
+							"minecraft:crimson_trapdoor",
+							"minecraft:warped_trapdoor"
 						]
 					}
 				]
@@ -751,7 +823,8 @@
 				"items": [
 					{
 						"items": [
-							"minecraft:redstone_ore"
+							"minecraft:redstone_ore",
+							"minecraft:deepslate_redstone_ore"
 						]
 					}
 				]
@@ -828,6 +901,48 @@
 					{
 						"items": [
 							"minecraft:crafter"
+						]
+					}
+				]
+			}
+		},
+		"shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:oak_shelf",
+							"minecraft:spruce_shelf",
+							"minecraft:birch_shelf",
+							"minecraft:jungle_shelf",
+							"minecraft:acacia_shelf",
+							"minecraft:dark_oak_shelf",
+							"minecraft:mangrove_shelf",
+							"minecraft:cherry_shelf",
+							"minecraft:pale_oak_shelf",
+							"minecraft:bamboo_shelf",
+							"minecraft:crimson_shelf",
+							"minecraft:warped_shelf"
+						]
+					}
+				]
+			}
+		},
+		"copper_chest": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:copper_chest",
+							"minecraft:exposed_copper_chest",
+							"minecraft:weathered_copper_chest",
+							"minecraft:oxidized_copper_chest",
+							"minecraft:waxed_copper_chest",
+							"minecraft:waxed_exposed_copper_chest",
+							"minecraft:waxed_weathered_copper_chest",
+							"minecraft:waxed_oxidized_copper_chest"
 						]
 					}
 				]

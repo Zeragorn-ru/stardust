@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/i_dont_like_sand",
 	"rewards": {
-		"function": "bc_rewards:building/pathways"
+		"function": "bacap_rewards:building/pathways"
 	},
 	"criteria": {
 		"dirt_path": {
@@ -29,7 +29,7 @@
 					{
 						"condition": "minecraft:match_tool",
 						"predicate": {
-							"items": "#minecraft:shovels"
+							"items": "#blazeandcave:shovels"
 						}
 					}
 				]

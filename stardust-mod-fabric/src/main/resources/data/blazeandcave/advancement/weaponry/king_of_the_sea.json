@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/throw_trident",
 	"rewards": {
-		"function": "bc_rewards:weaponry/king_of_the_sea"
+		"function": "bacap_rewards:weaponry/king_of_the_sea"
 	},	
 	"criteria": {
 		"killed_drowned": {
@@ -24,11 +24,11 @@
 							}
 						],
 					"direct_entity": {
-						"type": "minecraft:trident"
+						"entity_type": "minecraft:trident"
 					}
 				},
 				"entity": {
-					"type": "minecraft:drowned",
+					"entity_type": "minecraft:drowned",
 					"distance": {
 						"horizontal": {
 							"min": 30

@@ -10,14 +10,14 @@
 	},
 	"parent": "minecraft:adventure/hero_of_the_village",
 	"rewards": {
-		"function": "bc_rewards:adventure/buy_low_sell_high"
+		"function": "bacap_rewards:adventure/buy_low_sell_high"
 	},		
 	"criteria": {
 		"trade": {
 			"trigger": "minecraft:villager_trade",
 			"conditions": {
 				"villager": {
-					"type": "villager"
+					"entity_type": "villager"
 				},
 				"player": [
 					{

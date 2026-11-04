@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/catching_nemo",
 	"rewards": {
-		"function": "bc_rewards:animal/what_a_piece_of_junk"
+		"function": "bacap_rewards:animal/what_a_piece_of_junk"
 	},		
 	"criteria": {
 		"bowl": {
@@ -143,22 +143,22 @@
 					]
 				}
 			}
-		}	
+		}
 	},
 	"requirements": [
 		[
-		"bowl",
-		"leather",
-		"leather_boots",
-		"rotten_flesh",
-		"stick",
-		"string",
-		"potion",
-		"bone",
-		"ink_sac",		
-		"tripwire_hook",
-		"bamboo",
-		"lily_pad"
+			"bowl",
+			"leather",
+			"leather_boots",
+			"rotten_flesh",
+			"stick",
+			"string",
+			"potion",
+			"bone",
+			"ink_sac",		
+			"tripwire_hook",
+			"bamboo",
+			"lily_pad"
 		]
 	]
 }

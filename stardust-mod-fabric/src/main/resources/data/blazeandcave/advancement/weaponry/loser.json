@@ -30,7 +30,7 @@
 	},
 	"parent": "blazeandcave:weaponry/its_time_consuming",
 	"rewards": {
-		"function": "bc_rewards:weaponry/loser"
+		"function": "bacap_rewards:weaponry/loser"
 	},		
 	"criteria": {
 		"trigger": {

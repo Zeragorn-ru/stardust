@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/its_full_of_ink",
 	"rewards": {
-		"function": "bc_rewards:farming/squid_game"
+		"function": "bacap_rewards:farming/squid_game"
 	},		
 	"criteria": {
 		"ink_sac": {

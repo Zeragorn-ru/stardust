@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/master_digger",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_axeman"
+		"function": "bacap_rewards:enchanting/master_axeman"
 	},		
 	"criteria": {
 		"perfect_axe_fortune": {

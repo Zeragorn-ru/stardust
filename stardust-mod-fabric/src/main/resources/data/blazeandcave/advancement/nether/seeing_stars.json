@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/nugget_in_a_biscuit",
 	"rewards": {
-		"function": "bc_rewards:nether/seeing_stars"
+		"function": "bacap_rewards:nether/seeing_stars"
 	},	
 	"criteria": {
 		"glowstone_dust": {

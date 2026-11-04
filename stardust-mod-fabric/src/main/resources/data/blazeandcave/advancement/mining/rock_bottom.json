@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/deep_slate_nine",
 	"rewards": {
-		"function": "bc_rewards:mining/rock_bottom"
+		"function": "bacap_rewards:mining/rock_bottom"
 	},		
 	"criteria": {
 		"bedrock_level": {
@@ -56,8 +56,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

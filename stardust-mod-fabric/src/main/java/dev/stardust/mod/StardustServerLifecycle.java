@@ -16,7 +16,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 /**
  * Серверная логика мода на Fabric: команды, чат, телеметрия.
@@ -226,8 +228,17 @@ public final class StardustServerLifecycle {
     }
 
     static void onServerTick(MinecraftServer server) {
-        onlinePlayerNames = server.getPlayerList().getPlayers().stream()
-                .map(player -> player.getGameProfile().name()).toList();
+        // Мутаем существующий список вместо создания нового ArrayList каждый тик (~20 раз/сек).
+        // .toList() создавал новые объекты для каждого серверного тика — главный источник GC pressure.
+        if (!(onlinePlayerNames instanceof java.util.ArrayList<?> list)) {
+            onlinePlayerNames = new java.util.ArrayList<>();
+        }
+        @SuppressWarnings("unchecked")
+        var namesList = (java.util.ArrayList<String>) onlinePlayerNames;
+        namesList.clear();
+        for (var p : server.getPlayerList().getPlayers()) {
+            namesList.add(p.getGameProfile().name());
+        }
         // Телеметрия — только с выделенного сервера: одиночная игра (даже
         // открытая в LAN) — это клиентская машина, её TPS/MSPT не нужны
         // админке.

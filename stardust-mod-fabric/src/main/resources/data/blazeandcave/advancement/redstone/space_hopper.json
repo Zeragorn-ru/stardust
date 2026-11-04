@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/repeating_repeater",
 	"rewards": {
-		"function": "bc_rewards:redstone/space_hopper"
+		"function": "bacap_rewards:redstone/space_hopper"
 	},
 	"criteria": {
 		"hopper": {

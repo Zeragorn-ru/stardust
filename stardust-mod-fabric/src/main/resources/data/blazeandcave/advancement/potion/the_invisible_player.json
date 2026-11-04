@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/nocturnal",
 	"rewards": {
-		"function": "bc_rewards:potion/the_invisible_player"
+		"function": "bacap_rewards:potion/the_invisible_player"
 	},	
 	"criteria": {
 		"invisibility": {

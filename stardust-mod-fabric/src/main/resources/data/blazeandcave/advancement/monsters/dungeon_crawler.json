@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/void_ender",
 	"rewards": {
-		"function": "bc_rewards:monsters/dungeon_crawler"
+		"function": "bacap_rewards:monsters/dungeon_crawler"
 	},	
 	"criteria": {
 		"cave_spider": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "cave_spider"
+					"entity_type": "cave_spider"
 				}
 			}
 		},
@@ -25,7 +25,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "silverfish"
+					"entity_type": "silverfish"
 				}
 			}
 		},
@@ -33,7 +33,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "guardian"
+					"entity_type": "guardian"
 				}
 			}
 		},
@@ -41,7 +41,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "elder_guardian"
+					"entity_type": "elder_guardian"
 				}
 			}
 		},
@@ -53,9 +53,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "pillager",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "pillager",
+							"minecraft:type_specific/raider": {
 								"has_raid": false
 							}
 						}
@@ -71,9 +70,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "vindicator",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "vindicator",
+							"minecraft:type_specific/raider": {
 								"has_raid": false
 							}
 						}
@@ -89,9 +87,8 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "evoker",
-							"type_specific": {
-								"type": "raider",
+							"entity_type": "evoker",
+							"minecraft:type_specific/raider": {
 								"has_raid": false
 							}
 						}
@@ -103,7 +100,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "vex"
+					"entity_type": "vex"
 				}
 			}
 		},
@@ -111,7 +108,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "blaze"
+					"entity_type": "blaze"
 				}
 			}
 		},
@@ -119,7 +116,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "wither_skeleton"
+					"entity_type": "wither_skeleton"
 				}
 			}
 		},
@@ -127,7 +124,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "shulker"
+					"entity_type": "shulker"
 				}
 			}
 		},
@@ -135,7 +132,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "piglin_brute"
+					"entity_type": "piglin_brute"
 				}
 			}
 		},
@@ -143,7 +140,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "warden"
+					"entity_type": "warden"
 				}
 			}
 		},
@@ -151,7 +148,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "breeze"
+					"entity_type": "breeze"
 				}
 			}
 		}

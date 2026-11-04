@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/quicksand",
 	"rewards": {
-		"function": "bc_rewards:nether/burnt_right_into_your_soul"
+		"function": "bacap_rewards:nether/burnt_right_into_your_soul"
 	},
 	"criteria": {
 		"soul_fire": {

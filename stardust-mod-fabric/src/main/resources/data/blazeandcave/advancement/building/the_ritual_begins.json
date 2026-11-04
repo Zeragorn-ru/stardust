@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/setting_up_the_mood",
 	"rewards": {
-		"function": "bc_rewards:building/the_ritual_begins"
+		"function": "bacap_rewards:building/the_ritual_begins"
 	},		
 	"criteria": {
 		"black_candle": {

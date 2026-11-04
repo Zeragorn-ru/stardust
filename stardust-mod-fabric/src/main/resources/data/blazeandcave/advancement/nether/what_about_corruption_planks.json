@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/twisted",
 	"rewards": {
-		"function": "bc_rewards:nether/what_about_corruption_planks"
+		"function": "bacap_rewards:nether/what_about_corruption_planks"
 	},		
 	"criteria": {
 		"crimson_planks": {
@@ -188,6 +188,18 @@
 					{
 						"items": [
 							"minecraft:crimson_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"crimson_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:crimson_shelf"
 						]
 					}
 				]

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/youll_never_take_me_alive_copper",
 	"rewards": {
-		"function": "bc_rewards:mining/dont_come_a_copper"
+		"function": "bacap_rewards:mining/dont_come_a_copper"
 	},		
 	"criteria": {
 		"cut_copper": {

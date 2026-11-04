@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:adventure/this_will_be_a_breeze",
 	"rewards": {
-		"function": "bc_rewards:adventure/break_wind"
+		"function": "bacap_rewards:adventure/break_wind"
 	},		
 	"criteria": {
 		"breeze": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "breeze"
+					"entity_type": "breeze"
 				}
 			}
 		}

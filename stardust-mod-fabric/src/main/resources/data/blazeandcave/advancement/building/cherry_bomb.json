@@ -8,9 +8,9 @@
 		"announce_to_chat": true,
 		"frame": "goal"
 	},
-	"parent": "blazeandcave:building/professor_dark_oak",
+	"parent": "blazeandcave:building/pale_gardener",
 	"rewards": {
-		"function": "bc_rewards:building/cherry_bomb"
+		"function": "bacap_rewards:building/cherry_bomb"
 	},		
 	"criteria": {
 		"cherry_planks": {
@@ -212,6 +212,18 @@
 					{
 						"items": [
 							"minecraft:cherry_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"cherry_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:cherry_shelf"
 						]
 					}
 				]

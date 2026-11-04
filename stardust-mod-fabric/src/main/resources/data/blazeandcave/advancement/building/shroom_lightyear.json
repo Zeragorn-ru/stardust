@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/glowing",
 	"rewards": {
-		"function": "bc_rewards:building/shroom_lightyear"
+		"function": "bacap_rewards:building/shroom_lightyear"
 	},		
 	"criteria": {
 		"shroomlight": {

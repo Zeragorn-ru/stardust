@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:story/obtain_armor",
 	"rewards": {
-		"function": "bc_rewards:mining/iron_man"
+		"function": "bacap_rewards:mining/iron_man"
 	},
 	"criteria": {
 		"iron_armor": {

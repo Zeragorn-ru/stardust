@@ -11,24 +11,24 @@
 			}
 		},
 		"title": {"translate":"The Perfect Run"},
-		"description": {"color":"#FF2A2A","translate":"Summon the Ender Dragon, the Wither, and a Raid within thirty seconds of each other, then defeat all of them without taking damage"},
+		"description": {"color":"#FF2A2A","translate":"Summon the Ender Dragon, the Wither, and a Raid within thirty seconds of each other, then defeat all of them without taking damage","extra":[{"text":"\n\n"},{"italic":true,"color":"dark_gray","translate":"To view progress, run:"},{"color":"gray","text":"\n/trigger bac_perfect_run"}]},
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
-	"parent": "blazeandcave:challenges/dragon_vs_wither_the_pre_sequel",
+	"parent": "blazeandcave:challenges/at_the_rim_of_the_sky",
 	"rewards": {
-		"function": "bc_rewards:challenges/the_perfect_run"
+		"function": "bacap_rewards:challenges/the_perfect_run"
 	},		
 	"criteria": {
 		"dragon": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "ender_dragon"
+					"entity_type": "ender_dragon"
 				},
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:technical/spawn_perfect_one": true
 						}
@@ -40,11 +40,11 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "wither"
+					"entity_type": "wither"
 				},
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:technical/spawn_perfect_one": true
 						}
@@ -56,8 +56,8 @@
 			"trigger": "minecraft:hero_of_the_village",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:technical/spawn_perfect_one": true
 						}

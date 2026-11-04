@@ -5,12 +5,12 @@
 		},
 		"title": {"translate":"Farming"},
 		"description": {"color":"#CCCCCC","translate":"Hoe hoe hoe!"},
-		"background": "minecraft:textures/gui/advancements/backgrounds/husbandry.png",
+		"background": "gui/advancements/backgrounds/husbandry",
 		"show_toast": false,
 		"announce_to_chat": false
 	},
 	"rewards": {
-		"function": "bc_rewards:farming/root"
+		"function": "bacap_rewards:farming/root"
 	},		
 	"criteria": {
 		"hoe": {
@@ -18,7 +18,7 @@
 			"conditions": {
 				"items": [
 					{
-						"items": "#minecraft:hoes"
+						"items": "#blazeandcave:hoes"
 					}
 				]
 			}

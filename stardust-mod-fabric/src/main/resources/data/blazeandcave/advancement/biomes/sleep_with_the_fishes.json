@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/free_diver",
 	"rewards": {
-		"function": "bc_rewards:biomes/sleep_with_the_fishes"
+		"function": "bacap_rewards:biomes/sleep_with_the_fishes"
 	},		
 	"criteria": {
 		"trigger": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/buy_low_sell_high",
 	"rewards": {
-		"function": "bc_rewards:adventure/undying_fandom"
+		"function": "bacap_rewards:adventure/undying_fandom"
 	},		
 	"criteria": {
 		"poppy": {
@@ -21,7 +21,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -40,7 +40,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -59,7 +59,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -78,7 +78,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -97,7 +97,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -116,7 +116,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -135,7 +135,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -154,7 +154,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -173,7 +173,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -192,7 +192,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -211,7 +211,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -230,7 +230,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -249,7 +249,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -268,7 +268,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -287,7 +287,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -306,7 +306,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -325,7 +325,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -344,7 +344,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -363,7 +363,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -382,7 +382,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -401,7 +401,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -425,7 +425,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -449,7 +449,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -473,7 +473,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -497,7 +497,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -521,7 +521,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -545,7 +545,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -569,7 +569,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -593,7 +593,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -617,7 +617,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -641,7 +641,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -665,7 +665,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -689,7 +689,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -713,7 +713,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -732,7 +732,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -751,7 +751,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -770,7 +770,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -789,7 +789,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -808,7 +808,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -827,7 +827,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -846,7 +846,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -865,7 +865,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -884,7 +884,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -903,7 +903,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -922,7 +922,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -941,7 +941,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -960,7 +960,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -979,7 +979,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -998,7 +998,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1017,7 +1017,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1036,7 +1036,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1055,7 +1055,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1074,7 +1074,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1093,7 +1093,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1112,7 +1112,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1131,7 +1131,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1150,7 +1150,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1169,7 +1169,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],
@@ -1188,7 +1188,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:villager"
+							"entity_type": "minecraft:villager"
 						}
 					}
 				],

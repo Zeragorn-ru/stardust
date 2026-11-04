@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/fossil_fuel",
 	"rewards": {
-		"function": "bc_rewards:mining/coal_miner"
+		"function": "bacap_rewards:mining/coal_miner"
 	},		
 	"criteria": {
 		"coal": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/soul_runnings",
 	"rewards": {
-		"function": "bc_rewards:nether/fool_me_twice"
+		"function": "bacap_rewards:nether/fool_me_twice"
 	},		
 	"criteria": {
 		"break_hoe": {

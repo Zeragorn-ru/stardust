@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:end/extrabiologist",
 	"rewards": {
-		"function": "bc_rewards:end/in_your_face_neil_armstrong"
+		"function": "bacap_rewards:end/in_your_face_neil_armstrong"
 	},		
 	"criteria": {
 		"potato": {

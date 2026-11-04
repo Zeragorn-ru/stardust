@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:adventure/monumental",
 	"rewards": {
-		"function": "bc_rewards:adventure/laser_sharks"
+		"function": "bacap_rewards:adventure/laser_sharks"
 	},		
 	"criteria": {
 		"guardian": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "guardian"
+					"entity_type": "guardian"
 				}
 			}
 		}

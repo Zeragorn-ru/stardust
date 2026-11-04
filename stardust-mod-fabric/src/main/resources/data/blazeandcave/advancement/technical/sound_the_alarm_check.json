@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:sound_the_alarm_check"
+		"function": "blazeandcave:advancement/check/sound_the_alarm"
 	},		
 	"criteria": {
 		"bell": {

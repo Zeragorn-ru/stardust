@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/horse_armorer",
 	"rewards": {
-		"function": "bc_rewards:animal/a_horse_in_shining_armor"
+		"function": "bacap_rewards:animal/a_horse_in_shining_armor"
 	},		
 	"criteria": {
 		"diamond_horse_armor": {

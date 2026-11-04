@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/quirky_quartz",
 	"rewards": {
-		"function": "bc_rewards:redstone/solar_power"
+		"function": "bacap_rewards:redstone/solar_power"
 	},	
 	"criteria": {
 		"daylight_detector": {

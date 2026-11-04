@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/businessman",
 	"rewards": {
-		"function": "bc_rewards:adventure/the_tribal_villagers"
+		"function": "bacap_rewards:adventure/the_tribal_villagers"
 	},		
 	"criteria": {
 		"jungle": {

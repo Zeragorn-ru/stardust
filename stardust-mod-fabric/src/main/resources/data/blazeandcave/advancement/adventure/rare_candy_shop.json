@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/knowledge_is_power",
 	"rewards": {
-		"function": "bc_rewards:adventure/rare_candy_shop"
+		"function": "bacap_rewards:adventure/rare_candy_shop"
 	},		
 	"criteria": {
 		"experience_bottle": {

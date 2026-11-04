@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/plant_seed",
 	"rewards": {
-		"function": "bc_rewards:farming/naturally_carved"
+		"function": "bacap_rewards:farming/naturally_carved"
 	},		
 	"criteria": {
 		"pumpkin": {

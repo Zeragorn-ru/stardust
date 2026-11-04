@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/just_keep_swimming",	
 	"rewards": {
-		"function": "bc_rewards:biomes/the_sea_calls_you"
+		"function": "bacap_rewards:biomes/the_sea_calls_you"
 	},	
 	"criteria": {
 		"ocean": {
@@ -108,8 +108,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

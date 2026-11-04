@@ -1,17 +1,8 @@
 {
   "replace": false,
   "values": [
-	"minecraft:interaction",
-	"minecraft:item_frame",
-	"minecraft:glow_item_frame",
-	"minecraft:leash_knot",
-	"minecraft:minecart",
-	"minecraft:chest_minecart",
-	"minecraft:furnace_minecart",
-	"minecraft:hopper_minecart",
-	"minecraft:spawner_minecart",
-	"minecraft:command_block_minecart",
-	"minecraft:boat",
-	"minecraft:chest_boat"
+	"#blazeandcave:dont_trigger_piwe_sans_boats",
+	"#minecraft:boat",
+	"#blazeandcave:chest_boats"
   ]
 }

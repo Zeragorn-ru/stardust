@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/a_horse_in_shining_armor",
 	"rewards": {
-		"function": "bc_rewards:animal/so_hungry_i_could_eat_a_horse"
+		"function": "bacap_rewards:animal/so_hungry_i_could_eat_a_horse"
 	},		
 	"criteria": {
 		"sugar": {
@@ -26,7 +26,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:horses"
+							"entity_type": "#blazeandcave:horses"
 						}
 					}
 				]
@@ -45,7 +45,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:horses"
+							"entity_type": "#blazeandcave:horses"
 						}
 					}
 				]
@@ -64,7 +64,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:horses"
+							"entity_type": "#blazeandcave:horses"
 						}
 					}
 				]
@@ -83,7 +83,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:horses"
+							"entity_type": "#blazeandcave:horses"
 						}
 					}
 				]
@@ -102,7 +102,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:horses"
+							"entity_type": "#blazeandcave:horses"
 						}
 					}
 				]
@@ -121,7 +121,45 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:horses"
+							"entity_type": "#blazeandcave:horses"
+						}
+					}
+				]
+			}
+		},
+		"enchanted_golden_apple": {
+			"trigger": "minecraft:player_interacted_with_entity",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:enchanted_golden_apple"
+					]
+				},
+				"entity": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"entity_type": "#blazeandcave:horses"
+						}
+					}
+				]
+			}
+		},
+		"carrot": {
+			"trigger": "minecraft:player_interacted_with_entity",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:carrot"
+					]
+				},
+				"entity": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"entity_type": "#blazeandcave:horses"
 						}
 					}
 				]

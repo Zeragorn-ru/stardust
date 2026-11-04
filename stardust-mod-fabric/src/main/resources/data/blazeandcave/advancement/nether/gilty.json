@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:nether/loot_bastion",
 	"rewards": {
-		"function": "bc_rewards:nether/gilty"
+		"function": "bacap_rewards:nether/gilty"
 	},	
 	"criteria": {
 		"gilded_blackstone": {

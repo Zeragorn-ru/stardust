@@ -9,19 +9,12 @@
 	},
 	"parent": "blazeandcave:weaponry/expelliarmus",
 	"rewards": {
-		"function": "bc_rewards:weaponry/slapfish"
+		"function": "bacap_rewards:weaponry/slapfish"
 	},		
 	"criteria": {
 		"slapfish": {
 			"trigger": "minecraft:player_hurt_entity",
-			"conditions": {
-				"entity": {
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
-				},			
+			"conditions": {		
 				"damage": {
 					"type": {
 						"source_entity": {
@@ -30,7 +23,13 @@
 									"items": "#minecraft:fishes"
 								}
 							}
-						}
+						},
+						"tags": [
+							{
+								"id": "minecraft:is_player_attack",
+								"expected": true
+							}
+						]
 					}
 				}
 			}

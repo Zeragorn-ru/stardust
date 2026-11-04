@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/super_mooshroom",
 	"rewards": {
-		"function": "bc_rewards:animal/milkshroom"
+		"function": "bacap_rewards:animal/milkshroom"
 	},		
 	"criteria": {
 		"shears": {
@@ -25,7 +25,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:mooshroom"
+							"entity_type": "minecraft:mooshroom"
 						}
 					}
 				]

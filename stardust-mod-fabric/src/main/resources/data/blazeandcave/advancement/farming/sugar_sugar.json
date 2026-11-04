@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/care_for_the_environment",
 	"rewards": {
-		"function": "bc_rewards:farming/sugar_sugar"
+		"function": "bacap_rewards:farming/sugar_sugar"
 	},		
 	"criteria": {
 		"sugar_cane": {

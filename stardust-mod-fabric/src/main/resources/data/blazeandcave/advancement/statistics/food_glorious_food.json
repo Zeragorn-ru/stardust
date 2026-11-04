@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:statistics/yum_yum_yummo",
 	"rewards": {
-		"function": "bc_rewards:statistics/food_glorious_food"
+		"function": "bacap_rewards:statistics/food_glorious_food"
 	},		
 	"criteria": {
 		"trigger": {

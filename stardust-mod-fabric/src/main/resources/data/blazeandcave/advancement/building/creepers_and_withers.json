@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/jailhouse_block",
 	"rewards": {
-		"function": "bc_rewards:building/creepers_and_withers"
+		"function": "bacap_rewards:building/creepers_and_withers"
 	},		
 	"criteria": {
 		"sandstone": {

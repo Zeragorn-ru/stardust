@@ -11,7 +11,7 @@
 	},
 	"parent": "minecraft:adventure/trim_with_all_exclusive_armor_patterns",
 	"rewards": {
-		"function": "bc_rewards:adventure/stacked_smither"
+		"function": "bacap_rewards:adventure/stacked_smither"
 	},		
 	"criteria": {
 		"netherite_upgrade": {

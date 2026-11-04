@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/creepergeddon",
 	"rewards": {
-		"function": "bc_rewards:challenges/poglin"
+		"function": "bacap_rewards:challenges/poglin"
 	},		
 	"criteria": {
 		"creeper_head": {

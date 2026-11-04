@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/overoverkill",
 	"rewards": {
-		"function": "bc_rewards:weaponry/warden_extinction"
+		"function": "bacap_rewards:weaponry/warden_extinction"
 	},
 	"criteria": {
 		"overoverkill": {
@@ -19,7 +19,7 @@
 				"damage": {
 					"type": {
 						"direct_entity": {
-							"type": "minecraft:player",
+							"entity_type": "minecraft:player",
 							"equipment": {
 								"mainhand": {
 									"items": "minecraft:mace"
@@ -28,7 +28,7 @@
 						},
 						"tags": [
 							{
-								"id": "minecraft:is_player_attack",
+								"id": "minecraft:mace_smash",
 								"expected": true
 							}
 						]
@@ -38,7 +38,7 @@
 					}
 				},
 				"entity": {
-					"type": "minecraft:warden"
+					"entity_type": "minecraft:warden"
 				}
 			}
 		}

@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:husbandry/silk_touch_nest",
 	"rewards": {
-		"function": "bc_rewards:animal/honey_im_home"
+		"function": "bacap_rewards:animal/honey_im_home"
 	},		
 	"criteria": {
 		"honeycomb_block": {

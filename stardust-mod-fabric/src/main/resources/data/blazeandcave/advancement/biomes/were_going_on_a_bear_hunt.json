@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:biomes/barbearian",
 	"rewards": {
-		"function": "bc_rewards:biomes/were_going_on_a_bear_hunt"
+		"function": "bacap_rewards:biomes/were_going_on_a_bear_hunt"
 	},		
 	"criteria": {
 		"polar_bear": {
 			"trigger": "minecraft:entity_killed_player",
 			"conditions": {
 				"entity": {
-					"type": "polar_bear"
+					"entity_type": "polar_bear"
 				}
 			}
 		}

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/boatception",
 	"rewards": {
-		"function": "bc_rewards:biomes/titanic"
+		"function": "bacap_rewards:biomes/titanic"
 	},		
 	"criteria": {
 		"iceberg_deep": {
@@ -48,8 +48,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -93,8 +93,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

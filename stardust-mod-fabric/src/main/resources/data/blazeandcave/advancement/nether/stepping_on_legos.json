@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/nugget_in_a_biscuit",
 	"rewards": {
-		"function": "bc_rewards:nether/stepping_on_legos"
+		"function": "bacap_rewards:nether/stepping_on_legos"
 	},		
 	"criteria": {
 		"legos": {
@@ -75,8 +75,7 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
 									"gamemode": ["spectator"]
 								}
 							}

@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:biomes/thin_ice",
 	"rewards": {
-		"function": "bc_rewards:biomes/barbearian"
+		"function": "bacap_rewards:biomes/barbearian"
 	},		
 	"criteria": {
 		"polar_bear": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "polar_bear"
+					"entity_type": "polar_bear"
 				}
 			}
 		}

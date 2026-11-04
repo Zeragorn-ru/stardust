@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:riddle/ninth_line"
+		"function": "blazeandcave:advancement/riddle/ninth_line"
 	},		
 	"criteria": {
 		"ninth_line_left": {
@@ -24,18 +24,11 @@
 								}
 							},
 							"vehicle": {
-								"type": "#minecraft:boats",
-								"stepping_on": {
-									"block": {
-										"blocks": [
-											"water"
-										]
-									}
-								}
+								"entity_type": "#blazeandcave:all_boats"
 							},
 							"nbt": "{ShoulderEntityLeft:{id:\"minecraft:parrot\"}}",
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"advancements": {
 									"blazeandcave:technical/riddle_eighth_line": true
 								}
@@ -67,18 +60,11 @@
 								}
 							},
 							"vehicle": {
-								"type": "#minecraft:boats",
-								"stepping_on": {
-									"block": {
-										"blocks": [
-											"water"
-										]
-									}
-								}
+								"entity_type": "#blazeandcave:all_boats"
 							},
 							"nbt": "{ShoulderEntityRight:{id:\"minecraft:parrot\"}}",
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"advancements": {
 									"blazeandcave:technical/riddle_eighth_line": true
 								}
@@ -110,18 +96,11 @@
 								}
 							},
 							"vehicle": {
-								"type": "#minecraft:boats",
-								"stepping_on": {
-									"block": {
-										"blocks": [
-											"water"
-										]
-									}
-								}
+								"entity_type": "#blazeandcave:all_boats"
 							},
 							"nbt": "{ShoulderEntityLeft:{id:\"minecraft:parrot\"}}",
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"advancements": {
 									"blazeandcave:technical/riddle_eighth_line": true
 								}
@@ -153,18 +132,11 @@
 								}
 							},
 							"vehicle": {
-								"type": "#minecraft:boats",
-								"stepping_on": {
-									"block": {
-										"blocks": [
-											"water"
-										]
-									}
-								}
+								"entity_type": "#blazeandcave:all_boats"
 							},
 							"nbt": "{ShoulderEntityRight:{id:\"minecraft:parrot\"}}",
-							"type_specific": {
-								"type": "player",
+							"minecraft:type_specific/player": {
+
 								"advancements": {
 									"blazeandcave:technical/riddle_eighth_line": true
 								}

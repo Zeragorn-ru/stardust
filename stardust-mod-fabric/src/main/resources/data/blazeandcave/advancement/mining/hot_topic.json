@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/fossil_fuel",
 	"rewards": {
-		"function": "bc_rewards:mining/hot_topic"
+		"function": "bacap_rewards:mining/hot_topic"
 	},		
 	"criteria": {
 		"furnace": {

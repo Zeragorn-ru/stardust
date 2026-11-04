@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/bapple",
 	"rewards": {
-		"function": "bc_rewards:farming/trimming_the_treetops"
+		"function": "bacap_rewards:farming/trimming_the_treetops"
 	},		
 	"criteria": {
 		"leaves": {

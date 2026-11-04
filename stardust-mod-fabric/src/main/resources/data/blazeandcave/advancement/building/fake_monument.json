@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Craft or collect all forms of prismarine blocks"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:building/greek_art_decor",
+	"parent": "blazeandcave:building/cinnabar_island",
 	"rewards": {
-		"function": "bc_rewards:building/fake_monument"
+		"function": "bacap_rewards:building/fake_monument"
 	},		
 	"criteria": {
 		"prismarine": {

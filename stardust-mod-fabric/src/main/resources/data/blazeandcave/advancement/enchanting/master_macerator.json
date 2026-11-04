@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/master_tridenteer",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_macerator"
+		"function": "bacap_rewards:enchanting/master_macerator"
 	},		
 	"criteria": {
 		"perfect_mace_smite": {

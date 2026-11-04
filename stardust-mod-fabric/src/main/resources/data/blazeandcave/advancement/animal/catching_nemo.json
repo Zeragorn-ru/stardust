@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/salmonella_poisoning",
 	"rewards": {
-		"function": "bc_rewards:animal/catching_nemo"
+		"function": "bacap_rewards:animal/catching_nemo"
 	},		
 	"criteria": {
 		"tropical_fish": {

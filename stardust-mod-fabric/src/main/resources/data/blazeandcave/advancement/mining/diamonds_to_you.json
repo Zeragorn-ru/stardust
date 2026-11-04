@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/diamond_miner",
 	"rewards": {
-		"function": "bc_rewards:mining/diamonds_to_you"
+		"function": "bacap_rewards:mining/diamonds_to_you"
 	},
 	"criteria": {
 		"diamonds_to_you": {

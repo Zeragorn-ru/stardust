@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:end/getting_chorus",
 	"rewards": {
-		"function": "bc_rewards:end/extrabiologist"
+		"function": "bacap_rewards:end/extrabiologist"
 	},		
 	"criteria": {
 		"chorus_flower": {

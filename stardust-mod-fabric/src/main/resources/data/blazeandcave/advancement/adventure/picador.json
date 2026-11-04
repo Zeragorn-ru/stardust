@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:adventure/i_am_ravager_hear_me_roar",
 	"rewards": {
-		"function": "bc_rewards:adventure/picador"
+		"function": "bacap_rewards:adventure/picador"
 	},
 	"criteria": {
 		"shot_trident": {
 			"trigger": "minecraft:player_hurt_entity",
 			"conditions": {
 				"entity": {
-					"type": "ravager"
+					"entity_type": "ravager"
 				},
 				"damage": {
 					"type": {
@@ -28,7 +28,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:trident"
+							"entity_type": "minecraft:trident"
 						}
 					}
 				}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/point_blank",
 	"rewards": {
-		"function": "bc_rewards:weaponry/bow_spammer"
+		"function": "bacap_rewards:weaponry/bow_spammer"
 	},		
 	"criteria": {
 		"bow_spammer": {
@@ -27,7 +27,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:arrow"
+							"entity_type": "minecraft:arrow"
 						}
 					}
 				}

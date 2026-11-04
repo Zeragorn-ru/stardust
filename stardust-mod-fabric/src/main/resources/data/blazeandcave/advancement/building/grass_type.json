@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/pathways",
 	"rewards": {
-		"function": "bc_rewards:building/grass_type"
+		"function": "bacap_rewards:building/grass_type"
 	},		
 	"criteria": {
 		"grass_block": {

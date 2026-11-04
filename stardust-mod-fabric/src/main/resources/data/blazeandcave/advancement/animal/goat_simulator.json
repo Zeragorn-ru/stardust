@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:animal/billy_the_kid",
 	"rewards": {
-		"function": "bc_rewards:animal/goat_simulator"
+		"function": "bacap_rewards:animal/goat_simulator"
 	},		
 	"criteria": {
 		"goat": {
 			"trigger": "minecraft:entity_killed_player",
 			"conditions": {
 				"entity": {
-					"type": "goat"
+					"entity_type": "goat"
 				}
 			}
 		}

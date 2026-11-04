@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/hells_bells",
 	"rewards": {
-		"function": "bc_rewards:nether/polar_opposites"
+		"function": "bacap_rewards:nether/polar_opposites"
 	},		
 	"criteria": {
 		"nether_freeze": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/pot_planter",
 	"rewards": {
-		"function": "bc_rewards:building/harry_potter"
+		"function": "bacap_rewards:building/harry_potter"
 	},
 	"criteria": {
 		"dandelion": {
@@ -857,6 +857,106 @@
 						"predicate": {
 							"items": [
 								"minecraft:torchflower"
+							]
+						}
+					}
+				]
+			}
+		},
+		"pale_oak_sapling": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:potted_pale_oak_sapling"
+								]
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:pale_oak_sapling"
+							]
+						}
+					}
+				]
+			}
+		},
+		"closed_eyeblossom": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:potted_closed_eyeblossom"
+								]
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:closed_eyeblossom"
+							]
+						}
+					}
+				]
+			}
+		},
+		"open_eyeblossom": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:potted_open_eyeblossom"
+								]
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:open_eyeblossom"
+							]
+						}
+					}
+				]
+			}
+		},
+		"golden_dandelion": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:potted_golden_dandelion"
+								]
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:golden_dandelion"
 							]
 						}
 					}

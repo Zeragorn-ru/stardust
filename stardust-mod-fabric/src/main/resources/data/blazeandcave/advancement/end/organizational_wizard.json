@@ -9,36 +9,21 @@
 	},
 	"parent": "blazeandcave:end/portable_storage",
 	"rewards": {
-		"function": "bc_rewards:end/organizational_wizard"
+		"function": "bacap_rewards:end/organizational_wizard"
 	},	
 	"criteria": {
 		"shulker_box": {
-			"trigger": "minecraft:impossible",
+			"trigger": "minecraft:inventory_changed",
 			"conditions": {
 				"items": [
 					{
 						"items": "#minecraft:shulker_boxes",
-						"nbt": "{display:{Name:'\"Blocks\"'}}"
-					}
-				]
-			}
-		},
-		"shulker_box_old": {
-			"trigger": "minecraft:impossible",
-			"conditions": {
-				"items": [
-					{
-						"items": "#minecraft:shulker_boxes",
-						"nbt": "{display:{Name:\"{\\\"text\\\":\\\"Blocks\\\"}\"}}"
+						"components": {
+							"minecraft:custom_name": "Blocks"
+						}
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-			"shulker_box",
-			"shulker_box_old"
-		]
-	]
+	}
 }

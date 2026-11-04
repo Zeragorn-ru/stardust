@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/seeing_stars",
 	"rewards": {
-		"function": "bc_rewards:nether/glows_in_the_dark"
+		"function": "bacap_rewards:nether/glows_in_the_dark"
 	},	
 	"criteria": {
 		"spectral_arrow": {
@@ -24,7 +24,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:spectral_arrow"
+							"entity_type": "minecraft:spectral_arrow"
 						}
 					}
 				}

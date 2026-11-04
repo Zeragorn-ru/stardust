@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/meet_the_flintstones",
 	"rewards": {
-		"function": "bc_rewards:mining/strike_a_light"
+		"function": "bacap_rewards:mining/strike_a_light"
 	},		
 	"criteria": {
 		"candle": {

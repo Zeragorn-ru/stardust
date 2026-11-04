@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/its_where_nutella_comes_from",
 	"rewards": {
-		"function": "bc_rewards:farming/me_love_cookie"
+		"function": "bacap_rewards:farming/me_love_cookie"
 	},		
 	"criteria": {
 		"cookie": {

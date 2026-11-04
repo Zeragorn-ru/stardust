@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/root",
 	"rewards": {
-		"function": "bc_rewards:redstone/vibe_check"
+		"function": "bacap_rewards:redstone/vibe_check"
 	},		
 	"criteria": {
 		"sculk_sensor": {

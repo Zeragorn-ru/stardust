@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/lightning_rod_with_villager_no_fire",
 	"rewards": {
-		"function": "bc_rewards:mining/called_shot"
+		"function": "bacap_rewards:mining/called_shot"
 	},		
 	"criteria": {
 		"called_shot": {
@@ -22,17 +22,14 @@
 						"predicate": {
 							"distance": {
 								"absolute": {
-									"max": 2
+									"max": 2.0
 								}
 							},
-							"entity_struck": [
-								{
-									"condition": "minecraft:entity_properties",
-									"predicate": {
-										"type": "minecraft:player"
-									}
+							"minecraft:type_specific/lightning": {
+								"entity_struck": {
+									"entity_type": "minecraft:player"
 								}
-							]
+							}
 						},
 						"entity": "this"
 					}
@@ -40,16 +37,23 @@
 				"player": [
 					{
 						"condition": "minecraft:entity_properties",
+						"entity": "this",
 						"predicate": {
 							"stepping_on": {
 								"block": {
 									"blocks": [
-										"minecraft:lightning_rod"
+										"minecraft:lightning_rod",
+										"exposed_lightning_rod",
+										"weathered_lightning_rod",
+										"oxidized_lightning_rod",
+										"waxed_lightning_rod",
+										"waxed_exposed_lightning_rod",
+										"waxed_weathered_lightning_rod",
+										"waxed_oxidized_lightning_rod"
 									]
 								}
 							}
-						},
-						"entity": "this"
+						}
 					}
 				]
 			}

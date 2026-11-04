@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/from_whence_it_came",
 	"rewards": {
-		"function": "bc_rewards:nether/ancient_restoration"
+		"function": "bacap_rewards:nether/ancient_restoration"
 	},
 	"criteria": {
 		"entered_nether_portal": {
@@ -92,8 +92,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

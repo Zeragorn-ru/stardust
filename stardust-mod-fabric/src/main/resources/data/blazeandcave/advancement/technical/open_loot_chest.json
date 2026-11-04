@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:statistics/open_loot_chest"
+		"function": "blazeandcave:advancement/statistics/open_loot_chest"
 	},		
 	"criteria": {
 		"abandoned_mineshaft": {

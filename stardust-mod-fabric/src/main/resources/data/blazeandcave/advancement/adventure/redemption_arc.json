@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/riot_shield",
 	"rewards": {
-		"function": "bc_rewards:adventure/redemption_arc"
+		"function": "bacap_rewards:adventure/redemption_arc"
 	},
 	"criteria": {
 		"redemption_arc": {

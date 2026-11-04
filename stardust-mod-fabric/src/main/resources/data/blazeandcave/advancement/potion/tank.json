@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:potion/true_feather_falling",
 	"rewards": {
-		"function": "bc_rewards:potion/tank"
+		"function": "bacap_rewards:potion/tank"
 	},	
 	"criteria": {
 		"turtle_master": {

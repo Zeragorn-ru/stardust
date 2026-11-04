@@ -11,19 +11,22 @@
 	},
 	"parent": "blazeandcave:nether/high_temperature_fluid_monster",
 	"rewards": {
-		"function": "bc_rewards:nether/legend_of_hell_chicken_riders"
+		"function": "bacap_rewards:nether/legend_of_hell_chicken_riders"
 	},		
 	"criteria": {
 		"chicken": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "chicken",
+					"entity_type": "chicken",
 					"passenger": {
-						"type": "zombified_piglin",
+						"entity_type": "#blazeandcave:zombies",
 						"flags": {
 							"is_baby": true
 						}
+					},
+					"location": {
+						"dimension": "the_nether"
 					}
 				}
 			}
@@ -32,12 +35,15 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombified_piglin",
+					"entity_type": "#blazeandcave:zombies",
 					"flags": {
 						"is_baby": true
 					},
 					"vehicle": {
-						"type": "chicken"
+						"entity_type": "chicken"
+					},
+					"location": {
+						"dimension": "the_nether"
 					}
 				}
 			}

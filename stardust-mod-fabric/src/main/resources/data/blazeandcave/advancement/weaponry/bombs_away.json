@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/root",
 	"rewards": {
-		"function": "bc_rewards:weaponry/bombs_away"
+		"function": "bacap_rewards:weaponry/bombs_away"
 	},		
 	"criteria": {
 		"tnt": {

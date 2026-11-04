@@ -42,7 +42,7 @@
 	},
 	"parent": "blazeandcave:end/for_mother_clarence",
 	"rewards": {
-		"function": "bc_rewards:end/shouldnt_my_shield_levitate_too"
+		"function": "bacap_rewards:end/shouldnt_my_shield_levitate_too"
 	},
 	"criteria": {
 		"deflected_bullet": {
@@ -51,7 +51,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "shulker"
+						"entity_type": "shulker"
 					}
 				}
 			}

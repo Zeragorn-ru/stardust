@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/happy_trails",
 	"rewards": {
-		"function": "bc_rewards:adventure/raiders_of_the_lost_trim"
+		"function": "bacap_rewards:adventure/raiders_of_the_lost_trim"
 	},		
 	"criteria": {
 		"wayfinder_armor_trim_smithing_template": {

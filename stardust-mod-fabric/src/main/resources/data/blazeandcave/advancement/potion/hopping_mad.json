@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/marine_marauder",
 	"rewards": {
-		"function": "bc_rewards:potion/hopping_mad"
+		"function": "bacap_rewards:potion/hopping_mad"
 	},		
 	"criteria": {
 		"jump_boost": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/fiery",
 	"rewards": {
-		"function": "bc_rewards:enchanting/gotta_go_fast"
+		"function": "bacap_rewards:enchanting/gotta_go_fast"
 	},			
 	"criteria": {
 		"soul_speed_boots": {

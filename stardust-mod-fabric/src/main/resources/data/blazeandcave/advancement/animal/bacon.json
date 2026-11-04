@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:husbandry/root",
 	"rewards": {
-		"function": "bc_rewards:animal/bacon"
+		"function": "bacap_rewards:animal/bacon"
 	},		
 	"criteria": {
 		"pig": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "pig"
+					"entity_type": "pig"
 				}
 			}
 		}

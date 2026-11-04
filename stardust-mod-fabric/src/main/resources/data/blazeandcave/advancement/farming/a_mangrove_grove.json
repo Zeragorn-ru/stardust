@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/ecologist",
 	"rewards": {
-		"function": "bc_rewards:farming/a_mangrove_grove"
+		"function": "bacap_rewards:farming/a_mangrove_grove"
 	},
 	"criteria": {
 		"mangrove_propagule": {

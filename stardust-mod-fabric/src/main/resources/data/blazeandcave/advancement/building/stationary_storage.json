@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/your_door_was_locked",
 	"rewards": {
-		"function": "bc_rewards:building/stationary_storage"
+		"function": "bacap_rewards:building/stationary_storage"
 	},		
 	"criteria": {
 		"chest": {
@@ -21,9 +21,33 @@
 						"predicate": {
 							"block": {
 								"blocks": [
-									"minecraft:chest"
+									"minecraft:chest",
+									"minecraft:copper_chest",
+									"minecraft:exposed_copper_chest",
+									"minecraft:weathered_copper_chest",
+									"minecraft:oxidized_copper_chest",
+									"minecraft:waxed_copper_chest",
+									"minecraft:waxed_exposed_copper_chest",
+									"minecraft:waxed_weathered_copper_chest",
+									"minecraft:waxed_oxidized_copper_chest"
 								]
 							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:chest",
+								"minecraft:copper_chest",
+								"minecraft:exposed_copper_chest",
+								"minecraft:weathered_copper_chest",
+								"minecraft:oxidized_copper_chest",
+								"minecraft:waxed_copper_chest",
+								"minecraft:waxed_exposed_copper_chest",
+								"minecraft:waxed_weathered_copper_chest",
+								"minecraft:waxed_oxidized_copper_chest"
+							]
 						}
 					}
 				]

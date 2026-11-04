@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/classy_glassy",
 	"rewards": {
-		"function": "bc_rewards:building/what_a_pane"
+		"function": "bacap_rewards:building/what_a_pane"
 	},		
 	"criteria": {
 		"glass_pane": {

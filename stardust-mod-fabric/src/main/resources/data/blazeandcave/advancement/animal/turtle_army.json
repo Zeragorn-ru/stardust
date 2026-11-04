@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/save_the_turtles",
 	"rewards": {
-		"function": "bc_rewards:animal/turtle_army"
+		"function": "bacap_rewards:animal/turtle_army"
 	},		
 	"criteria": {
 		"scute": {

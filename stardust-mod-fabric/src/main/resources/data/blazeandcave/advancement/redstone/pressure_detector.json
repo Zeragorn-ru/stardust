@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/under_pressure",
 	"rewards": {
-		"function": "bc_rewards:redstone/pressure_detector"
+		"function": "bacap_rewards:redstone/pressure_detector"
 	},
 	"criteria": {
 		"detector_rail": {

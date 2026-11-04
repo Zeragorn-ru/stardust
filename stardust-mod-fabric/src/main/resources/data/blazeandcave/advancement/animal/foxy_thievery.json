@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/blackberry_market",
 	"rewards": {
-		"function": "bc_rewards:animal/foxy_thievery"
+		"function": "bacap_rewards:animal/foxy_thievery"
 	},
 	"criteria": {
 		"totem_of_undying": {
@@ -26,7 +26,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:fox"
+							"entity_type": "minecraft:fox"
 						}
 					}
 				]

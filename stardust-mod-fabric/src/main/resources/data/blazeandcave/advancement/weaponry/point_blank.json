@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/shoot_arrow",
 	"rewards": {
-		"function": "bc_rewards:weaponry/point_blank"
+		"function": "bacap_rewards:weaponry/point_blank"
 	},		
 	"criteria": {
 		"point_blank": {
@@ -24,7 +24,7 @@
 							}
 						],
 						"direct_entity": {
-							"type": "minecraft:arrow"
+							"entity_type": "minecraft:arrow"
 						}
 					}
 				},

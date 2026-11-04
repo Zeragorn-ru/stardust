@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/root",
 	"rewards": {
-		"function": "bc_rewards:redstone/powerful_light"
+		"function": "bacap_rewards:redstone/powerful_light"
 	},
 	"criteria": {
 		"redstone_torch": {

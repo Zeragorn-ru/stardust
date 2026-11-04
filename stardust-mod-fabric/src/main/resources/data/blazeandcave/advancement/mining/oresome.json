@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/emerald_miner",
 	"rewards": {
-		"function": "bc_rewards:mining/oresome"
+		"function": "bacap_rewards:mining/oresome"
 	},			
 	"criteria": {
 		"coal_ore": {

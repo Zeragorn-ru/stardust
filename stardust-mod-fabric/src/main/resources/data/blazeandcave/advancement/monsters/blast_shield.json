@@ -34,7 +34,7 @@
 	},
 	"parent": "blazeandcave:monsters/keep_your_distance",
 	"rewards": {
-		"function": "bc_rewards:monsters/blast_shield"
+		"function": "bacap_rewards:monsters/blast_shield"
 	},
 	"criteria": {
 		"deflected_explosion": {
@@ -43,7 +43,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "creeper"
+						"entity_type": "creeper"
 					}
 				}
 			}

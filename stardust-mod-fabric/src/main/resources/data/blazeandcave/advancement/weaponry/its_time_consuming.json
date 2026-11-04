@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:weaponry/diemonds",
 	"rewards": {
-		"function": "bc_rewards:weaponry/its_time_consuming"
+		"function": "bacap_rewards:weaponry/its_time_consuming"
 	},		
 	"criteria": {
 		"clock": {
@@ -23,14 +23,12 @@
 					}
 				},
 				"killing_blow": {
-					"type": {
-						"tags": [
-							{
-								"id": "minecraft:player_attack",
-								"expected": true
-							}
-						]
-					}
+					"tags": [
+						{
+							"id": "minecraft:is_player_attack",
+							"expected": true
+						}
+					]
 				},
 				"player": {
 					"equipment": {

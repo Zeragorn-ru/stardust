@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:story/mine_stone",
 	"rewards": {
-		"function": "bc_rewards:mining/spelunker"
+		"function": "bacap_rewards:mining/spelunker"
 	},
 	"criteria": {
 		"lush_caves": {
@@ -32,8 +32,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -61,8 +61,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}
@@ -90,8 +90,37 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
+									"gamemode": ["spectator"]
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"sulfur_caves": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"location": {
+								"biomes": "minecraft:sulfur_caves"
+							}
+						}
+					},
+					{
+						"condition": "minecraft:inverted",
+						"term": {
+							"condition": "minecraft:entity_properties",
+							"entity": "this",
+							"predicate": {
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

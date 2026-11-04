@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/root",
 	"rewards": {
-		"function": "bc_rewards:redstone/mozart"
+		"function": "bacap_rewards:redstone/mozart"
 	},
 	"criteria": {
 		"noteblock": {

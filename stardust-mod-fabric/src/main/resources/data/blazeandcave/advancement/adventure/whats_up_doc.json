@@ -10,60 +10,64 @@
 	},
 	"parent": "blazeandcave:adventure/i_just_want_to_make_toast",
 	"rewards": {
-		"function": "bc_rewards:adventure/whats_up_doc"
+		"function": "bacap_rewards:adventure/whats_up_doc"
 	},		
 	"criteria": {
 		"name_tag": {
-			"trigger": "minecraft:impossible",
+			"trigger": "minecraft:player_interacted_with_entity",
 			"conditions": {
 				"item": {
 					"items": [
 						"minecraft:name_tag"
 					],
-					"nbt": "{display:{Name:'\"Dinnerbone\"'}}"
-				}
+					"components": {
+						"minecraft:custom_name": "Dinnerbone"
+					}
+				},
+				"entity": [
+					{
+						"condition": "minecraft:inverted",
+						"term": {
+							"condition": "minecraft:entity_properties",
+							"entity": "this",
+							"predicate": {
+								"entity_type": "#blazeandcave:non_mob_entities"
+							}
+						}
+					}
+				]
 			}
 		},
 		"name_tag_grumm": {
-			"trigger": "minecraft:impossible",
+			"trigger": "minecraft:player_interacted_with_entity",
 			"conditions": {
 				"item": {
 					"items": [
 						"minecraft:name_tag"
 					],
-					"nbt": "{display:{Name:'\"Grumm\"'}}"
+					"components": {
+						"minecraft:custom_name": "Grumm"
+					}
 				}
-			}
-		},
-		"name_tag_dinnerbone_old": {
-			"trigger": "minecraft:impossible",
-			"conditions": {
-				"item": {
-					"items": [
-						"minecraft:name_tag"
-					],
-					"nbt": "{display:{Name:\"{\\\"text\\\":\\\"Dinnerbone\\\"}\"}}"
-				}
-			}
-		},
-		"name_tag_grumm_old": {
-			"trigger": "minecraft:impossible",
-			"conditions": {
-				"item": {
-					"items": [
-						"minecraft:name_tag"
-					],
-					"nbt": "{display:{Name:\"{\\\"text\\\":\\\"Grumm\\\"}\"}}"
-				}
-			}
+			},
+				"entity": [
+					{
+						"condition": "minecraft:inverted",
+						"term": {
+							"condition": "minecraft:entity_properties",
+							"entity": "this",
+							"predicate": {
+								"entity_type": "#blazeandcave:non_mob_entities"
+							}
+						}
+					}
+				]
 		}
 	},
 	"requirements": [
 		[
 			"name_tag",
-			"name_tag_grumm",
-			"name_tag_dinnerbone_old",
-			"name_tag_grumm_old"
+			"name_tag_grumm"
 		]
 	]
 }

@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:end/levitate",
 	"rewards": {
-		"function": "bc_rewards:end/anti_gravity_generator"
+		"function": "bacap_rewards:end/anti_gravity_generator"
 	},		
 	"criteria": {
 		"shulker_hurt_player": {
@@ -19,7 +19,7 @@
 				"damage": {
 					"blocked": false,
 					"source_entity": {
-						"type": "minecraft:shulker",
+						"entity_type": "minecraft:shulker",
 						"location": {
 							"dimension": "overworld"
 						}

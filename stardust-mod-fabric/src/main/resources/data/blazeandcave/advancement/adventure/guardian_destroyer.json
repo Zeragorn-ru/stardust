@@ -8,9 +8,9 @@
 		"announce_to_chat": true,
 		"frame": "goal"
 	},
-	"parent": "blazeandcave:adventure/spear_fishing",
+	"parent": "blazeandcave:adventure/seafood_skewer",
 	"rewards": {
-		"function": "bc_rewards:adventure/guardian_destroyer"
+		"function": "bacap_rewards:adventure/guardian_destroyer"
 	},		
 	"criteria": {
 		"prismarine_shard": {

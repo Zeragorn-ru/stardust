@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/wooly",
 	"rewards": {
-		"function": "bc_rewards:animal/feeling_sheepish"
+		"function": "bacap_rewards:animal/feeling_sheepish"
 	},		
 	"criteria": {
 		"cooked_mutton": {

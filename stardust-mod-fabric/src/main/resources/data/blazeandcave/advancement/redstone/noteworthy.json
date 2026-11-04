@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/take_notes",
 	"rewards": {
-		"function": "bc_rewards:redstone/noteworthy"
+		"function": "bacap_rewards:redstone/noteworthy"
 	},
 	"criteria": {
 		"banjo": {
@@ -326,6 +326,86 @@
 								],
 								"state": {
 									"instrument": "xylophone"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"trumpet": {
+			"trigger": "minecraft:default_block_use",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:note_block"
+								],
+								"state": {
+									"instrument": "trumpet"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"trumpet_exposed": {
+			"trigger": "minecraft:default_block_use",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:note_block"
+								],
+								"state": {
+									"instrument": "trumpet_exposed"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"trumpet_weathered": {
+			"trigger": "minecraft:default_block_use",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:note_block"
+								],
+								"state": {
+									"instrument": "trumpet_weathered"
+								}
+							}
+						}
+					}
+				]
+			}
+		},
+		"trumpet_oxidized": {
+			"trigger": "minecraft:default_block_use",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:note_block"
+								],
+								"state": {
+									"instrument": "trumpet_oxidized"
 								}
 							}
 						}

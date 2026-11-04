@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/help_ive_been_framed",
 	"rewards": {
-		"function": "bc_rewards:building/raise_the_flag"
+		"function": "bacap_rewards:building/raise_the_flag"
 	},		
 	"criteria": {
 		"banner": {

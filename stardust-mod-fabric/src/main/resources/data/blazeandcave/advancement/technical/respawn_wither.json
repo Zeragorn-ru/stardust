@@ -4,7 +4,7 @@
 			"trigger": "minecraft:summoned_entity",
 			"conditions": {
 				"entity": {
-					"type": "wither"
+					"entity_type": "wither"
 				}
 			}
 		}

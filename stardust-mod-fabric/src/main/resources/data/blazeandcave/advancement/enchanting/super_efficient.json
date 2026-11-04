@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/librarian",
 	"rewards": {
-		"function": "bc_rewards:enchanting/super_efficient"
+		"function": "bacap_rewards:enchanting/super_efficient"
 	},			
 	"criteria": {
 		"efficiency": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/ahoy",
 	"rewards": {
-		"function": "bc_rewards:biomes/x_marks_the_spot"
+		"function": "bacap_rewards:biomes/x_marks_the_spot"
 	},		
 	"criteria": {
 		"heart_of_the_sea": {

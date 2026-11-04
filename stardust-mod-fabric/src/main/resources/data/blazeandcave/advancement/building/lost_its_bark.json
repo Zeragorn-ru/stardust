@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/barking_mad",
 	"rewards": {
-		"function": "bc_rewards:building/lost_its_bark"
+		"function": "bacap_rewards:building/lost_its_bark"
 	},		
 	"criteria": {
 		"stripped_wood": {
@@ -30,7 +30,8 @@
 									"stripped_mangrove_wood",
 									"stripped_cherry_wood",
 									"stripped_crimson_hyphae",
-									"stripped_warped_hyphae"
+									"stripped_warped_hyphae",
+									"stripped_pale_oak_wood"
 								]
 							}
 						}
@@ -38,7 +39,7 @@
 					{
 						"condition": "minecraft:match_tool",
 						"predicate": {
-							"items": "#minecraft:axes"
+							"items": "#blazeandcave:axes"
 						}
 					}
 				]

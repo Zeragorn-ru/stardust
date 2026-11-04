@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/so_i_got_that_going_for_me",
 	"rewards": {
-		"function": "bc_rewards:animal/blistering_barnacles"
+		"function": "bacap_rewards:animal/blistering_barnacles"
 	},		
 	"criteria": {
 		"llama_hurt_player": {
@@ -18,7 +18,7 @@
 			"conditions": {
 				"damage": {
 					"source_entity": {
-						"type": "minecraft:llama"
+						"entity_type": "minecraft:llama"
 					}
 				}
 			}

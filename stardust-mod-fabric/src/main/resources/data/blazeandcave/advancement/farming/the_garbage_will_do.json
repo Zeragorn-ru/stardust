@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/plant_seed",
 	"rewards": {
-		"function": "bc_rewards:farming/the_garbage_will_do"
+		"function": "bacap_rewards:farming/the_garbage_will_do"
 	},		
 	"criteria": {
 		"composter": {

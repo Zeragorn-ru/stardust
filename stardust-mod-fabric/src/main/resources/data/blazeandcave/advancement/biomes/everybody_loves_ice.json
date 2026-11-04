@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/thick_ice",
 	"rewards": {
-		"function": "bc_rewards:biomes/everybody_loves_ice"
+		"function": "bacap_rewards:biomes/everybody_loves_ice"
 	},		
 	"criteria": {
 		"ice": {

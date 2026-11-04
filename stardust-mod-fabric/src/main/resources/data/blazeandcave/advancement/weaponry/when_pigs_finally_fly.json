@@ -11,14 +11,14 @@
 	},
 	"parent": "blazeandcave:weaponry/indiana_jones",
 	"rewards": {
-		"function": "bc_rewards:weaponry/when_pigs_finally_fly"
+		"function": "bacap_rewards:weaponry/when_pigs_finally_fly"
 	},		
 	"criteria": {
 		"pig": {
 			"trigger": "minecraft:fishing_rod_hooked",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:pig",
+					"entity_type": "minecraft:pig",
 					"distance": {
 						"absolute": {
 							"min": 25

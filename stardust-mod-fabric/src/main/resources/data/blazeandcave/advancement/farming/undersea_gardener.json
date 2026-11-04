@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/aquatic_biofuel",
 	"rewards": {
-		"function": "bc_rewards:farming/undersea_gardener"
+		"function": "bacap_rewards:farming/undersea_gardener"
 	},		
 	"criteria": {
 		"dried_kelp_block": {

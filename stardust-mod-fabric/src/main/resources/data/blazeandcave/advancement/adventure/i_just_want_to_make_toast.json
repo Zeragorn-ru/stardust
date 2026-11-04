@@ -9,56 +9,30 @@
 	},
 	"parent": "blazeandcave:adventure/i_hereby_dub_thee",
 	"rewards": {
-		"function": "bc_rewards:adventure/i_just_want_to_make_toast"
+		"function": "bacap_rewards:adventure/i_just_want_to_make_toast"
 	},		
 	"criteria": {
 		"name_tag": {
-			"trigger": "minecraft:impossible",
+			"trigger": "minecraft:player_interacted_with_entity",
 			"conditions": {
 				"item": {
 					"items": [
 						"minecraft:name_tag"
 					],
 					"components": {
-						"minecraft:custom_name": "\"Toast\""
+						"minecraft:custom_name": "Toast"
 					}
 				},
 				"entity": [
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:rabbit"
-						},
-						"entity": "this"
-					}
-				]
-			}
-		},
-		"name_tag_old": {
-			"trigger": "minecraft:impossible",
-			"conditions": {
-				"item": {
-					"items": [
-						"minecraft:name_tag"
-					],
-					"nbt": "{display:{Name:\"{\\\"text\\\":\\\"Toast\\\"}\"}}"
-				},
-				"entity": [
-					{
-						"condition": "minecraft:entity_properties",
-						"predicate": {
-							"type": "minecraft:rabbit"
+							"entity_type": "minecraft:rabbit"
 						},
 						"entity": "this"
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-			"name_tag",
-			"name_tag_old"
-		]
-	]
+	}
 }

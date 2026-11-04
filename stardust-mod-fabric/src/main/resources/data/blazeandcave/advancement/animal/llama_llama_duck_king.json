@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:animal/so_i_got_that_going_for_me",
 	"rewards": {
-		"function": "bc_rewards:animal/llama_llama_duck_king"
+		"function": "bacap_rewards:animal/llama_llama_duck_king"
 	},		
 	"criteria": {
 		"creamy": {
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "#blazeandcave:llamas",
+					"entity_type": "#blazeandcave:llamas",
 					"nbt": "{Variant:0}"
 				}
 			}
@@ -26,7 +26,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "#blazeandcave:llamas",
+					"entity_type": "#blazeandcave:llamas",
 					"nbt": "{Variant:1}"
 				}
 			}
@@ -35,7 +35,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "#blazeandcave:llamas",
+					"entity_type": "#blazeandcave:llamas",
 					"nbt": "{Variant:2}"
 				}
 			}
@@ -44,7 +44,7 @@
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "#blazeandcave:llamas",
+					"entity_type": "#blazeandcave:llamas",
 					"nbt": "{Variant:3}"
 				}
 			}

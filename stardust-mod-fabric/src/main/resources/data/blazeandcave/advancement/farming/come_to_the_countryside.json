@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/one_course_meal",
 	"rewards": {
-		"function": "bc_rewards:farming/come_to_the_countryside"
+		"function": "bacap_rewards:farming/come_to_the_countryside"
 	},		
 	"criteria": {
 		"wheat": {

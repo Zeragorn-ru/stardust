@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/a_watery_grave",
 	"rewards": {
-		"function": "bc_rewards:monsters/mollusc_man"
+		"function": "bacap_rewards:monsters/mollusc_man"
 	},		
 	"criteria": {
 		"drowned": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "drowned",
+					"entity_type": "drowned",
 					"equipment": {
 						"offhand": {
 							"items": [
@@ -32,7 +32,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "drowned",
+					"entity_type": "drowned",
 					"equipment": {
 						"mainhand": {
 							"items": [

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/boomerang",
 	"rewards": {
-		"function": "bc_rewards:enchanting/do_a_barrel_roll"
+		"function": "bacap_rewards:enchanting/do_a_barrel_roll"
 	},			
 	"criteria": {
 		"riptide": {

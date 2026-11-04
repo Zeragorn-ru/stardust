@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/now_youre_thinking_with_portals",
 	"rewards": {
-		"function": "bc_rewards:adventure/grave_robber"
+		"function": "bacap_rewards:adventure/grave_robber"
 	},		
 	"criteria": {
 		"desert_pyramid": {
@@ -31,8 +31,7 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
 									"gamemode": ["spectator"]
 								}
 							}

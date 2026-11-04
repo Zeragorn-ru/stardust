@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/sushi",
 	"rewards": {
-		"function": "bc_rewards:animal/salmonella_poisoning"
+		"function": "bacap_rewards:animal/salmonella_poisoning"
 	},		
 	"criteria": {
 		"salmon": {

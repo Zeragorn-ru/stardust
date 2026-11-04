@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/strike_a_light",
 	"rewards": {
-		"function": "bc_rewards:mining/flint_miner"
+		"function": "bacap_rewards:mining/flint_miner"
 	},		
 	"criteria": {
 		"flint": {

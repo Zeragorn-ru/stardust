@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:adventure/vault_hunter",
 	"rewards": {
-		"function": "bc_rewards:adventure/keys_to_success"
+		"function": "bacap_rewards:adventure/keys_to_success"
 	},
 	"criteria": {
 		"trial_key": {

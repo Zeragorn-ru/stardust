@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/living_like_kings",
 	"rewards": {
-		"function": "bc_rewards:mining/bling_bling_gone"
+		"function": "bacap_rewards:mining/bling_bling_gone"
 	},		
 	"criteria": {
 		"break_pickaxe": {

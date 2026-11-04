@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/death_pointer",
 	"rewards": {
-		"function": "bc_rewards:mining/9_to_5"
+		"function": "bacap_rewards:mining/9_to_5"
 	},		
 	"criteria": {
 		"music_disc_5": {

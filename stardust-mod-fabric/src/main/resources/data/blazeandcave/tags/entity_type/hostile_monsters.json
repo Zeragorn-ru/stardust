@@ -37,6 +37,12 @@
 	"minecraft:piglin_brute",
 	"minecraft:warden",
 	"minecraft:breeze",
-	"minecraft:bogged"
+	"minecraft:bogged",
+	"minecraft:creaking",
+	"minecraft:skeleton_horse",
+	"minecraft:zombie_horse",
+	"minecraft:zombie_nautilus",
+	"minecraft:camel_husk",
+	"minecraft:parched"
   ]
 }

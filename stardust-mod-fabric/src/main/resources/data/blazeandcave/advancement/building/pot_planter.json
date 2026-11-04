@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/bricks",
 	"rewards": {
-		"function": "bc_rewards:building/pot_planter"
+		"function": "bacap_rewards:building/pot_planter"
 	},		
 	"criteria": {
 		"flower_pot": {

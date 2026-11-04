@@ -8,9 +8,9 @@
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
-	"parent": "blazeandcave:challenges/root",
+	"parent": "blazeandcave:challenges/lets_take_it_up_a_notch",
 	"rewards": {
-		"function": "bc_rewards:challenges/constellation"
+		"function": "bacap_rewards:challenges/constellation"
 	},		
 	"criteria": {
 		"nether_star": {

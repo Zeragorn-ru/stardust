@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/bake_bread",
 	"rewards": {
-		"function": "bc_rewards:farming/the_lie"
+		"function": "bacap_rewards:farming/the_lie"
 	},		
 	"criteria": {
 		"cake": {

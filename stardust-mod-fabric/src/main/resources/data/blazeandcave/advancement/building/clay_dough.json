@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/i_dont_like_sand",
 	"rewards": {
-		"function": "bc_rewards:building/clay_dough"
+		"function": "bacap_rewards:building/clay_dough"
 	},		
 	"criteria": {
 		"clay_ball": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/the_melon_the_melon_the_melon",
 	"rewards": {
-		"function": "bc_rewards:farming/scientific_inaccuracy"
+		"function": "bacap_rewards:farming/scientific_inaccuracy"
 	},		
 	"criteria": {
 		"melon_block": {

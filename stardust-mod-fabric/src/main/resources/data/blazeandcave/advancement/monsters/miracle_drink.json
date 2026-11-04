@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/witch",
 	"rewards": {
-		"function": "bc_rewards:monsters/miracle_drink"
+		"function": "bacap_rewards:monsters/miracle_drink"
 	},		
 	"criteria": {
 		"miracle_drink": {

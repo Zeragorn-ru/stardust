@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/unmasked",
 	"rewards": {
-		"function": "bc_rewards:farming/pumpa_kungen"
+		"function": "bacap_rewards:farming/pumpa_kungen"
 	},		
 	"criteria": {
 		"carved_pumpkin": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/help_ive_been_framed",
 	"rewards": {
-		"function": "bc_rewards:building/a_masterpiece"
+		"function": "bacap_rewards:building/a_masterpiece"
 	},		
 	"criteria": {
 		"painting": {

@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/bane_of_one_shotting_spiders",
 	"rewards": {
-		"function": "bc_rewards:enchanting/newtons_flaming_laser_sword"
+		"function": "bacap_rewards:enchanting/newtons_flaming_laser_sword"
 	},			
 	"criteria": {
 		"newton": {

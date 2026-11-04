@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:husbandry/root",
 	"rewards": {
-		"function": "bc_rewards:animal/cowboy"
+		"function": "bacap_rewards:animal/cowboy"
 	},		
 	"criteria": {
 		"tamed_animal": {
 			"trigger": "minecraft:tame_animal",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:horse"
+					"entity_type": "minecraft:horse"
 				}
 			}
 		}

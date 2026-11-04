@@ -10,13 +10,27 @@
 	},
 	"parent": "blazeandcave:mining/heart_of_darkness",
 	"rewards": {
-		"function": "bc_rewards:mining/my_work_here_is_done"
+		"function": "bacap_rewards:mining/my_work_here_is_done"
 	},
 	"criteria": {
 		"enter_gravel": {
 			"trigger": "minecraft:enter_block",
 			"conditions": {
-				"block": "minecraft:gravel"
+				"block": "minecraft:gravel",
+				"player": [
+					{
+						"condition": "minecraft:inverted",
+						"term": {
+							"condition": "minecraft:entity_properties",
+							"entity": "this",
+							"predicate": {
+								"vehicle": {
+									"entity_type": "#blazeandcave:all_boats_and_minecarts"
+								}
+							}
+						}
+					}
+				]
 			}
 		}
 	}

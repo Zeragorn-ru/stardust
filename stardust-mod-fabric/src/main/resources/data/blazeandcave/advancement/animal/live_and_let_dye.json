@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/sheariously",
 	"rewards": {
-		"function": "bc_rewards:animal/live_and_let_dye"
+		"function": "bacap_rewards:animal/live_and_let_dye"
 	},		
 	"criteria": {
 		"white_dye": {
@@ -26,7 +26,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -45,7 +45,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -64,7 +64,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -83,7 +83,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -102,7 +102,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -121,7 +121,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -140,7 +140,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -159,7 +159,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -178,7 +178,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -197,7 +197,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -216,7 +216,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -235,7 +235,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -254,7 +254,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -273,7 +273,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -292,7 +292,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]
@@ -311,7 +311,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]

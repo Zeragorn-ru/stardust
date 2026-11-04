@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/moving_storage",
 	"rewards": {
-		"function": "bc_rewards:redstone/moving_moving_storage"
+		"function": "bacap_rewards:redstone/moving_moving_storage"
 	},			
 	"criteria": {
 		"hopper_minecart": {

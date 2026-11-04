@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/thin_ice",
 	"rewards": {
-		"function": "bc_rewards:biomes/spike_ice"
+		"function": "bacap_rewards:biomes/spike_ice"
 	},		
 	"criteria": {
 		"packed_ice": {

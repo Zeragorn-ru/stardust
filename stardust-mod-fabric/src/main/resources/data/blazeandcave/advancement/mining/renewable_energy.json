@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/hot_topic",
 	"rewards": {
-		"function": "bc_rewards:mining/renewable_energy"
+		"function": "bacap_rewards:mining/renewable_energy"
 	},		
 	"criteria": {
 		"charcoal": {

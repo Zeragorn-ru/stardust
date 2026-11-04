@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/for_you_my_sweet",	
 	"rewards": {
-		"function": "bc_rewards:biomes/theres_a_zombie_on_the_lawn"
+		"function": "bacap_rewards:biomes/theres_a_zombie_on_the_lawn"
 	},	
 	"criteria": {
 		"sunflower_plains": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/luxury_cruise",
 	"rewards": {
-		"function": "bc_rewards:statistics/pirate_captain"
+		"function": "bacap_rewards:statistics/pirate_captain"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

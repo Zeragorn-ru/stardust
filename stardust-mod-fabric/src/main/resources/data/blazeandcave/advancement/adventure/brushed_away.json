@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/grave_robber",
 	"rewards": {
-		"function": "bc_rewards:adventure/brushed_away"
+		"function": "bacap_rewards:adventure/brushed_away"
 	},		
 	"criteria": {
 		"brush": {

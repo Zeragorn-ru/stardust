@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/smooth_operator",
 	"rewards": {
-		"function": "bc_rewards:biomes/this_snow_is_snowier"
+		"function": "bacap_rewards:biomes/this_snow_is_snowier"
 	},
 	"criteria": {
 		"enter_water": {

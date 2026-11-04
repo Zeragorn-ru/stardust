@@ -30,7 +30,7 @@
 	},
 	"parent": "blazeandcave:monsters/the_phantom_menace",
 	"rewards": {
-		"function": "bc_rewards:monsters/ricochet_swoop"
+		"function": "bacap_rewards:monsters/ricochet_swoop"
 	},
 	"criteria": {
 		"deflected_swoop": {
@@ -39,7 +39,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "phantom"
+						"entity_type": "phantom"
 					}
 				}
 			}

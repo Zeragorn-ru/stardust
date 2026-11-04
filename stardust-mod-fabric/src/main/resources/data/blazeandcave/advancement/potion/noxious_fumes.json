@@ -14,7 +14,7 @@
 	},
 	"parent": "minecraft:end/dragon_breath",
 	"rewards": {
-		"function": "bc_rewards:potion/noxious_fumes"
+		"function": "bacap_rewards:potion/noxious_fumes"
 	},	
 	"criteria": {
 		"lingering_potion": {

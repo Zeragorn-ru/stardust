@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/mace_windu",
 	"rewards": {
-		"function": "bc_rewards:enchanting/whack_a_mole"
+		"function": "bacap_rewards:enchanting/whack_a_mole"
 	},			
 	"criteria": {
 		"whack_a_mole": {

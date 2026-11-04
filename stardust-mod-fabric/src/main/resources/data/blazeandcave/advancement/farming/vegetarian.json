@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/full_stomach",
 	"rewards": {
-		"function": "bc_rewards:farming/vegetarian"
+		"function": "bacap_rewards:farming/vegetarian"
 	},		
 	"criteria": {
 		"apple": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/lichen_subscribe",
 	"rewards": {
-		"function": "bc_rewards:mining/thats_the_point"
+		"function": "bacap_rewards:mining/thats_the_point"
 	},		
 	"criteria": {
 		"pointed_dripstone": {

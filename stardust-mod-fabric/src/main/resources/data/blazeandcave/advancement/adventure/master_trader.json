@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/lilypad_hatter",
 	"rewards": {
-		"function": "bc_rewards:adventure/master_trader"
+		"function": "bacap_rewards:adventure/master_trader"
 	},		
 	"criteria": {
 		"farmer": {

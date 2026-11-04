@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:monsters/dead_dont_die",
 	"rewards": {
-		"function": "bc_rewards:monsters/ooh_baby"
+		"function": "bacap_rewards:monsters/ooh_baby"
 	},		
 	"criteria": {
 		"zombie": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie",
+					"entity_type": "minecraft:zombie",
 					"flags": {
 						"is_baby": true
 					}
@@ -27,7 +27,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie_villager",
+					"entity_type": "zombie_villager",
 					"flags": {
 						"is_baby": true
 					}
@@ -38,7 +38,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "husk",
+					"entity_type": "husk",
 					"flags": {
 						"is_baby": true
 					}
@@ -49,7 +49,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombified_piglin",
+					"entity_type": "zombified_piglin",
 					"flags": {
 						"is_baby": true
 					}
@@ -60,7 +60,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "drowned",
+					"entity_type": "drowned",
 					"flags": {
 						"is_baby": true
 					}

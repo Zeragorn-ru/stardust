@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/solar_power",
 	"rewards": {
-		"function": "bc_rewards:redstone/observer_buddy"
+		"function": "bacap_rewards:redstone/observer_buddy"
 	},	
 	"criteria": {
 		"observer": {

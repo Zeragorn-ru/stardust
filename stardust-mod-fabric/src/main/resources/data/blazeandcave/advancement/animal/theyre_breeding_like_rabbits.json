@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:animal/rabbit_season",
 	"rewards": {
-		"function": "bc_rewards:animal/theyre_breeding_like_rabbits"
+		"function": "bacap_rewards:animal/theyre_breeding_like_rabbits"
 	},		
 	"criteria": {
 		"rabbit": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:rabbit"
+					"entity_type": "minecraft:rabbit"
 				},
 				"partner": {
-					"type": "minecraft:rabbit"
+					"entity_type": "minecraft:rabbit"
 				}
 			}
 		}

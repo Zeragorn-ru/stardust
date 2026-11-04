@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/lead_the_way",
 	"rewards": {
-		"function": "bc_rewards:animal/beeloons"
+		"function": "bacap_rewards:animal/beeloons"
 	},
 	"criteria": {
 		"lead": {
@@ -25,7 +25,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:bee"
+							"entity_type": "minecraft:bee"
 						}
 					}
 				]

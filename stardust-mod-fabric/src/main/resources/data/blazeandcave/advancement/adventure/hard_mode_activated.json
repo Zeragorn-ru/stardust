@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/under_lock_and_key",
 	"rewards": {
-		"function": "bc_rewards:adventure/hard_mode_activated"
+		"function": "bacap_rewards:adventure/hard_mode_activated"
 	},		
 	"criteria": {
 		"trial_omen": {

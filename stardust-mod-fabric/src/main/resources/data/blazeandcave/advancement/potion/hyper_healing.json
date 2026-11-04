@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/medic",
 	"rewards": {
-		"function": "bc_rewards:potion/hyper_healing"
+		"function": "bacap_rewards:potion/hyper_healing"
 	},	
 	"criteria": {
 		"regeneration": {

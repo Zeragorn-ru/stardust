@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/the_walls",
 	"rewards": {
-		"function": "bc_rewards:building/crazy_walls"
+		"function": "bacap_rewards:building/crazy_walls"
 	},		
 	"criteria": {
 		"cobblestone_wall": {
@@ -308,6 +308,90 @@
 					{
 						"items": [
 							"minecraft:tuff_brick_wall"
+						]
+					}
+				]
+			}
+		},
+		"resin_brick_wall": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:resin_brick_wall"
+						]
+					}
+				]
+			}
+		},
+		"sulfur_wall": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:sulfur_wall"
+						]
+					}
+				]
+			}
+		},
+		"polished_sulfur_wall": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:polished_sulfur_wall"
+						]
+					}
+				]
+			}
+		},
+		"sulfur_brick_wall": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:sulfur_brick_wall"
+						]
+					}
+				]
+			}
+		},
+		"cinnabar_wall": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:cinnabar_wall"
+						]
+					}
+				]
+			}
+		},
+		"polished_cinnabar_wall": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:polished_cinnabar_wall"
+						]
+					}
+				]
+			}
+		},
+		"cinnabar_brick_wall": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:cinnabar_brick_wall"
 						]
 					}
 				]

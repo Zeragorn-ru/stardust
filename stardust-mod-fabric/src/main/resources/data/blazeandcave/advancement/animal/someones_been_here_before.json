@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/treasure_hunter",
 	"rewards": {
-		"function": "bc_rewards:animal/someones_been_here_before"
+		"function": "bacap_rewards:animal/someones_been_here_before"
 	},		
 	"criteria": {
 		"leather_boots": {

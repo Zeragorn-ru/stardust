@@ -11,7 +11,7 @@
 	},
 	"parent": "minecraft:adventure/walk_on_powder_snow_with_leather_boots",
 	"rewards": {
-		"function": "bc_rewards:biomes/captain_america"
+		"function": "bacap_rewards:biomes/captain_america"
 	},		
 	"criteria": {
 		"captain_america": {

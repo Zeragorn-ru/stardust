@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:divers_dozen_count"
+		"function": "blazeandcave:advancement/count/divers_dozen"
 	},
 	"criteria": {
 		"divers_dozen": {

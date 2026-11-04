@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/even_moar_tools",
 	"rewards": {
-		"function": "bc_rewards:mining/rest_in_pickaxes"
+		"function": "bacap_rewards:mining/rest_in_pickaxes"
 	},		
 	"criteria": {
 		"break_pickaxe": {

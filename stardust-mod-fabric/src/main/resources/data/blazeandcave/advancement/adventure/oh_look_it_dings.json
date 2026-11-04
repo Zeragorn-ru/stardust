@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/do_you_want_to_trade",
 	"rewards": {
-		"function": "bc_rewards:adventure/oh_look_it_dings"
+		"function": "bacap_rewards:adventure/oh_look_it_dings"
 	},		
 	"criteria": {
 		"bell": {

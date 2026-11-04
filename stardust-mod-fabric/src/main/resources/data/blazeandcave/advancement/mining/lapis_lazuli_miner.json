@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/diam_oh_wait_no",
 	"rewards": {
-		"function": "bc_rewards:mining/lapis_lazuli_miner"
+		"function": "bacap_rewards:mining/lapis_lazuli_miner"
 	},		
 	"criteria": {
 		"lapis_block": {

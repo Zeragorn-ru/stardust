@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/gold_miner",
 	"rewards": {
-		"function": "bc_rewards:mining/master_gold_miner"
+		"function": "bacap_rewards:mining/master_gold_miner"
 	},		
 	"criteria": {
 		"gold": {

@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/impossible",
 	"rewards": {
-		"function": "bc_rewards:monsters/basketblock_championship"
+		"function": "bacap_rewards:monsters/basketblock_championship"
 	},	
 	"criteria": {
 		"dandelion": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:dandelion\"}}"
 				}
 			}
@@ -26,7 +26,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:poppy\"}}"
 				}
 			}
@@ -35,7 +35,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:blue_orchid\"}}"
 				}
 			}
@@ -44,7 +44,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:allium\"}}"
 				}
 			}
@@ -53,7 +53,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:azure_bluet\"}}"
 				}
 			}
@@ -62,7 +62,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:red_tulip\"}}"
 				}
 			}
@@ -71,7 +71,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:orange_tulip\"}}"
 				}
 			}
@@ -80,7 +80,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:white_tulip\"}}"
 				}
 			}
@@ -89,7 +89,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:pink_tulip\"}}"
 				}
 			}
@@ -98,7 +98,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:oxeye_daisy\"}}"
 				}
 			}
@@ -107,7 +107,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:cornflower\"}}"
 				}
 			}
@@ -116,7 +116,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:lily_of_the_valley\"}}"
 				}
 			}
@@ -125,7 +125,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:wither_rose\"}}"
 				}
 			}
@@ -134,7 +134,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:grass_block\"}}"
 				}
 			}
@@ -143,7 +143,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:dirt\"}}"
 				}
 			}
@@ -152,7 +152,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:coarse_dirt\"}}"
 				}
 			}
@@ -161,7 +161,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:podzol\"}}"
 				}
 			}
@@ -170,7 +170,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:sand\"}}"
 				}
 			}
@@ -179,7 +179,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:red_sand\"}}"
 				}
 			}
@@ -188,7 +188,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:gravel\"}}"
 				}
 			}
@@ -197,7 +197,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:brown_mushroom\"}}"
 				}
 			}
@@ -206,7 +206,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:red_mushroom\"}}"
 				}
 			}
@@ -215,7 +215,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:tnt\"}}"
 				}
 			}
@@ -224,7 +224,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:cactus\"}}"
 				}
 			}
@@ -233,7 +233,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:clay\"}}"
 				}
 			}
@@ -242,7 +242,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:pumpkin\"}}"
 				}
 			}
@@ -251,7 +251,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:carved_pumpkin\"}}"
 				}
 			}
@@ -260,7 +260,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:melon\"}}"
 				}
 			}
@@ -269,7 +269,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:mycelium\"}}"
 				}
 			}
@@ -278,7 +278,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:crimson_fungus\"}}"
 				}
 			}
@@ -287,7 +287,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:crimson_nylium\"}}"
 				}
 			}
@@ -296,7 +296,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:crimson_roots\"}}"
 				}
 			}
@@ -305,7 +305,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:warped_fungus\"}}"
 				}
 			}
@@ -314,7 +314,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:warped_nylium\"}}"
 				}
 			}
@@ -323,7 +323,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:warped_roots\"}}"
 				}
 			}
@@ -332,7 +332,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:rooted_dirt\"}}"
 				}
 			}
@@ -341,7 +341,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:moss_block\"}}"
 				}
 			}
@@ -350,7 +350,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:mud\"}}"
 				}
 			}
@@ -359,7 +359,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:muddy_mangrove_roots\"}}"
 				}
 			}
@@ -368,8 +368,53 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "minecraft:enderman",
+					"entity_type": "minecraft:enderman",
 					"nbt": "{carriedBlockState:{Name:\"minecraft:torchflower\"}}"
+				}
+			}
+		},
+		"pale_moss_block": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"entity": {
+					"entity_type": "minecraft:enderman",
+					"nbt": "{carriedBlockState:{Name:\"minecraft:pale_moss_block\"}}"
+				}
+			}
+		},
+		"closed_eyeblossom": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"entity": {
+					"entity_type": "minecraft:enderman",
+					"nbt": "{carriedBlockState:{Name:\"minecraft:closed_eyeblossom\"}}"
+				}
+			}
+		},
+		"open_eyeblossom": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"entity": {
+					"entity_type": "minecraft:enderman",
+					"nbt": "{carriedBlockState:{Name:\"minecraft:open_eyeblossom\"}}"
+				}
+			}
+		},
+		"cactus_flower": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"entity": {
+					"entity_type": "minecraft:enderman",
+					"nbt": "{carriedBlockState:{Name:\"minecraft:cactus_flower\"}}"
+				}
+			}
+		},
+		"golden_dandelion": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"entity": {
+					"entity_type": "minecraft:enderman",
+					"nbt": "{carriedBlockState:{Name:\"minecraft:golden_dandelion\"}}"
 				}
 			}
 		}

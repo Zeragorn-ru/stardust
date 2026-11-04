@@ -11,9 +11,9 @@
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
-	"parent": "blazeandcave:enchanting/unbreakable",
+	"parent": "blazeandcave:enchanting/master_armorer",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_fisher"
+		"function": "bacap_rewards:enchanting/master_fisher"
 	},		
 	"criteria": {
 		"perfect_rod": {

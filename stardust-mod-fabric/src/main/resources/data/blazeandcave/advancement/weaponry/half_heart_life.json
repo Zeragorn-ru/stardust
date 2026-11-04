@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:weaponry/loser",
 	"rewards": {
-		"function": "bc_rewards:weaponry/half_heart_life"
+		"function": "bacap_rewards:weaponry/half_heart_life"
 	},		
 	"criteria": {
 		"trigger": {

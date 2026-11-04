@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/repeating_repeater",
 	"rewards": {
-		"function": "bc_rewards:redstone/quirky_quartz"
+		"function": "bacap_rewards:redstone/quirky_quartz"
 	},	
 	"criteria": {
 		"quartz": {

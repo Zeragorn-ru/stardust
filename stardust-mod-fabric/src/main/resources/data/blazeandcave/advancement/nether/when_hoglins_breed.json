@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:nether/roadhog",
 	"rewards": {
-		"function": "bc_rewards:nether/when_hoglins_breed"
+		"function": "bacap_rewards:nether/when_hoglins_breed"
 	},		
 	"criteria": {
 		"hoglin": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:hoglin"
+					"entity_type": "minecraft:hoglin"
 				},
 				"partner": {
-					"type": "minecraft:hoglin"
+					"entity_type": "minecraft:hoglin"
 				}
 			}
 		}

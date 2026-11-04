@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:husbandry/fishy_business",
 	"rewards": {
-		"function": "bc_rewards:animal/direct_fishing"
+		"function": "bacap_rewards:animal/direct_fishing"
 	},		
 	"criteria": {
 		"cod": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "cod"
+					"entity_type": "cod"
 				}
 			}
 		},
@@ -24,7 +24,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "salmon"
+					"entity_type": "salmon"
 				}
 			}
 		},
@@ -32,7 +32,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "pufferfish"
+					"entity_type": "pufferfish"
 				}
 			}
 		},
@@ -40,7 +40,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "tropical_fish"
+					"entity_type": "tropical_fish"
 				}
 			}
 		}		

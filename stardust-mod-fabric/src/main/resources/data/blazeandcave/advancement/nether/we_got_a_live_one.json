@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/cultural_misunderstandings",
 	"rewards": {
-		"function": "bc_rewards:nether/we_got_a_live_one"
+		"function": "bacap_rewards:nether/we_got_a_live_one"
 	},		
 	"criteria": {
 		"killed_piglin": {
@@ -21,7 +21,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "#blazeandcave:piglins",
+							"entity_type": "#blazeandcave:piglins",
 							"location": {
 								"dimension": "overworld"
 							}

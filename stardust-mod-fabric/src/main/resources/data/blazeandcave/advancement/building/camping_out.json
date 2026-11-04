@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/torched",
 	"rewards": {
-		"function": "bc_rewards:building/camping_out"
+		"function": "bacap_rewards:building/camping_out"
 	},		
 	"criteria": {
 		"campfire": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/mine_diamond",
 	"rewards": {
-		"function": "bc_rewards:mining/iconic_merchandising_prop"
+		"function": "bacap_rewards:mining/iconic_merchandising_prop"
 	},			
 	"criteria": {
 		"diamond_pickaxe": {

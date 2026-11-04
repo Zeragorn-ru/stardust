@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/stripper",
 	"rewards": {
-		"function": "bc_rewards:building/master_logger"
+		"function": "bacap_rewards:building/master_logger"
 	},		
 	"criteria": {
 		"oak_log": {
@@ -150,6 +150,19 @@
 					{
 						"items": [
 							"minecraft:warped_stem"
+						],
+						"count": 64
+					}
+				]
+			}
+		},
+		"pale_oak_log": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:pale_oak_log"
 						],
 						"count": 64
 					}

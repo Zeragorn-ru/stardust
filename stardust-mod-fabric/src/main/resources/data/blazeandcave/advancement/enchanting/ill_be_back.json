@@ -9,40 +9,23 @@
 	},
 	"parent": "blazeandcave:enchanting/this_name_sounds_cooler",
 	"rewards": {
-		"function": "bc_rewards:enchanting/ill_be_back"
+		"function": "bacap_rewards:enchanting/ill_be_back"
 	},	
 	"criteria": {
 		"terminator": {
-			"trigger": "minecraft:impossible",
+			"trigger": "minecraft:inventory_changed",
 			"conditions": {
 				"items": [
 					{
 						"items": [
 							"minecraft:bow"
 						],
-						"nbt": "{display:{Name:'\"Terminator\"'}}"
-					}
-				]
-			}
-		},
-		"terminator_old": {
-			"trigger": "minecraft:impossible",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:bow"
-						],
-						"nbt": "{display:{Name:\"{\\\"text\\\":\\\"Terminator\\\"}\"}}"
+						"components": {
+							"minecraft:custom_name": "Terminator"
+						}
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-			"terminator",
-			"terminator_old"
-		]
-	]
+	}
 }

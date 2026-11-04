@@ -11,7 +11,7 @@
 	},
 	"parent": "blazeandcave:biomes/kung_fu_panda",	
 	"rewards": {
-		"function": "bc_rewards:biomes/edge_of_the_jungle"
+		"function": "bacap_rewards:biomes/edge_of_the_jungle"
 	},	
 	"criteria": {
 		"modified_jungle_edge": {

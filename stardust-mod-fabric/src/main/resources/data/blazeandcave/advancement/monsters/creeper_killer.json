@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/controlled_detonation",
 	"rewards": {
-		"function": "bc_rewards:monsters/creeper_killer"
+		"function": "bacap_rewards:monsters/creeper_killer"
 	},		
 	"criteria": {
 		"gunpowder": {

@@ -118,22 +118,39 @@ public final class StardustSuperChallengeHealth {
     }
 
     // Кэш счётчика по UUID игрока: источник истины — advancement-прогресс
-    // (пересчёт при каждом входе/выдаче), поэтому in-memory Map достаточна.
+    // (пересчёт при каждом входе/выдаче), therefore in-memory Map достаточна.
     // NeoForge-версия хранила в player.getPersistentData() — на Fabric этот
     // API нет; сериализация в NBT не нужна, кэш тёплый после первого входа.
+    // Ограничиваем до 100 записей LRU чтобы избежать бесконечного роста если
+    // DISCONNECT не срабатывает (краш сервера, внезапный рейд).
+    private static final int MAX_COMPLETED_COUNTS = 100;
+    @SuppressWarnings("FieldCanBeLocal")
     private static final java.util.Map<java.util.UUID, Integer> COMPLETED_COUNTS =
-            java.util.Collections.synchronizedMap(new java.util.HashMap<>());
+            new java.util.LinkedHashMap<>(MAX_COMPLETED_COUNTS + 1, 1.0f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<java.util.UUID, Integer> eldest) {
+                    return size() > MAX_COMPLETED_COUNTS;
+                }
+            };
 
     private static int getCompletedCount(ServerPlayer player) {
         return COMPLETED_COUNTS.getOrDefault(player.getUUID(), 0);
     }
 
     private static void setCompletedCount(ServerPlayer player, int count) {
-        COMPLETED_COUNTS.put(player.getUUID(), count);
+        // Обновляем запись — в LinkedHashMap с accessOrder=true это перемещает её в конец (самая свежая).
+        synchronized(COMPLETED_COUNTS) {
+            Integer existing = COMPLETED_COUNTS.get(player.getUUID());
+            if (existing == null || existing != count) {
+                COMPLETED_COUNTS.put(player.getUUID(), count);
+            }
+        }
     }
 
     /** Выход игрока: чистим кэш, чтобы Map не рос между сессиями. */
     public static void forgetPlayer(java.util.UUID uuid) {
-        COMPLETED_COUNTS.remove(uuid);
+        synchronized(COMPLETED_COUNTS) {
+            COMPLETED_COUNTS.remove(uuid);
+        }
     }
 }

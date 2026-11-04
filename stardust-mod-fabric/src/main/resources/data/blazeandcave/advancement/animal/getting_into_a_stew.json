@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/lucky_charm",
 	"rewards": {
-		"function": "bc_rewards:animal/getting_into_a_stew"
+		"function": "bacap_rewards:animal/getting_into_a_stew"
 	},		
 	"criteria": {
 		"rabbit_stew": {

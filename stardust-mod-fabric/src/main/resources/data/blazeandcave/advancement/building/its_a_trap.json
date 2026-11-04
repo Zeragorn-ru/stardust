@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/ladder_climbers_inc",
 	"rewards": {
-		"function": "bc_rewards:building/its_a_trap"
+		"function": "bacap_rewards:building/its_a_trap"
 	},		
 	"criteria": {
 		"trapdoor": {

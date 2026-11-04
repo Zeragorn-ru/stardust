@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/stuck_in_the_mud",
 	"rewards": {
-		"function": "bc_rewards:building/elmer_mudd"
+		"function": "bacap_rewards:building/elmer_mudd"
 	},		
 	"criteria": {
 		"mud": {

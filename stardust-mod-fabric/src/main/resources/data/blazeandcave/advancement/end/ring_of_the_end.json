@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:end/what_for",
 	"rewards": {
-		"function": "bc_rewards:end/ring_of_the_end"
+		"function": "bacap_rewards:end/ring_of_the_end"
 	},		
 	"criteria": {
 		"ring_of_the_end": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:killed",

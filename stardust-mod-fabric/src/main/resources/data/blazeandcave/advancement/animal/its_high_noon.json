@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/so_hungry_i_could_eat_a_horse",
 	"rewards": {
-		"function": "bc_rewards:animal/its_high_noon"
+		"function": "bacap_rewards:animal/its_high_noon"
 	},	
 	"criteria": {
 		"high_noon": {
@@ -25,7 +25,7 @@
 						]
 				},
 				"entity": {
-					"type": "husk",
+					"entity_type": "husk",
 					"distance": {
 						"horizontal": {
 							"min": 50
@@ -34,7 +34,7 @@
 				},
 				"player": {
 					"vehicle": {
-						"type": "horse"
+						"entity_type": "horse"
 					}
 				}
 			}

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/sharpening_station",
 	"rewards": {
-		"function": "bc_rewards:building/classic_pocket_edition_block"
+		"function": "bacap_rewards:building/classic_pocket_edition_block"
 	},		
 	"criteria": {
 		"stonecutter": {

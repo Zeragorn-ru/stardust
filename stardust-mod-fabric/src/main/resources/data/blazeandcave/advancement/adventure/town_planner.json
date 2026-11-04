@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/village_settler",
 	"rewards": {
-		"function": "bc_rewards:adventure/town_planner"
+		"function": "bacap_rewards:adventure/town_planner"
 	},		
 	"criteria": {
 		"composter": {

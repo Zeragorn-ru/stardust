@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/bubble_bubble_toil_and_trouble",
 	"rewards": {
-		"function": "bc_rewards:building/hot_tub"
+		"function": "bacap_rewards:building/hot_tub"
 	},
 	"criteria": {
 		"enter_lava_cauldron": {

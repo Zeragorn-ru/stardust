@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:vault_hunter_count"
+		"function": "blazeandcave:advancement/count/vault_hunter"
 	},
 	"criteria": {
 		"vault": {

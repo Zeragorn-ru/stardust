@@ -16,7 +16,7 @@
 	},
 	"parent": "blazeandcave:adventure/coordinated_flair",
 	"rewards": {
-		"function": "bc_rewards:adventure/chromatic_armory"
+		"function": "bacap_rewards:adventure/chromatic_armory"
 	},
 	"criteria": {
 		"amethyst": {
@@ -153,6 +153,20 @@
 						"predicates": {
 							"minecraft:trim": {
 								"material": "minecraft:redstone"
+							}
+						}
+					}
+				]
+			}
+		},
+		"resin": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"predicates": {
+							"minecraft:trim": {
+								"material": "minecraft:resin"
 							}
 						}
 					}

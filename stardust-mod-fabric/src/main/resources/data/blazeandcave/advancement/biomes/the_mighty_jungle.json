@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Go for a safari in the jungle"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:biomes/for_you_my_sweet",	
+	"parent": "blazeandcave:biomes/tarzan",
 	"rewards": {
-		"function": "bc_rewards:biomes/the_mighty_jungle"
+		"function": "bacap_rewards:biomes/the_mighty_jungle"
 	},	
 	"criteria": {
 		"jungle": {
@@ -35,8 +35,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

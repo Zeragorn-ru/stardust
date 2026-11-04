@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/bapple",
 	"rewards": {
-		"function": "bc_rewards:farming/ecologist"
+		"function": "bacap_rewards:farming/ecologist"
 	},
 	"criteria": {
 		"oak_sapling": {
@@ -193,6 +193,23 @@
 							"block": {
 								"blocks": [
 									"minecraft:cherry_sapling"
+								]
+							}
+						}
+					}
+				]
+			}
+		},
+		"pale_oak_sapling": {
+			"trigger": "minecraft:placed_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:pale_oak_sapling"
 								]
 							}
 						}

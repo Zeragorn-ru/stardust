@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/shriek_forever_after",
 	"rewards": {
-		"function": "bc_rewards:mining/fallen_kingdom"
+		"function": "bacap_rewards:mining/fallen_kingdom"
 	},		
 	"criteria": {
 		"ancient_city": {
@@ -31,8 +31,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

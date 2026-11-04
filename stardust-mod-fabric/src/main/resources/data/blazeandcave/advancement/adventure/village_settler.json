@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/traveller",
 	"rewards": {
-		"function": "bc_rewards:adventure/village_settler"
+		"function": "bacap_rewards:adventure/village_settler"
 	},		
 	"criteria": {
 		"trade": {

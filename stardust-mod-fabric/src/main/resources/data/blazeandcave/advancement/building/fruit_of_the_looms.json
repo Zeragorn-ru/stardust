@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/prepare_to_meet_your_loom",
 	"rewards": {
-		"function": "bc_rewards:building/fruit_of_the_looms"
+		"function": "bacap_rewards:building/fruit_of_the_looms"
 	},		
 	"criteria": {
 		"flower_banner_pattern": {
@@ -104,6 +104,30 @@
 					{
 						"items": [
 							"minecraft:guster_banner_pattern"
+						]
+					}
+				]
+			}
+		},
+		"field_masoned_banner_pattern": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:field_masoned_banner_pattern"
+						]
+					}
+				]
+			}
+		},
+		"bordure_indented_banner_pattern": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:bordure_indented_banner_pattern"
 						]
 					}
 				]

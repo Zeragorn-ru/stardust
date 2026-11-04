@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/lost_its_bark",
 	"rewards": {
-		"function": "bc_rewards:building/professor_oak"
+		"function": "bacap_rewards:building/professor_oak"
 	},		
 	"criteria": {
 		"oak_planks": {
@@ -212,6 +212,18 @@
 					{
 						"items": [
 							"minecraft:oak_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"oak_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:oak_shelf"
 						]
 					}
 				]

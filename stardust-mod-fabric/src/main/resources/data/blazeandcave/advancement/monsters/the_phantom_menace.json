@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/kill_a_mob",
 	"rewards": {
-		"function": "bc_rewards:monsters/the_phantom_menace"
+		"function": "bacap_rewards:monsters/the_phantom_menace"
 	},		
 	"criteria": {
 		"phantom": {
@@ -17,7 +17,7 @@
 			"conditions": {
 				"damage": {
 					"source_entity": {
-						"type": "phantom"
+						"entity_type": "phantom"
 					}
 				}
 			}

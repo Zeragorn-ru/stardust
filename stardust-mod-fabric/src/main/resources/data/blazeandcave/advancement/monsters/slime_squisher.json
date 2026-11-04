@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/trampoline",
 	"rewards": {
-		"function": "bc_rewards:monsters/slime_squisher"
+		"function": "bacap_rewards:monsters/slime_squisher"
 	},		
 	"criteria": {
 		"slime_ball": {

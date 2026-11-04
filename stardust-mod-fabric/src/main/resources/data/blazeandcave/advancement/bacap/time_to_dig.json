@@ -9,90 +9,18 @@
 	},
 	"parent": "blazeandcave:bacap/time_to_chop",
 	"rewards": {
-		"function": "bc_rewards:bacap/time_to_dig"
+		"function": "bacap_rewards:bacap/time_to_dig"
 	},		
 	"criteria": {
-		"wooden_shovel": {
+		"shovel": {
 			"trigger": "minecraft:inventory_changed",
 			"conditions": {
 				"items": [
 					{
-						"items": [
-							"minecraft:wooden_shovel"
-						]
-					}
-				]
-			}
-		},
-		"stone_shovel": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:stone_shovel"
-						]
-					}
-				]
-			}
-		},
-		"iron_shovel": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:iron_shovel"
-						]
-					}
-				]
-			}
-		},
-		"diamond_shovel": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:diamond_shovel"
-						]
-					}
-				]
-			}
-		},
-		"golden_shovel": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:golden_shovel"
-						]
-					}
-				]
-			}
-		},
-		"netherite_shovel": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:netherite_shovel"
-						]
+						"items": "#blazeandcave:shovels"
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-		"wooden_shovel",
-		"stone_shovel",
-		"iron_shovel",
-		"diamond_shovel",
-		"golden_shovel",
-		"netherite_shovel"
-		]
-	]
+	}
 }

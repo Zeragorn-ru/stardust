@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/librarian",
 	"rewards": {
-		"function": "bc_rewards:enchanting/bow_down_to_me"
+		"function": "bacap_rewards:enchanting/bow_down_to_me"
 	},			
 	"criteria": {
 		"power": {

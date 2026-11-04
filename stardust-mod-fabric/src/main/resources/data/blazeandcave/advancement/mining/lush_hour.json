@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/iggy",
 	"rewards": {
-		"function": "bc_rewards:mining/lush_hour"
+		"function": "bacap_rewards:mining/lush_hour"
 	},		
 	"criteria": {
 		"small_dripleaf": {

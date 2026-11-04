@@ -4,13 +4,13 @@
 			"id": "minecraft:cherry_leaves"
 		},
 		"title": {"translate":"Pretty in Pink"},
-		"description": {"color":"#75E1FF","translate":"Find a Cherry Grove"},
+		"description": {"color":"green","translate":"Find a Cherry Grove"},
 		"announce_to_chat": true,
-		"frame": "goal"
+		"frame": "task"
 	},
 	"parent": "blazeandcave:biomes/enchanted_forest",	
 	"rewards": {
-		"function": "bc_rewards:biomes/pretty_in_pink"
+		"function": "bacap_rewards:biomes/pretty_in_pink"
 	},	
 	"criteria": {
 		"cherry_grove": {
@@ -32,8 +32,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

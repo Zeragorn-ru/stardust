@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/netherite_miner",
 	"rewards": {
-		"function": "bc_rewards:nether/master_netherite_miner"
+		"function": "bacap_rewards:nether/master_netherite_miner"
 	},	
 	"criteria": {
 		"netherite_ingot": {

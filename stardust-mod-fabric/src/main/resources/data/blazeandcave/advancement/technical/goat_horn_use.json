@@ -1,6 +1,6 @@
 {
 	"rewards": {
-		"function": "blazeandcave:battle_of_the_bands_check"
+		"function": "blazeandcave:advancement/check/battle_of_the_bands"
 	},		
 	"criteria": {
 		"goat_horn": {

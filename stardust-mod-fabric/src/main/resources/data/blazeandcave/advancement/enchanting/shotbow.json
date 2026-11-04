@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/machine_bow",
 	"rewards": {
-		"function": "bc_rewards:enchanting/shotbow"
+		"function": "bacap_rewards:enchanting/shotbow"
 	},			
 	"criteria": {
 		"shot_crossbow": {
@@ -26,7 +26,7 @@
 								"enchantments": "minecraft:multishot"
 							}
 						]	
-					}				
+					}
 				}
 			}
 		}

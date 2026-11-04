@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:nether/obtain_blaze_rod",
 	"rewards": {
-		"function": "bc_rewards:nether/basis_of_brewing"
+		"function": "bacap_rewards:nether/basis_of_brewing"
 	},	
 	"criteria": {
 		"nether_wart": {

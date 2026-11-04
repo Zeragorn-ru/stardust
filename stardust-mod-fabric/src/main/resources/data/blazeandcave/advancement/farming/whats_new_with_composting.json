@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/combine_harvester",
 	"rewards": {
-		"function": "bc_rewards:farming/whats_new_with_composting"
+		"function": "bacap_rewards:farming/whats_new_with_composting"
 	},
 	"criteria": {
 		"beetroot_seeds": {
@@ -3138,6 +3138,440 @@
 						"predicate": {
 							"items": [
 								"minecraft:pitcher_plant"
+							]
+						}
+					}
+				]
+			}
+		},
+		"closed_eyeblossom": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:closed_eyeblossom"
+							]
+						}
+					}
+				]
+			}
+		},
+		"open_eyeblossom": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:open_eyeblossom"
+							]
+						}
+					}
+				]
+			}
+		},
+		"pale_hanging_moss": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:pale_hanging_moss"
+							]
+						}
+					}
+				]
+			}
+		},
+		"pale_moss_block": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:pale_moss_block"
+							]
+						}
+					}
+				]
+			}
+		},
+		"pale_moss_carpet": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:pale_moss_carpet"
+							]
+						}
+					}
+				]
+			}
+		},
+		"pale_oak_leaves": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:pale_oak_leaves"
+							]
+						}
+					}
+				]
+			}
+		},
+		"pale_oak_sapling": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:pale_oak_sapling"
+							]
+						}
+					}
+				]
+			}
+		},
+		"leaf_litter": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:leaf_litter"
+							]
+						}
+					}
+				]
+			}
+		},
+		"wildflowers": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:wildflowers"
+							]
+						}
+					}
+				]
+			}
+		},
+		"bush": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:bush"
+							]
+						}
+					}
+				]
+			}
+		},
+		"firefly_bush": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:firefly_bush"
+							]
+						}
+					}
+				]
+			}
+		},
+		"cactus_flower": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:cactus_flower"
+							]
+						}
+					}
+				]
+			}
+		},
+		"short_dry_grass": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:short_dry_grass"
+							]
+						}
+					}
+				]
+			}
+		},
+		"tall_dry_grass": {
+			"trigger": "minecraft:item_used_on_block",
+			"conditions": {
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:composter"
+								],
+								"state": {
+									"level": {
+										"min": "1",
+										"max": "7"
+									}
+								}
+							}
+						}
+					},
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:tall_dry_grass"
 							]
 						}
 					}

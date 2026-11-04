@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/railwayman",
 	"rewards": {
-		"function": "bc_rewards:redstone/on_a_rail"
+		"function": "bacap_rewards:redstone/on_a_rail"
 	},		
 	"criteria": {
 		"on_a_rail": {

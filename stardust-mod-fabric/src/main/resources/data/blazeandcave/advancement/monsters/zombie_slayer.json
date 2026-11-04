@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/desert_nomad",
 	"rewards": {
-		"function": "bc_rewards:monsters/zombie_slayer"
+		"function": "bacap_rewards:monsters/zombie_slayer"
 	},		
 	"criteria": {
 		"rotten_flesh": {

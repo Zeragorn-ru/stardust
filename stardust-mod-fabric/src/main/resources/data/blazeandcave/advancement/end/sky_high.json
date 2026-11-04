@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:end/elytra",
 	"rewards": {
-		"function": "bc_rewards:end/sky_high"
+		"function": "bacap_rewards:end/sky_high"
 	},		
 	"criteria": {
 		"world_height": {
@@ -36,8 +36,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

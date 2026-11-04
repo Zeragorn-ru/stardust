@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:end/extrabiologist",
 	"rewards": {
-		"function": "bc_rewards:end/purpurfect"
+		"function": "bacap_rewards:end/purpurfect"
 	},		
 	"criteria": {
 		"purpur_block": {

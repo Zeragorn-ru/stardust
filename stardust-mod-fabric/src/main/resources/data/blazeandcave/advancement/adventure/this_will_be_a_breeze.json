@@ -10,14 +10,14 @@
 	},
 	"parent": "minecraft:adventure/minecraft_trials_edition",
 	"rewards": {
-		"function": "bc_rewards:adventure/this_will_be_a_breeze"
+		"function": "bacap_rewards:adventure/this_will_be_a_breeze"
 	},		
 	"criteria": {
 		"breeze": {
 			"trigger": "minecraft:entity_killed_player",
 			"conditions": {
 				"entity": {
-					"type": "breeze"
+					"entity_type": "breeze"
 				}
 			}
 		}

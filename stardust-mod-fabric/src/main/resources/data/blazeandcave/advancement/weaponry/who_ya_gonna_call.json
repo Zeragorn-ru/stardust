@@ -10,18 +10,18 @@
 	},
 	"parent": "blazeandcave:weaponry/my_eyes",
 	"rewards": {
-		"function": "bc_rewards:weaponry/who_ya_gonna_call"
+		"function": "bacap_rewards:weaponry/who_ya_gonna_call"
 	},		
 	"criteria": {
 		"ghast": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "ghast"
+					"entity_type": "ghast"
 				},
 				"killing_blow": {
 					"direct_entity": {
-						"type": "minecraft:firework_rocket"
+						"entity_type": "minecraft:firework_rocket"
 					}
 				}
 			}

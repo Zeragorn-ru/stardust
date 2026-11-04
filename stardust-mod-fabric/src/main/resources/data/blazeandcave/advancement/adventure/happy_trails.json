@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/brushed_away",
 	"rewards": {
-		"function": "bc_rewards:adventure/happy_trails"
+		"function": "bacap_rewards:adventure/happy_trails"
 	},		
 	"criteria": {
 		"desert_pyramid": {
@@ -31,8 +31,7 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
 									"gamemode": ["spectator"]
 								}
 							}

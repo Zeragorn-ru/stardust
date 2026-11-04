@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/hells_bells",
 	"rewards": {
-		"function": "bc_rewards:nether/hot_spring"
+		"function": "bacap_rewards:nether/hot_spring"
 	},
 	"criteria": {
 		"enter_water_cauldron": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/what_a_piece_of_junk",
 	"rewards": {
-		"function": "bc_rewards:animal/treasure_hunter"
+		"function": "bacap_rewards:animal/treasure_hunter"
 	},		
 	"criteria": {
 		"bow": {
@@ -66,15 +66,34 @@
 					]
 				}
 			}
-		}	
+		},
+		"fishing_rod": {
+			"trigger": "minecraft:fishing_rod_hooked",
+			"conditions": {
+				"item":
+				{
+					"items": [
+						"minecraft:fishing_rod"
+					],					
+					"predicates": {
+						"enchantments": [
+							{
+								"enchantments": "#blazeandcave:fishing_rod"
+							}
+						]
+					}
+				}
+			}
+		}
 	},
 	"requirements": [
 		[
-		"bow",
-		"enchanted_book",
-		"name_tag",
-		"nautilus_shell",
-		"saddle"
+			"bow",
+			"enchanted_book",
+			"name_tag",
+			"nautilus_shell",
+			"saddle",
+			"fishing_rod"
 		]
 	]
 }

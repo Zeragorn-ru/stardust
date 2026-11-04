@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/repeating_repeater",
 	"rewards": {
-		"function": "bc_rewards:redstone/moving_parts"
+		"function": "bacap_rewards:redstone/moving_parts"
 	},
 	"criteria": {
 		"piston": {

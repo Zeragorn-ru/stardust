@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:monsters/what_a_creep",
 	"rewards": {
-		"function": "bc_rewards:monsters/keep_your_distance"
+		"function": "bacap_rewards:monsters/keep_your_distance"
 	},	
 	"criteria": {
 		"creeper": {
@@ -23,11 +23,11 @@
 							}
 						],
 						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+							"entity_type": "#blazeandcave:arrows"
 						}
 				},
 				"entity": {
-					"type": "creeper"
+					"entity_type": "creeper"
 				}
 			}
 		}	

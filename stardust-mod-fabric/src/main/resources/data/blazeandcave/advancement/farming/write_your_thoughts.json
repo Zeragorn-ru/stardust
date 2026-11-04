@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/its_full_of_ink",
 	"rewards": {
-		"function": "bc_rewards:farming/write_your_thoughts"
+		"function": "bacap_rewards:farming/write_your_thoughts"
 	},		
 	"criteria": {
 		"writable_book": {

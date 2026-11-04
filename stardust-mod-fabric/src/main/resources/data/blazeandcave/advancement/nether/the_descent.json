@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:nether/nugget_in_a_biscuit",
 	"rewards": {
-		"function": "bc_rewards:nether/the_descent"
+		"function": "bacap_rewards:nether/the_descent"
 	},		
 	"criteria": {
 		"the_descent": {
@@ -36,8 +36,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

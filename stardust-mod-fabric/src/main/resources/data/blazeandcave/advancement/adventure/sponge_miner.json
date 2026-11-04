@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/dry_spell",
 	"rewards": {
-		"function": "bc_rewards:adventure/sponge_miner"
+		"function": "bacap_rewards:adventure/sponge_miner"
 	},		
 	"criteria": {
 		"sponge": {

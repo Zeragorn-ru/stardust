@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:bacap/root",
 	"rewards": {
-		"function": "bc_rewards:bacap/getting_wood"
+		"function": "bacap_rewards:bacap/getting_wood"
 	},		
 	"criteria": {
 		"oak_log": {
@@ -131,18 +131,34 @@
 					}
 				]
 			}
+		},
+		"pale_oak_log": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:pale_oak_log",
+							"minecraft:stripped_pale_oak_log",
+							"minecraft:pale_oak_wood",
+							"minecraft:stripped_pale_oak_wood"
+						]
+					}
+				]
+			}
 		}
 	},
 	"requirements": [
 		[
-		"oak_log",
-		"spruce_log",
-		"birch_log",
-		"jungle_log",
-		"acacia_log",
-		"dark_oak_log",
-		"mangrove_log",
-		"cherry_log"
+			"oak_log",
+			"spruce_log",
+			"birch_log",
+			"jungle_log",
+			"acacia_log",
+			"dark_oak_log",
+			"mangrove_log",
+			"cherry_log",
+			"pale_oak_log"
 		]
 	]
 }

@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:nether/obtain_crying_obsidian",
 	"rewards": {
-		"function": "bc_rewards:nether/anchorman"
+		"function": "bacap_rewards:nether/anchorman"
 	},		
 	"criteria": {
 		"respawn_anchor": {

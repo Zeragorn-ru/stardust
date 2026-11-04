@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/suspicious_looking_stew",
 	"rewards": {
-		"function": "bc_rewards:farming/im_gonna_be_sick"
+		"function": "bacap_rewards:farming/im_gonna_be_sick"
 	},		
 	"criteria": {
 		"oxeye_daisy_stew": {
@@ -23,7 +23,8 @@
 					"components": {
 						"minecraft:suspicious_stew_effects": [
 							{
-								"id": "minecraft:regeneration"
+								"id": "minecraft:regeneration",
+								"duration": 140
 							}
 						]
 					}
@@ -41,7 +42,96 @@
 						"minecraft:suspicious_stew_effects": [
 							{
 								"id": "minecraft:jump_boost",
-								"duration": 120
+								"duration": 100
+							}
+						]
+					}
+				}
+			}
+		},
+		"cornflower_stew_from_villager": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:jump_boost",
+								"duration": 160
+							}
+						]
+					}
+				}
+			}
+		},
+		"cornflower_stew_from_chest_7s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:jump_boost",
+								"duration": 140
+							}
+						]
+					}
+				}
+			}
+		},
+		"cornflower_stew_from_chest_9s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:jump_boost",
+								"duration": 180
+							}
+						]
+					}
+				}
+			}
+		},
+		"cornflower_stew_from_chest_10s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:jump_boost",
+								"duration": 200
+							}
+						]
+					}
+				}
+			}
+		},
+		"cornflower_stew_from_chest_blank": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:jump_boost"
 							}
 						]
 					}
@@ -59,7 +149,204 @@
 						"minecraft:suspicious_stew_effects": [
 							{
 								"id": "minecraft:poison",
+								"duration": 220
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_villager": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 280
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_10s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 200
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_12s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
 								"duration": 240
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_13s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 260
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_15s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 300
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_16s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 320
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_17s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 340
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_18s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 360
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_19s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 380
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_20s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison",
+								"duration": 400
+							}
+						]
+					}
+				}
+			}
+		},
+		"lily_of_the_valley_stew_from_chest_blank": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:poison"
 							}
 						]
 					}
@@ -76,7 +363,8 @@
 					"components": {
 						"minecraft:suspicious_stew_effects": [
 							{
-								"id": "minecraft:wither"
+								"id": "minecraft:wither",
+								"duration": 140
 							}
 						]
 					}
@@ -94,7 +382,60 @@
 						"minecraft:suspicious_stew_effects": [
 							{
 								"id": "minecraft:weakness",
-								"duration": 180
+								"duration": 140
+							}
+						]
+					}
+				}
+			}
+		},
+		"tulip_stew_from_chest_6s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:weakness",
+								"duration": 120
+							}
+						]
+					}
+				}
+			}
+		},
+		"tulip_stew_from_chest_8s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:weakness",
+								"duration": 160
+							}
+						]
+					}
+				}
+			}
+		},
+		"tulip_stew_from_chest_blank": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:weakness"
 							}
 						]
 					}
@@ -102,6 +443,78 @@
 			}
 		},
 		"azure_bluet_stew": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:blindness",
+								"duration": 220
+							}
+						]
+					}
+				}
+			}
+		},
+		"azure_bluet_stew_from_villager": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:blindness",
+								"duration": 120
+							}
+						]
+					}
+				}
+			}
+		},
+		"azure_bluet_stew_from_chest_5s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:blindness",
+								"duration": 100
+							}
+						]
+					}
+				}
+			}
+		},
+		"azure_bluet_stew_from_chest_7s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:blindness",
+								"duration": 140
+							}
+						]
+					}
+				}
+			}
+		},
+		"azure_bluet_stew_from_chest_blank": {
 			"trigger": "minecraft:consume_item",
 			"conditions": {
 				"item": {
@@ -129,7 +542,7 @@
 						"minecraft:suspicious_stew_effects": [
 							{
 								"id": "minecraft:fire_resistance",
-								"duration": 80
+								"duration": 60
 							}
 						]
 					}
@@ -153,6 +566,77 @@
 					}
 				}
 			}
+		},		
+		"blue_orchid_dandelion_stew_from_chest_8t": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:saturation",
+								"duration": 8
+							}
+						]
+					}
+				}
+			}
+		},		
+		"blue_orchid_dandelion_stew_from_chest_9t": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:saturation",
+								"duration": 9
+							}
+						]
+					}
+				}
+			}
+		},		
+		"blue_orchid_dandelion_stew_from_chest_10t": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:saturation",
+								"duration": 10
+							}
+						]
+					}
+				}
+			}
+		},		
+		"blue_orchid_dandelion_stew_from_chest_blank": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:saturation"
+							}
+						]
+					}
+				}
+			}
 		},
 		"poppy_stew": {
 			"trigger": "minecraft:consume_item",
@@ -171,6 +655,177 @@
 					}
 				}
 			}
+		},
+		"poppy_stew_from_chest_7s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:night_vision",
+								"duration": 140
+							}
+						]
+					}
+				}
+			}
+		},
+		"poppy_stew_from_chest_8s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:night_vision",
+								"duration": 160
+							}
+						]
+					}
+				}
+			}
+		},
+		"poppy_stew_from_chest_9s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:night_vision",
+								"duration": 180
+							}
+						]
+					}
+				}
+			}
+		},
+		"poppy_stew_from_chest_10s": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:night_vision",
+								"duration": 200
+							}
+						]
+					}
+				}
+			}
+		},
+		"poppy_stew_from_chest_blank": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:night_vision"
+							}
+						]
+					}
+				}
+			}
+		},
+		"closed_eyeblossom_stew": {
+			"trigger": "minecraft:consume_item",
+			"conditions": {
+				"item": {
+					"items": [
+						"minecraft:suspicious_stew"
+					],
+					"components": {
+						"minecraft:suspicious_stew_effects": [
+							{
+								"id": "minecraft:nausea",
+								"duration": 140
+							}
+						]
+					}
+				}
+			}
 		}
-	}
+	},
+	"requirements": [
+		[
+			"oxeye_daisy_stew"
+		],
+		[
+			"cornflower_stew",
+			"cornflower_stew_from_villager",
+			"cornflower_stew_from_chest_7s",
+			"cornflower_stew_from_chest_9s",
+			"cornflower_stew_from_chest_10s",
+			"cornflower_stew_from_chest_blank"
+		],
+		[
+			"lily_of_the_valley_stew",
+			"lily_of_the_valley_stew_from_villager",
+			"lily_of_the_valley_stew_from_chest_10s",
+			"lily_of_the_valley_stew_from_chest_12s",
+			"lily_of_the_valley_stew_from_chest_13s",
+			"lily_of_the_valley_stew_from_chest_15s",
+			"lily_of_the_valley_stew_from_chest_16s",
+			"lily_of_the_valley_stew_from_chest_17s",
+			"lily_of_the_valley_stew_from_chest_18s",
+			"lily_of_the_valley_stew_from_chest_19s",
+			"lily_of_the_valley_stew_from_chest_20s",
+			"lily_of_the_valley_stew_from_chest_blank"
+		],
+		[
+			"wither_rose_stew"
+		],
+		[
+			"tulip_stew",
+			"tulip_stew_from_chest_6s",
+			"tulip_stew_from_chest_8s",
+			"tulip_stew_from_chest_blank"
+		],
+		[
+			"azure_bluet_stew",
+			"azure_bluet_stew_from_villager",
+			"azure_bluet_stew_from_chest_5s",
+			"azure_bluet_stew_from_chest_7s",
+			"azure_bluet_stew_from_chest_blank"
+		],
+		[
+			"allium_stew"
+		],
+		[
+			"blue_orchid_dandelion_stew",
+			"blue_orchid_dandelion_stew_from_chest_8t",
+			"blue_orchid_dandelion_stew_from_chest_9t",
+			"blue_orchid_dandelion_stew_from_chest_10t",
+			"blue_orchid_dandelion_stew_from_chest_blank"
+		],
+		[
+			"poppy_stew",
+			"poppy_stew_from_chest_7s",
+			"poppy_stew_from_chest_8s",
+			"poppy_stew_from_chest_9s",
+			"poppy_stew_from_chest_10s",
+			"poppy_stew_from_chest_blank"
+		],
+		[
+			"closed_eyeblossom_stew"
+		]
+	]
 }

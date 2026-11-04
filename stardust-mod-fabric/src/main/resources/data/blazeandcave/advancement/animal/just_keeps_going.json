@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/going_down_the_rabbit_hole",
 	"rewards": {
-		"function": "bc_rewards:animal/just_keeps_going"
+		"function": "bacap_rewards:animal/just_keeps_going"
 	},		
 	"criteria": {
 		"just_keeps_going": {

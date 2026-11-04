@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:end/organizational_wizard",
 	"rewards": {
-		"function": "bc_rewards:end/somewhere_over_the_rainbow"
+		"function": "bacap_rewards:end/somewhere_over_the_rainbow"
 	},		
 	"criteria": {
 		"white_shulker_box": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/poglin",
 	"rewards": {
-		"function": "bc_rewards:challenges/dragon_army"
+		"function": "bacap_rewards:challenges/dragon_army"
 	},		
 	"criteria": {
 		"dragon_head": {

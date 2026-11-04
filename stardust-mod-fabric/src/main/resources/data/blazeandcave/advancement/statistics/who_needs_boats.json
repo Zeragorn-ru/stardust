@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/taking_it_in_stride",
 	"rewards": {
-		"function": "bc_rewards:statistics/who_needs_boats"
+		"function": "bacap_rewards:statistics/who_needs_boats"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

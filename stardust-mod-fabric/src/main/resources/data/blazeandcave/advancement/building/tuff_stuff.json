@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/fake_stronghold",
 	"rewards": {
-		"function": "bc_rewards:building/tuff_stuff"
+		"function": "bacap_rewards:building/tuff_stuff"
 	},		
 	"criteria": {
 		"tuff": {

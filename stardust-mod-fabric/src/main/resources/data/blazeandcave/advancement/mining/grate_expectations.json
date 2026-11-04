@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/dont_come_a_copper",
 	"rewards": {
-		"function": "bc_rewards:mining/grate_expectations"
+		"function": "bacap_rewards:mining/grate_expectations"
 	},		
 	"criteria": {
 		"cut_copper": {

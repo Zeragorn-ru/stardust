@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/beethoven",
 	"rewards": {
-		"function": "bc_rewards:adventure/music_to_my_ears"
+		"function": "bacap_rewards:adventure/music_to_my_ears"
 	},		
 	"criteria": {
 		"music_disc": {

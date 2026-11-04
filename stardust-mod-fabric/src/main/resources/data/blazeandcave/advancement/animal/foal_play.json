@@ -9,17 +9,17 @@
 	},
 	"parent": "blazeandcave:animal/cowboy",
 	"rewards": {
-		"function": "bc_rewards:animal/foal_play"
+		"function": "bacap_rewards:animal/foal_play"
 	},		
 	"criteria": {
 		"horse": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:horse"
+					"entity_type": "minecraft:horse"
 				},
 				"partner": {
-					"type": "minecraft:horse"
+					"entity_type": "minecraft:horse"
 				}
 			}
 		}

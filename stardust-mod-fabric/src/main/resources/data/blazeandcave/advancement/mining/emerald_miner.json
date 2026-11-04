@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/diamond_miner",
 	"rewards": {
-		"function": "bc_rewards:mining/emerald_miner"
+		"function": "bacap_rewards:mining/emerald_miner"
 	},		
 	"criteria": {
 		"silk_touch": {

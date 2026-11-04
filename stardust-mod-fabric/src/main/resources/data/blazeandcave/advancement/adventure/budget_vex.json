@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/evelyn_evergreen",
 	"rewards": {
-		"function": "bc_rewards:adventure/budget_vex"
+		"function": "bacap_rewards:adventure/budget_vex"
 	},		
 	"criteria": {
 		"iron_sword": {
@@ -19,7 +19,7 @@
 					{
 						"condition": "minecraft:entity_properties",
 						"predicate": {
-							"type": "minecraft:allay"
+							"entity_type": "minecraft:allay"
 						},
 						"entity": "this"
 					}

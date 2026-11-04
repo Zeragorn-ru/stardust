@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/under_pressure",
 	"rewards": {
-		"function": "bc_rewards:redstone/tripping_over"
+		"function": "bacap_rewards:redstone/tripping_over"
 	},
 	"criteria": {
 		"tripwire_hook": {

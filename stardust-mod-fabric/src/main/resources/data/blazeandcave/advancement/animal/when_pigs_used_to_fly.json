@@ -7,9 +7,9 @@
 		"description": {"color":"green","translate":"Craft a carrot on a stick so you can ride a pig off a cliff"},
 		"announce_to_chat": true
 	},
-	"parent": "blazeandcave:animal/pork_chop",
+	"parent": "blazeandcave:animal/piglets_big_advancement",
 	"rewards": {
-		"function": "bc_rewards:animal/when_pigs_used_to_fly"
+		"function": "bacap_rewards:animal/when_pigs_used_to_fly"
 	},		
 	"criteria": {
 		"carrot_on_a_stick": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/mapmakers_table",
 	"rewards": {
-		"function": "bc_rewards:adventure/im_not_lost_anymore"
+		"function": "bacap_rewards:adventure/im_not_lost_anymore"
 	},
 	"criteria": {
 		"map": {

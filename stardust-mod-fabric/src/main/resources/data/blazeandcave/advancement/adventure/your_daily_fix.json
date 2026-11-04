@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/summon_iron_golem",
 	"rewards": {
-		"function": "bc_rewards:adventure/your_daily_fix"
+		"function": "bacap_rewards:adventure/your_daily_fix"
 	},		
 	"criteria": {
 		"iron_golem": {
@@ -25,7 +25,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:iron_golem"
+							"entity_type": "minecraft:iron_golem"
 						}
 					}
 				]

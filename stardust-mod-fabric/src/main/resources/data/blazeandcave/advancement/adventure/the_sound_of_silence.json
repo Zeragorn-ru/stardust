@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:adventure/vexingly_hard_to_find",
 	"rewards": {
-		"function": "bc_rewards:adventure/the_sound_of_silence"
+		"function": "bacap_rewards:adventure/the_sound_of_silence"
 	},		
 	"criteria": {
 		"silence_armor_trim_smithing_template": {

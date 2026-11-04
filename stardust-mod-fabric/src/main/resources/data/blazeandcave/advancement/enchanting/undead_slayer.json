@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/needle_sharp",
 	"rewards": {
-		"function": "bc_rewards:enchanting/undead_slayer"
+		"function": "bacap_rewards:enchanting/undead_slayer"
 	},			
 	"criteria": {
 		"smite": {

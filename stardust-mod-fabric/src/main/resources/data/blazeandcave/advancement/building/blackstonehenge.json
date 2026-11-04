@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/no_chain_no_gain",
 	"rewards": {
-		"function": "bc_rewards:building/blackstonehenge"
+		"function": "bacap_rewards:building/blackstonehenge"
 	},		
 	"criteria": {
 		"blackstone": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/its_original_form",
 	"rewards": {
-		"function": "bc_rewards:building/smooth_dude"
+		"function": "bacap_rewards:building/smooth_dude"
 	},		
 	"criteria": {
 		"smooth_stone": {

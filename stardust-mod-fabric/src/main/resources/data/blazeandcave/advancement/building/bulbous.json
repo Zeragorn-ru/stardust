@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/electric",
 	"rewards": {
-		"function": "bc_rewards:building/bulbous"
+		"function": "bacap_rewards:building/bulbous"
 	},		
 	"criteria": {
 		"copper_bulb": {

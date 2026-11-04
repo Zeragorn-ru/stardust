@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:biomes/pretty_in_pink",
 	"rewards": {
-		"function": "bc_rewards:biomes/flower_power"
+		"function": "bacap_rewards:biomes/flower_power"
 	},		
 	"criteria": {
 		"dandelion": {
@@ -236,6 +236,66 @@
 					{
 						"items": [
 							"minecraft:pitcher_plant"
+						]
+					}
+				]
+			}
+		},
+		"closed_eyeblossom": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:closed_eyeblossom"
+						]
+					}
+				]
+			}
+		},
+		"open_eyeblossom": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:open_eyeblossom"
+						]
+					}
+				]
+			}
+		},
+		"wildflowers": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:wildflowers"
+						]
+					}
+				]
+			}
+		},
+		"cactus_flower": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:cactus_flower"
+						]
+					}
+				]
+			}
+		},
+		"golden_dandelion": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:golden_dandelion"
 						]
 					}
 				]

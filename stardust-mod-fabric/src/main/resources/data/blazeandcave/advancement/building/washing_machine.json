@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/bubble_bubble_toil_and_trouble",
 	"rewards": {
-		"function": "bc_rewards:building/washing_machine"
+		"function": "bacap_rewards:building/washing_machine"
 	},
 	"criteria": {
 		"clean_leather_armor": {
@@ -28,7 +28,7 @@
 					{
 						"condition": "minecraft:match_tool",
 						"predicate": {
-							"items": "#minecraft:leather_armor"
+							"items": "#blazeandcave:leather_armor"
 						}
 					}
 				]

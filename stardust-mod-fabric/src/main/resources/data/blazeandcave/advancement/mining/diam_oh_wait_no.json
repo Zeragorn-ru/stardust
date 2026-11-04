@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/iron_tools",
 	"rewards": {
-		"function": "bc_rewards:mining/diam_oh_wait_no"
+		"function": "bacap_rewards:mining/diam_oh_wait_no"
 	},		
 	"criteria": {
 		"coal": {

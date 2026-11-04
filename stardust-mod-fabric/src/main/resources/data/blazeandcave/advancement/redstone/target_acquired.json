@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/dispense_with_this",
 	"rewards": {
-		"function": "bc_rewards:redstone/target_acquired"
+		"function": "bacap_rewards:redstone/target_acquired"
 	},			
 	"criteria": {
 		"target": {

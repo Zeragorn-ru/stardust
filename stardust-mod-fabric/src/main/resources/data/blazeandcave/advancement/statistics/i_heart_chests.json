@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:statistics/more_for_me",
 	"rewards": {
-		"function": "bc_rewards:statistics/i_heart_chests"
+		"function": "bacap_rewards:statistics/i_heart_chests"
 	},		
 	"criteria": {
 		"trigger": {

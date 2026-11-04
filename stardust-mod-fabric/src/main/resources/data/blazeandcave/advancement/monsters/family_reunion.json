@@ -11,7 +11,7 @@
 	},
 	"parent": "blazeandcave:monsters/freezing",
 	"rewards": {
-		"function": "bc_rewards:monsters/family_reunion"
+		"function": "bacap_rewards:monsters/family_reunion"
 	},
 	"criteria": {
 		"family_reunion": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/en_garde",
 	"rewards": {
-		"function": "bc_rewards:building/the_walls"
+		"function": "bacap_rewards:building/the_walls"
 	},		
 	"criteria": {
 		"cobblestone_wall": {

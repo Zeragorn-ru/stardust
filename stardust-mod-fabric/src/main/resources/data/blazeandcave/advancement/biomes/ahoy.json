@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/atlantis",
 	"rewards": {
-		"function": "bc_rewards:biomes/ahoy"
+		"function": "bacap_rewards:biomes/ahoy"
 	},		
 	"criteria": {
 		"shipwreck": {
@@ -45,8 +45,8 @@
 							"condition": "minecraft:entity_properties",
 							"entity": "this",
 							"predicate": {
-								"type_specific": {
-									"type": "player",
+								"minecraft:type_specific/player": {
+
 									"gamemode": ["spectator"]
 								}
 							}

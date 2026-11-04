@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/camping_out",
 	"rewards": {
-		"function": "bc_rewards:building/delicious_hot_schmoes"
+		"function": "bacap_rewards:building/delicious_hot_schmoes"
 	},		
 	"criteria": {
 		"porkchop": {

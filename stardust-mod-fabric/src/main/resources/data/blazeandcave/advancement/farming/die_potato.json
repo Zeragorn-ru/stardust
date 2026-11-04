@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/plant_seed",
 	"rewards": {
-		"function": "bc_rewards:farming/die_potato"
+		"function": "bacap_rewards:farming/die_potato"
 	},		
 	"criteria": {
 		"potato": {

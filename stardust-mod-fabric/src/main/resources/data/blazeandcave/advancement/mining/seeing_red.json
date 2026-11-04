@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/iron_tools",
 	"rewards": {
-		"function": "bc_rewards:mining/seeing_red"
+		"function": "bacap_rewards:mining/seeing_red"
 	},
 	"criteria": {
 		"redstone": {

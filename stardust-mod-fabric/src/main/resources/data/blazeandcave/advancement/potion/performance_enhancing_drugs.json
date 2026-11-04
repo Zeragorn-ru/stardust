@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/root",
 	"rewards": {
-		"function": "bc_rewards:potion/performance_enhancing_drugs"
+		"function": "bacap_rewards:potion/performance_enhancing_drugs"
 	},	
 	"criteria": {
 		"swiftness": {

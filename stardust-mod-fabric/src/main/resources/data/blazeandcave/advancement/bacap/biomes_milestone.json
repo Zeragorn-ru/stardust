@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:bacap/weaponry_milestone",
 	"rewards": {
-		"function": "bc_rewards:bacap/biomes_milestone"
+		"function": "bacap_rewards:bacap/biomes_milestone"
 	},		
 	"criteria": {
 		"adventuring_time": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"minecraft:adventure/adventuring_time": true
 						}
@@ -30,8 +30,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/atlantis": true
 						}
@@ -43,8 +43,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/bamboom": true
 						}
@@ -56,8 +56,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/boaty_mcboatface": true
 						}
@@ -69,8 +69,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/high_feet": true
 						}
@@ -82,8 +82,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/construction_worker": true
 						}
@@ -95,8 +95,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/dolphin_dasher": true
 						}
@@ -108,8 +108,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/enchanted_forest": true
 						}
@@ -121,8 +121,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/barbearian": true
 						}
@@ -134,8 +134,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/everybody_loves_ice": true
 						}
@@ -147,8 +147,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/flower_power": true
 						}
@@ -160,8 +160,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/for_you_my_sweet": true
 						}
@@ -173,8 +173,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/free_diver": true
 						}
@@ -186,8 +186,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/ahoy": true
 						}
@@ -199,8 +199,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/in_a_pickle": true
 						}
@@ -212,8 +212,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/just_a_sample": true
 						}
@@ -225,8 +225,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/just_keep_swimming": true
 						}
@@ -238,8 +238,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/kilometre_walk": true
 						}
@@ -251,8 +251,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/kung_fu_panda": true
 						}
@@ -264,8 +264,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/no_reefing": true
 						}
@@ -277,8 +277,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/one_with_the_forest": true
 						}
@@ -290,8 +290,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/overgrown": true
 						}
@@ -303,8 +303,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/moskstraumen": true
 						}
@@ -316,8 +316,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/pushed_around": true
 						}
@@ -329,8 +329,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/qinling": true
 						}
@@ -342,8 +342,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/root": true
 						}
@@ -355,8 +355,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/simba": true
 						}
@@ -368,8 +368,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/sleep_with_the_fishes": true
 						}
@@ -381,8 +381,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/cold_feet": true
 						}
@@ -394,8 +394,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/spike_ice": true
 						}
@@ -407,8 +407,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/tarzan": true
 						}
@@ -420,8 +420,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/ten_thousand_blocks": true
 						}
@@ -433,8 +433,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/the_great_blocky_reef": true
 						}
@@ -446,8 +446,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/the_mighty_jungle": true
 						}
@@ -459,8 +459,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/the_sea_calls_you": true
 						}
@@ -472,8 +472,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/theres_a_zombie_on_the_lawn": true
 						}
@@ -485,8 +485,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/thick_ice": true
 						}
@@ -498,8 +498,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/thin_ice": true
 						}
@@ -511,8 +511,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/titanic": true
 						}
@@ -524,8 +524,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/top_of_the_world": true
 						}
@@ -537,8 +537,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/voyage": true
 						}
@@ -550,8 +550,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/warm_feet": true
 						}
@@ -563,8 +563,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/wet_feet": true
 						}
@@ -576,8 +576,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/x_marks_the_spot": true
 						}
@@ -589,8 +589,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/zoologist": true
 						}
@@ -602,8 +602,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/so_long_and_thanks_for_all_the_fish": true
 						}
@@ -615,8 +615,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/echolocation": true
 						}
@@ -628,8 +628,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/lion_hunter": true
 						}
@@ -641,8 +641,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/this_snow_is_snowier": true
 						}
@@ -654,8 +654,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/powder_full": true
 						}
@@ -667,8 +667,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/pandamonium": true
 						}
@@ -680,8 +680,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"minecraft:adventure/walk_on_powder_snow_with_leather_boots": true
 						}
@@ -693,8 +693,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/boatception": true
 						}
@@ -706,8 +706,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/smooth_operator": true
 						}
@@ -719,8 +719,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/were_going_on_a_bear_hunt": true
 						}
@@ -732,8 +732,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/dive_bomb": true
 						}
@@ -745,8 +745,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/captain_america": true
 						}
@@ -758,8 +758,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/cargo_carrier": true
 						}
@@ -771,8 +771,8 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/flipper": true
 						}
@@ -784,10 +784,220 @@
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"advancements": {
 							"blazeandcave:biomes/pretty_in_pink": true
+						}
+					}
+				}
+			}
+		},
+		"eyeball_forest": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+
+						"advancements": {
+							"blazeandcave:biomes/eyeball_forest": true
+						}
+					}
+				}
+			}
+		},
+		"heart_breaker": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+
+						"advancements": {
+							"blazeandcave:biomes/heart_breaker": true
+						}
+					}
+				}
+			}
+		},
+		"pale_in_comparison": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+
+						"advancements": {
+							"blazeandcave:biomes/pale_in_comparison": true
+						}
+					}
+				}
+			}
+		},
+		"resinance": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+
+						"advancements": {
+							"blazeandcave:biomes/resinance": true
+						}
+					}
+				}
+			}
+		},
+		"fake_copper": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+
+						"advancements": {
+							"blazeandcave:biomes/fake_copper": true
+						}
+					}
+				}
+			}
+		},
+		"heart_transplanter": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+
+						"advancements": {
+							"minecraft:adventure/heart_transplanter": true
+						}
+					}
+				}
+			}
+		},
+		"le_creak_cest_chic": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/le_creak_cest_chic": true
+						}
+					}
+				}
+			}
+		},
+		"chatterbox": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/chatterbox": true
+						}
+					}
+				}
+			}
+		},
+		"is_it_a_bird": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"minecraft:adventure/spyglass_at_parrot": true
+						}
+					}
+				}
+			}
+		},
+		"birdkeeper": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/birdkeeper": true
+						}
+					}
+				}
+			}
+		},
+		"welcome_to_neverland": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/welcome_to_neverland": true
+						}
+					}
+				}
+			}
+		},
+		"equiangular_spiral": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/equiangular_spiral": true
+						}
+					}
+				}
+			}
+		},
+		"a_scute_off_the_old_shell": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/a_scute_off_the_old_shell": true
+						}
+					}
+				}
+			}
+		},
+		"naughtylus": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/naughtylus": true
+						}
+					}
+				}
+			}
+		},
+		"coralful_shell": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/coralful_shell": true
+						}
+					}
+				}
+			}
+		},
+		"submarine_fleet": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/submarine_fleet": true
+						}
+					}
+				}
+			}
+		},
+		"20_leagues_under_the_sea": {
+			"trigger": "minecraft:location",
+			"conditions": {
+				"player":  {
+					"minecraft:type_specific/player": {
+						"advancements": {
+							"blazeandcave:biomes/20_leagues_under_the_sea": true
 						}
 					}
 				}

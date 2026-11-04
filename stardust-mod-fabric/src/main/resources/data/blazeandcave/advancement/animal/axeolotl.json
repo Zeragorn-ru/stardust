@@ -9,19 +9,14 @@
 	},
 	"parent": "blazeandcave:animal/axolittle",
 	"rewards": {
-		"function": "bc_rewards:animal/axeolotl"
+		"function": "bacap_rewards:animal/axeolotl"
 	},		
 	"criteria": {
 		"axeolotl": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "axolotl",
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
+					"entity_type": "axolotl"
 				},			
 				"player": {
 					"equipment": {
@@ -29,6 +24,14 @@
 							"items": "#blazeandcave:axes"
 						}
 					}
+				},
+				"killing_blow": {
+					"tags": [
+						{
+							"id": "minecraft:is_player_attack",
+							"expected": true
+						}
+					]
 				}
 			}
 		}

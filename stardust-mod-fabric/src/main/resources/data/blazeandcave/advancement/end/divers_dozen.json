@@ -15,7 +15,7 @@
 	},
 	"parent": "blazeandcave:end/sky_high",
 	"rewards": {
-		"function": "bc_rewards:end/divers_dozen"
+		"function": "bacap_rewards:end/divers_dozen"
 	},			
 	"criteria": {
 		"divers_dozen": {

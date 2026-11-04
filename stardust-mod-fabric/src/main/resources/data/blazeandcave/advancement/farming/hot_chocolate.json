@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:farming/me_love_cookie",
 	"rewards": {
-		"function": "bc_rewards:farming/hot_chocolate"
+		"function": "bacap_rewards:farming/hot_chocolate"
 	},
 	"criteria": {
 		"cocoa": {

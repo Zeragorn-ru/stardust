@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/translucence",
 	"rewards": {
-		"function": "bc_rewards:building/pane_in_the_glass"
+		"function": "bacap_rewards:building/pane_in_the_glass"
 	},		
 	"criteria": {
 		"white_stained_glass_pane": {

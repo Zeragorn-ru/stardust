@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/blind_stare",
 	"rewards": {
-		"function": "bc_rewards:monsters/stealth_is_optional"
+		"function": "bacap_rewards:monsters/stealth_is_optional"
 	},		
 	"criteria": {
 		"warden": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "warden"
+					"entity_type": "warden"
 				}
 			}
 		}

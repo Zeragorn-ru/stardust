@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/root",
 	"rewards": {
-		"function": "bc_rewards:farming/full_stomach"
+		"function": "bacap_rewards:farming/full_stomach"
 	},		
 	"criteria": {
 		"ten_withers": {

@@ -9,17 +9,17 @@
 	},
 	"parent": "minecraft:adventure/brush_armadillo",
 	"rewards": {
-		"function": "bc_rewards:animal/farmadillo"
+		"function": "bacap_rewards:animal/farmadillo"
 	},		
 	"criteria": {
 		"armadillo": {
 			"trigger": "minecraft:bred_animals",
 			"conditions": {
 				"parent": {
-					"type": "minecraft:armadillo"
+					"entity_type": "minecraft:armadillo"
 				},
 				"partner": {
-					"type": "minecraft:armadillo"
+					"entity_type": "minecraft:armadillo"
 				}
 			}
 		}

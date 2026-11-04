@@ -11,7 +11,7 @@
 	},
 	"parent": "blazeandcave:technical/big_cheater",
 	"rewards": {
-		"function": "bc_rewards:technical/cheater2"
+		"function": "bacap_rewards:technical/cheater2"
 	},		
 	"criteria": {
 		"big_cheater": {

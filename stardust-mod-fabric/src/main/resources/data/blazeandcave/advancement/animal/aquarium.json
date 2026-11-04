@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:husbandry/tactical_fishing",
 	"rewards": {
-		"function": "bc_rewards:animal/aquarium"
+		"function": "bacap_rewards:animal/aquarium"
 	},		
 	"criteria": {
 		"cod_bucket": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/shroom_lightyear",
 	"rewards": {
-		"function": "bc_rewards:building/cerulean"
+		"function": "bacap_rewards:building/cerulean"
 	},		
 	"criteria": {
 		"soul_torch": {

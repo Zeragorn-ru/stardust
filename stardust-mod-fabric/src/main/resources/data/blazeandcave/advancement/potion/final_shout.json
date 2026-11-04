@@ -15,7 +15,7 @@
 	},
 	"parent": "blazeandcave:potion/secret_of_the_ooze",
 	"rewards": {
-		"function": "bc_rewards:potion/final_shout"
+		"function": "bacap_rewards:potion/final_shout"
 	},		
 	"criteria": {
 		"creeper": {

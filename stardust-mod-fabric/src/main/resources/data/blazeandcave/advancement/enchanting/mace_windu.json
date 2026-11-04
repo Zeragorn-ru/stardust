@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:enchanting/librarian",
 	"rewards": {
-		"function": "bc_rewards:enchanting/mace_windu"
+		"function": "bacap_rewards:enchanting/mace_windu"
 	},			
 	"criteria": {
 		"mace_windu": {

@@ -9,13 +9,13 @@ tellraw @s {"text":"                                             ","color":"dark
 tellraw @s [" ",{"translate":"Please choose who you would like to revoke advancements from, or to go back"}]
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}
 
-tellraw @s ["",{"translate":"[ »» ]","color":"green","clickEvent":{"action":"run_command","value":"/function blazeandcave:config/revoke_yourself"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to confirm","color":"gold"}]}}," ",{"translate":"Yourself"}]
-tellraw @s ["",{"translate":"[ »» ]","color":"yellow","clickEvent":{"action":"run_command","value":"/function blazeandcave:config/revoke_closest"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to confirm","color":"gold"}]}}," ",{"translate":"The closest player"}]
-tellraw @s ["",{"translate":"[ »» ]","color":"dark_red","clickEvent":{"action":"run_command","value":"/function blazeandcave:config/revoke_everyone"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to confirm","color":"gold"}," ",{"translate":">:)","color":"gold"}]}}," ",{"translate":"EVERYONE!! (who is online)"}]
+tellraw @s ["",{"translate":"[ »» ]","color":"green","click_event":{"action":"run_command","command":"/function blazeandcave:config/revoke_yourself"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to confirm","color":"gold"}]}}," ",{"translate":"Yourself"}]
+tellraw @s ["",{"translate":"[ »» ]","color":"yellow","click_event":{"action":"run_command","command":"/function blazeandcave:config/revoke_closest"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to confirm","color":"gold"}]}}," ",{"translate":"The closest player"}]
+tellraw @s ["",{"translate":"[ »» ]","color":"dark_red","click_event":{"action":"run_command","command":"/function blazeandcave:config/revoke_everyone"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to confirm","color":"gold"}," ",{"translate":">:)","color":"gold"}]}}," ",{"translate":"EVERYONE!! (who is online)"}]
 
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}
 
 # Go back I want to be MONKE
-tellraw @s ["",{"text":"[ «« ]","color":"red","clickEvent":{"action":"run_command","value":"/function blazeandcave:config/technical_settings"},"hoverEvent":{"action":"show_text","contents":["",{"translate":"Click to go back","color":"gold"}]}}," ",{"translate":"Go back"}]
+tellraw @s ["",{"text":"[ «« ]","color":"red","click_event":{"action":"run_command","command":"/function blazeandcave:config/technical_settings"},"hover_event":{"action":"show_text","value":["",{"translate":"Click to go back","color":"gold"}]}}," ",{"translate":"Go back"}]
 
 tellraw @s {"text":"                                             ","color":"dark_gray","strikethrough":true}

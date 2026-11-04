@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/hero_of_the_village",
 	"rewards": {
-		"function": "bc_rewards:adventure/superhero_of_the_village"
+		"function": "bacap_rewards:adventure/superhero_of_the_village"
 	},		
 	"criteria": {
 		"ominous_banners": {

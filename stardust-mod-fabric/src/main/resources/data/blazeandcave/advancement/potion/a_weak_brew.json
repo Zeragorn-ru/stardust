@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/super_strength",
 	"rewards": {
-		"function": "bc_rewards:potion/a_weak_brew"
+		"function": "bacap_rewards:potion/a_weak_brew"
 	},	
 	"criteria": {
 		"weakness": {

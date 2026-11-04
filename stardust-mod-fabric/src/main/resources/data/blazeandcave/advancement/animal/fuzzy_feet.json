@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/rainbow_collection",
 	"rewards": {
-		"function": "bc_rewards:animal/fuzzy_feet"
+		"function": "bacap_rewards:animal/fuzzy_feet"
 	},		
 	"criteria": {
 		"white_carpet": {

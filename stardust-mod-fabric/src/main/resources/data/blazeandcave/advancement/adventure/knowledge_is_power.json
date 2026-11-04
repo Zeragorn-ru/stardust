@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:adventure/trade",
 	"rewards": {
-		"function": "bc_rewards:adventure/knowledge_is_power"
+		"function": "bacap_rewards:adventure/knowledge_is_power"
 	},		
 	"criteria": {
 		"trade": {

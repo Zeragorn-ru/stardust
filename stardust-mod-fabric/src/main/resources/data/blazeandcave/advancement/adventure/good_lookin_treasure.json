@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/tomb_raider",
 	"rewards": {
-		"function": "bc_rewards:adventure/good_lookin_treasure"
+		"function": "bacap_rewards:adventure/good_lookin_treasure"
 	},		
 	"criteria": {
 		"trim_templates": {
@@ -17,28 +17,10 @@
 			"conditions": {
 				"items": [
 					{
-						"items": "#minecraft:trim_templates"
-					}
-				]
-			}
-		},
-		"netherite_upgrade": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:netherite_upgrade_smithing_template"
-						]
+						"items": "#blazeandcave:smithing_templates"
 					}
 				]
 			}
 		}
-	},
-	"requirements": [
-		[
-		"trim_templates",
-		"netherite_upgrade"
-		]
-	]
+	}
 }

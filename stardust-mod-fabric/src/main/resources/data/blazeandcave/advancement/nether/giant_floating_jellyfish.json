@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:nether/the_tribal_snouts",
 	"rewards": {
-		"function": "bc_rewards:nether/giant_floating_jellyfish"
+		"function": "bacap_rewards:nether/giant_floating_jellyfish"
 	},		
 	"criteria": {
 		"ghast": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "ghast"
+					"entity_type": "ghast"
 				}
 			}
 		}

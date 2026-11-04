@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/the_garbage_will_do",
 	"rewards": {
-		"function": "bc_rewards:farming/natural_fertiliser"
+		"function": "bacap_rewards:farming/natural_fertiliser"
 	},
 	"criteria": {
 		"fill_composter": {

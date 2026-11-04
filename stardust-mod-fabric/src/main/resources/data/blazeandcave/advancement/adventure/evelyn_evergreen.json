@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/allay_deliver_item_to_player",
 	"rewards": {
-		"function": "bc_rewards:adventure/evelyn_evergreen"
+		"function": "bacap_rewards:adventure/evelyn_evergreen"
 	},		
 	"criteria": {
 		"spruce_sapling": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:allay"
+							"entity_type": "minecraft:allay"
 						}
 					}
 				],

@@ -4,13 +4,13 @@
 			"id": "minecraft:rabbit_stew"
 		},
 		"title": {"translate":"A Gluttonous Diet"},
-		"description": {"color":"dark_purple","translate":"Obtain a full stack of all the foods"},
+		"description": {"color":"dark_purple","translate":"Obtain a full stack of all the foods","extra":[{"text":"\n\n"},{"italic":true,"color":"dark_gray","translate":"The following are not required:"},{"text":"\n"},{"color":"gray","translate":"item.minecraft.enchanted_golden_apple"}]},
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
 	"parent": "minecraft:husbandry/balanced_diet",
 	"rewards": {
-		"function": "bc_rewards:farming/a_gluttonous_diet"
+		"function": "bacap_rewards:farming/a_gluttonous_diet"
 	},		
 	"criteria": {
 		"apple": {
@@ -84,19 +84,6 @@
 					{
 						"items": [
 							"minecraft:golden_apple"
-						],
-						"count": 64
-					}
-				]
-			}
-		},
-		"enchanted_golden_apple": {
-			"trigger": "minecraft:inventory_changed",
-			"conditions": {
-				"items": [
-					{
-						"items": [
-							"minecraft:enchanted_golden_apple"
 						],
 						"count": 64
 					}

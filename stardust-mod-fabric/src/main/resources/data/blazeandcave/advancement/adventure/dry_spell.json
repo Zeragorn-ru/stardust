@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/the_deep_end",
 	"rewards": {
-		"function": "bc_rewards:adventure/dry_spell"
+		"function": "bacap_rewards:adventure/dry_spell"
 	},		
 	"criteria": {
 		"sponge": {

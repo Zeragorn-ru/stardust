@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/travelling_bard",
 	"rewards": {
-		"function": "bc_rewards:redstone/monstrous_music"
+		"function": "bacap_rewards:redstone/monstrous_music"
 	},
 	"criteria": {
 		"zombie": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/die_potato",
 	"rewards": {
-		"function": "bc_rewards:farming/24_carrot_gold"
+		"function": "bacap_rewards:farming/24_carrot_gold"
 	},		
 	"criteria": {
 		"golden_carrot": {

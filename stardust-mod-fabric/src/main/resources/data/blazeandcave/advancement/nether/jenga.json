@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/this_ones_mine",
 	"rewards": {
-		"function": "bc_rewards:nether/jenga"
+		"function": "bacap_rewards:nether/jenga"
 	},		
 	"criteria": {
 		"jenga": {
@@ -22,13 +22,13 @@
 						"entity": "this",
 						"predicate": {
 							"vehicle": {
-								"type": "strider",
+								"entity_type": "strider",
 								"vehicle": {
-									"type": "strider",
+									"entity_type": "strider",
 									"vehicle": {
-										"type": "#minecraft:boats",
+										"entity_type": "#blazeandcave:all_boats",
 										"vehicle": {
-											"type": "minecart"
+											"entity_type": "minecart"
 										}
 									}
 								}

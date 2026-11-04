@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:adventure/were_being_attacked",
 	"rewards": {
-		"function": "bc_rewards:adventure/sound_the_alarm"
+		"function": "bacap_rewards:adventure/sound_the_alarm"
 	},		
 	"criteria": {
 		"sound_the_alarm": {

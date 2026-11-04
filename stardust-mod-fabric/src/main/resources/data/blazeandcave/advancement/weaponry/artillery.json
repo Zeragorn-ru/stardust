@@ -18,7 +18,7 @@
 	},
 	"parent": "minecraft:adventure/whos_the_pillager_now",
 	"rewards": {
-		"function": "bc_rewards:weaponry/artillery"
+		"function": "bacap_rewards:weaponry/artillery"
 	},		
 	"criteria": {
 		"nine_crossbow": {

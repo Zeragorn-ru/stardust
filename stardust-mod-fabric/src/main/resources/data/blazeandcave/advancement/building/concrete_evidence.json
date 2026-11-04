@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/rainbow_sand",
 	"rewards": {
-		"function": "bc_rewards:building/concrete_evidence"
+		"function": "bacap_rewards:building/concrete_evidence"
 	},		
 	"criteria": {
 		"white_concrete": {

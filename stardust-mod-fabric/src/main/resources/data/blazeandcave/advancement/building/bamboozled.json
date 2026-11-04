@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/the_jungler",
 	"rewards": {
-		"function": "bc_rewards:building/bamboozled"
+		"function": "bacap_rewards:building/bamboozled"
 	},		
 	"criteria": {
 		"bamboo_planks": {
@@ -224,6 +224,18 @@
 					{
 						"items": [
 							"minecraft:bamboo_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"bamboo_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:bamboo_shelf"
 						]
 					}
 				]

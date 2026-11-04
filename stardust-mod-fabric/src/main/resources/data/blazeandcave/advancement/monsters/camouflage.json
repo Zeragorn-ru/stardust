@@ -10,14 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/creepy_heads",
 	"rewards": {
-		"function": "bc_rewards:monsters/camouflage"
+		"function": "bacap_rewards:monsters/camouflage"
 	},		
 	"criteria": {
 		"creeper": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "creeper"
+					"entity_type": "creeper"
 				},
 				"killing_blow": {
 					"source_entity": {
@@ -36,7 +36,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie"
+					"entity_type": "minecraft:zombie"
 				},
 				"killing_blow": {
 					"source_entity": {
@@ -55,7 +55,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "skeleton"
+					"entity_type": "minecraft:skeleton"
 				},
 				"killing_blow": {
 					"source_entity": {
@@ -74,7 +74,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "wither_skeleton"
+					"entity_type": "wither_skeleton"
 				},
 				"killing_blow": {
 					"source_entity": {
@@ -93,7 +93,7 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "piglin"
+					"entity_type": "piglin"
 				},
 				"killing_blow": {
 					"source_entity": {

@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:adventure/kill_a_mob",
 	"rewards": {
-		"function": "bc_rewards:monsters/termite_control"
+		"function": "bacap_rewards:monsters/termite_control"
 	},		
 	"criteria": {
 		"silverfish": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "silverfish"
+					"entity_type": "silverfish"
 				}
 			}
 		}

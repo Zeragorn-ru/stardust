@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/writers_block",
 	"rewards": {
-		"function": "bc_rewards:building/shelf_expression"
+		"function": "bacap_rewards:building/shelf_expression"
 	},		
 	"criteria": {
 		"chiseled_bookshelf": {

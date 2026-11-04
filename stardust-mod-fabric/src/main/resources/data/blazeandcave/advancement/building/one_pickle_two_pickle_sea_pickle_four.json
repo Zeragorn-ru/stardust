@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/halloween",
 	"rewards": {
-		"function": "bc_rewards:building/one_pickle_two_pickle_sea_pickle_four"
+		"function": "bacap_rewards:building/one_pickle_two_pickle_sea_pickle_four"
 	},
 	"criteria": {
 		"sea_pickle": {

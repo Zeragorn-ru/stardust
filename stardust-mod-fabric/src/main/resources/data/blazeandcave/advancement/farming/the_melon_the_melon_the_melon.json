@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:farming/naturally_carved",
 	"rewards": {
-		"function": "bc_rewards:farming/the_melon_the_melon_the_melon"
+		"function": "bacap_rewards:farming/the_melon_the_melon_the_melon"
 	},		
 	"criteria": {
 		"melon": {

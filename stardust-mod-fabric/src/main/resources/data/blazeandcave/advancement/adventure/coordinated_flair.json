@@ -16,7 +16,7 @@
 	},
 	"parent": "blazeandcave:adventure/mold_maker",
 	"rewards": {
-		"function": "bc_rewards:adventure/coordinated_flair"
+		"function": "bacap_rewards:adventure/coordinated_flair"
 	},
 	"criteria": {
 		"amethyst": {
@@ -448,6 +448,49 @@
 					}
 				]
 			}
+		},
+		"resin": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"player": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"equipment": {
+								"head": {
+									"predicates": {
+										"minecraft:trim": {
+											"material": "minecraft:resin"
+										}
+									}
+								},
+								"chest": {
+									"predicates": {
+										"minecraft:trim": {
+											"material": "minecraft:resin"
+										}
+									}
+								},
+								"legs": {
+									"predicates": {
+										"minecraft:trim": {
+											"material": "minecraft:resin"
+										}
+									}
+								},
+								"feet": {
+									"predicates": {
+										"minecraft:trim": {
+											"material": "minecraft:resin"
+										}
+									}
+								}
+							}
+						}
+					}
+				]
+			}
 		}
 	},
 	"requirements": [
@@ -461,7 +504,8 @@
 			"lapis",
 			"quartz",
 			"netherite",
-			"redstone"
+			"redstone",
+			"resin"
 		]
 	]
 }

@@ -10,19 +10,14 @@
 	},
 	"parent": "blazeandcave:monsters/plane_walker",
 	"rewards": {
-		"function": "bc_rewards:monsters/impossible"
+		"function": "bacap_rewards:monsters/impossible"
 	},		
 	"criteria": {
 		"enderman_arrow": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "enderman",
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
-					}
+					"entity_type": "enderman"
 				},
 				"killing_blow": {
 					"source_entity": {
@@ -35,7 +30,13 @@
 								]
 							}
 						}
-					}
+					},
+					"tags": [
+						{
+							"id": "minecraft:is_player_attack",
+							"expected": true
+						}
+					]
 				}
 			}
 		}	

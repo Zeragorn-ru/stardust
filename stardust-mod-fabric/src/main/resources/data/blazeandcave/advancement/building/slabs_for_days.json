@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/stairs_no",
 	"rewards": {
-		"function": "bc_rewards:building/slabs_for_days"
+		"function": "bacap_rewards:building/slabs_for_days"
 	},		
 	"criteria": {
 		"stone_slab": {
@@ -716,6 +716,102 @@
 					{
 						"items": [
 							"minecraft:tuff_brick_slab"
+						]
+					}
+				]
+			}
+		},
+		"pale_oak_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:pale_oak_slab"
+						]
+					}
+				]
+			}
+		},
+		"resin_brick_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:resin_brick_slab"
+						]
+					}
+				]
+			}
+		},
+		"sulfur_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:sulfur_slab"
+						]
+					}
+				]
+			}
+		},
+		"polished_sulfur_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:polished_sulfur_slab"
+						]
+					}
+				]
+			}
+		},
+		"sulfur_brick_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:sulfur_brick_slab"
+						]
+					}
+				]
+			}
+		},
+		"cinnabar_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:cinnabar_slab"
+						]
+					}
+				]
+			}
+		},
+		"polished_cinnabar_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:polished_cinnabar_slab"
+						]
+					}
+				]
+			}
+		},
+		"cinnabar_brick_slab": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:cinnabar_brick_slab"
 						]
 					}
 				]

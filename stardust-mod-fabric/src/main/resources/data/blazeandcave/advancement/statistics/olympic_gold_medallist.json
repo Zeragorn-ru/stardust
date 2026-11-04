@@ -10,15 +10,15 @@
 	},
 	"parent": "blazeandcave:statistics/olympic_athlete",
 	"rewards": {
-		"function": "bc_rewards:statistics/olympic_gold_medallist"
+		"function": "bacap_rewards:statistics/olympic_gold_medallist"
 	},		
 	"criteria": {
 		"trigger": {
 			"trigger": "minecraft:location",
 			"conditions": {
 				"player":  {
-					"type_specific": {
-						"type": "player",
+					"minecraft:type_specific/player": {
+
 						"stats": [
 							{
 								"type": "minecraft:custom",

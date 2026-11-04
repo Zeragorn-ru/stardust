@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:monsters/iron_belly",
 	"rewards": {
-		"function": "bc_rewards:monsters/desert_nomad"
+		"function": "bacap_rewards:monsters/desert_nomad"
 	},		
 	"criteria": {
 		"husk": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "husk"
+					"entity_type": "husk"
 				}
 			}
 		}

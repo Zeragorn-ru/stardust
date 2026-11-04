@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:enchanting/root",
 	"rewards": {
-		"function": "bc_rewards:enchanting/heavy_metal"
+		"function": "bacap_rewards:enchanting/heavy_metal"
 	},
 	"criteria": {
 		"anvil": {

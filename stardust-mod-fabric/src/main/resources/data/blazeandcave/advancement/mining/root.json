@@ -5,12 +5,12 @@
 		},
 		"title": {"translate":"Mining"},
 		"description": {"color":"#CCCCCC","translate":"Dig deep down, mine up ore"},
-		"background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+		"background": "gui/advancements/backgrounds/stone",
 		"show_toast": false,
 		"announce_to_chat": false
 	},
 	"rewards": {
-		"function": "bc_rewards:mining/root"
+		"function": "bacap_rewards:mining/root"
 	},
 	"criteria": {
 		"pickaxe": {
@@ -18,7 +18,7 @@
 			"conditions": {
 				"items": [
 					{
-						"items": "#minecraft:pickaxes"
+						"items": "#blazeandcave:pickaxes"
 					}
 				]
 			}

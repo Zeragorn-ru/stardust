@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:monsters/gelatinous_cube",
 	"rewards": {
-		"function": "bc_rewards:monsters/trampoline"
+		"function": "bacap_rewards:monsters/trampoline"
 	},		
 	"criteria": {
 		"slime_block": {

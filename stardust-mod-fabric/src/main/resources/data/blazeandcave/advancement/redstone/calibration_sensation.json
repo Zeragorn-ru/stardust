@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/vibe_check",
 	"rewards": {
-		"function": "bc_rewards:redstone/calibration_sensation"
+		"function": "bacap_rewards:redstone/calibration_sensation"
 	},		
 	"criteria": {
 		"calibrated_sculk_sensor": {

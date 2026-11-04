@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/creepers_and_withers",
 	"rewards": {
-		"function": "bc_rewards:building/built_on_sand_set_in_stone"
+		"function": "bacap_rewards:building/built_on_sand_set_in_stone"
 	},		
 	"criteria": {
 		"sandstone": {

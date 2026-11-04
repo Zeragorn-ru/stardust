@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:potion/root",
 	"rewards": {
-		"function": "bc_rewards:potion/medic"
+		"function": "bacap_rewards:potion/medic"
 	},	
 	"criteria": {
 		"healing": {

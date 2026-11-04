@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/professor_oak",
 	"rewards": {
-		"function": "bc_rewards:building/spruce_lee"
+		"function": "bacap_rewards:building/spruce_lee"
 	},		
 	"criteria": {
 		"spruce_planks": {
@@ -212,6 +212,18 @@
 					{
 						"items": [
 							"minecraft:spruce_hanging_sign"
+						]
+					}
+				]
+			}
+		},
+		"spruce_shelf": {
+			"trigger": "minecraft:inventory_changed",
+			"conditions": {
+				"items": [
+					{
+						"items": [
+							"minecraft:spruce_shelf"
 						]
 					}
 				]

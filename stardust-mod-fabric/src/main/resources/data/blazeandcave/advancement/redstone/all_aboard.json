@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:redstone/root",
 	"rewards": {
-		"function": "bc_rewards:redstone/all_aboard"
+		"function": "bacap_rewards:redstone/all_aboard"
 	},		
 	"criteria": {
 		"minecart": {
@@ -20,7 +20,7 @@
 						"condition": "minecraft:entity_properties",
 						"predicate": {
 							"vehicle": {
-								"type": "minecraft:minecart"
+								"entity_type": "minecraft:minecart"
 							}
 						},
 						"entity": "this"

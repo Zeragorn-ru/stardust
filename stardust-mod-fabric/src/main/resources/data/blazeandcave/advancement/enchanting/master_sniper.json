@@ -11,9 +11,9 @@
 		"announce_to_chat": true,
 		"frame": "challenge"
 	},
-	"parent": "blazeandcave:enchanting/master_knight",
+	"parent": "blazeandcave:enchanting/master_jouster",
 	"rewards": {
-		"function": "bc_rewards:enchanting/master_sniper"
+		"function": "bacap_rewards:enchanting/master_sniper"
 	},		
 	"criteria": {
 		"perfect_bow_infinity": {

@@ -2,7 +2,11 @@
 	"display": {
 		"icon": {
 			"id": "minecraft:potion",
-			"nbt": "{CustomPotionColor:8453375}"
+			"components": {
+				"minecraft:potion_contents": {
+					"custom_color": 8453375
+				}
+			}
 		},
 		"title": {"translate":"Diagon Allay"},
 		"description": {"color":"#75E1FF","translate":"Have an Allay deliver a potion to you in the Deep Dark"},
@@ -11,7 +15,7 @@
 	},
 	"parent": "blazeandcave:adventure/budget_vex",
 	"rewards": {
-		"function": "bc_rewards:adventure/diagon_allay"
+		"function": "bacap_rewards:adventure/diagon_allay"
 	},		
 	"criteria": {
 		"diagon_allay": {
@@ -22,7 +26,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:allay"
+							"entity_type": "minecraft:allay"
 						}
 					}
 				],

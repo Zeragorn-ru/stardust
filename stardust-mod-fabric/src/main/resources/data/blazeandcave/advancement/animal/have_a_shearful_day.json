@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:animal/mary_had_a_little_lamb",
 	"rewards": {
-		"function": "bc_rewards:animal/have_a_shearful_day"
+		"function": "bacap_rewards:animal/have_a_shearful_day"
 	},		
 	"criteria": {
 		"shears": {
@@ -25,7 +25,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:sheep"
+							"entity_type": "minecraft:sheep"
 						}
 					}
 				]

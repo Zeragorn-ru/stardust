@@ -9,14 +9,14 @@
 	},
 	"parent": "minecraft:adventure/kill_a_mob",
 	"rewards": {
-		"function": "bc_rewards:monsters/what_a_creep"
+		"function": "bacap_rewards:monsters/what_a_creep"
 	},		
 	"criteria": {
 		"creeper": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "creeper"
+					"entity_type": "creeper"
 				}
 			}
 		}

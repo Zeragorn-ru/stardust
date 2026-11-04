@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/hell_botanist",
 	"rewards": {
-		"function": "bc_rewards:nether/spreading_corruption"
+		"function": "bacap_rewards:nether/spreading_corruption"
 	},		
 	"criteria": {
 		"netherrack": {

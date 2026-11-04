@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:challenges/overwarden",
 	"rewards": {
-		"function": "bc_rewards:challenges/immortal"
+		"function": "bacap_rewards:challenges/immortal"
 	},		
 	"criteria": {
 		"totem_inventory": {

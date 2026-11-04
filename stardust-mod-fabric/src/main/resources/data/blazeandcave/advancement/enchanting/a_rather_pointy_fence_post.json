@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/newtons_flaming_laser_sword",
 	"rewards": {
-		"function": "bc_rewards:enchanting/a_rather_pointy_fence_post"
+		"function": "bacap_rewards:enchanting/a_rather_pointy_fence_post"
 	},		
 	"criteria": {
 		"rather_pointy_fence_post": {

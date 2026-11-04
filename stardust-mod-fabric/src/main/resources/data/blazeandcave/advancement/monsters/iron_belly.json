@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:monsters/there_has_to_be_another_way",
 	"rewards": {
-		"function": "bc_rewards:monsters/iron_belly"
+		"function": "bacap_rewards:monsters/iron_belly"
 	},		
 	"criteria": {
 		"rotten_flesh": {

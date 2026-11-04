@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/heart_of_darkness",
 	"rewards": {
-		"function": "bc_rewards:mining/dungeons_and_spawners"
+		"function": "bacap_rewards:mining/dungeons_and_spawners"
 	},		
 	"criteria": {
 		"dungeon": {

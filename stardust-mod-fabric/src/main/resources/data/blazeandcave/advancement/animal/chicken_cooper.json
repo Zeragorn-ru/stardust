@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:animal/feeding_the_chickens",
 	"rewards": {
-		"function": "bc_rewards:animal/chicken_cooper"
+		"function": "bacap_rewards:animal/chicken_cooper"
 	},		
 	"criteria": {
 		"chicken": {

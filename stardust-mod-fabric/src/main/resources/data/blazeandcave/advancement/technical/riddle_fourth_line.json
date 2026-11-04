@@ -1,119 +1,141 @@
 {
 	"rewards": {
-		"function": "blazeandcave:riddle/fourth_line"
+		"function": "blazeandcave:advancement/riddle/fourth_line"
 	},
 	"criteria": {
-		"fourth_line": {
-			"trigger": "minecraft:enter_block",
+		"pot_on_a_pot": {
+			"trigger": "minecraft:placed_block",
 			"conditions": {
-				"block": "minecraft:tripwire",
-				"state": {
-					"disarmed": "true"
-				},
-				"player":  {
-					"location": {
-						"structures": "jungle_pyramid"
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:flower_pot",
+									"minecraft:decorated_pot"
+								]
+							}
+						}
 					},
-					"type_specific": {
-						"type": "player",
-						"advancements": {
-							"blazeandcave:technical/riddle_third_line": true
+					{
+						"condition": "minecraft:location_check",
+						"offsetY": -1,
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:decorated_pot"
+								]
+							}
 						}
 					}
-				}
+				],
+				"player": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"minecraft:type_specific/player": {
+
+								"advancements": {
+									"blazeandcave:technical/riddle_third_line": true
+								}
+							}
+						}
+					}
+				]
 			}
 		},
-		"fourth_line_jungle": {
-			"trigger": "minecraft:enter_block",
+		"pot_in_a_pot1": {
+			"trigger": "minecraft:item_used_on_block",
 			"conditions": {
-				"block": "minecraft:tripwire",
-				"state": {
-					"disarmed": "true"
-				},
-				"player":  {
-					"location": {
-						"biomes": "jungle"
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:decorated_pot"
+								],
+								"nbt": "{\"item\":{\"id\":\"minecraft:decorated_pot\"}}"
+							}
+						}
 					},
-					"stepping_on": {
-						"block": {
-							"blocks": [
-								"cobblestone",
-								"mossy_cobblestone"
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:flower_pot",
+								"minecraft:decorated_pot"
 							]
 						}
-					},
-					"type_specific": {
-						"type": "player",
-						"advancements": {
-							"blazeandcave:technical/riddle_third_line": true
+					}
+				],
+				"player": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"minecraft:type_specific/player": {
+
+								"advancements": {
+									"blazeandcave:technical/riddle_third_line": true
+								}
+							}
 						}
 					}
-				}
+				]
 			}
 		},
-		"fourth_line_sparse_jungle": {
-			"trigger": "minecraft:enter_block",
+		"pot_in_a_pot2": {
+			"trigger": "minecraft:item_used_on_block",
 			"conditions": {
-				"block": "minecraft:tripwire",
-				"state": {
-					"disarmed": "true"
-				},
-				"player":  {
-					"location": {
-						"biomes": "sparse_jungle"
+				"location": [
+					{
+						"condition": "minecraft:location_check",
+						"predicate": {
+							"block": {
+								"blocks": [
+									"minecraft:decorated_pot"
+								],
+								"nbt": "{\"item\":{\"id\":\"minecraft:flower_pot\"}}"
+							}
+						}
 					},
-					"stepping_on": {
-						"block": {
-							"blocks": [
-								"cobblestone",
-								"mossy_cobblestone"
+					{
+						"condition": "minecraft:match_tool",
+						"predicate": {
+							"items": [
+								"minecraft:flower_pot",
+								"minecraft:decorated_pot"
 							]
 						}
-					},
-					"type_specific": {
-						"type": "player",
-						"advancements": {
-							"blazeandcave:technical/riddle_third_line": true
+					}
+				],
+				"player": [
+					{
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"minecraft:type_specific/player": {
+
+								"advancements": {
+									"blazeandcave:technical/riddle_third_line": true
+								}
+							}
 						}
 					}
-				}
-			}
-		},
-		"fourth_line_bamboo_jungle": {
-			"trigger": "minecraft:enter_block",
-			"conditions": {
-				"block": "minecraft:tripwire",
-				"state": {
-					"disarmed": "true"
-				},
-				"player":  {
-					"location": {
-						"biomes": "bamboo_jungle"
-					},
-					"stepping_on": {
-						"block": {
-							"blocks": [
-								"cobblestone",
-								"mossy_cobblestone"
-							]
-						}
-					},
-					"type_specific": {
-						"type": "player",
-						"advancements": {
-							"blazeandcave:technical/riddle_third_line": true
-						}
-					}
-				}
+				]
 			}
 		}
 	},
 	"requirements": [
 		[
-			"fourth_line",
-			"fourth_line_jungle",
-			"fourth_line_sparse_jungle",
-			"fourth_line_bamboo_jungle"
+			"pot_on_a_pot"
+		],
+		[
+			"pot_in_a_pot1",
+			"pot_in_a_pot2"
 		]
 	]
 }

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:nether/diamonds_are_not_forever",
 	"rewards": {
-		"function": "bc_rewards:nether/moar_upgraded_tools"
+		"function": "bacap_rewards:nether/moar_upgraded_tools"
 	},			
 	"criteria": {
 		"netherite_pickaxe": {

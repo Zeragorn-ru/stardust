@@ -13,7 +13,7 @@
 	},
 	"parent": "blazeandcave:enchanting/curses",
 	"rewards": {
-		"function": "bc_rewards:enchanting/handmade_blinding"
+		"function": "bacap_rewards:enchanting/handmade_blinding"
 	},
 	"criteria": {
 		"binding_pumpkin": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:adventure/sniper_duel",
 	"rewards": {
-		"function": "bc_rewards:weaponry/the_mighty_hunter"
+		"function": "bacap_rewards:weaponry/the_mighty_hunter"
 	},	
 	"criteria": {
 		"chicken": {
@@ -18,17 +18,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "chicken"
+					"entity_type": "chicken"
 				}
 			}
 		},	
@@ -37,17 +38,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "cow"
+					"entity_type": "cow"
 				}
 			}
 		},
@@ -56,17 +58,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "pig"
+					"entity_type": "pig"
 				}
 			}
 		},
@@ -75,17 +78,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "sheep"
+					"entity_type": "sheep"
 				}
 			}
 		},
@@ -94,17 +98,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "rabbit"
+					"entity_type": "rabbit"
 				}
 			}
 		},
@@ -113,17 +118,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "mooshroom"
+					"entity_type": "mooshroom"
 				}
 			}
 		},
@@ -132,17 +138,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "polar_bear"
+					"entity_type": "polar_bear"
 				}
 			}
 		},
@@ -151,17 +158,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "horse"
+					"entity_type": "horse"
 				}
 			}
 		},
@@ -170,17 +178,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "donkey"
+					"entity_type": "donkey"
 				}
 			}
 		},
@@ -189,17 +198,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "mule"
+					"entity_type": "mule"
 				}
 			}
 		},
@@ -208,17 +218,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "llama"
+					"entity_type": "llama"
 				}
 			}
 		},
@@ -227,17 +238,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "wolf"
+					"entity_type": "wolf"
 				}
 			}
 		},
@@ -246,17 +258,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "ocelot"
+					"entity_type": "ocelot"
 				}
 			}
 		},
@@ -265,17 +278,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "parrot"
+					"entity_type": "parrot"
 				}
 			}
 		},
@@ -284,17 +298,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "cat"
+					"entity_type": "cat"
 				}
 			}
 		},
@@ -303,17 +318,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "panda"
+					"entity_type": "panda"
 				}
 			}
 		},
@@ -322,17 +338,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "fox"
+					"entity_type": "fox"
 				}
 			}
 		},
@@ -341,17 +358,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "bee"
+					"entity_type": "bee"
 				}
 			}
 		},
@@ -360,17 +378,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "hoglin"
+					"entity_type": "hoglin"
 				}
 			}
 		},
@@ -379,17 +398,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "strider"
+					"entity_type": "strider"
 				}
 			}
 		},
@@ -398,17 +418,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "bat"
+					"entity_type": "bat"
 				}
 			}
 		},
@@ -417,17 +438,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "trader_llama"
+					"entity_type": "trader_llama"
 				}
 			}
 		},
@@ -436,17 +458,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "turtle"
+					"entity_type": "turtle"
 				}
 			}
 		},
@@ -455,17 +478,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "goat"
+					"entity_type": "goat"
 				}
 			}
 		},
@@ -474,17 +498,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "frog"
+					"entity_type": "frog"
 				}
 			}
 		},
@@ -493,17 +518,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "camel"
+					"entity_type": "camel"
 				}
 			}
 		},
@@ -512,17 +538,18 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "sniffer"
+					"entity_type": "sniffer"
 				}
 			}
 		},
@@ -531,17 +558,98 @@
 			"conditions": {
 				"killing_blow": {
 					"tags": [
-							{
-								"id": "minecraft:is_projectile",
-								"expected": true
-							}
-						],
-						"direct_entity": {
-							"type": "#blazeandcave:arrows"
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
 						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
 				},
 				"entity": {
-					"type": "armadillo"
+					"entity_type": "armadillo"
+				}
+			}
+		},
+		"skeleton_horse": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"killing_blow": {
+					"tags": [
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
+						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
+				},
+				"entity": {
+					"entity_type": "skeleton_horse"
+				}
+			}
+		},
+		"zoglin": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"killing_blow": {
+					"tags": [
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
+						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
+				},
+				"entity": {
+					"entity_type": "zoglin"
+				}
+			}
+		},
+		"zombie_horse": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"killing_blow": {
+					"tags": [
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
+						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
+				},
+				"entity": {
+					"entity_type": "zombie_horse"
+				}
+			}
+		},
+		"camel_husk": {
+			"trigger": "minecraft:player_killed_entity",
+			"conditions": {
+				"killing_blow": {
+					"tags": [
+						{
+							"id": "minecraft:is_projectile",
+							"expected": true
+						}
+					],
+					"direct_entity": {
+						"entity_type": "#blazeandcave:arrows",
+						"nbt": "{weapon:{id:\"minecraft:bow\"}}"
+					}
+				},
+				"entity": {
+					"entity_type": "camel_husk"
 				}
 			}
 		}

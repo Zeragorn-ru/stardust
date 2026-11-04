@@ -15,7 +15,7 @@
 	},
 	"parent": "blazeandcave:weaponry/explosive_fire",
 	"rewards": {
-		"function": "bc_rewards:weaponry/my_eyes"
+		"function": "bacap_rewards:weaponry/my_eyes"
 	},		
 	"criteria": {
 		"firework_rocket_kill": {
@@ -23,7 +23,7 @@
 			"conditions": {
 				"killing_blow": {
 					"direct_entity": {
-						"type": "minecraft:firework_rocket"
+						"entity_type": "minecraft:firework_rocket"
 					}
 				}
 			}

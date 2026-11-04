@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/root",
 	"rewards": {
-		"function": "bc_rewards:biomes/just_keep_swimming"
+		"function": "bacap_rewards:biomes/just_keep_swimming"
 	},
 	"criteria": {
 		"enter_water": {

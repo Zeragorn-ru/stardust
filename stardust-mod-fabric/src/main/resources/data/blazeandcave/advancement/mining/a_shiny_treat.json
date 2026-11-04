@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:mining/leaflet_drop",
 	"rewards": {
-		"function": "bc_rewards:mining/a_shiny_treat"
+		"function": "bacap_rewards:mining/a_shiny_treat"
 	},		
 	"criteria": {
 		"glow_berries": {

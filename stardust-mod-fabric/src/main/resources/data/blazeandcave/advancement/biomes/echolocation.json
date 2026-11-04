@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/dolphin_dasher",
 	"rewards": {
-		"function": "bc_rewards:biomes/echolocation"
+		"function": "bacap_rewards:biomes/echolocation"
 	},		
 	"criteria": {
 		"echolocation": {
@@ -23,7 +23,7 @@
 						"condition": "minecraft:entity_properties",
 						"entity": "this",
 						"predicate": {
-							"type": "minecraft:dolphin"
+							"entity_type": "minecraft:dolphin"
 						}
 					}
 				]

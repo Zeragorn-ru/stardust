@@ -10,7 +10,7 @@
 	},
 	"parent": "minecraft:end/respawn_dragon",
 	"rewards": {
-		"function": "bc_rewards:end/what_for"
+		"function": "bacap_rewards:end/what_for"
 	},	
 	"criteria": {
 		"end_crystal": {

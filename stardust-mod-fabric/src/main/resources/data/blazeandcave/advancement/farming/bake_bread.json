@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:husbandry/plant_seed",
 	"rewards": {
-		"function": "bc_rewards:farming/bake_bread"
+		"function": "bacap_rewards:farming/bake_bread"
 	},		
 	"criteria": {
 		"bread": {

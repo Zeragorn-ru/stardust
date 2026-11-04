@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:redstone/vibe_check",
 	"rewards": {
-		"function": "bc_rewards:redstone/the_block_of_eternal_screaming"
+		"function": "bacap_rewards:redstone/the_block_of_eternal_screaming"
 	},		
 	"criteria": {
 		"sculk_shrieker": {

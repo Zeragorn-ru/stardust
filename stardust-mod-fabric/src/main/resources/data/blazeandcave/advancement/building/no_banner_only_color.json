@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:building/prepare_to_meet_your_loom",
 	"rewards": {
-		"function": "bc_rewards:building/no_banner_only_color"
+		"function": "bacap_rewards:building/no_banner_only_color"
 	},		
 	"criteria": {
 		"white_banner": {

@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:mining/renewable_energy",
 	"rewards": {
-		"function": "bc_rewards:mining/youll_never_take_me_alive_copper"
+		"function": "bacap_rewards:mining/youll_never_take_me_alive_copper"
 	},		
 	"criteria": {
 		"copper_ingot": {

@@ -9,14 +9,14 @@
 	},
 	"parent": "blazeandcave:potion/the_invisible_player",
 	"rewards": {
-		"function": "bc_rewards:potion/stealth_takedown"
+		"function": "bacap_rewards:potion/stealth_takedown"
 	},		
 	"criteria": {
 		"creeper": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "creeper",
+					"entity_type": "creeper",
 					"distance": {
 						"absolute": {
 							"max": 5.0

@@ -9,36 +9,29 @@
 	},
 	"parent": "blazeandcave:weaponry/inspector_gadget",
 	"rewards": {
-		"function": "bc_rewards:weaponry/rock_paper_shears"
+		"function": "bacap_rewards:weaponry/rock_paper_shears"
 	},		
 	"criteria": {
 		"paper_beats_rock": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie",
+					"entity_type": "minecraft:zombie",
 					"equipment": {
 						"mainhand": {
 							"items": [
 								"minecraft:cobblestone"
 							]
 						}
-					},
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
 					}
 				},
 				"killing_blow": {
-					"type": {
-						"tags": [
-							{
-								"id": "minecraft:player_attack",
-								"expected": true
-							}
-						]
-					}
+					"tags": [
+						{
+							"id": "minecraft:is_player_attack",
+							"expected": true
+						}
+					]
 				},
 				"player": {
 					"equipment": {
@@ -55,29 +48,22 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie",
+					"entity_type": "minecraft:zombie",
 					"equipment": {
 						"mainhand": {
 							"items": [
 								"minecraft:shears"
 							]
 						}
-					},
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
 					}
 				},
 				"killing_blow": {
-					"type": {
-						"tags": [
-							{
-								"id": "minecraft:player_attack",
-								"expected": true
-							}
-						]
-					}
+					"tags": [
+						{
+							"id": "minecraft:is_player_attack",
+							"expected": true
+						}
+					]
 				},			
 				"player": {
 					"equipment": {
@@ -94,29 +80,22 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "zombie",
+					"entity_type": "minecraft:zombie",
 					"equipment": {
 						"mainhand": {
 							"items": [
 								"minecraft:paper"
 							]
 						}
-					},
-					"distance": {
-						"absolute": {
-							"max": 5
-						}
 					}
 				},
 				"killing_blow": {
-					"type": {
-						"tags": [
-							{
-								"id": "minecraft:player_attack",
-								"expected": true
-							}
-						]
-					}
+					"tags": [
+						{
+							"id": "minecraft:is_player_attack",
+							"expected": true
+						}
+					]
 				},			
 				"player": {
 					"equipment": {

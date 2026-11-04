@@ -9,7 +9,7 @@
 	},
 	"parent": "minecraft:story/smelt_iron",
 	"rewards": {
-		"function": "bc_rewards:mining/not_chicken_mcnuggets"
+		"function": "bacap_rewards:mining/not_chicken_mcnuggets"
 	},		
 	"criteria": {
 		"iron_nugget": {

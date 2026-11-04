@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:biomes/bamboom",
 	"rewards": {
-		"function": "bc_rewards:biomes/construction_worker"
+		"function": "bacap_rewards:biomes/construction_worker"
 	},		
 	"criteria": {
 		"scaffolding": {

@@ -9,7 +9,7 @@
 	},
 	"parent": "blazeandcave:building/its_original_form",
 	"rewards": {
-		"function": "bc_rewards:building/sharpening_station"
+		"function": "bacap_rewards:building/sharpening_station"
 	},		
 	"criteria": {
 		"grindstone": {

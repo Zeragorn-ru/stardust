@@ -11,16 +11,16 @@
 	},
 	"parent": "blazeandcave:monsters/baby_baby_baby_noo",
 	"rewards": {
-		"function": "bc_rewards:monsters/poultry_boy"
+		"function": "bacap_rewards:monsters/poultry_boy"
 	},		
 	"criteria": {
 		"chicken": {
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"type": "chicken",
+					"entity_type": "chicken",
 					"passenger": {
-						"tag": "blazeandcave:overworld_zombies",
+						"entity_type": "#blazeandcave:overworld_zombies",
 						"flags": {
 							"is_baby": true
 						}
@@ -32,12 +32,12 @@
 			"trigger": "minecraft:player_killed_entity",
 			"conditions": {
 				"entity": {
-					"tag": "blazeandcave:overworld_zombies",
+					"entity_type": "#blazeandcave:overworld_zombies",
 					"flags": {
 						"is_baby": true
 					},
 					"vehicle": {
-						"type": "chicken"
+						"entity_type": "chicken"
 					}
 				}
 			}

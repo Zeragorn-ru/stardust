@@ -10,7 +10,7 @@
 	},
 	"parent": "blazeandcave:monsters/tele_morph",
 	"rewards": {
-		"function": "bc_rewards:monsters/enderman_destroyer"
+		"function": "bacap_rewards:monsters/enderman_destroyer"
 	},		
 	"criteria": {
 		"ender_pearl": {

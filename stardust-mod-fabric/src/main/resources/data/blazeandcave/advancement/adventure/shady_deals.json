@@ -15,14 +15,14 @@
 	},
 	"parent": "blazeandcave:adventure/travelling_merchant",
 	"rewards": {
-		"function": "bc_rewards:adventure/shady_deals"
+		"function": "bacap_rewards:adventure/shady_deals"
 	},		
 	"criteria": {
 		"trade": {
 			"trigger": "minecraft:villager_trade",
 			"conditions": {
 				"villager": {
-					"type": "wandering_trader",
+					"entity_type": "wandering_trader",
 					"effects": {
 						"minecraft:invisibility": {}
 					}

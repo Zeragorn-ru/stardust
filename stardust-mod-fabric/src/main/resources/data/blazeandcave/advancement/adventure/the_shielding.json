@@ -37,7 +37,7 @@
 	},
 	"parent": "blazeandcave:adventure/heres_johnny",
 	"rewards": {
-		"function": "bc_rewards:adventure/the_shielding"
+		"function": "bacap_rewards:adventure/the_shielding"
 	},
 	"criteria": {
 		"deflected_vindicator": {
@@ -46,7 +46,7 @@
 				"damage": {
 					"blocked": true,
 					"source_entity": {
-						"type": "vindicator"
+						"entity_type": "vindicator"
 					}
 				}
 			}

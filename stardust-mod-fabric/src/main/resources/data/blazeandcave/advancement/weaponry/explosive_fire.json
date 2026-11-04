@@ -17,23 +17,18 @@
 	},
 	"parent": "blazeandcave:weaponry/fireworks_display",
 	"rewards": {
-		"function": "bc_rewards:weaponry/explosive_fire"
+		"function": "bacap_rewards:weaponry/explosive_fire"
 	},		
 	"criteria": {
 		"crossbow": {
 			"trigger": "minecraft:inventory_changed",
 			"conditions": {
-				"items": [
+				"player": [
 					{
-						"items": [
-							"minecraft:crossbow"
-						],
-						"components": {
-							"minecraft:charged_projectiles": [
-								{
-									"id": "minecraft:firework_rocket"
-								}
-							]
+						"condition": "minecraft:entity_properties",
+						"entity": "this",
+						"predicate": {
+							"nbt": "{Inventory:[{id:\"minecraft:crossbow\",components:{\"minecraft:charged_projectiles\":[{id:\"minecraft:firework_rocket\"}]}}]}"
 						}
 					}
 				]
