@@ -314,19 +314,8 @@
     width: 36px;
     height: 36px;
     flex: none;
-    display: grid;
-    place-items: center;
-    border-radius: var(--radius);
-    border: 1px solid var(--hairline-strong);
-    background: linear-gradient(135deg, rgba(115, 215, 255, 0.16), rgba(157, 124, 255, 0.18));
-}
-
-.m-brand-mark span {
-    width: 11px;
-    height: 11px;
-    border-radius: 50%;
-    background: var(--on-color);
-    box-shadow: 0 0 16px var(--accent), 0 0 26px var(--accent-2);
+    display: block;
+    object-fit: contain;
 }
 
 .m-shell-actions {

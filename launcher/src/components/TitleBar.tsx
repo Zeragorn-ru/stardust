@@ -9,7 +9,7 @@ const TitleBar = memo(function TitleBar() {
       onMouseDown={startWindowDrag}
     >
       <div className="titlebar__brand" data-tauri-drag-region>
-        <span className="titlebar__mark" data-tauri-drag-region />
+        <img className="titlebar__mark" src="/stardust-logo.svg?v=star-transparent" alt="" draggable={false} data-tauri-drag-region />
         <span data-tauri-drag-region>StarDust Launcher</span>
       </div>
       <div className="titlebar__actions">

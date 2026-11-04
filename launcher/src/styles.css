@@ -255,24 +255,10 @@ button,
 }
 
 .titlebar__mark {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: var(--accent-grad);
-    box-shadow: 0 0 18px rgba(124, 92, 255, 0.9);
-    animation: markPulse 2.8s ease-in-out infinite;
-}
-
-@keyframes markPulse {
-    0%,
-    100% {
-        box-shadow: 0 0 12px rgba(124, 92, 255, 0.7);
-        transform: scale(1);
-    }
-    50% {
-        box-shadow: 0 0 22px rgba(124, 92, 255, 1);
-        transform: scale(1.15);
-    }
+    width: 18px;
+    height: 18px;
+    flex: none;
+    object-fit: contain;
 }
 
 .titlebar__actions {

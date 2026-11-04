@@ -101,9 +101,7 @@ function Shell() {
     <div className={`app${sidebarOpen ? "" : " sidebar-collapsed"}`}>
       <aside className="sidebar">
         <div className="brand brand-redesigned">
-          <span className="brand-mark">
-            <span />
-          </span>
+          <img className="brand-mark" src="/stardust-logo.svg?v=star-transparent" alt="" />
           <div className="brand-copy">
             <strong>StarDust</strong>
             <small>Панель управления</small>

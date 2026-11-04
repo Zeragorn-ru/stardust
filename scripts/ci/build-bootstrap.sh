@@ -7,12 +7,10 @@ cd "$root"
 
 mkdir -p launcher/src-tauri/nsis
 
-if [ -f crates/bootstrap/target/release/bootstrap.exe ]; then
-  echo "Bootstrap cache hit, skipping build"
-else
-  echo "Building bootstrap from source"
-  cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
-  cargo build --manifest-path crates/bootstrap/Cargo.toml --release
-fi
+# Кеш содержит промежуточные файлы, а не источник правды: cargo сам проверит
+# исходники и include_bytes! с иконкой, даже после восстановления старого кеша.
+echo "Building bootstrap from source (incremental cache)"
+cargo clippy --manifest-path crates/bootstrap/Cargo.toml --release -- -D warnings
+cargo build --manifest-path crates/bootstrap/Cargo.toml --release
 
 cp -v crates/bootstrap/target/release/bootstrap.exe launcher/src-tauri/nsis/bootstrap.exe

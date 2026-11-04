@@ -283,11 +283,8 @@ mod win {
 
         SetBkMode(mem_dc, TRANSPARENT as i32);
 
-        let dot_brush = CreateSolidBrush(TEXT_COL);
-        let dot_rgn = CreateEllipticRgn(20, 14, 30, 24);
-        FillRgn(mem_dc, dot_rgn, dot_brush);
-        DeleteObject(dot_rgn as _);
-        DeleteObject(dot_brush as _);
+        let brand_icon = GetClassLongPtrW(hwnd, GCLP_HICON) as HICON;
+        DrawIconEx(mem_dc, 16, 10, brand_icon, 18, 18, 0, ptr::null_mut(), DI_NORMAL);
 
         let segui = wide("Segoe UI");
 
@@ -306,26 +303,12 @@ mod win {
 
         let state = STATE.as_ref().unwrap();
 
-        let status_text;
-        let status_color;
-        match state.phase {
-            Phase::Installing => {
-                status_text = wide("Установка обновления...");
-                status_color = TEXT_COL;
-            }
-            Phase::Launching => {
-                status_text = wide("Запуск лаунчера...");
-                status_color = TEXT_COL;
-            }
-            Phase::Done => {
-                status_text = wide("Готово!");
-                status_color = TEXT_COL;
-            }
-            Phase::Error => {
-                status_text = wide("Ошибка обновления");
-                status_color = 0x004444FF; // красный
-            }
-        }
+        let (status_text, status_color) = match state.phase {
+            Phase::Installing => (wide("Установка обновления..."), TEXT_COL),
+            Phase::Launching => (wide("Запуск лаунчера..."), TEXT_COL),
+            Phase::Done => (wide("Готово!"), TEXT_COL),
+            Phase::Error => (wide("Ошибка обновления"), 0x004444FF), // красный
+        };
 
         let hfont_main = CreateFontW(
             20, 0, 0, 0, 400, 0, 0, 0,
@@ -723,8 +706,16 @@ mod win {
             let class = wide("StarDustBootstrap");
             let h_inst = GetModuleHandleW(class.as_ptr());
 
+            // Тот же прозрачный логотип, что у лаунчера; Windows умеет читать PNG как ресурс иконки.
+            let icon_png = include_bytes!("../../../launcher/src-tauri/icons/32x32.png");
+            let brand_icon = CreateIconFromResourceEx(
+                icon_png.as_ptr(), icon_png.len() as u32, 1, 0x00030000, 32, 32, LR_DEFAULTCOLOR,
+            );
+
             let mut wc = mem::zeroed::<WNDCLASSEXW>();
             wc.cbSize = mem::size_of::<WNDCLASSEXW>() as u32;
+            wc.hIcon = brand_icon;
+            wc.hIconSm = brand_icon;
             wc.style = CS_HREDRAW | CS_VREDRAW;
             wc.lpfnWndProc = Some(wnd_proc);
             wc.hInstance = h_inst;
@@ -756,6 +747,9 @@ mod win {
 
             if hwnd.is_null() {
                 log("CreateWindowExW returned NULL");
+                if UnregisterClassW(class.as_ptr(), h_inst) != 0 && !brand_icon.is_null() {
+                    DestroyIcon(brand_icon);
+                }
                 return;
             }
 
@@ -771,6 +765,9 @@ mod win {
                 DispatchMessageW(&msg);
             }
             log("Message loop exited");
+            if UnregisterClassW(class.as_ptr(), h_inst) != 0 && !brand_icon.is_null() {
+                DestroyIcon(brand_icon);
+            }
         }
     }
 }

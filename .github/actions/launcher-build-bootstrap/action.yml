@@ -18,7 +18,7 @@ runs:
       uses: actions/cache@v4
       with:
         path: crates/bootstrap/target
-        key: bootstrap-${{ inputs.platform }}-${{ hashFiles('crates/bootstrap/**') }}
+        key: bootstrap-${{ inputs.platform }}-${{ hashFiles('crates/bootstrap/**', 'launcher/src-tauri/icons/32x32.png') }}
         restore-keys: bootstrap-${{ inputs.platform }}-
 
     - name: Build bootstrap.exe

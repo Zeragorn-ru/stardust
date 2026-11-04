@@ -43,7 +43,7 @@ export function MobileLogin({
     <div className="m-login">
       <form className="m-login-card" onSubmit={submit}>
         <div className="login-brand">
-          <span className="m-brand-mark"><span /></span>
+          <img className="m-brand-mark" src="/stardust-logo.svg?v=star-transparent" alt="" />
           <span>StarDust</span>
         </div>
         <p className="muted">Вход в админку</p>
