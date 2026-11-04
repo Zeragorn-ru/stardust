@@ -1191,6 +1191,27 @@ td.num {
     color: var(--on-color);
 }
 
+/* Массовый патч по папке — стрелка внутри сегмента. */
+.bulk-dir-arrow {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--ease), background var(--ease);
+}
+
+.bulk-dir-arrow:hover:not(:disabled) {
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
 /* --- Dropzone & upload queue --- */
 .dropzone {
     border: 2px dashed var(--border);

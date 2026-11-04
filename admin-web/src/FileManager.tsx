@@ -539,6 +539,45 @@ export function FileManager({
     onChanged();
   }
 
+  /** Применить однополевой патч ко всем видимым файлам текущей папки (рекурсивно). */
+  async function bulkPatchDir(field: keyof BuildFile, value: unknown, labelField: string) {
+    const norm = normalizeDir(dir);
+    const prefix = norm ? norm + "/" : "";
+    const targets = files.filter((f) => f.path.startsWith(prefix));
+    if (targets.length === 0) return;
+    const patch = {} as Record<string, unknown>;
+    patch[field] = value;
+    const label = `${labelField} (всё содержимое «${norm || ".minecraft"}»):`;
+    setBulkBusy(true);
+    setBulkProgress({ done: 0, total: targets.length });
+    setBulkFailures(null);
+    const failedFiles: BuildFile[] = [];
+    let done = 0;
+    for (const f of targets) {
+      try {
+        await api.updateFile(f.id, patch as Partial<BuildFile>);
+      } catch (err) {
+        failedFiles.push(f);
+      }
+      done++;
+      setBulkProgress({ done, total: targets.length });
+    }
+    setBulkBusy(false);
+    setBulkProgress(null);
+    if (failedFiles.length) {
+      const ids = new Set(failedFiles.map((x) => x.id));
+      setSelected((cur) => new Set([...cur, ...ids]));
+      toast.error(`${label} применено к ${targets.length - failedFiles.length}, не удалось: ${failedFiles.length}`);
+    } else {
+      toast.success(`${label} применено к ${targets.length} файл(ов)`);
+    }
+  }
+
+  /** Обёртка bulkPatchDir для передачи в BulkBar через единый коллбэк. */
+  function onBulkPatchDir(field: keyof BuildFile, value: unknown, label: string) {
+    void bulkPatchDir(field, value, label);
+  }
+
   async function bulkDelete() {
     const sel = files.filter((f) => selected.has(f.id));
     if (sel.length === 0) return;
@@ -1003,6 +1042,8 @@ export function FileManager({
             clearSelection();
           }}
           onRetryFailed={() => void retryBulkFailed()}
+          onBulkPatchDir={onBulkPatchDir}
+          dir={dir}
         />
       )}
 
@@ -1249,6 +1290,8 @@ function BulkBar({
   onDelete,
   onClear,
   onRetryFailed,
+  onBulkPatchDir,
+  dir,
 }: {
   count: number;
   busy: boolean;
@@ -1280,6 +1323,10 @@ function BulkBar({
   onClear: () => void;
   /** Повторить операцию для неудавшихся строк последнего прогона. */
   onRetryFailed: () => void;
+  /** Массовый патч всех файлов текущей папки по одному полю. */
+  onBulkPatchDir: (field: keyof BuildFile, value: unknown, label: string) => void;
+  /** Текущая папка для подсказок кнопок dir-патча. */
+  dir: string;
 }) {
   return (
     <div className="fm-bulk">
@@ -1312,6 +1359,15 @@ function BulkBar({
                 {sideLabel(s)}
               </button>
             ))}
+            <button
+              className="bulk-dir-arrow"
+              type="button"
+              title={`Применить выбранную сторону ко всем файлам в «${dir || ".minecraft"}»`}
+              disabled={busy}
+              onClick={() => onBulkPatchDir("side", common.side ?? SIDES[0], `Сторона → ${common.side ? sideLabel(common.side) : "—"}`)}
+            >
+              <IconCornerUp size={14} />
+            </button>
           </div>
         </div>
 
@@ -1330,6 +1386,15 @@ function BulkBar({
                 {k}
               </button>
             ))}
+            <button
+              className="bulk-dir-arrow"
+              type="button"
+              title={`Применить выбранный тип ко всем файлам в «${dir || ".minecraft"}»`}
+              disabled={busy}
+              onClick={() => onBulkPatchDir("kind", common.kind ?? KINDS[0], `Тип → ${common.kind ?? "—"}`)}
+            >
+              <IconCornerUp size={14} />
+            </button>
           </div>
         </div>
 
@@ -1353,6 +1418,15 @@ function BulkBar({
               onClick={() => onOptional(false)}
             >
               нет
+            </button>
+            <button
+              className="bulk-dir-arrow"
+              type="button"
+              title={`Применить выбранную опциональность ко всем файлам в «${dir || ".minecraft"}»`}
+              disabled={busy}
+              onClick={() => onBulkPatchDir("optional", common.optional, common.optional ? "Опциональные" : "Не опциональные")}
+            >
+              <IconCornerUp size={14} />
             </button>
           </div>
         </div>
@@ -1378,6 +1452,15 @@ function BulkBar({
             >
               выкл
             </button>
+            <button
+              className="bulk-dir-arrow"
+              type="button"
+              title={`Применить выбор по умолчанию ко всем файлам в «${dir || ".minecraft"}»`}
+              disabled={busy}
+              onClick={() => onBulkPatchDir("enabledByDefault", common.enabledByDefault, common.enabledByDefault ? "Вкл. по умолчанию" : "Выкл. по умолчанию")}
+            >
+              <IconCornerUp size={14} />
+            </button>
           </div>
         </div>
 
@@ -1401,6 +1484,15 @@ function BulkBar({
               onClick={() => onOverwrite(false)}
             >
               нет
+            </button>
+            <button
+              className="bulk-dir-arrow"
+              type="button"
+              title={`Применить выбор перезаписи ко всем файлам в «${dir || ".minecraft"}»`}
+              disabled={busy}
+              onClick={() => onBulkPatchDir("overwrite", common.overwrite, common.overwrite ? "Перезаписывать" : "Не перезаписывать")}
+            >
+              <IconCornerUp size={14} />
             </button>
           </div>
         </div>
@@ -1449,6 +1541,15 @@ function BulkBar({
               onClick={() => onDisabled(false)}
             >
               нет
+            </button>
+            <button
+              className="bulk-dir-arrow"
+              type="button"
+              title={`Применить выбранный статус отключения ко всем файлам в «${dir || ".minecraft"}»`}
+              disabled={busy}
+              onClick={() => onBulkPatchDir("disabled", common.disabled, common.disabled ? "Отключены" : "Включены")}
+            >
+              <IconCornerUp size={14} />
             </button>
           </div>
         </div>
