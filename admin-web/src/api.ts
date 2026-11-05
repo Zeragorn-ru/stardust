@@ -544,6 +544,15 @@ export const api = {
     return request("GET", `/api/accounts/${uuid}/stats`);
   },
 
+  updatePlaytime(
+    uuid: string,
+    seconds: number | null,
+  ): Promise<void> {
+    // Для очистки отправляем null → PATCH-тело без поля playtimeSeconds
+    const body = seconds != null ? { playtime_seconds: seconds } : {};
+    return request("PATCH", `/api/accounts/${uuid}`, body);
+  },
+
   // PNG запрашивается только из карточки игрока. Object URL кэшируется, чтобы
   // голова в заголовке и 3D-превью не скачивали один и тот же скин дважды.
   async getAccountSkin(uuid: string): Promise<AccountSkin | null> {

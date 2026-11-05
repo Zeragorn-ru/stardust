@@ -511,6 +511,8 @@ function ActionsTab({
   const [banMode, setBanMode] = useState<"forever" | "temporary">("forever");
   const [banDuration, setBanDuration] = useState("1");
   const [banDurationUnit, setBanDurationUnit] = useState<"hours" | "days" | "weeks">("days");
+  // Черновики наигранного времени: пустая строка = «убрать» → сервер примет 0 сек.
+  const [playtimeDraft, setPlaytimeDraft] = useState("");
 
   // Черновики полей — сигнал карточке для dirty-guard (план 4.4).
   const dirty =
@@ -530,6 +532,29 @@ function ActionsTab({
       toast.success("Ник изменен");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSetPlaytime(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const val = playtimeDraft.trim();
+      if (val === "") {
+        // Пустое поле → обнуляем время до нуля
+        await api.updatePlaytime(account.uuid, 0);
+        toast.success("Наигранное время обнулено");
+      } else {
+        const seconds = Number.parseInt(val, 10);
+        if (!Number.isFinite(seconds) || seconds < 0) return;
+        await api.updatePlaytime(account.uuid, seconds);
+        toast.success(`Наигранное время установлено: ${seconds} сек`);
+      }
+      setPlaytimeDraft("");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Не удалось применить наигранное время");
     } finally {
       setBusy(false);
     }
@@ -694,6 +719,28 @@ function ActionsTab({
           </button>
         ) : null}
       </div>
+
+      {/* Редактор наигранного времени */}
+      <form onSubmit={handleSetPlaytime} className="pc-action-form">
+        <div className="pc-section-title">Наигранное время</div>
+        <p className="muted pc-action-note" style={{ margin: '0 0 8px 0' }}>
+          Установите абсолютное время в секундах. Отправьте пустое — уберерет. После синхронизации из SFTP время будет перезаписано.
+        </p>
+        <div className="pc-playtime-inputs">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={playtimeDraft}
+            onChange={(e) => setPlaytimeDraft(e.target.value)}
+            placeholder="секунды"
+            disabled={busy}
+          />
+          <button type="submit" disabled={busy || playtimeDraft === ""} className="primary">
+            Применить
+          </button>
+        </div>
+      </form>
 
       {!account.banned && (
         <form onSubmit={handleBan} className="pc-ban-form">

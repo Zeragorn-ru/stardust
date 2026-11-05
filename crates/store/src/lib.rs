@@ -1479,6 +1479,24 @@ impl Store {
         Ok(())
     }
 
+    /// Вручную (админом) задаёт время игры ровно как указано: в отличие от
+    /// `set_playtime_absolute` без GREATEST, поэтому можно и уменьшить,
+    /// и обнулить. Возвращает false, если аккаунт с таким uuid не найден.
+    pub async fn set_playtime_manual(
+        &self,
+        uuid: &str,
+        seconds: i64,
+    ) -> Result<bool, StoreError> {
+        let result = sqlx::query(
+            "UPDATE accounts SET playtime_seconds = $2 WHERE uuid = $1",
+        )
+        .bind(normalize_uuid(uuid))
+        .bind(seconds)
+        .execute(&self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     /// Устанавливает абсолютные значения статистики Minecraft.
     pub async fn set_player_stats_absolute(
         &self,

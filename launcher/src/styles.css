@@ -872,6 +872,7 @@ button,
     border-color: transparent;
     position: relative;
     overflow: hidden;
+    color: var(--text-on-gold);
 }
 .btn--primary:hover:not(:disabled) {
     box-shadow: var(--glow);
@@ -1505,7 +1506,7 @@ button,
     height: 42px;
     border-radius: 11px;
     background: var(--accent-grad);
-    color: #fff;
+    color: var(--text-on-gold);
     display: grid;
     place-items: center;
     font-weight: 800;
@@ -3082,6 +3083,11 @@ button,
 
 .switch--on .switch__knob {
     transform: translateX(20px);
+    /* На золотом track белый knob почти невидим — затемняем. */
+    background: #2b2f3a;
+    box-shadow:
+        0 1px 3px rgba(0, 0, 0, 0.35),
+        0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 /* ============ Спиннер ============ */
@@ -3154,7 +3160,7 @@ button,
 
 .tabs__tab.is-active {
     background: var(--accent-grad);
-    color: #fff;
+    color: var(--text-on-gold);
     box-shadow: 0 6px 18px -8px rgba(255, 231, 163,0.7);
 }
 
@@ -3651,7 +3657,7 @@ button,
 
 .segmented__opt.is-active {
     background: var(--accent-grad);
-    color: #fff;
+    color: var(--text-on-gold);
 }
 
 /* ============ Вкладки скина (Файл / Лицензия) ============ */
@@ -3690,7 +3696,7 @@ button,
 }
 
 .skin-tab.is-active {
-    color: #fff;
+    color: var(--text-on-gold);
 }
 
 /* Чернильная подложка, плавно ездит под активной вкладкой */
@@ -4317,10 +4323,8 @@ button.info-card__path--link:hover:not(:disabled) {
     font-size: 12px;
     font-weight: 600;
     background: var(--accent-grad);
-    color: #fff;
+    color: var(--text-on-gold);
 }
-
-/* Привязка активна — зелёный акцент. */
 .badge--ok {
     background: rgba(46, 160, 67, 0.9);
 }

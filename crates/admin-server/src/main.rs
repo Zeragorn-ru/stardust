@@ -4623,12 +4623,15 @@ async fn list_accounts(
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct UpdateAccountRequest {
     /// Новый ник (опционально).
     username: Option<String>,
+    /// Новое наигранное время в секундах (опционально).
+    playtime_seconds: Option<i64>,
 }
 
-/// Редактирование аккаунта админом (пока — переименование).
+/// Редактирование аккаунта админом: переименование и правка наигранного времени.
 async fn update_account(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -4647,6 +4650,22 @@ async fn update_account(
             .rename(&uuid, username)
             .await
             .map_err(map_store)?;
+    }
+    if let Some(seconds) = req.playtime_seconds {
+        if seconds < 0 {
+            return Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "Наигранное время не может быть отрицательным",
+            ));
+        }
+        let updated = state
+            .store
+            .set_playtime_manual(&uuid, seconds)
+            .await
+            .map_err(map_store)?;
+        if !updated {
+            return Err(ApiError::new(StatusCode::NOT_FOUND, "Аккаунт не найден"));
+        }
     }
     let account = state
         .store
