@@ -664,9 +664,21 @@ impl Store {
         .fetch_one(&mut *tx)
         .await?;
 
+        // Снимок сезона уже сохранён в season_accounts (см. INSERT выше —
+        // live = lifetime - baseline_old, т.е. сезонная величина). Теперь
+        // переносим baseline на текущий lifetime и обнуляем live: следующий
+        // SFTP-тик вернёт lifetime и посчитает live = lifetime - baseline,
+        // т.е. рост только с начала нового сезона, а не весь lifetime.
         sqlx::query(
             "UPDATE accounts
-             SET playtime_seconds = 0, deaths = 0, blocks_mined = 0, distance_cm = 0",
+             SET baseline_playtime_seconds = lifetime_playtime_seconds,
+                 baseline_deaths = lifetime_deaths,
+                 baseline_blocks_mined = lifetime_blocks_mined,
+                 baseline_distance_cm = lifetime_distance_cm,
+                 playtime_seconds = 0,
+                 deaths = 0,
+                 blocks_mined = 0,
+                 distance_cm = 0",
         )
         .execute(&mut *tx)
         .await?;
@@ -1466,10 +1478,16 @@ impl Store {
     }
 
     /// Устанавливает абсолютное время игры (в секундах) из статистики Minecraft.
+    /// Minecraft отдаёт lifetime-счётчик (за всё время), а live-колонка
+    /// `playtime_seconds` должна показывать текущий сезон: live = lifetime -
+    /// baseline. lifetime при этом не убывает (GREATEST). Все выражения SET
+    /// в PostgreSQL вычисляются от старых значений строки, поэтому формула
+    /// нового lifetime повторена в обоих присваиваниях.
     pub async fn set_playtime_absolute(&self, uuid: &str, seconds: i64) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
-             SET playtime_seconds = GREATEST(playtime_seconds, $2)
+             SET lifetime_playtime_seconds = GREATEST(lifetime_playtime_seconds, $2),
+                 playtime_seconds = GREATEST(GREATEST(lifetime_playtime_seconds, $2) - baseline_playtime_seconds, 0)
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
@@ -1479,16 +1497,21 @@ impl Store {
         Ok(())
     }
 
-    /// Вручную (админом) задаёт время игры ровно как указано: в отличие от
-    /// `set_playtime_absolute` без GREATEST, поэтому можно и уменьшить,
-    /// и обнулить. Возвращает false, если аккаунт с таким uuid не найден.
+    /// Вручную (админом) задаёт live-время игры ровно как указано: можно и
+    /// уменьшить, и обнулить. lifetime подтягивается до baseline + X, чтобы
+    /// инвариант live = lifetime - baseline не сломался на следующем тике
+    /// синхронизации (ручное значение работает как нижняя граница).
+    /// Возвращает false, если аккаунт с таким uuid не найден.
     pub async fn set_playtime_manual(
         &self,
         uuid: &str,
         seconds: i64,
     ) -> Result<bool, StoreError> {
         let result = sqlx::query(
-            "UPDATE accounts SET playtime_seconds = $2 WHERE uuid = $1",
+            "UPDATE accounts
+             SET playtime_seconds = $2,
+                 lifetime_playtime_seconds = baseline_playtime_seconds + $2
+             WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
         .bind(seconds)
@@ -1498,6 +1521,11 @@ impl Store {
     }
 
     /// Устанавливает абсолютные значения статистики Minecraft.
+    /// Minecraft отдаёт lifetime-счётчики (за всё время), а live-колонки
+    /// должны показывать текущий сезон: live = lifetime - baseline.
+    /// Все выражения SET в PostgreSQL вычисляются от старых значений
+    /// строки, поэтому формула нового lifetime повторена в обоих
+    /// присваиваниях каждой метрики.
     pub async fn set_player_stats_absolute(
         &self,
         uuid: &str,
@@ -1507,9 +1535,12 @@ impl Store {
     ) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
-             SET deaths = GREATEST(deaths, $2),
-                 blocks_mined = GREATEST(blocks_mined, $3),
-                 distance_cm = GREATEST(distance_cm, $4)
+             SET lifetime_deaths = GREATEST(lifetime_deaths, $2),
+                 deaths = GREATEST(GREATEST(lifetime_deaths, $2) - baseline_deaths, 0),
+                 lifetime_blocks_mined = GREATEST(lifetime_blocks_mined, $3),
+                 blocks_mined = GREATEST(GREATEST(lifetime_blocks_mined, $3) - baseline_blocks_mined, 0),
+                 lifetime_distance_cm = GREATEST(lifetime_distance_cm, $4),
+                 distance_cm = GREATEST(GREATEST(lifetime_distance_cm, $4) - baseline_distance_cm, 0)
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
