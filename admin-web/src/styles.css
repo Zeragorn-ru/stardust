@@ -1549,7 +1549,7 @@ td.num {
 }
 
 .fm-row:hover {
-    border-color: rgba(115, 215, 255, 0.18);
+    border-color: rgba(255, 231, 163, 0.18);
     background: var(--accent-hover);
 }
 
@@ -1623,7 +1623,7 @@ td.num {
     width: 34px;
     height: 34px;
     padding: var(--space-2);
-    border: 1px solid rgba(115, 215, 255, 0.14);
+    border: 1px solid rgba(255, 231, 163, 0.14);
     border-radius: var(--radius-sm);
     background: var(--accent-tint);
 }
@@ -1748,7 +1748,7 @@ td.num {
 .fm-actions a.icon-only:hover,
 .fm-props-btn.active {
     color: var(--accent);
-    border-color: rgba(115, 215, 255, 0.24);
+    border-color: rgba(255, 231, 163, 0.24);
     background: var(--accent-tint);
 }
 
@@ -1850,7 +1850,7 @@ td.num {
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    border: 1px solid rgba(115, 215, 255, 0.18);
+    border: 1px solid rgba(255, 231, 163, 0.18);
     border-radius: var(--radius);
     color: var(--accent);
     background: var(--accent-soft);
@@ -2487,15 +2487,15 @@ td.num {
 
 .fm-check input:hover,
 .fm-selectall input:hover {
-    border-color: rgba(115, 215, 255, 0.42);
+    border-color: rgba(255, 231, 163, 0.42);
     background: var(--accent-tint);
 }
 
 .fm-check input:checked,
 .fm-selectall input:checked {
-    border-color: rgba(115, 215, 255, 0.8);
+    border-color: rgba(255, 231, 163, 0.8);
     background: var(--grad-brand);
-    box-shadow: 0 0 0 3px rgba(115, 215, 255, 0.12);
+    box-shadow: 0 0 0 3px rgba(255, 231, 163, 0.12);
 }
 
 .fm-check input:checked::before,
@@ -2528,7 +2528,7 @@ td.num {
 }
 
 .fm-selectall:hover {
-    border-color: rgba(115, 215, 255, 0.18);
+    border-color: rgba(255, 231, 163, 0.18);
     background: var(--accent-hover);
 }
 
@@ -3108,7 +3108,7 @@ td.num {
     min-height: 320px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    background: radial-gradient(circle at 50% 25%, rgba(115, 215, 255, 0.11), transparent 58%), var(--panel-2);
+    background: radial-gradient(circle at 50% 25%, rgba(255, 231, 163, 0.11), transparent 58%), var(--panel-2);
     overflow: hidden;
 }
 
@@ -3438,8 +3438,8 @@ td.num {
    Токены redesign-блока переехали в styles/tokens.css (единственный :root). */
 body {
     background:
-        radial-gradient(circle at 12% 8%, rgba(115, 215, 255, 0.09), transparent 26rem),
-        radial-gradient(circle at 92% 6%, rgba(157, 124, 255, 0.08), transparent 28rem),
+        radial-gradient(circle at 12% 8%, rgba(255, 231, 163, 0.09), transparent 26rem),
+        radial-gradient(circle at 92% 6%, rgba(180, 160, 232, 0.08), transparent 28rem),
         linear-gradient(180deg, var(--bg-elev) 0%, var(--bg) 45%, var(--bg-deep) 100%);
     letter-spacing: -0.01em;
 }
@@ -3477,7 +3477,7 @@ button,
 
 .sd-button:hover:not(:disabled) {
     transform: translateY(-1px);
-    box-shadow: 0 8px 22px rgba(115, 215, 255, 0.1), 0 2px 6px rgba(0, 0, 0, 0.22);
+    box-shadow: 0 8px 22px rgba(255, 231, 163, 0.1), 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 
 .sd-button:focus-visible {
@@ -3586,7 +3586,7 @@ button,
 
 .sd-badge[data-variant="secondary"] {
     background: var(--accent-soft);
-    border-color: rgba(115, 215, 255, 0.2);
+    border-color: rgba(255, 231, 163, 0.2);
     color: var(--accent);
 }
 
@@ -3776,8 +3776,8 @@ input[type="radio"] {
 }
 
 .nav-item.active {
-    background: linear-gradient(135deg, rgba(115, 215, 255, 0.14), rgba(157, 124, 255, 0.12));
-    box-shadow: inset 0 0 0 1px rgba(115, 215, 255, 0.12);
+    background: linear-gradient(135deg, rgba(255, 231, 163, 0.14), rgba(180, 160, 232, 0.12));
+    box-shadow: inset 0 0 0 1px rgba(255, 231, 163, 0.12);
 }
 
 .sidebar-toggle {
@@ -3962,8 +3962,8 @@ input[type="radio"] {
     border: 1px solid var(--hairline);
     border-radius: var(--radius-lg);
     background:
-        radial-gradient(circle at 76% 20%, rgba(115, 215, 255, 0.16), transparent 22rem),
-        radial-gradient(circle at 34% 110%, rgba(157, 124, 255, 0.12), transparent 24rem),
+        radial-gradient(circle at 76% 20%, rgba(255, 231, 163, 0.16), transparent 22rem),
+        radial-gradient(circle at 34% 110%, rgba(180, 160, 232, 0.12), transparent 24rem),
         linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018));
     box-shadow: var(--shadow-lg);
 }
@@ -4040,7 +4040,7 @@ input[type="radio"] {
     letter-spacing: -0.06em;
 }
 
-.metric-card--blue { box-shadow: inset 0 0 0 1px rgba(115, 215, 255, 0.05), inset 0 -60px 80px rgba(115, 215, 255, 0.055); }
+.metric-card--blue { box-shadow: inset 0 0 0 1px rgba(255, 231, 163, 0.05), inset 0 -60px 80px rgba(255, 231, 163, 0.055); }
 .metric-card--green { box-shadow: inset 0 0 0 1px rgba(95, 240, 167, 0.05), inset 0 -60px 80px rgba(95, 240, 167, 0.05); }
 .metric-card--yellow { box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.06), inset 0 -60px 80px rgba(255, 209, 102, 0.045); }
 .metric-card--red { box-shadow: inset 0 0 0 1px rgba(255, 93, 108, 0.06), inset 0 -60px 80px rgba(255, 93, 108, 0.045); }
@@ -4281,7 +4281,7 @@ input[type="radio"] {
     text-decoration: none;
     cursor: pointer; /* вся карточка кликабельна */
     background:
-        radial-gradient(circle at 80% 12%, rgba(115, 215, 255, 0.08), transparent 10rem),
+        radial-gradient(circle at 80% 12%, rgba(255, 231, 163, 0.08), transparent 10rem),
         rgba(255, 255, 255, 0.026);
     transition: transform var(--ease), border-color var(--ease), background var(--ease);
 }
@@ -4289,14 +4289,14 @@ input[type="radio"] {
 /* Фокус с клавиатуры: сохраняем радиус карточки (глобальный :focus-visible сбрасывает его на 6px). */
 .build-card:focus-visible {
     border-radius: var(--radius-lg);
-    border-color: rgba(115, 215, 255, 0.5);
+    border-color: rgba(255, 231, 163, 0.5);
     background: var(--accent-hover);
     transform: translateY(-2px);
 }
 
 .build-card:hover {
     transform: translateY(-2px);
-    border-color: rgba(115, 215, 255, 0.24);
+    border-color: rgba(255, 231, 163, 0.24);
     background: var(--accent-hover);
 }
 
@@ -4361,7 +4361,7 @@ input[type="radio"] {
     min-height: 420px;
     gap: var(--space-3);
     text-align: center;
-    background: radial-gradient(circle at 50% 0%, rgba(115, 215, 255, 0.1), transparent 18rem), rgba(255, 255, 255, 0.02);
+    background: radial-gradient(circle at 50% 0%, rgba(255, 231, 163, 0.1), transparent 18rem), rgba(255, 255, 255, 0.02);
 }
 
 .empty-state-redesigned strong {
@@ -4399,7 +4399,7 @@ input[type="radio"] {
 .badge.admin {
     background: var(--accent-soft);
     color: var(--accent);
-    border-color: rgba(115, 215, 255, 0.2);
+    border-color: rgba(255, 231, 163, 0.2);
 }
 
 .table-panel {
@@ -4968,9 +4968,9 @@ input[type="radio"] {
 .telemetry-chart-wrap {
     position: relative;
     padding: var(--space-3) var(--space-3) var(--space-3);
-    border-color: rgba(115, 215, 255, 0.12);
+    border-color: rgba(255, 231, 163, 0.12);
     background:
-        linear-gradient(180deg, rgba(115, 215, 255, 0.08), transparent 72%),
+        linear-gradient(180deg, rgba(255, 231, 163, 0.08), transparent 72%),
         repeating-linear-gradient(180deg, transparent 0 42px, rgba(255, 255, 255, 0.045) 43px, transparent 44px);
 }
 
@@ -5000,13 +5000,13 @@ input[type="radio"] {
     fill: var(--accent);
     stroke: var(--bg);
     stroke-width: 3;
-    filter: drop-shadow(0 0 7px rgba(115, 215, 255, 0.8));
+    filter: drop-shadow(0 0 7px rgba(255, 231, 163, 0.8));
     pointer-events: none;
 }
 
 .telemetry-selected {
     position: relative;
-    border: 1px solid rgba(115, 215, 255, 0.2);
+    border: 1px solid rgba(255, 231, 163, 0.2);
     border-left: 3px solid var(--accent);
 }
 
@@ -5016,7 +5016,7 @@ input[type="radio"] {
     }
 
     .overview-view .overview-columns .sd-card:hover {
-        border-color: rgba(115, 215, 255, 0.16);
+        border-color: rgba(255, 231, 163, 0.16);
         box-shadow: var(--shadow-md);
     }
 
@@ -5595,7 +5595,7 @@ input[type="radio"] {
 
 .latest-btn.is-current[data-channel="beta"] {
     background: var(--accent-soft);
-    border-color: rgba(115, 215, 255, 0.45);
+    border-color: rgba(255, 231, 163, 0.45);
     color: var(--accent);
     cursor: default;
 }

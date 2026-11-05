@@ -61,12 +61,12 @@ function pollWhileVisible(task: () => Promise<void>, interval: number): () => vo
   };
 }
 
-/** Цвет индикатора пинга: зелёный <80мс, жёлтый <200мс, красный иначе. */
+/** Цвет индикатора пинга: изумруд <80мс, amber <200мс, coral иначе. */
 function pingColor(ping: number | null): string {
   if (ping == null) return "var(--muted)";
-  if (ping < 80) return "#5cb8a8";
-  if (ping < 200) return "#d4a843";
-  return "#e06060";
+  if (ping < 80) return "var(--emerald)";
+  if (ping < 200) return "var(--amber)";
+  return "var(--coral)";
 }
 
 interface Props {

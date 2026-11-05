@@ -7,8 +7,8 @@
     display: flex;
     flex-direction: column;
     background:
-        radial-gradient(circle at 20% 0%, rgba(115, 215, 255, 0.12), transparent 18rem),
-        radial-gradient(circle at 92% 6%, rgba(157, 124, 255, 0.1), transparent 18rem),
+        radial-gradient(circle at 20% 0%, rgba(255, 231, 163, 0.12), transparent 18rem),
+        radial-gradient(circle at 92% 6%, rgba(180, 160, 232, 0.1), transparent 18rem),
         var(--bg);
     overflow-x: hidden;
 }
@@ -483,9 +483,9 @@
 
 .m-drawer-item.active {
     color: var(--text);
-    border-color: rgba(115, 215, 255, 0.12);
-    background: linear-gradient(135deg, rgba(115, 215, 255, 0.14), rgba(157, 124, 255, 0.12));
-    box-shadow: inset 0 0 0 1px rgba(115, 215, 255, 0.08);
+    border-color: rgba(255, 231, 163, 0.12);
+    background: linear-gradient(135deg, rgba(255, 231, 163, 0.14), rgba(180, 160, 232, 0.12));
+    box-shadow: inset 0 0 0 1px rgba(255, 231, 163, 0.08);
 }
 
 .m-drawer-foot {
@@ -587,8 +587,8 @@
     position: relative;
     overflow: hidden;
     background:
-        radial-gradient(circle at 82% 12%, rgba(115, 215, 255, 0.16), transparent 13rem),
-        radial-gradient(circle at 16% 100%, rgba(157, 124, 255, 0.12), transparent 12rem),
+        radial-gradient(circle at 82% 12%, rgba(255, 231, 163, 0.16), transparent 13rem),
+        radial-gradient(circle at 16% 100%, rgba(180, 160, 232, 0.12), transparent 12rem),
         linear-gradient(180deg, rgba(255, 255, 255, 0.052), rgba(255, 255, 255, 0.02));
 }
 
@@ -657,7 +657,7 @@
     letter-spacing: -0.055em;
 }
 
-.m-metric--blue { box-shadow: inset 0 -54px 70px rgba(115, 215, 255, 0.055); }
+.m-metric--blue { box-shadow: inset 0 -54px 70px rgba(138, 180, 248, 0.055); }
 .m-metric--green { box-shadow: inset 0 -54px 70px rgba(95, 240, 167, 0.05); }
 .m-metric--yellow { box-shadow: inset 0 -54px 70px rgba(255, 209, 102, 0.045); }
 
@@ -1563,7 +1563,7 @@
     gap: var(--space-3);
     margin-inline: 0;
     padding: var(--space-3);
-    border-color: rgba(115, 215, 255, 0.28);
+    border-color: rgba(138, 180, 248, 0.28);
     background: var(--glass-solid);
     backdrop-filter: blur(18px) saturate(1.12);
     box-shadow: var(--shadow-md);

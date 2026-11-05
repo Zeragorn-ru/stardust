@@ -50,7 +50,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             <pre
               style={{
                 fontSize: 11,
-                color: "#f87171",
+                color: "var(--coral)",
                 maxWidth: 500,
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",

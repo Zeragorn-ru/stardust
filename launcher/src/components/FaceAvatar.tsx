@@ -58,15 +58,15 @@ export default FaceAvatar;
 function drawPlaceholder(ctx: CanvasRenderingContext2D, size: number) {
   const u = size / 8;
 
-  // Background gradient — dark to slightly lighter
+  // Background gradient — dark blue-violet to slightly lighter (comet tones)
   const grad = ctx.createLinearGradient(0, 0, 0, size);
-  grad.addColorStop(0, "#3a4060");
-  grad.addColorStop(1, "#2a3050");
+  grad.addColorStop(0, "#1e233a");  /* --panel-2 */
+  grad.addColorStop(1, "#141725");  /* --bg-elev */
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
-  // Head shape — rounded square
-  ctx.fillStyle = "#5a6080";
+  // Head shape — rounded square in lated tone
+  ctx.fillStyle = "#383f5c";
   const pad = u * 0.5;
   const r = u * 0.6;
   const x = pad, y = pad, w = size - pad * 2, h = size - pad * 2;
@@ -83,17 +83,17 @@ function drawPlaceholder(ctx: CanvasRenderingContext2D, size: number) {
   ctx.closePath();
   ctx.fill();
 
-  // Eyes — two squares with slight glow
-  ctx.fillStyle = "#c8cce0";
+  // Eyes — two squares with slight glow (lavender-pale from palette)
+  ctx.fillStyle = "#E1DEF8";  /* pale-lavender */
   ctx.fillRect(u * 2, u * 3, u, u);
   ctx.fillRect(u * 5, u * 3, u, u);
 
-  // Eye shine — small highlight
-  ctx.fillStyle = "#e0e4f0";
+  // Eye shine — small highlight (text)
+  ctx.fillStyle = "#eceef6";  /* --text */
   ctx.fillRect(u * 2, u * 3, u * 0.4, u * 0.4);
   ctx.fillRect(u * 5, u * 3, u * 0.4, u * 0.4);
 
-  // Mouth — subtle line
-  ctx.fillStyle = "#7a80a0";
+  // Mouth — subtle line (muted)
+  ctx.fillStyle = "#8a90ab";  /* --muted */
   ctx.fillRect(u * 2.5, u * 5.5, u * 3, u * 0.5);
 }
