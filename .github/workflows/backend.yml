@@ -213,17 +213,19 @@ jobs:
             # Фиксируем имя проекта, чтобы контейнеры с жёстким container_name
             # (launcher-*) не оказались "чужими" и не ломали up конфликтом имён.
             export COMPOSE_PROJECT_NAME=stardust
-            docker compose pull
-            # Пересоздаём стек начисто: сносим контейнеры проекта и orphan'ов.
-            docker compose down --remove-orphans
-            # Подстраховка от контейнеров, оставшихся от старого имени проекта.
-            for name in launcher-auth-db launcher-auth-server launcher-admin-server \
-                        launcher-telegram-bot launcher-squid launcher-admin-web launcher-website; do
-              if [ -n "$(docker ps -aq -f "name=^/${name}$")" ]; then
-                docker rm -f "$name" >/dev/null 2>&1 || true
-              fi
-            done
-            docker compose up -d --remove-orphans
+            # docker compose up -d --pull always: сама сравнивает IMAGE ID локально и удалённо,
+            # пересоздаёт ТОЛЬКО те контейнеры, чьи образы обновились. Без перезапуска
+            # auth-db / squid при деплое только admin-web или website.
+            if ! docker compose up -d --pull always --remove-orphans; then
+              # Подстраховка: контейнер от старого имени проекта занял container_name.
+              for name in launcher-auth-db launcher-auth-server launcher-admin-server \
+                          launcher-telegram-bot launcher-squid launcher-admin-web launcher-website; do
+                if [ -n "$(docker ps -aq -f "name=^/${name}$" -f "label=com.docker.compose.project!=$COMPOSE_PROJECT_NAME" 2>/dev/null)" ]; then
+                  docker rm -f "$name" >/dev/null 2>&1 || true
+                fi
+              done
+              docker compose up -d --pull always --remove-orphans
+            fi
             docker compose ps
             failed=0
             for service in auth-server admin-server telegram-bot admin-web; do
