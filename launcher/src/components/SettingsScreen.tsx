@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import type { AccountInfo, AppInfo, DataDirectoryInfo, DataDirectoryProgress, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
@@ -48,6 +48,12 @@ const MEM_STEP = 512;
 // Границы параллельности загрузок (одновременных файлов).
 const DL_MIN = 1;
 const DL_MAX = 16;
+
+/** Заполнение ползунка в % для CSS-градиента трека (--fill). */
+function rangeFillPct(value: number, min: number, max: number): number {
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return 0;
+  return Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+}
 
 /** Форматирование скорости загрузки. */
 function formatSpeed(bytesPerSec: number): string {
@@ -868,6 +874,13 @@ export default function SettingsScreen({
                   step={MEM_STEP}
                   disabled={!memoryLimits}
                   value={settings.memoryMb}
+                  style={{
+                    "--fill": `${rangeFillPct(
+                      settings.memoryMb,
+                      memoryLimits?.minMb ?? settings.memoryMb,
+                      memoryLimits?.maxMb ?? settings.memoryMb,
+                    )}%`,
+                  } as CSSProperties}
                   onChange={(e) =>
                     setSettings({ ...settings, memoryMb: Number(e.target.value) })
                   }
@@ -901,6 +914,9 @@ export default function SettingsScreen({
                 max={DL_MAX}
                 step={1}
                 value={settings.downloadConcurrency}
+                style={{
+                  "--fill": `${rangeFillPct(settings.downloadConcurrency, DL_MIN, DL_MAX)}%`,
+                } as CSSProperties}
                 onChange={(e) =>
                   setSettings({
                     ...settings,
