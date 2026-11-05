@@ -156,31 +156,31 @@ button,
 }
 
 *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
 }
 
 *::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.03);
+    background: transparent;
     border-radius: 999px;
 }
 
+/* В покое полоска нейтральная и тонкая: золотой градиент на всю высоту
+   читался как индикатор прогресса. Акцент — только при наведении. */
 *::-webkit-scrollbar-thumb {
-    background: linear-gradient(
-        180deg,
-        rgba(255, 231, 163, 0.75),
-        rgba(182, 169, 255, 0.75)
-    );
-    border: 2px solid rgba(6, 8, 16, 0.85);
+    background: rgba(138, 144, 171, 0.35);
+    border: 2px solid transparent;
     border-radius: 999px;
+    background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(
         180deg,
-        rgba(255, 231, 163, 1),
-        rgba(182, 169, 255, 1)
+        rgba(255, 231, 163, 0.65),
+        rgba(182, 169, 255, 0.65)
     );
+    background-clip: padding-box;
 }
 
 .muted {
@@ -4182,6 +4182,23 @@ button,
     border-radius: 8px;
     background: var(--glass);
     box-shadow: 0 4px 16px -8px rgba(0, 0, 0, 0.2);
+}
+
+/* Кнопки действий (открыть сборку / изменить / вернуть) — в одну строку.
+   Подписи короткие и nowrap — текст не обрезается; на узких окнах
+   строка переносится целиком, а не сжимает кнопки (вылеза нет). */
+.data-directory-card__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.data-directory-card__actions .btn {
+    flex: 1 1 auto;
+    text-align: center;
+    padding: 8px 10px;
+    font-size: 13px;
+    white-space: nowrap;
 }
 
 /* Заголовок с описанием и путь на одной строке, кнопки — колонкой ниже. */

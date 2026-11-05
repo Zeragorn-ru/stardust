@@ -989,15 +989,25 @@ export default function SettingsScreen({
               >
                 {dataDirectory?.path ?? "Загрузка…"}
               </button>
-              {logPaths?.activeGameDir && (
-                <button
-                  type="button"
-                  className="btn btn--ghost"
-                  onClick={() => { if (logPaths.activeGameDir) void openPath(logPaths.activeGameDir); }}
-                >
-                  Открыть папку текущей сборки
+              <div className="data-directory-card__actions">
+                {logPaths?.activeGameDir && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    onClick={() => { if (logPaths.activeGameDir) void openPath(logPaths.activeGameDir); }}
+                  >
+                    Открыть сборку
+                  </button>
+                )}
+                <button type="button" className="btn btn--ghost" onClick={() => void handleRelocateDataDirectory()} disabled={relocating}>
+                  {relocating ? "Переносим…" : "Изменить папку"}
                 </button>
-              )}
+                {dataDirectory && dataDirectory.path !== dataDirectory.defaultPath && (
+                  <button type="button" className="btn btn--ghost" onClick={() => void handleResetDataDirectory()} disabled={relocating}>
+                    Вернуть стандартную
+                  </button>
+                )}
+              </div>
               {logPaths?.legacyGameDir && (
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">Прежняя игровая папка</span>
@@ -1012,17 +1022,9 @@ export default function SettingsScreen({
                     className="btn btn--ghost"
                     onClick={() => { if (logPaths.legacyGameDir) void openPath(logPaths.legacyGameDir); }}
                   >
-                    Открыть прежнюю папку
+                    Открыть прежнюю
                   </button>
                 </div>
-              )}
-              <button type="button" className="btn btn--ghost" onClick={() => void handleRelocateDataDirectory()} disabled={relocating}>
-                {relocating ? "Переносим…" : "Изменить папку"}
-              </button>
-              {dataDirectory && dataDirectory.path !== dataDirectory.defaultPath && (
-                <button type="button" className="btn btn--ghost" onClick={() => void handleResetDataDirectory()} disabled={relocating}>
-                  Вернуть стандартную папку
-                </button>
               )}
               {relocationProgress && (
                 <div className="data-directory-card__progress">
