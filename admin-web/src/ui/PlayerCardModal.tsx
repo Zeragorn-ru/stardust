@@ -721,10 +721,11 @@ function ActionsTab({
       </div>
 
       {/* Редактор наигранного времени */}
-      <form onSubmit={handleSetPlaytime} className="pc-action-form">
+      <form onSubmit={handleSetPlaytime} className="pc-action-form pc-action-form--stacked">
         <div className="pc-section-title">Наигранное время</div>
-        <p className="muted pc-action-note" style={{ margin: '0 0 8px 0' }}>
-          Установите абсолютное время в секундах. Отправьте пустое — уберерет. После синхронизации из SFTP время будет перезаписано.
+        <p className="muted pc-action-note">
+          Установите абсолютное время в секундах. Пустое значение обнулит счётчик.
+          После синхронизации из SFTP время будет перезаписано.
         </p>
         <div className="pc-playtime-inputs">
           <input
