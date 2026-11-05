@@ -31,7 +31,7 @@ export default function AdminSettingsSection({ settings, onChange }: Props) {
       <div className="toggle-row stagger-item">
         <div className="toggle-row__text">
           <span className="toggle-row__title">Пропускать проверку сборки</span>
-          <span className="muted toggle-row__desc">
+          <span className="muted field__desc">
             Запускать локальную сборку без синхронизации с сервером. Все моды,
             включая сторонние и StarDust, останутся включены.
           </span>
@@ -51,7 +51,7 @@ export default function AdminSettingsSection({ settings, onChange }: Props) {
       <div className="toggle-row stagger-item">
         <div className="toggle-row__text">
           <span className="toggle-row__title">Бета-тестирование</span>
-          <span className="muted toggle-row__desc">
+          <span className="muted field__desc">
             Устанавливать предварительные (pre-release) версии лаунчера
           </span>
         </div>

@@ -574,7 +574,7 @@ export default function SettingsScreen({
             <div className="logs-card stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Логи лаунчера</span>
-                <span className="muted toggle-row__desc">
+                <span className="muted field__desc">
                   Диагностика запуска, загрузок и ошибок лаунчера.
                 </span>
               </div>
@@ -617,7 +617,7 @@ export default function SettingsScreen({
             <div className="logs-card stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Логи Minecraft</span>
-                <span className="muted toggle-row__desc">
+                <span className="muted field__desc">
                   latest.log и debug.log из папки игры.
                 </span>
               </div>
@@ -676,7 +676,7 @@ export default function SettingsScreen({
             <div className="logs-card stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Подробные логи</span>
-                <span className="muted toggle-row__desc">
+                <span className="muted field__desc">
                   Лаунчер и оба лога Minecraft в одном окне.
                 </span>
               </div>
@@ -726,7 +726,7 @@ export default function SettingsScreen({
               <div className="logs-card stagger-item">
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">Crash reports</span>
-                  <span className="muted toggle-row__desc">
+                  <span className="muted field__desc">
                     Отчёты о сбоях Minecraft.
                   </span>
                 </div>
@@ -764,7 +764,7 @@ export default function SettingsScreen({
               <div className="toggle-row">
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">Автообновление лаунчера</span>
-                  <span className="muted toggle-row__desc">
+                  <span className="muted field__desc">
                     Проверять и устанавливать обновления автоматически
                   </span>
                 </div>
@@ -933,7 +933,7 @@ export default function SettingsScreen({
             {section === "interface" && <div className="toggle-row stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Анимации</span>
-                <span className="muted toggle-row__desc">
+                <span className="muted field__desc">
                   Живой фон и плавные переходы. Отключите для экономии ресурсов.
                 </span>
               </div>
@@ -953,7 +953,7 @@ export default function SettingsScreen({
               <div className="toggle-row stagger-item">
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">3D-модель скина</span>
-                  <span className="muted toggle-row__desc">
+                  <span className="muted field__desc">
                     Отключите для экономии ресурсов (плоская аватарка вместо 3D).
                   </span>
                 </div>
@@ -973,7 +973,7 @@ export default function SettingsScreen({
             {section === "about" && <div className="data-directory-card stagger-item">
               <div className="toggle-row__text">
                 <span className="toggle-row__title">Расположение данных</span>
-                <span className="muted toggle-row__desc">
+                <span className="muted field__desc">
                   Игра, скачанная Java, кеш и настройки. Перенос копирует все файлы и работает между дисками.
                 </span>
               </div>
@@ -1001,7 +1001,7 @@ export default function SettingsScreen({
               {logPaths?.legacyGameDir && (
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">Прежняя игровая папка</span>
-                  <span className="muted toggle-row__desc">
+                  <span className="muted field__desc">
                     Старые миры и настройки сохранены здесь и автоматически не переносятся.
                     Папку saves можно скопировать в новую сборку после проверки совместимости;
                     моды и служебные файлы переносить не нужно. Профиль и выбор модов
@@ -1033,7 +1033,7 @@ export default function SettingsScreen({
                   <div className="progress__track">
                     <div className="progress__bar" style={{ width: Number.isFinite(relocationProgress.fraction) ? `${Math.round(relocationProgress.fraction! * 100)}%` : undefined }} />
                   </div>
-                  <span className="muted toggle-row__desc">
+                  <span className="muted field__desc">
                     {relocationProgress.copiedFiles} из {relocationProgress.totalFiles} файлов
                   </span>
                 </div>
@@ -1172,7 +1172,7 @@ export default function SettingsScreen({
 
                 <div className="java-card__download">
                   <span className="toggle-row__title">Скачать Java 21 для лаунчера</span>
-                  <span className="muted toggle-row__desc">
+                  <span className="muted field__desc">
                     Выберите поставщика. После скачивания он станет активным runtime лаунчера.
                     Ранее скачанные поставщики сохраняются отдельно.
                   </span>
@@ -1269,7 +1269,7 @@ export default function SettingsScreen({
               <div className="advanced-card__section advanced-card__section--network">
                 <div className="toggle-row__text">
                   <span className="toggle-row__title">Прокси-сервер</span>
-                  <span className="muted toggle-row__desc">
+                  <span className="muted field__desc">
                     Меняйте только если загрузки не проходят напрямую или сеть требует
                     специальный маршрут.
                   </span>

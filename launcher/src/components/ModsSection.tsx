@@ -365,7 +365,7 @@ export default function ModsSection() {
             )}
           </span>
           {mod.description && (
-            <span className="muted toggle-row__desc">{mod.description}</span>
+            <span className="muted field__desc">{mod.description}</span>
           )}
           {mod.locked && (
             <span className="muted mods-section__locked-note">
