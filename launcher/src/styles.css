@@ -3117,6 +3117,15 @@ button,
     white-space: nowrap;
 }
 
+/* Переносимое описание в .field (память, Java и т.п.): полный текст,
+   без обрезки — места в контентной колонке достаточно. */
+.field__desc {
+    font-size: 12px;
+    line-height: 1.45;
+    max-width: 640px;
+    overflow-wrap: anywhere;
+}
+
 /* Switch */
 .switch {
     flex-shrink: 0;

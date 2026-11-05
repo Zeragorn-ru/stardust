@@ -850,7 +850,7 @@ export default function SettingsScreen({
               <span>
                 Память для Minecraft: <strong>{settings.memoryMb} МБ</strong>
               </span>
-              <span className="muted toggle-row__desc">
+              <span className="muted field__desc">
                 От 6144 МБ до 75% физической памяти этого компьютера
                 {memoryLimits?.totalMb ? ` (${memoryLimits.totalMb} МБ всего)` : ""}.
               </span>
@@ -1091,7 +1091,7 @@ export default function SettingsScreen({
             {section === "game" && <div className="advanced-card stagger-item">
               <div className="advanced-card__head">
                 <span className="toggle-row__title">Java и сеть</span>
-                <span className="muted toggle-row__desc">
+                <span className="muted field__desc">
                   Java и прокси обычно не нужно менять. Эти параметры полезны для
                   диагностики запуска, корпоративных сетей и ручной настройки JVM.
                 </span>
@@ -1101,7 +1101,7 @@ export default function SettingsScreen({
                 <div className="java-card__head">
                   <div className="toggle-row__text">
                     <span className="toggle-row__title">Java</span>
-                    <span className="muted toggle-row__desc">
+                    <span className="muted field__desc">
                       Minecraft 1.21 требует Java 21+. По умолчанию лаунчер использует
                       скачанную Java Temurin; доступны также Corretto, Microsoft и Zulu.
                     </span>
