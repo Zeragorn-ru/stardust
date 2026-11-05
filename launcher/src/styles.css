@@ -3059,7 +3059,10 @@ button,
     opacity: 0.55;
 }
 
-.switch:hover:not(:disabled) {
+/* Hover-подсветка только для выключенных: на включённом она перекрывала
+   золотой track серым (специфичность выше, чем у .switch--on) и весь
+   переключатель выглядел чёрным. */
+.switch:not(.switch--on):hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.16);
 }
 
