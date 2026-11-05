@@ -64,6 +64,7 @@ export function SettingsView() {
   const [sftpPassword, setSftpPassword] = useState("");
   const [sftpStatsPath, setSftpStatsPath] = useState("");
   const [savingPanel, setSavingPanel] = useState(false);
+  const [resettingFp, setResettingFp] = useState(false);
   const [telemetryToken, setTelemetryToken] = useState("");
   const [generatingTelemetryToken, setGeneratingTelemetryToken] = useState(false);
 
@@ -266,6 +267,32 @@ export function SettingsView() {
       );
     } finally {
       setSavingPanel(false);
+    }
+  }
+
+  // Сброс пиннинга SSH-ключа SFTP-хоста: нужен, когда Minecraft-сервер
+  // пересобрали и его ключ сменился легитимно (в том числе при том же
+  // адресе — тогда авто-сброса при смене хоста не происходит). Сбрасывает
+  // отпечаток в обоих местах: БД (фоновая синхронизация auth-server) и
+  // known_hosts.json (ручная синхронизация admin-server).
+  async function resetFingerprint() {
+    const ok = await confirm({
+      title: "Сбросить доверие к SFTP-хосту?",
+      body: "Отпечаток SSH-ключа хоста будет удалён везде: и в фоновой синхронизации статистики, и в ручной. Следующее подключение примет текущий ключ хоста как новый. Делайте это только если сервер пересобирали и его ключ менялся легитимно.",
+      confirmText: "Сбросить",
+      danger: true,
+    });
+    if (!ok) return;
+    setResettingFp(true);
+    try {
+      await api.resetSftpFingerprint();
+      toast.success("Доверие к SFTP-хосту сброшено — следующий коннект запомнит новый ключ");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сбросить fingerprint",
+      );
+    } finally {
+      setResettingFp(false);
     }
   }
 
@@ -609,6 +636,13 @@ export function SettingsView() {
                   </Field>
 
                   <div className="modal-actions">
+                    <Button
+                      variant="outline"
+                      onClick={resetFingerprint}
+                      disabled={resettingFp}
+                    >
+                      {resettingFp ? "Сбрасываю…" : "Сбросить доверие к хосту"}
+                    </Button>
                     <Button
                       disabled={savingPanel}
                       onClick={savePanel}

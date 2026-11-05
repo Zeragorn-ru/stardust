@@ -530,6 +530,14 @@ export const api = {
     return request("POST", "/api/settings/sync-stats", confirmation);
   },
 
+  /** Сбрасывает пиннинг SSH-ключа SFTP-хоста для обоих мест (auth-server и
+   *  admin-server). Нужен, когда Minecraft-сервер пересобрали и его SSH-ключ
+   *  сменился легитимно при том же адресе: после сброса следующее подключение
+   *  примет новый ключ (trust-on-first-use). */
+  resetSftpFingerprint(): Promise<{ ok: boolean }> {
+    return request("DELETE", "/api/settings/sftp-fingerprint");
+  },
+
   buildCheck(buildId?: number): Promise<BuildCheckResult> {
     const qs = buildId != null ? `?build_id=${buildId}` : "";
     return request("GET", `/api/build-check${qs}`);

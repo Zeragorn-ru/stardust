@@ -31,8 +31,8 @@ use store::{
     SETTING_BACKUP_BUCKET, SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
     SETTING_BACKUP_SECRET_KEY, SETTING_CRASH_AI_API_KEY, SETTING_CRASH_AI_ENABLED,
     SETTING_CRASH_AI_ENDPOINT, SETTING_CRASH_AI_MODEL, SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST,
-    SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH, SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN,
-    SETTING_TELEGRAM_USERNAME,
+    SETTING_SFTP_HOST_FINGERPRINT, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
+    SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
 };
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -388,6 +388,10 @@ async fn main() {
         .route("/api/build-check", get(build_check))
         .route("/api/deps-check", get(deps_check))
         .route("/api/settings/sync-stats", post(sync_stats))
+        .route(
+            "/api/settings/sftp-fingerprint",
+            axum::routing::delete(reset_sftp_fingerprint_endpoint),
+        )
         .route(
             "/api/settings/server-token/generate",
             post(generate_server_token),
@@ -1006,6 +1010,12 @@ async fn update_settings(
     }
 
     // SFTP: sftpHost, sftpUsername, sftpPassword (пустая строка = удалить).
+    // Смена хоста = другой сервер = заведомо другой ключ хоста: старый
+    // fingerprint (одна строка в БД у auth-server) будет отклонять коннект
+    // вечно. Сбрасываем пиннинг при смене хоста — первое подключение после
+    // этого снова trust-on-first-use.
+    let sftp_host_changed = req.sftp_host.is_some();
+
     if let Some(v) = req.sftp_host {
         let v = v.trim();
         if v.is_empty() {
@@ -1069,6 +1079,12 @@ async fn update_settings(
                 .await
                 .map_err(internal)?;
         }
+    }
+
+    // Если менялся хост — сбрасываем fingerprint (для auth-server и
+    // admin-server): другой хост = другой ключ хоста по определению.
+    if sftp_host_changed {
+        reset_sftp_fingerprint(&state).await?;
     }
 
     if let Some(reward) = req.achievement_coin_reward {
@@ -2266,6 +2282,45 @@ const SYNC_MANIFEST: &str = ".stardust-sync.json";
 
 fn sftp_password_present(password: &str) -> bool {
     !password.is_empty()
+}
+
+/// Сбрасывает fingerprint SFTP-хоста для обоих мест:
+/// - auth-server: удаляет `SETTING_SFTP_HOST_FINGERPRINT` из БД
+/// - admin-server: удаляет `known_hosts.json` и очищает `PENDING_HOST_KEYS`
+async fn reset_sftp_fingerprint(state: &Shared) -> Result<(), ApiError> {
+    // 1. Для auth-server: удалить отпечаток из БД
+    state
+        .store
+        .delete_setting(SETTING_SFTP_HOST_FINGERPRINT)
+        .await
+        .map_err(internal)?;
+
+    // 2. Для admin-server: удалить known_hosts.json
+    let known_hosts_path = state.modpack_dir.join("known_hosts.json");
+    if known_hosts_path.exists() {
+        std::fs::remove_file(&known_hosts_path)
+            .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("failed to remove known_hosts.json: {e}")))?;
+    }
+
+    // 3. Для admin-server: очистить PENDING_HOST_KEYS
+    let mut pending = PENDING_HOST_KEYS.lock().map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("lock error: {e}")))?;
+    pending.clear();
+
+    tracing::info!("[sftp] Сброшен fingerprint хоста (для auth-server и admin-server)");
+    Ok(())
+}
+
+/// `DELETE /api/settings/sftp-fingerprint` — ручной сброс пиннинга ключа
+/// SFTP-хоста (см. `reset_sftp_fingerprint`). Применяется, когда Minecraft-
+/// сервер пересобирали и его SSH-ключ сменился легитимно: после сброса
+/// следующее подключение к текущему хосту примет новый ключ (TOFU).
+async fn reset_sftp_fingerprint_endpoint(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    require_admin(&state, &headers).await?;
+    reset_sftp_fingerprint(&state).await?;
+    Ok(Json(serde_json::json!({"ok": true})))
 }
 
 fn sync_target_path(path: &str) -> Result<&str, ApiError> {
