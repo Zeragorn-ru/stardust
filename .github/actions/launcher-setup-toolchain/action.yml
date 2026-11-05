@@ -36,9 +36,9 @@ runs:
       run: rustup target add x86_64-apple-darwin
 
     # cache-all-crates кеширует ПОЗАКЕШНО: bump одной зависимости в Cargo.lock
-    # инвалидирует только её запись, а не весь кеш (раньше hash всего lock
-    # в ключе превращал каждый релизный бамп версии в полный ремисс: ~350
-    # перекачек и ~700 компиляций на macOS).
+    # инвалидирует только её запись, а не весь кеш. shared-key стабилен между
+    # прогонами, но GitHub изолирует кэш по ref: тег не видит кэш другого тега.
+    # Релизные ключи греет launcher-cache-warm.yml на master (см. там).
     - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
       with:
         workspaces: ". -> target"

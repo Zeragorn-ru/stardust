@@ -1,0 +1,94 @@
+# Обогреватель релизного кэша лаунчера.
+#
+# Проблема: GitHub изолирует Actions-кэш по ref. Релизный прогон (push тега
+# vX.Y.Z) НЕ видит кэш, сохранённый другим тегом, а fallback ищет только в
+# кэшах дефолтной ветки (master). Раньше master ничего не грел под ключами
+# `launcher-release-*` (ci.yml греет `launcher-ci`), поэтому каждый релиз
+# компилировал ~590 крейтов с нуля: macOS-лег ~14 мин вместо ~4.
+#
+# Лечение: на master (и по расписанию) собираем ровно те же артефакты, что
+# релиз, с теми же shared-key — кэш ложится под refs/heads/master и становится
+# виден любому тегу. Ключевое условие совпадения fingerprint'ов: тот же
+# rust-toolchain (rust-toolchain.toml), тот же профиль launcher-release, те же
+# цели (для macOS обе архитектуры universal-сборки), те же runner-образы.
+#
+# Версия в Cargo.toml на warm остаётся плейсхолдером 0.0.0 (тег-скрипт
+# подменяет её только в релизе) — меняется fingerprint пары наших крейтов,
+# они пересобираются (~1 мин), но все зависимости из кэша попадают.
+
+name: launcher-cache-warm
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "rust-toolchain.toml"
+      - "launcher/src-tauri/Cargo.toml"
+      - "crates/protocol/**"
+      - ".github/actions/launcher-setup-toolchain/**"
+      - ".github/workflows/launcher-cache-warm.yml"
+  schedule:
+    # Раз в неделю, чтобы кэш не испарился по TTL (7 дней без попаданий).
+    - cron: "30 4 * * 3"
+  workflow_dispatch:
+
+jobs:
+  warm:
+    concurrency:
+      group: launcher-cache-warm-${{ matrix.runner }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+          - runner: ubuntu-22.04
+          - runner: macos-latest
+    runs-on: ${{ matrix.runner }}
+    env:
+      # Совпадает с релизом: build.rs/первый крейт могут читать env
+      # (rerun-if-env-changed) — иначе fingerprint разойдётся.
+      VITE_LAUNCHER_UPDATE_CHANNEL: stable
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 1
+
+      - name: "Linux deps"
+        if: matrix.runner == 'ubuntu-22.04'
+        uses: ./.github/actions/launcher-setup-linux
+
+      - name: "Toolchain & caches"
+        uses: ./.github/actions/launcher-setup-toolchain
+        with:
+          platform: ${{ matrix.runner }}
+          cache-key-suffix: release
+          save-cache: "true"
+
+      - name: "npm ci"
+        uses: ./.github/actions/launcher-install-deps
+
+      # build.rs лаунчера требует собранный frontend (как в ci.yml перед cargo)
+      - name: "Frontend build"
+        working-directory: launcher
+        run: npm run build
+
+      # Тот же cargo-заход, что делает tauri-action в релизе. Для Linux/Windows
+      # tauri собирает host-цель (артефакты в target/<profile>/). Для macOS
+      # tauri зовёт cargo дважды с --target aarch64/x86_64-apple-darwin (отсюда
+      # два "Finished" в релизе, ~6:47 + ~5:29), артефакты зависимостей лежат в
+      # target/<triple>/launcher-release/ — warm обязан греть ровно те же цели,
+      # иначе fingerprint-файлы релиза не найдут их в кэше. Версия самого crate
+      # launcher на warm остаётся 0.0.0 — он пересоберётся (~1-2 мин ×2), зато
+      # все ~589 крейтов зависимостей попадут из кэша.
+      - name: "Cargo build (host target)"
+        if: matrix.runner != 'macos-latest'
+        run: cargo build -p launcher --profile launcher-release
+
+      - name: "Cargo build (macOS universal: обе цели)"
+        if: matrix.runner == 'macos-latest'
+        run: |
+          cargo build -p launcher --profile launcher-release --target aarch64-apple-darwin
+          cargo build -p launcher --profile launcher-release --target x86_64-apple-darwin
