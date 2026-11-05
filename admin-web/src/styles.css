@@ -5305,15 +5305,17 @@ input[type="radio"] {
     line-height: 1.5;
 }
 
-.seasons-view .section-head {
+.seasons-view .section-head,
+.releases-view .section-head {
     margin-bottom: var(--space-3);
 }
 
-.seasons-view .sync-progress {
+.seasons-view .sync-progress,
+.releases-view .sync-progress {
     margin-bottom: var(--space-4);
 }
 
-/* --- Пульт релизов лаунчера (раздел 2 SeasonsView) --- */
+/* --- Пульт релизов лаунчера (ReleasesView) --- */
 /* Три зоны с постоянными адресами: каналы апдейтера сверху (главный
    вопрос «что раздаётся прямо сейчас»), CI-сборки тегов, ещё не
    ставших релизами, и сами релизы. Прозаический футер и eyebrow

@@ -17,6 +17,7 @@ import { MobileAccounts } from "./MobileAccounts";
 import { MobileSettings } from "./MobileSettings";
 import { MobileCustomization } from "./MobileCustomization";
 import { MobileSeasons } from "./MobileSeasons";
+import { ReleasesView } from "../views/ReleasesView";
 import { NewsView } from "../views/NewsView";
 import { GuidesView } from "../views/GuidesView";
 import { LogsView } from "../views/LogsView";
@@ -247,6 +248,11 @@ function Shell() {
         {activeTab === "logs" && <div className="m-screen"><LogsView mobile /></div>}
         {activeTab === "mods" && <div className="m-screen"><ExternalModsView mobile /></div>}
         {activeTab === "seasons" && <MobileSeasons />}
+        {activeTab === "releases" && (
+          <div className="m-screen m-screen-reuse m-screen-releases">
+            <ReleasesView />
+          </div>
+        )}
         {activeTab === "settings" && <MobileSettings />}
       </main>
     </div>

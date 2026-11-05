@@ -14,6 +14,7 @@ import {
   IconBookOpen,
   IconBox,
   IconChart,
+  IconDownload,
   IconMegaphone,
   IconSettings,
   IconShield,
@@ -33,7 +34,8 @@ export type NavTab =
   | "guides"
   | "logs"
   | "mods"
-  | "seasons";
+  | "seasons"
+  | "releases";
 
 export interface NavItem {
   /** Ключ вкладки; на десктопе совпадает с сегментом маршрута. */
@@ -138,11 +140,18 @@ export const NAV: NavItem[] = [
   {
     tab: "seasons",
     label: "Сезоны",
-    description:
-      "Архив статистики игроков по сезонам и выкат релизов лаунчера в стабильный канал.",
+    description: "Архив статистики игроков по сезонам и завершение текущего.",
     route: "/seasons",
-    group: "Мониторинг",
+    group: "Игроки",
     icon: (size) => <IconArchive size={size} />,
+  },
+  {
+    tab: "releases",
+    label: "Релизы",
+    description: "Каналы апдейтера, CI-сборки тегов и перевод релизов в стабильный.",
+    route: "/releases",
+    group: "Платформа",
+    icon: (size) => <IconDownload size={size} />,
   },
 ];
 

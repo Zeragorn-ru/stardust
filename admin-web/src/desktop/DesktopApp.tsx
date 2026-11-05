@@ -31,6 +31,7 @@ import { GuidesView } from "../views/GuidesView";
 import { LogsView } from "../views/LogsView";
 import { ExternalModsView } from "../views/ExternalModsView";
 import { SeasonsView } from "../views/SeasonsView";
+import { ReleasesView } from "../views/ReleasesView";
 import { NAV, NAV_GROUPS, navItem, subrouteTitle } from "../ui/navConfig";
 import { McText } from "../ui/McText";
 import { IconLogout, IconSmartphone } from "../ui/icons";
@@ -181,6 +182,7 @@ function Shell() {
             <Route path="/logs" element={<LogsView />} />
             <Route path="/mods" element={<ExternalModsView />} />
             <Route path="/seasons" element={<SeasonsView />} />
+            <Route path="/releases" element={<ReleasesView />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/overview" replace />} />
           </Routes>
