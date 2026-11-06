@@ -117,6 +117,11 @@ cd launcher && npm ci && npm run tauri dev
 - у сессий нет полноценного TTL/device management;
 - updater может продолжить установку, если `.sha256` отсутствует или не удалось скачать checksum;
 - нет полноценного audit log действий администраторов, release health и rollback сборок;
-- content-addressed storage пока не имеет безопасного garbage collection.
+- content-addressed storage пока не имеет безопасного garbage collection;
+- **lifetime-статистика не убывает**: `GREATEST(lifetime, присланное)` означает, что сброс статистики игроком (resetStats) не отражается в live-счётчиках. Для полного сброса нужно вручную вызвать `set_playtime_manual` ПОСЛЕ синхронизации или временно отключить SFTP-sync. Документировано в `crates/store/src/lib.rs:1486-1498`.
+- **archive race**: при архивации сезона снимок live-статистики и перенос baseline пишутся отдельными statement'ами в одной транзакции. Если SFTP-тик попадает в окно между снимком и baseline-обнулением, в архиве зафиксировано меньше, чем реально наиграно. Окно микросекундное, вероятность мала, но сценарий реален. В ТЗ упоминается как вариант для будущего fix'а.
+- **set_playtime_manual ломает lifetime invariant**: при ручном уменьшении live-времени `lifetime = baseline + X`, что может привести к `live < 0` при следующем SFTP-тике (GREATEST вернёт старый lifetime). Валидация на пути из админки отсутствует. Документировано в `crates/store/src/lib.rs:1500-1521`.
+- **SFTP fingerprint reset race**: при смене хоста сбрасывается fingerprint для auth-server и admin-server, но нет `acquire_sftp_lock()` в store для блокировки параллельных операций. Deferred в `crates/admin-server/src/main.rs:1090`.
+- **Gradle JVM pinning**: Gradle 8.10.2 не работает на JVM 25 (Unsupport). Пинг в Makefile (`build-mod`) и CI (`mod-release.yml` — Java 21 для NeoForge, Java 25 для Fabric). `gradle-wrapper.properties` не пингует JVM.
 
 Актуальный список задач и порядок приоритетов ведется в [`docs/ROADMAP.md`](docs/ROADMAP.md).

@@ -100,8 +100,8 @@ dev-website: website-deps ## Dev-сервер публичного сайта (:
 # ─── Minecraft mod ────────────────────────────────────────────────────────────
 
 .PHONY: build-mod
-build-mod: ## Собрать stardust-mod JAR
-	cd stardust-mod && ./gradlew build && cd ../stardust-mod-fabric && ./gradlew build
+build-mod: ## Собрать stardust-mod JAR (NeoForge + Fabric)
+	cd stardust-mod && JAVA_HOME=$$(dirname $$(dirname $$(readlink -f $$(which java)))) ./gradlew build && cd .. && cd stardust-mod-fabric && ./gradlew build
 
 .PHONY: clean-mod
 clean-mod: ## Очистить Gradle-сборку мода
