@@ -337,6 +337,30 @@ impl Store {
         })
     }
 
+    /// Acquire advisory lock for SFTP operations.
+    ///
+    /// Uses `pg_try_advisory_lock` with a fixed lock ID (0x53465450 = "SFTP" in hex).
+    /// Returns `true` if lock acquired, `false` if already held by another process.
+    /// Callers MUST release the lock via `release_sftp_lock()` after use.
+    ///
+    /// This prevents race conditions between:
+    /// - auth-server SFTP sync (every 15 min) and admin-server fingerprint reset
+    /// - concurrent fingerprint reads/writes during server key rotation
+    pub async fn acquire_sftp_lock(&self) -> Result<bool, StoreError> {
+        let result = sqlx::query_scalar::<_, i32>("SELECT pg_try_advisory_lock(0x53465450)")
+            .execute(&self.pool)
+            .await?;
+        Ok(result > 0)
+    }
+
+    /// Release advisory lock for SFTP operations.
+    pub async fn release_sftp_lock(&self) -> Result<(), StoreError> {
+        sqlx::query::<_, sqlx::postgres::PgQueryResult>("SELECT pg_advisory_unlock(0x53465450)")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     /// For every migration that is already applied in the database, ensure the
     /// stored checksum matches what the current binary expects. If it differs,
     /// overwrite the stored checksum so that sqlx::migrate!().run() won't reject it.

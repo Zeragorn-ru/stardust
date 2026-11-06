@@ -2291,22 +2291,37 @@ fn sftp_password_present(password: &str) -> bool {
 /// Сбрасывает fingerprint SFTP-хоста для обоих мест:
 /// - auth-server: удаляет `SETTING_SFTP_HOST_FINGERPRINT` из БД
 /// - admin-server: удаляет `known_hosts.json` и очищает `PENDING_HOST_KEYS`
+///
+/// Lock на время сброса, чтобы не гонять reset_sftp_fingerprint
+/// параллельно с SFTP-тиком (auth-server refresh_playtime_once).
 async fn reset_sftp_fingerprint(state: &Shared) -> Result<(), ApiError> {
-    // 1. Для auth-server: удалить отпечаток из БД
+    // 1. Acquire advisory lock to prevent race with auth-server SFTP sync
+    let locked = state
+        .store
+        .acquire_sftp_lock()
+        .await
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("lock error: {e}")))?;
+    if !locked {
+        tracing::warn!("[sftp] Не удалось получить advisory lock — сброс отложен");
+        return Ok(());
+    }
+    // Lock будет освобождён при выходе из функции (drop)
+
+    // 2. Для auth-server: удалить отпечаток из БД
     state
         .store
         .delete_setting(SETTING_SFTP_HOST_FINGERPRINT)
         .await
         .map_err(internal)?;
 
-    // 2. Для admin-server: удалить known_hosts.json
+    // 3. Для admin-server: удалить known_hosts.json
     let known_hosts_path = state.modpack_dir.join("known_hosts.json");
     if known_hosts_path.exists() {
         std::fs::remove_file(&known_hosts_path)
             .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("failed to remove known_hosts.json: {e}")))?;
     }
 
-    // 3. Для admin-server: очистить PENDING_HOST_KEYS
+    // 4. Для admin-server: очистить PENDING_HOST_KEYS
     let mut pending = PENDING_HOST_KEYS.lock().map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("lock error: {e}")))?;
     pending.clear();
 
