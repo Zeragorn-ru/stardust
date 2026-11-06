@@ -6,8 +6,12 @@ import type { SkinModel } from "../types";
 import { animationsEnabled } from "../preferences";
 import { useMotion } from "../motion";
 import { normalizeSkinForViewer } from "../skinNormalize";
+import { IDLE_ANIMATIONS } from "../animations";
 
 use(WebGLRendererPlugin);
+
+/** Интервал между переключениями idle-анимаций на hero-режиме (мс). */
+const IDLE_SWITCH_INTERVAL_MS = 5_000;
 
 interface Props {
   /** data-URL PNG скина, либо null — тогда грузим встроенный дефолт (стив). */
@@ -75,6 +79,9 @@ const SkinViewer3D = memo(function SkinViewer3D({
   const focusedRef = useRef(typeof document === "undefined" ? true : document.hasFocus());
   const idleRef = useRef(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Hero idle-анимация: имя текущей + таймер следующего переключения.
+  const heroIdleRef = useRef<string | null>(null);
+  const heroIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Кэш для skin/cape чтобы не перезагружать одно и то же.
   const lastSkinRef = useRef<string>("");
@@ -212,6 +219,11 @@ const SkinViewer3D = memo(function SkinViewer3D({
       ],
     });
 
+    // Регистрируем все idle-анимации один раз при монтировании.
+    for (const anim of IDLE_ANIMATIONS) {
+      registerAnimation(anim);
+    }
+
     let disposed = false;
 
     function onContextLost(e: Event) {
@@ -254,10 +266,8 @@ const SkinViewer3D = memo(function SkinViewer3D({
         if (interactive) {
           if (animations) viewer.playAnimation("float");
         } else if (animations) {
-          // Hero: анимация "float" (руки двигаются), но без autoRotate.
-          // Авто-вращение включено только в интерактивном режиме (SkinModal),
-          // где пользователь сам вращает мышью.
-          viewer.playAnimation("float");
+          // Hero: случайные idle-анимации вместо фиксированного float.
+          startHeroIdleLoop();
         }
         if (visibleRef.current) startLoop();
         resetIdleTimer();
@@ -268,6 +278,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
       disposed = true;
       canvas.removeEventListener("webglcontextlost", onContextLost);
       canvas.removeEventListener("webglcontextrestored", onContextRestored);
+      stopHeroIdleLoop();
       stopLoop();
       viewerRef.current?.dispose();
       viewerRef.current = null;
@@ -362,23 +373,64 @@ const SkinViewer3D = memo(function SkinViewer3D({
     const viewer = viewerRef.current;
     if (!viewer) return;
     if (interactive) {
+      // Интерактивный режим (модалка): фиксированный float, вращение мышью.
+      // Idle-ротация hero здесь не нужна.
+      stopHeroIdleLoop();
+      viewer.setAutoRotate(false);
       if (animations) viewer.playAnimation("float");
       else viewer.stopAnimation();
-      // Интерактивный режим: autoRotate управляется пользователем через мышь,
-      // тумблер "Анимации" только включает/выключает float-анимацию.
-      viewer.setAutoRotate(false);
     } else {
-      // Hero (главный экран): без autoRotate, только float-анимация если включена.
+      // Hero (главный экран): без autoRotate, случайные idle-анимации.
       viewer.setAutoRotate(false);
       if (animations) {
-        viewer.playAnimation("float");
-        startLoop();
+        startHeroIdleLoop();
       } else {
-        stopLoop();
+        stopHeroIdleLoop();
+        viewer.stopAnimation();
         renderOnce();
       }
     }
   }, [animations, interactive]);
+
+  /**
+   * Hero idle-цикл: играет случайную анимацию из IDLE_ANIMATIONS, затем через
+   * duration + случайный промежуток выбирает СЛЕДУЮЩУЮ (не повторять ту же).
+   * Таймер гасится при unmount / смене interactive / выключении анимаций.
+   */
+  function startHeroIdleLoop() {
+    stopHeroIdleLoop();
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    const pick = IDLE_ANIMATIONS[Math.floor(Math.random() * IDLE_ANIMATIONS.length)];
+    viewer.playAnimation(pick.name);
+    heroIdleRef.current = pick.name;
+    startLoop();
+    scheduleHeroIdleSwitch(pick.duration * 1000 + Math.random() * IDLE_SWITCH_INTERVAL_MS);
+  }
+
+  function scheduleHeroIdleSwitch(delayMs: number) {
+    if (heroIdleTimerRef.current) clearTimeout(heroIdleTimerRef.current);
+    heroIdleTimerRef.current = setTimeout(() => {
+      const viewer = viewerRef.current;
+      // Вьюер мог быть уничтожен (unmount) или анимации выключены — выходим.
+      if (!viewer || !animationsRef.current) return;
+      const current = heroIdleRef.current;
+      const pool = IDLE_ANIMATIONS.filter((a) => a.name !== current);
+      const pick = pool[Math.floor(Math.random() * pool.length)] ?? IDLE_ANIMATIONS[0];
+      viewer.playAnimation(pick.name);
+      heroIdleRef.current = pick.name;
+      startLoop();
+      scheduleHeroIdleSwitch(pick.duration * 1000 + Math.random() * IDLE_SWITCH_INTERVAL_MS);
+    }, delayMs);
+  }
+
+  function stopHeroIdleLoop() {
+    if (heroIdleTimerRef.current) {
+      clearTimeout(heroIdleTimerRef.current);
+      heroIdleTimerRef.current = null;
+    }
+    heroIdleRef.current = null;
+  }
 
   if (webglFailed) {
     return (
