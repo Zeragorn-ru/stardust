@@ -851,7 +851,7 @@ export default function SettingsScreen({
                 Память для Minecraft: <strong>{settings.memoryMb} МБ</strong>
               </span>
               <span className="muted field__desc">
-                От 6144 МБ до 75% физической памяти этого компьютера
+                От 4096 МБ до 75% физической памяти этого компьютера
                 {memoryLimits?.totalMb ? ` (${memoryLimits.totalMb} МБ всего)` : ""}.
               </span>
               <div className="range-row">

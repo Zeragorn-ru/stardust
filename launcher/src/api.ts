@@ -50,7 +50,7 @@ async function getInvoke(): Promise<InvokeFn | null> {
 }
 
 const FALLBACK_SETTINGS: Settings = {
-  memoryMb: 6144,
+  memoryMb: 4096,
   downloadConcurrency: 6,
   show3dModel: true,
   proxyType: "none",
@@ -509,7 +509,7 @@ export async function setBetaUpdates(enabled: boolean): Promise<void> {
 /** Допустимый диапазон памяти JVM для текущего компьютера. */
 export async function getMemoryLimits(): Promise<MemoryLimits> {
   const invoke = await getInvoke();
-  if (!invoke) return { minMb: 6144, maxMb: 12288, totalMb: 16384 };
+  if (!invoke) return { minMb: 4096, maxMb: 8192, totalMb: 16384 };
   return invoke<MemoryLimits>("get_memory_limits");
 }
 
