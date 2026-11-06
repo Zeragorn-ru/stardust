@@ -249,7 +249,7 @@ function Shell() {
         {activeTab === "mods" && <div className="m-screen"><ExternalModsView mobile /></div>}
         {activeTab === "seasons" && <MobileSeasons />}
         {activeTab === "releases" && (
-          <div className="m-screen m-screen-reuse m-screen-releases">
+          <div className="m-screen m-screen-reuse m-screen-seasons">
             <ReleasesView />
           </div>
         )}

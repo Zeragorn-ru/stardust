@@ -1352,11 +1352,13 @@ async fn install_update_inner(app: AppHandle) -> Result<(), String> {
                     .map_err(|e| format!("Не удалось запустить скрипт обновления: {e}"))?;
             } else {
                 // Fallback без скрипта: ручная замена через cp -R (std::fs::copy
-                // не копирует директории).
+                // не копирует директории). УДАЛЯЕМ старый каталог перед копированием,
+                // чтобы не осталось мусора от предыдущей версии.
                 tracing::warn!("[update] update-macos.sh не найден, попытка замены вручную");
                 let backup = std::path::PathBuf::from(format!("{}.old", install_dir.display()));
                 let _ = std::fs::remove_dir_all(&backup);
                 let _ = std::fs::rename(&install_dir, &backup);
+                let _ = std::fs::remove_dir_all(&install_dir);
                 let status = std::process::Command::new("cp")
                     .args([
                         "-R",

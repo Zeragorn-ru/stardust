@@ -2575,7 +2575,7 @@ button,
     border-radius: var(--radius-sm);
     font-size: 14px;
     font-weight: 500;
-    color: var(--text-dim);
+    color: var(--muted);
     background: transparent;
     border: none;
     cursor: pointer;

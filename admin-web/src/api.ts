@@ -557,7 +557,7 @@ export const api = {
     seconds: number | null,
   ): Promise<void> {
     // Для очистки отправляем null → PATCH-тело без поля playtimeSeconds
-    const body = seconds != null ? { playtime_seconds: seconds } : {};
+    const body = seconds != null ? { playtimeSeconds: seconds } : {};
     return request("PATCH", `/api/accounts/${uuid}`, body);
   },
 

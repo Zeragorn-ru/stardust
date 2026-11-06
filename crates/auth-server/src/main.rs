@@ -55,6 +55,7 @@ use store::{
     constant_time_eq,
 };
 use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 /// Общее состояние сервера.
 struct AppState {
@@ -1185,6 +1186,16 @@ async fn ygg_refresh(State(state): State<Shared>, Json(req): Json<RefreshReq>) -
             "Invalid token.",
         );
     };
+    // Забаненный юзер не получает токен — даже если токен валиден.
+    if let Some(ref ban) = account.ban {
+        if ban.is_expired(OffsetDateTime::now_utc()) == false {
+            return ygg_error(
+                StatusCode::FORBIDDEN,
+                "ForbiddenOperationException",
+                "Account is banned.",
+            );
+        }
+    }
     let access_token = match state.store.create_session(&uuid).await {
         Ok(t) => t,
         Err(_) => {
@@ -1707,7 +1718,7 @@ async fn crash_history(
     let account = current_account(&state, &headers).await?;
     let logs = state
         .store
-        .crash_history_for(&account.username, 50)
+        .crash_history_for(&account.uuid, 50)
         .await?;
     Ok(Json(logs))
 }

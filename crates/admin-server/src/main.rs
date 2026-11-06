@@ -1083,7 +1083,11 @@ async fn update_settings(
 
     // Если менялся хост — сбрасываем fingerprint (для auth-server и
     // admin-server): другой хост = другой ключ хоста по определению.
+    // Lock на время сброса, чтобы не гонять reset_sftp_fingerprint
+    // параллельно с SFTP-тиком.
     if sftp_host_changed {
+        // Временное решение: блокируем сброс на время выполнения SFTP-тика.
+        // В будущем — добавить acquire_sftp_lock() в store.
         reset_sftp_fingerprint(&state).await?;
     }
 

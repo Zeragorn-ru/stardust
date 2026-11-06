@@ -16,6 +16,7 @@ COPY auth-server /usr/local/bin/auth-server
 # Внутри контейнера слушаем все интерфейсы; наружу пробрасываем через compose.
 ENV AUTH_BIND=0.0.0.0:8080
 EXPOSE 8080
+USER 1000:1000
 ENTRYPOINT ["/usr/local/bin/auth-server"]
 
 # --- admin-server ---
@@ -25,6 +26,7 @@ ENV ADMIN_BIND=0.0.0.0:8081
 # Каталог с байтами файлов сборок (монтируется volume через compose).
 ENV MODPACK_DIR=/data/modpack
 EXPOSE 8081
+USER 1000:1000
 ENTRYPOINT ["/usr/local/bin/admin-server"]
 
 # --- telegram-bot ---
@@ -32,4 +34,5 @@ ENTRYPOINT ["/usr/local/bin/admin-server"]
 # Портов и volume не требует, наружу ничего не публикует.
 FROM runtime-base AS telegram-bot
 COPY telegram-bot /usr/local/bin/telegram-bot
+USER 1000:1000
 ENTRYPOINT ["/usr/local/bin/telegram-bot"]
