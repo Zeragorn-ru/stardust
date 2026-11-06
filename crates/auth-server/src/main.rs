@@ -1188,7 +1188,7 @@ async fn ygg_refresh(State(state): State<Shared>, Json(req): Json<RefreshReq>) -
     };
     // Забаненный юзер не получает токен — даже если токен валиден.
     if let Some(ref ban) = account.ban {
-        if ban.is_expired(OffsetDateTime::now_utc()) == false {
+        if !ban.is_expired(OffsetDateTime::now_utc()) {
             return ygg_error(
                 StatusCode::FORBIDDEN,
                 "ForbiddenOperationException",
