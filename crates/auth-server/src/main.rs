@@ -2345,17 +2345,29 @@ async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
     // Первый коннект к этому хосту — запоминаем отпечаток (TOFU), чтобы
     // дальше отличать смену ключа (MITM) от легитимной перестановки сервера.
     if pinned_fp.is_none() {
-        let fp = seen_fp.lock().await.clone();
-        if let Some(fp) = fp {
-            if let Err(e) = state
-                .store
-                .set_setting(store::SETTING_SFTP_HOST_FINGERPRINT, &fp)
-                .await
-            {
-                tracing::warn!("не удалось запиннить отпечаток SFTP-хоста: {e:?}");
-            } else {
-                tracing::info!("[sftp] отпечаток ключа хоста запиннен (TOFU)");
+        // Acquire advisory lock to prevent race with admin-server fingerprint reset
+        let locked = state
+            .store
+            .acquire_sftp_lock()
+            .await
+            .map_err(|e| format!("db lock: {e}"))?;
+        if locked {
+            let fp = seen_fp.lock().await.clone();
+            if let Some(fp) = fp {
+                if let Err(e) = state
+                    .store
+                    .set_setting(store::SETTING_SFTP_HOST_FINGERPRINT, &fp)
+                    .await
+                {
+                    tracing::warn!("не удалось запиннить отпечаток SFTP-хоста: {e:?}");
+                } else {
+                    tracing::info!("[sftp] отпечаток ключа хоста запиннен (TOFU)");
+                }
             }
+            // Release lock immediately after TOFU write
+            let _ = state.store.release_sftp_lock().await;
+        } else {
+            tracing::warn!("[sftp] Не удалось получить advisory lock — пропущен TOFU-запись отпечатка");
         }
     }
     let ok = ssh
