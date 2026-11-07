@@ -347,10 +347,10 @@ impl Store {
     /// - auth-server SFTP sync (every 15 min) and admin-server fingerprint reset
     /// - concurrent fingerprint reads/writes during server key rotation
     pub async fn acquire_sftp_lock(&self) -> Result<bool, StoreError> {
-        let result: i32 = sqlx::query_scalar("SELECT pg_try_advisory_lock(0x53465450)")
+        let result: bool = sqlx::query_scalar("SELECT pg_try_advisory_lock(0x53465450)")
             .fetch_one(&self.pool)
             .await?;
-        Ok(result > 0)
+        Ok(result)
     }
 
     /// Release advisory lock for SFTP operations.
