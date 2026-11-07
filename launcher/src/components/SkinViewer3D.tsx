@@ -88,6 +88,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
   // Hero idle-анимация: имя текущей + таймер следующего переключения.
   const heroIdleRef = useRef<string | null>(null);
   const heroIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heroOneShotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heroShowPlayedRef = useRef(false);
   const heroShowActiveRef = useRef(false);
   const heroShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -169,8 +170,10 @@ const SkinViewer3D = memo(function SkinViewer3D({
       lastSkinRef.current = src;
       lastModelRef.current = model;
       skinReadyRef.current = false;
-      heroShowPlayedRef.current = false;
+      if (heroShowActiveRef.current) heroShowPlayedRef.current = false;
+      heroShowActiveRef.current = false;
       heroShowGenerationRef.current += 1;
+      stopHeroIdleLoop();
       if (heroShowTimerRef.current) {
         clearTimeout(heroShowTimerRef.current);
         heroShowTimerRef.current = null;
@@ -283,6 +286,19 @@ const SkinViewer3D = memo(function SkinViewer3D({
           ],
         },
       ],
+    });
+
+    // Временное спокойное дыхание рук, без движения головы.
+    registerAnimation({
+      name: "hero_idle_placeholder", duration: 6, loop: true,
+      tracks: [BoneIndex.RightArm, BoneIndex.LeftArm].map((boneIndex, i) => ({
+        boneIndex,
+        keyframes: [
+          { time: 0, rotation: quatFromEuler(0, 0, 0) },
+          { time: 0.5, rotation: quatFromEuler(0, 0, degToRad(i === 0 ? -1.5 : 1.5)), easing: easeInOutSine },
+          { time: 1, rotation: quatFromEuler(0, 0, 0), easing: easeInOutSine },
+        ],
+      })),
     });
 
     // Регистрируем все idle-анимации один раз при монтировании.
@@ -412,6 +428,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
       canvas.style.display = "none";
       stopLoop();
       interruptHeroShow();
+      stopHeroIdleLoop();
       heroShowGenerationRef.current += 1;
       if (heroShowTimerRef.current) {
         clearTimeout(heroShowTimerRef.current);
@@ -465,6 +482,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     if (interactive) {
       // Интерактивный режим (модалка): фиксированный float, вращение мышью.
       // Idle-ротация hero здесь не нужна.
+      interruptHeroShow();
       stopHeroIdleLoop();
       viewer.setAutoRotate(false);
       if (animations) viewer.playAnimation("float");
@@ -475,6 +493,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
       if (animations) {
         startHeroShowThenIdle();
       } else {
+        interruptHeroShow();
         stopHeroIdleLoop();
         viewer.stopAnimation();
         renderOnce();
@@ -485,6 +504,8 @@ const SkinViewer3D = memo(function SkinViewer3D({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !debugPlayback) return;
+    interruptHeroShow();
+    stopHeroIdleLoop();
     if (debugPlayback.name) viewer.playAnimation(animationNameForModel(debugPlayback.name, lastModelRef.current));
     else viewer.stopAnimation();
     viewer.setAnimationSpeed(debugPlayback.speed);
@@ -502,14 +523,14 @@ const SkinViewer3D = memo(function SkinViewer3D({
   }, [debugPlayback?.paused, debugPlayback?.speed]);
 
   /**
-   * Hero idle-цикл: играет случайную анимацию из IDLE_ANIMATIONS, затем
-   * раз в IDLE_CHECK_INTERVAL_MS (60 с) бросает кубик с шансом IDLE_SWITCH_CHANCE_PER_MIN
-   * (по умолчанию 20 % в минуту ≈ в среднем раз в 5 минут). При «удаче» — переключает
-   * на другую случайную анимацию и перезапускает таймер.
+   * После show сохраняем финальную позу и раз в минуту с шансом 20 %
+   * запускаем случайную idle-анимацию.
    * Таймер гасится при unmount / смене interactive / выключении анимаций.
    */
   function startHeroShowThenIdle() {
     if (!visibleRef.current || !focusedRef.current || document.hidden) return;
+    // Повторный focus/visibility во время show не должен обрывать его таймер.
+    if (heroShowActiveRef.current) return;
     if (heroShowPlayedRef.current) {
       startHeroIdleLoop();
       return;
@@ -520,6 +541,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     heroShowActiveRef.current = true;
     stopHeroIdleLoop();
     if (!SHOW_ANIMATIONS.length) {
+      heroShowActiveRef.current = false;
       startHeroIdleLoop();
       return;
     }
@@ -540,12 +562,11 @@ const SkinViewer3D = memo(function SkinViewer3D({
   function startHeroIdleLoop() {
     stopHeroIdleLoop();
     const viewer = viewerRef.current;
-    if (!viewer || !IDLE_ANIMATIONS.length) return;
-    const pick = IDLE_ANIMATIONS[Math.floor(Math.random() * IDLE_ANIMATIONS.length)];
-    viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
-    heroIdleRef.current = pick.name;
+    if (!viewer || !skinReadyRef.current) return;
+    viewer.playAnimation("hero_idle_placeholder");
+    heroIdleRef.current = "hero_idle_placeholder";
     startLoop();
-    scheduleHeroCheck();
+    if (IDLE_ANIMATIONS.length) scheduleHeroCheck();
   }
 
   function scheduleHeroCheck() {
@@ -566,25 +587,28 @@ const SkinViewer3D = memo(function SkinViewer3D({
         interactive
       ) return;
 
-      // Бросок кубика: IDLE_SWITCH_CHANCE_PER_MIN шанс за каждый интервал
-      const shouldSwitch = Math.random() < IDLE_SWITCH_CHANCE_PER_MIN;
-      if (shouldSwitch) {
-        const current = heroIdleRef.current;
-        const pool = IDLE_ANIMATIONS.filter((a) => a.name !== current);
-        // При единственном idle «переключение» не должно перезапускать тот же клип.
-        const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : undefined;
-        if (pick) {
-          viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
-          heroIdleRef.current = pick.name;
-          startLoop();
-        }
+      const pick = IDLE_ANIMATIONS[0];
+      if (pick && Math.random() < IDLE_SWITCH_CHANCE_PER_MIN) {
+        viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
+        heroIdleRef.current = pick.name;
+        startLoop();
+        heroOneShotTimerRef.current = setTimeout(() => {
+          heroOneShotTimerRef.current = null;
+          if (isViewerActive(viewer, lifecycleGeneration) && animationsRef.current && visibleRef.current && focusedRef.current && !document.hidden && !debugRef.current && !interactive) {
+            startHeroIdleLoop();
+          }
+        }, pick.duration * 1000);
+      } else {
+        scheduleHeroCheck();
       }
-      // Даже без переключения — планируем следующую проверку через тот же интервал
-      scheduleHeroCheck();
     }, IDLE_CHECK_INTERVAL_MS);
   }
 
   function stopHeroIdleLoop() {
+    if (heroOneShotTimerRef.current) {
+      clearTimeout(heroOneShotTimerRef.current);
+      heroOneShotTimerRef.current = null;
+    }
     if (heroIdleTimerRef.current) {
       clearTimeout(heroIdleTimerRef.current);
       heroIdleTimerRef.current = null;
