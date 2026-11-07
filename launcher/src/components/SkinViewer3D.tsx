@@ -6,7 +6,7 @@ import type { SkinModel } from "../types";
 import { animationsEnabled } from "../preferences";
 import { useMotion } from "../motion";
 import { normalizeSkinForViewer } from "../skinNormalize";
-import { IDLE_ANIMATIONS } from "../animations";
+import { IDLE_ANIMATIONS, SLIM_IDLE_ANIMATIONS, animationNameForModel } from "../animations";
 
 use(WebGLRendererPlugin);
 
@@ -92,6 +92,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
   // Кэш для skin/cape чтобы не перезагружать одно и то же.
   const lastSkinRef = useRef<string>("");
   const lastModelRef = useRef<SkinModel>("classic");
+  const lastAppliedModelRef = useRef<SkinModel | null>(null);
   const lastCapeRef = useRef<string | null>(null);
   // Очередь загрузок скина: быстрый повторный выбор не должен дать стейл
   // (медленному) промису перезаписать уже применённый новый скин.
@@ -151,7 +152,21 @@ const SkinViewer3D = memo(function SkinViewer3D({
     if (src !== lastSkinRef.current || model !== lastModelRef.current) {
       lastSkinRef.current = src;
       lastModelRef.current = model;
+      const modelChanged = model !== lastAppliedModelRef.current;
       viewer.setSlim(model === "slim");
+      lastAppliedModelRef.current = model;
+      // setSlim пересоздаёт скелет: заново применяем вариант для новой модели.
+      if (modelChanged) {
+        const playback = debugRef.current;
+        const name = playback ? playback.name : heroIdleRef.current;
+        if (name) {
+          viewer.playAnimation(animationNameForModel(name, model));
+          if (playback) {
+            viewer.setAnimationSpeed(playback.speed);
+            if (playback.paused) viewer.pauseAnimation();
+          }
+        }
+      }
       const wanted = src;
       const wantedModel = model;
       skinChainRef.current = skinChainRef.current
@@ -226,7 +241,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     });
 
     // Регистрируем все idle-анимации один раз при монтировании.
-    for (const anim of IDLE_ANIMATIONS) {
+    for (const anim of [...IDLE_ANIMATIONS, ...SLIM_IDLE_ANIMATIONS]) {
       registerAnimation(anim);
     }
 
@@ -271,7 +286,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
         loadCurrent();
         if (debugRef.current) {
           const playback = debugRef.current;
-          if (playback.name) viewer.playAnimation(playback.name);
+          if (playback.name) viewer.playAnimation(animationNameForModel(playback.name, lastModelRef.current));
           viewer.setAnimationSpeed(playback.speed);
           if (playback.paused) viewer.pauseAnimation();
         } else if (interactive) {
@@ -406,7 +421,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !debugPlayback) return;
-    if (debugPlayback.name) viewer.playAnimation(debugPlayback.name);
+    if (debugPlayback.name) viewer.playAnimation(animationNameForModel(debugPlayback.name, lastModelRef.current));
     else viewer.stopAnimation();
     viewer.setAnimationSpeed(debugPlayback.speed);
     if (debugPlayback.paused) viewer.pauseAnimation();
@@ -434,7 +449,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     const viewer = viewerRef.current;
     if (!viewer) return;
     const pick = IDLE_ANIMATIONS[Math.floor(Math.random() * IDLE_ANIMATIONS.length)];
-    viewer.playAnimation(pick.name);
+    viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
     heroIdleRef.current = pick.name;
     startLoop();
     scheduleHeroCheck();
@@ -453,7 +468,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
         const current = heroIdleRef.current;
         const pool = IDLE_ANIMATIONS.filter((a) => a.name !== current);
         const pick = pool[Math.floor(Math.random() * pool.length)] ?? IDLE_ANIMATIONS[0];
-        viewer.playAnimation(pick.name);
+        viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
         heroIdleRef.current = pick.name;
         startLoop();
       }
