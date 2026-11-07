@@ -1,19 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoneIndex, quatFromEuler, quatMultiply, quatInvert, degToRad } from '@daidr/minecraft-skin-renderer';
-import { IDLE_ANIMATIONS, SLIM_IDLE_ANIMATIONS, animationNameForModel, sampleCurve } from './animations.ts';
+import { IDLE_ANIMATIONS, SLIM_IDLE_ANIMATIONS, animationNameForModel, sampleCurve, convertBlockbenchAnimation, BB_IDLE } from './animations.ts';
 
 const near = (a, b, eps = 1e-7) => assert.ok(Math.abs(a-b) < eps, `${a} != ${b}`);
 const vectorNear = (a, b) => { assert.equal(a.length, b.length); a.forEach((v, i) => near(v, b[i])); };
 const rotate = (q, v) => quatMultiply(quatMultiply(q, [...v, 0]), quatInvert(q)).slice(0, 3);
 const sum = (a, b) => a.map((v, i) => v + b[i]);
 const delta = (a, b) => a.map((v, i) => v - b[i]);
-const q = (x,y,z) => quatFromEuler(degToRad(x), degToRad(-y), degToRad(-z));
+const q = (x,y,z) => quatMultiply(quatMultiply(quatFromEuler(0,0,degToRad(-z)), quatFromEuler(0,degToRad(y),0)), quatFromEuler(degToRad(-x),0,0));
+// THREE Matrix4.makeRotationFromEuler ZYX, строками, независимо от quaternion.
+const matrixZYX = (x,y,z) => {
+  x = degToRad(-x); y = degToRad(y); z = degToRad(-z);
+  const a=Math.cos(x), b=Math.sin(x), c=Math.cos(y), d=Math.sin(y), e=Math.cos(z), f=Math.sin(z);
+  return [[c*e,b*d*e-a*f,a*d*e+b*f],[c*f,b*d*f+a*e,a*d*f-b*e],[-d,b*c,a*c]];
+};
+const matrixRotate = (m,v) => m.map(row => row.reduce((s,n,i) => s+n*v[i],0));
 const clip = IDLE_ANIMATIONS[0];
 function frame(bone, seconds, animation = clip) {
   const frames = animation.tracks.find(t => t.boneIndex === bone).keyframes;
   return frames.find(f => Math.abs(f.time * animation.duration - seconds) < 1e-10);
 }
+
+test('raw ZYX rotations match independent THREE matrices for mixed and signed axial angles', () => {
+  for (const angles of [[30,45,60],[-37,21,113], [90,0,0],[-90,0,0],[0,90,0],[0,-90,0],[0,0,90],[0,0,-90]]) {
+    const [x,y,z] = angles;
+    const animation = convertBlockbenchAnimation({name:'rotation', length:1, animators:{body:{name:'Body', keyframes:[{channel:'rotation', time:0, data_points:[{x,y,z}]}]}}});
+    const actual = frame(BoneIndex.Body, 0, animation).rotation;
+    for (const basis of [[1,0,0],[0,1,0],[0,0,1]]) vectorNear(rotate(actual,basis), matrixRotate(matrixZYX(x,y,z),basis));
+  }
+});
+
+test('global child rotation with animated waist is explicitly rejected', () => {
+  const keyframes = [{channel:'rotation',time:0,data_points:[{x:30,y:20,z:10}]}];
+  assert.throws(() => convertBlockbenchAnimation({name:'global',length:1,animators:{waist:{name:'Waist',keyframes},arm:{name:'RightArm',rotation_global:true,keyframes}}}), /rotation_global.*waist/);
+});
 
 test('Catmull–Rom follows Blockbench SplineCurve endpoints and unequal timing', () => {
   const points = [[0,0,0,0],[1,2,0,0],[3,0,0,0]];
@@ -21,6 +42,32 @@ test('Catmull–Rom follows Blockbench SplineCurve endpoints and unequal timing'
   near(sampleCurve(points, 2)[0], 1.125);
   near(sampleCurve(points, 1)[0], 2);
   near(sampleCurve(points, 4)[0], 0);
+});
+
+test('Blockbench smooths a segment when either endpoint is catmullrom', () => {
+  const input = { name: 'mixed', length: 3, animators: { Head: { keyframes: [
+    { channel: 'position', time: 0, interpolation: 'linear', data_points: [{x: 0}] },
+    { channel: 'position', time: 1, interpolation: 'catmullrom', data_points: [{x: 10}] },
+    { channel: 'position', time: 2, interpolation: 'linear', data_points: [{x: 0}] },
+    { channel: 'position', time: 3, interpolation: 'linear', data_points: [{x: 20}] },
+  ] } } };
+  const animation = convertBlockbenchAnimation(input);
+  const f = frame(BoneIndex.Head, 0.5, animation);
+  near(f.position[0], -5.625);
+});
+
+test('quaternion interpolation is rejected explicitly', () => {
+  assert.throws(() => convertBlockbenchAnimation({ name: 'quat', length: 1, quaternion_interpolation: true, animators: {} }), /quaternion_interpolation/);
+});
+
+test('BB_IDLE preserves the source key layout and global flags', () => {
+  assert.equal(Object.keys(BB_IDLE.animators).length, 6);
+  for (const [name, bone] of Object.entries(BB_IDLE.animators)) {
+    assert.equal(bone.rotation_global, name === 'RightArm');
+    assert.ok(bone.keyframes?.length);
+    assert.ok(bone.keyframes.every(k => k.data_points?.length === 1));
+  }
+  assert.equal(BB_IDLE.animators.Waist, undefined);
 });
 
 test('baked tracks are complete, ordered and cover the once clip', () => {
@@ -61,18 +108,20 @@ test('body parent is cancelled for head, global right arm and root leg', () => {
 });
 
 test('classic and slim arms match independent Euler-matrix world positions', () => {
-  // Эталон рассчитан напрямую по XYZ Euler-матрицам, без функций renderer.
-  const cases = [
-    [clip, 6, [[-5.8253991144128445,24.05468825380674,-2.2885959512223706], [5.1958198687913235,24.025867852204186,0.48762300808628056]]],
-    [SLIM_IDLE_ANIMATIONS[0], 5.5, [[-5.3657341878929055,24.02548438414554,-2.483160309017501], [4.742245124044065,24.01030654194955,0.6974510246870651]]],
-  ];
-  for (const [animation, width, expected] of cases) {
+  const cases = [[clip, 6], [SLIM_IDLE_ANIMATIONS[0], 5.5]];
+  for (const [animation, width] of cases) {
     const body = frame(BoneIndex.Body, 0.5, animation);
     for (const [i, bone] of [BoneIndex.RightArm, BoneIndex.LeftArm].entries()) {
       const arm = frame(bone, 0.5, animation);
       const rest = [i === 0 ? -width : width, 0, 0];
       const world = sum(sum([0,24,0], body.position), rotate(body.rotation, sum(rest, arm.position)));
-      vectorNear(world, expected[i]);
+      const base = [i === 0 ? -width : width,24,0];
+      const pivot = [i === 0 ? -5 : 5,22,0];
+      const shift = delta(pivot, base);
+      const source = BB_IDLE.animators[i === 0 ? 'RightArm' : 'LeftArm'];
+      const rot = source.keyframes.find(k => k.channel === 'rotation' && k.time === 0.5).data_points[0];
+      const pos = source.keyframes.find(k => k.channel === 'position' && k.time === 0.5).data_points[0];
+      vectorNear(world, sum(sum(base, [-pos.x,pos.y,-pos.z]), delta(shift, matrixRotate(matrixZYX(rot.x,rot.y,rot.z), shift))));
     }
   }
 });
@@ -90,4 +139,54 @@ test('last keyed pose is held to clip end', () => {
     vectorNear(keyed.rotation, end.rotation);
     vectorNear(keyed.position, end.position);
   }
+});
+
+
+test('конвертер читает минимальный Blockbench JSON для обеих моделей', () => {
+  const input = { name: 'step', animation_length: '1', loop: 'loop', animators: {
+    uuid: { name: 'RightLeg', keyframes: [
+      { channel: 'position', time: '0', data_points: [{ x: '0', y: '0', z: '0' }] },
+      { channel: 'position', time: '0.5', data_points: [{ x: '0', y: '0', z: '2' }] },
+    ] }
+  } };
+  for (const model of ['classic', 'slim']) {
+    const animation = convertBlockbenchAnimation(input, model);
+    assert.equal(animation.name, 'step');
+    assert.equal(animation.duration, 1);
+    assert.equal(animation.loop, true);
+    assert.ok(frame(BoneIndex.RightLeg, 0.5, animation).position[2] < 0);
+  }
+  assert.equal(BB_IDLE.name, 'bb_idle');
+});
+
+test('неподдерживаемые разрывы и step отклоняются', () => {
+  for (const key of [
+    { channel: 'position', time: 0, interpolation: 'step', data_points: [{ z: 1 }] },
+    { channel: 'position', time: 0, data_points: [{ z: 1 }, { z: 2 }] },
+  ]) assert.throws(() => convertBlockbenchAnimation({ name: 'bad', length: 1, bones: { Head: { keyframes: [key] } } }), /интерполяция|data_point/);
+});
+
+test('отсутствующая Head компенсирует движение Body, Z направлен правильно', () => {
+  const animation = convertBlockbenchAnimation({ type: 'animation', content: { name: 'move', length: 1, loop: 'once', animators: {
+    a: { name: 'Body', type: 'bone', rotation_global: false, keyframes: [
+      { channel: 'position', time: 0, interpolation: 'linear', data_points: [{ x: 0, y: 0, z: 0 }] },
+      { channel: 'position', time: 1, interpolation: 'linear', data_points: [{ x: 0, y: 0, z: -0.5 }] },
+    ] }, waist: { name: 'waist', type: 'bone' }
+  } } });
+  assert.equal(animation.tracks.length, 6);
+  const body = frame(BoneIndex.Body, 1, animation), head = frame(BoneIndex.Head, 1, animation);
+  near(body.position[2], 0.5);
+  vectorNear(sum(sum([0,24,0], body.position), rotate(body.rotation, head.position)), [0,24,0]);
+});
+
+test('ошибочные входные данные не игнорируются', () => {
+  const base = keyframes => ({ name: 'bad', length: 1, animators: { a: { name: 'Head', keyframes } } });
+  const key = { channel: 'position', time: 0, data_points: [{ x: 0, y: 0, z: 0 }] };
+  for (const input of [
+    { name: 'bad', length: 1, animators: { a: { name: 'unknown' } } },
+    base([{ ...key, channel: 'scale' }]), base([{ ...key, data_points: [{ x: '' }] }]),
+    base([{ ...key, data_points: [{ x: 'query.foo' }] }]), base([{ ...key, interpolation: 'bezier' }]),
+    { ...base([]), loop: 'hold' }, base([key, key]), { name: 'bad', length: 1, bones: { Head: { position: {} } } },
+    { name: 'bad', length: 1, animators: { a: { name: 'Head' }, b: { name: 'head' } } },
+  ]) assert.throws(() => convertBlockbenchAnimation(input));
 });

@@ -4,7 +4,7 @@ import { BoneIndex, degToRad, quatFromEuler, quatMultiply, quatInvert, vec3, typ
 type Point = readonly [time: number, x: number, y: number, z: number];
 const duration = 2.2916666666666665;
 
-type Vector = [number, number, number];
+export type Vector = [number, number, number];
 type Quaternion = ReturnType<typeof quatFromEuler>;
 type Source = { boneIndex: BoneIndex; rotations: readonly Point[]; positions: readonly Point[] };
 
@@ -27,8 +27,11 @@ function rotate(q: Quaternion, v: Vector): Vector {
   return [r[0], r[1], r[2]];
 }
 function rotation(p: Vector): Quaternion {
-  // Оси модели Blockbench отражены по X относительно модели renderer.
-  return quatFromEuler(degToRad(p[0]), degToRad(-p[1]), degToRad(-p[2]));
+  // Raw keyframes Blockbench: ZYX; базис renderer повёрнут на 180° вокруг Y.
+  // Bedrock-экспорт отдельно инвертирует X и Y и здесь не принимается.
+  const [x, y, z] = [-p[0], p[1], -p[2]].map(v => degToRad(v) / 2);
+  const sx = Math.sin(x), cx = Math.cos(x), sy = Math.sin(y), cy = Math.cos(y), sz = Math.sin(z), cz = Math.cos(z);
+  return [sx*cy*cz - cx*sy*sz, cx*sy*cz + sx*cy*sz, cx*cy*sz - sx*sy*cz, cx*cy*cz + sx*sy*sz];
 }
 // Blockbench и renderer используют противоположное направление глубины.
 // X также отражён из-за зеркального базиса модели, поэтому конвертируем обе
@@ -39,7 +42,7 @@ function tracks(boneIndex: BoneIndex, rotations: readonly Point[], positions: re
   return [{ boneIndex, rotations, positions }];
 }
 
-const source: Source[] = [
+const idleSource: Source[] = [
     ...tracks(BoneIndex.Head,
       [[0,0,0,0],[0.5,0,-68,0],[1.5833333333333333,0,-47,0],[2.25,0,0,0]],
       [[0,0,0,0],[0.5,0.4,0.2,0.4],[0.8333333333333334,0.6,0.2,1.6],[1.5833333333333333,0.6,0.2,1.6],[2.25,0,0,0]]),
@@ -74,32 +77,153 @@ const pivot: Record<number, Vector> = {
   [BoneIndex.LeftLeg]: [2.3094,0.00366,0],
 };
 
-function bake(slim: boolean): Animation["tracks"] {
-  const modelRest: Record<number, Vector> = slim
-    ? { ...rest, [BoneIndex.RightArm]: [-5.5,24,0], [BoneIndex.LeftArm]: [5.5,24,0] }
-    : rest;
-  const body = source.find(s => s.boneIndex === BoneIndex.Body)!;
-  // Общая сетка включает все исходные ключи и конец клипа; renderer
-  // между ними использует lerp/slerp, поэтому bake остаётся приближением.
-  const times = new Set<number>([0, duration]);
-  for (const s of source) for (const p of [...s.rotations, ...s.positions]) times.add(p[0]);
-  for (let t = 1 / 120; t < duration; t += 1 / 120) times.add(t);
-  const sorted = [...times].sort((a,b) => a-b);
-  return source.map(s => ({ boneIndex: s.boneIndex, keyframes: sorted.map(time => {
-    const bodyQ = rotation(sampleCurve(body.rotations, time));
-    const bodyPosition = mirror(sampleCurve(body.positions, time));
-    const q = rotation(sampleCurve(s.rotations, time));
-    const position = mirror(sampleCurve(s.positions, time));
-    const shift = sub(pivot[s.boneIndex], modelRest[s.boneIndex]);
-    const worldPosition = add(add(modelRest[s.boneIndex], position), sub(shift, rotate(q, shift)));
-    if (s.boneIndex === BoneIndex.Body) return { time: time / duration, rotation: q, position: vec3(...position) };
-    const localPosition = sub(rotate(quatInvert(bodyQ), sub(sub(worldPosition, modelRest[BoneIndex.Body]), bodyPosition)), sub(modelRest[s.boneIndex], modelRest[BoneIndex.Body]));
-    return { time: time / duration, rotation: quatMultiply(quatInvert(bodyQ), q), position: vec3(...localPosition) };
-  }) }));
+// Вход соответствует сериализованной анимации Blockbench; значения выражений
+// Molang намеренно не вычисляются: поддерживаются только числовые компоненты.
+type BBPoint = { x?: number | string; y?: number | string; z?: number | string };
+type BBKey = { channel?: string; time?: number | string; data_points?: BBPoint[]; interpolation?: string };
+type BBBone = { type?: string; name?: string; rotation_global?: boolean; keyframes?: BBKey[]; rotation?: Record<string, unknown>; position?: Record<string, unknown> };
+export type BlockbenchAnimation = { name: string; length?: number | string; animation_length?: number | string; loop?: boolean | string; quaternion_interpolation?: boolean; animators?: Record<string, BBBone>; bones?: Record<string, BBBone> };
+export type SourceLayout = { pivots: Record<string, Vector>; waistPivot: Vector; waistChildren: string[] };
+export type BlockbenchInput = BlockbenchAnimation | { type: "animation"; content: BlockbenchAnimation };
+type Key = { time: number; before: Vector; after: Vector; interpolation: string };
+type Channel = Key[];
+type Parsed = { rotations: Channel; positions: Channel; global: boolean };
+const indices: Record<string, BoneIndex> = { head: BoneIndex.Head, body: BoneIndex.Body, rightarm: BoneIndex.RightArm, leftarm: BoneIndex.LeftArm, rightleg: BoneIndex.RightLeg, leftleg: BoneIndex.LeftLeg };
+const number = (v: unknown): number => {
+  if ((typeof v !== "number" && typeof v !== "string") || (typeof v === "string" && !v.trim())) throw new Error(`Некорректное числовое значение Blockbench: ${String(v)}`);
+  const n = Number(v);
+  if (!Number.isFinite(n)) throw new Error(`Некорректное число или неподдерживаемое выражение Molang: ${String(v)}`);
+  return n;
+};
+function vector(value: unknown): Vector {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Ожидалась точка Blockbench с x/y/z");
+  const p = value as BBPoint;
+  return [number(p.x === undefined ? 0 : p.x), number(p.y === undefined ? 0 : p.y), number(p.z === undefined ? 0 : p.z)];
+}
+function channel(bone: BBBone, name: "rotation" | "position", duration: number): Channel {
+  if (bone.rotation !== undefined || bone.position !== undefined) throw new Error("Формат каналов rotation/position не поддерживается; используйте keyframes");
+  if (bone.keyframes !== undefined && !Array.isArray(bone.keyframes)) throw new Error("keyframes должен быть массивом");
+  const keys: Key[] = [];
+  for (const k of bone.keyframes ?? []) {
+    if (!k || (k.channel !== "rotation" && k.channel !== "position")) throw new Error(`Неподдерживаемый канал Blockbench: ${k?.channel}`);
+    if (k.channel !== name) continue;
+    const interpolation = k.interpolation ?? "linear";
+    if (!["linear", "catmullrom", "catmull_rom"].includes(interpolation)) throw new Error(`Неподдерживаемая интерполяция: ${interpolation}`);
+    if (!Array.isArray(k.data_points) || k.data_points.length !== 1) throw new Error("Поддерживается ровно один data_point на ключ; разрывы не поддерживаются");
+    const time = number(k.time);
+    if (time < 0 || time > duration) throw new Error(`Время ключа вне анимации: ${time}`);
+    const point = vector(k.data_points[0]);
+    keys.push({ time, before: point, after: point, interpolation });
+  }
+  keys.sort((a, b) => a.time - b.time);
+  for (let i = 1; i < keys.length; i++) if (keys[i].time === keys[i-1].time) throw new Error(`Дубликат ключа ${name} на времени ${keys[i].time}`);
+  return keys;
+}
+function sample(keys: Channel, time: number, loop: boolean): Vector {
+  if (!keys.length) return [0, 0, 0];
+  if (time < keys[0].time) return keys[0].before;
+  let i = keys.findIndex(k => k.time > time);
+  if (i < 0) return keys[keys.length - 1].after;
+  const a = keys[i - 1], b = keys[i], t = (time - a.time) / (b.time - a.time);
+  if (a.interpolation === "step") return a.after;
+  if (a.interpolation === "catmullrom" || a.interpolation === "catmull_rom" || b.interpolation === "catmullrom" || b.interpolation === "catmull_rom") {
+    // Blockbench smooths a segment when either endpoint is catmullrom. Its
+    // SplineCurve receives one duplicate endpoint at each open boundary;
+    // looped channels instead use the opposite interior key as neighbour.
+    const previous = loop && i === 1 ? keys[keys.length - 2] : keys[Math.max(0, i - 2)];
+    const following = loop && i === keys.length - 1 ? keys[1] : keys[Math.min(keys.length - 1, i + 1)];
+    const prev = previous?.after ?? a.after;
+    const next = following?.before ?? b.before;
+    return [0, 1, 2].map(k => 0.5 * (2*a.after[k] + (-prev[k]+b.before[k])*t + (2*prev[k]-5*a.after[k]+4*b.before[k]-next[k])*t*t + (-prev[k]+3*a.after[k]-3*b.before[k]+next[k])*t*t*t)) as Vector;
+  }
+  return a.after.map((v, k) => v + (b.before[k] - v) * t) as Vector;
 }
 
-export const IDLE_ANIMATIONS: Animation[] = [{ name: "bb_idle", duration, loop: false, tracks: bake(false) }];
-export const SLIM_IDLE_ANIMATIONS: Animation[] = [{ name: "bb_idle_slim", duration, loop: false, tracks: bake(true) }];
+/** Конвертация скелета Blockbench в локальные треки renderer. */
+export function convertBlockbenchAnimation(input: BlockbenchInput, model: "classic" | "slim" = "classic", layout?: SourceLayout): Animation {
+  if (!input || typeof input !== "object") throw new Error("Некорректный формат анимации");
+  const animation = "type" in input ? (input.type === "animation" ? input.content : null) : input;
+  if (!animation || typeof animation !== "object" || typeof animation.name !== "string" || !animation.name.trim()) throw new Error("Некорректный формат или имя анимации Blockbench");
+  if (model !== "classic" && model !== "slim") throw new Error(`Неизвестная модель: ${model}`);
+  if (![undefined, false, true, "once", "loop"].includes(animation.loop)) throw new Error(`Неподдерживаемый loop: ${animation.loop}`);
+  if (animation.quaternion_interpolation === true) throw new Error("quaternion_interpolation=true не поддерживается");
+  if (animation.animators !== undefined && animation.bones !== undefined) throw new Error("Нельзя одновременно задавать animators и bones");
+  const collection = animation.animators ?? animation.bones;
+  if (!collection || typeof collection !== "object" || Array.isArray(collection)) throw new Error("Ожидался объект animators или bones");
+  const duration = number(animation.length ?? animation.animation_length ?? 0);
+  // Bake создаёт 120 кадров в секунду для каждой кости. Ограничиваем размер,
+  // чтобы повреждённый файл не заблокировал интерфейс и не исчерпал память.
+  if (duration <= 0 || duration > 60) throw new Error("Длительность анимации должна быть от 0 до 60 секунд");
+  const parsed = new Map<string, Parsed>();
+  for (const [id, bone] of Object.entries(collection)) {
+    if (!bone || typeof bone !== "object" || Array.isArray(bone)) throw new Error(`Некорректный аниматор: ${id}`);
+    if (bone.type !== undefined && bone.type !== "bone") throw new Error(`Неподдерживаемый тип аниматора: ${bone.type}`);
+    if (bone.rotation_global !== undefined && typeof bone.rotation_global !== "boolean") throw new Error(`Некорректный rotation_global: ${id}`);
+    const rawName = bone.name ?? id;
+    if (typeof rawName !== "string" || !rawName.trim()) throw new Error(`Некорректное имя кости: ${id}`);
+    const name = rawName.replace(/[ _-]/g, "").toLowerCase();
+    if (name !== "waist" && !Object.prototype.hasOwnProperty.call(indices, name)) throw new Error(`Неизвестная кость: ${name}`);
+    if (parsed.has(name)) throw new Error(`Дубликат аниматора кости: ${name}`);
+    parsed.set(name, { rotations: channel(bone, "rotation", duration), positions: channel(bone, "position", duration), global: bone.rotation_global === true });
+  }
+  const empty: Parsed = { rotations: [], positions: [], global: false };
+  const waist = parsed.get("waist") ?? empty;
+  // Для global-поворота дочернего pivot при вращении родителя нужна отдельная
+  // реконструкция матрицы Blockbench; не выдаём приближение за верную позу.
+  if (waist.rotations.length && [...parsed].some(([name, bone]) => name !== "waist" && bone.global)) {
+    throw new Error("rotation_global с анимированным вращением waist не поддерживается");
+  }
+  const modelRest = model === "slim" ? { ...rest, [BoneIndex.RightArm]: [-5.5,24,0] as Vector, [BoneIndex.LeftArm]: [5.5,24,0] as Vector } : rest;
+  const sourceLayout = layout ?? {
+    pivots: Object.fromEntries(Object.entries(indices).map(([name, index]) => [name, pivot[index]])),
+    waistPivot: rest[BoneIndex.Body], waistChildren: ["head", "body", "rightarm", "leftarm"],
+  };
+  if (!sourceLayout || !sourceLayout.pivots || !Array.isArray(sourceLayout.waistChildren)) throw new Error("Некорректный source layout");
+  const validateVector = (v: Vector | undefined, label: string): Vector => {
+    if (!Array.isArray(v) || v.length !== 3 || !v.every(n => typeof n === "number" && Number.isFinite(n))) throw new Error(`Некорректный pivot: ${label}`);
+    return v;
+  };
+  validateVector(sourceLayout.waistPivot, "waist");
+  for (const name of Object.keys(indices)) validateVector(sourceLayout.pivots[name], name);
+  if (sourceLayout.waistChildren.some(name => !Object.prototype.hasOwnProperty.call(indices, name)) || new Set(sourceLayout.waistChildren).size !== sourceLayout.waistChildren.length) throw new Error("Некорректные дети waist в source layout");
+  const times = new Set<number>([0, duration]);
+  for (const bone of parsed.values()) for (const key of [...bone.rotations, ...bone.positions]) if (key.time >= 0 && key.time <= duration) times.add(key.time);
+  for (let t = 1 / 120; t < duration; t += 1 / 120) times.add(t);
+  const sorted = [...times].sort((a,b) => a-b);
+  // Body нужен даже при анимации только другого сустава: он является корнем renderer.
+  const names = Object.keys(indices);
+  const tracks = names.map(name => ({ boneIndex: indices[name], keyframes: sorted.map(time => {
+    const wq = rotation(sample(waist.rotations, time, animation.loop === true || animation.loop === "loop"));
+    const wp = mirror(sample(waist.positions, time, animation.loop === true || animation.loop === "loop"));
+    const world = (part: string) => {
+      const index = indices[part], data = parsed.get(part) ?? empty;
+      const localQ = rotation(sample(data.rotations, time, animation.loop === true || animation.loop === "loop"));
+      const child = sourceLayout.waistChildren.includes(part);
+      const q = child && !data.global ? quatMultiply(wq, localQ) : localQ;
+      const position = mirror(sample(data.positions, time, animation.loop === true || animation.loop === "loop"));
+      const shift = sub(sourceLayout.pivots[part], modelRest[index]);
+      let pos = add(add(modelRest[index], position), sub(shift, rotate(localQ, shift)));
+      if (child) pos = add(add(sourceLayout.waistPivot, wp), rotate(wq, sub(pos, sourceLayout.waistPivot)));
+      return { q, pos };
+    };
+    const b = world("body"), current = world(name), index = indices[name];
+    if (name === "body") return { time: time / duration, rotation: b.q, position: vec3(...sub(b.pos, modelRest[index])) };
+    const local = sub(rotate(quatInvert(b.q), sub(current.pos, b.pos)), sub(modelRest[index], modelRest[BoneIndex.Body]));
+    return { time: time / duration, rotation: quatMultiply(quatInvert(b.q), current.q), position: vec3(...local) };
+  }) }));
+  return { name: animation.name, duration, loop: animation.loop === true || animation.loop === "loop", tracks };
+}
+
+// Исходные ключи сохраняются в стандартной структуре Blockbench.
+export const BB_IDLE: BlockbenchAnimation = {
+  name: "bb_idle", length: duration, loop: false,
+  animators: Object.fromEntries(idleSource.map(s => [BoneIndex[s.boneIndex], {
+    name: BoneIndex[s.boneIndex], rotation_global: s.boneIndex === BoneIndex.RightArm,
+    keyframes: ([...s.rotations.map(p => ({ p, channel: "rotation" })), ...s.positions.map(p => ({ p, channel: "position" }))]).map(({ p, channel }) => ({ channel, time: p[0], interpolation: "catmullrom", data_points: [{ x: p[1], y: p[2], z: p[3] }] }))
+  }]))
+};
+export const IDLE_ANIMATIONS: Animation[] = [convertBlockbenchAnimation(BB_IDLE)];
+export const SLIM_IDLE_ANIMATIONS: Animation[] = [{ ...convertBlockbenchAnimation(BB_IDLE, "slim"), name: "bb_idle_slim" }];
 
 /** Отладочный UI и цикл используют общие имена, движок — варианты модели. */
 export function animationNameForModel(name: string, model: "classic" | "slim"): string {
