@@ -175,4 +175,80 @@ export const IDLE_ANIMATIONS: Animation[] = [
       },
     ],
   },
+
+  // 7. Пользовательская idle-анимация из Blockbench (длина 2.5 с, один цикл).
+  {
+    name: "bb_idle",
+    duration: 2.5,
+    loop: true,
+    tracks: [
+      {
+        boneIndex: BoneIndex.Head,
+        keyframes: [
+          { time: 0, rotation: quatFromEuler(0, 0, 0) },
+          { time: 0.2, rotation: quatFromEuler(degToRad(0), degToRad(-68), degToRad(0)), easing: easeInOutSine },
+          { time: 0.333332, rotation: quatFromEuler(degToRad(0), degToRad(-47), degToRad(0)), easing: easeInOutSine },
+          { time: 0.633332, rotation: quatFromEuler(degToRad(0), degToRad(-47), degToRad(0)), easing: easeInOutSine },
+          { time: 0.9, rotation: quatFromEuler(0, 0, 0), easing: easeInOutSine },
+        ],
+      },
+      {
+        boneIndex: BoneIndex.Body,
+        keyframes: [
+          { time: 0, rotation: quatFromEuler(0, 0, 0) },
+          { time: 0.2, rotation: quatFromEuler(degToRad(-3.0542), degToRad(-20.3258), degToRad(0.1672)), easing: easeInOutSine },
+          { time: 0.333332, rotation: quatFromEuler(degToRad(-1.3094), degToRad(-27.5464), degToRad(0.229)), easing: easeInOutSine },
+          { time: 0.633332, rotation: quatFromEuler(degToRad(-1.3094), degToRad(-27.5464), degToRad(0.229)), easing: easeInOutSine },
+          { time: 0.733332, rotation: quatFromEuler(degToRad(-3.0542), degToRad(-20.3258), degToRad(0.1672)), easing: easeInOutSine },
+          { time: 0.9, rotation: quatFromEuler(0, 0, 0), easing: easeInOutSine },
+        ],
+      },
+      {
+        boneIndex: BoneIndex.RightArm,
+        keyframes: [
+          { time: 0, rotation: quatFromEuler(degToRad(0), degToRad(0), degToRad(2.5)) },
+          { time: 0.2, rotation: quatFromEuler(degToRad(-1.0863), degToRad(-22.9965), degToRad(2.9245)), easing: easeInOutSine },
+          { time: 0.333332, rotation: quatFromEuler(degToRad(0.0001), degToRad(-23), degToRad(2)), easing: easeInOutSine },
+          { time: 0.633332, rotation: quatFromEuler(degToRad(0.0001), degToRad(-23), degToRad(2)), easing: easeInOutSine },
+          { time: 0.733332, rotation: quatFromEuler(degToRad(-7.5978), degToRad(-22.819), degToRad(2.9614)), easing: easeInOutSine },
+          { time: 0.9, rotation: quatFromEuler(degToRad(0), degToRad(0), degToRad(2.5)), easing: easeInOutSine },
+        ],
+      },
+      {
+        boneIndex: BoneIndex.LeftArm,
+        keyframes: [
+          { time: 0, rotation: quatFromEuler(degToRad(0), degToRad(0), degToRad(-2.5)) },
+          { time: 0.2, rotation: quatFromEuler(degToRad(-4.1275), degToRad(-24.6523), degToRad(-3.5114)), easing: easeInOutSine },
+          { time: 0.333332, rotation: quatFromEuler(degToRad(-0.0865), degToRad(-24.6548), degToRad(-2.4111)), easing: easeInOutSine },
+          { time: 0.633332, rotation: quatFromEuler(degToRad(-0.0865), degToRad(-24.6548), degToRad(-2.4111)), easing: easeInOutSine },
+          { time: 0.733332, rotation: quatFromEuler(degToRad(1.8725), degToRad(-24.6523), degToRad(-3.5114)), easing: easeInOutSine },
+          { time: 0.9, rotation: quatFromEuler(degToRad(0), degToRad(0), degToRad(-2.5)), easing: easeInOutSine },
+        ],
+      },
+      {
+        boneIndex: BoneIndex.RightLeg,
+        keyframes: [
+          { time: 0, rotation: quatFromEuler(0, 0, 0) },
+          { time: 0.1, rotation: quatFromEuler(degToRad(-3.5), degToRad(-11), degToRad(0)), easing: easeInOutSine },
+          { time: 0.2, rotation: quatFromEuler(degToRad(-4.9019), degToRad(-21.5223), degToRad(6.387)), easing: easeInOutSine },
+          { time: 0.333332, rotation: quatFromEuler(degToRad(0.1916), degToRad(-21.9883), degToRad(3.1566)), easing: easeInOutSine },
+          { time: 0.633332, rotation: quatFromEuler(degToRad(0.1916), degToRad(-21.9883), degToRad(3.1566)), easing: easeInOutSine },
+          { time: 0.733332, rotation: quatFromEuler(degToRad(-4.9019), degToRad(-21.5223), degToRad(6.387)), easing: easeInOutSine },
+          { time: 0.816668, rotation: quatFromEuler(degToRad(-3.5), degToRad(-11), degToRad(0)), easing: easeInOutSine },
+          { time: 0.9, rotation: quatFromEuler(0, 0, 0), easing: easeInOutSine },
+        ],
+      },
+      {
+        boneIndex: BoneIndex.LeftLeg,
+        keyframes: [
+          { time: 0, rotation: quatFromEuler(degToRad(0), degToRad(0), degToRad(-2)) },
+          { time: 0.2, rotation: quatFromEuler(degToRad(2.4748), degToRad(-17.8643), degToRad(-5.0215)), easing: easeInOutSine },
+          { time: 0.333332, rotation: quatFromEuler(degToRad(5.9289), degToRad(-23.5772), degToRad(-8.6811)), easing: easeInOutSine },
+          { time: 0.633332, rotation: quatFromEuler(degToRad(5.9289), degToRad(-23.5772), degToRad(-8.6811)), easing: easeInOutSine },
+          { time: 0.733332, rotation: quatFromEuler(degToRad(2.4748), degToRad(-17.8643), degToRad(-5.0215)), easing: easeInOutSine },
+          { time: 0.9, rotation: quatFromEuler(degToRad(0), degToRad(0), degToRad(-2)), easing: easeInOutSine },
+        ],
+      },
+    ],
+  },
 ];

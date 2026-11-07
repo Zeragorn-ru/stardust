@@ -10,8 +10,9 @@ import { IDLE_ANIMATIONS } from "../animations";
 
 use(WebGLRendererPlugin);
 
-/** Интервал между переключениями idle-анимаций на hero-режиме (мс). */
-const IDLE_SWITCH_INTERVAL_MS = 5_000;
+/** Шанс переключения idle-анимации за одну проверку (мс). По умолчанию 20 % за минуту ≈ раз в 5 мин. */
+const IDLE_SWITCH_CHANCE_PER_MIN = 0.2;
+const IDLE_CHECK_INTERVAL_MS = 60_000;
 
 interface Props {
   /** data-URL PNG скина, либо null — тогда грузим встроенный дефолт (стив). */
@@ -393,8 +394,10 @@ const SkinViewer3D = memo(function SkinViewer3D({
   }, [animations, interactive]);
 
   /**
-   * Hero idle-цикл: играет случайную анимацию из IDLE_ANIMATIONS, затем через
-   * duration + случайный промежуток выбирает СЛЕДУЮЩУЮ (не повторять ту же).
+   * Hero idle-цикл: играет случайную анимацию из IDLE_ANIMATIONS, затем
+   * раз в IDLE_CHECK_INTERVAL_MS (60 с) бросает кубик с шансом IDLE_SWITCH_CHANCE_PER_MIN
+   * (по умолчанию 20 % в минуту ≈ в среднем раз в 5 минут). При «удаче» — переключает
+   * на другую случайную анимацию и перезапускает таймер.
    * Таймер гасится при unmount / смене interactive / выключении анимаций.
    */
   function startHeroIdleLoop() {
@@ -405,23 +408,29 @@ const SkinViewer3D = memo(function SkinViewer3D({
     viewer.playAnimation(pick.name);
     heroIdleRef.current = pick.name;
     startLoop();
-    scheduleHeroIdleSwitch(pick.duration * 1000 + Math.random() * IDLE_SWITCH_INTERVAL_MS);
+    scheduleHeroCheck();
   }
 
-  function scheduleHeroIdleSwitch(delayMs: number) {
+  function scheduleHeroCheck() {
     if (heroIdleTimerRef.current) clearTimeout(heroIdleTimerRef.current);
     heroIdleTimerRef.current = setTimeout(() => {
       const viewer = viewerRef.current;
       // Вьюер мог быть уничтожен (unmount) или анимации выключены — выходим.
       if (!viewer || !animationsRef.current) return;
-      const current = heroIdleRef.current;
-      const pool = IDLE_ANIMATIONS.filter((a) => a.name !== current);
-      const pick = pool[Math.floor(Math.random() * pool.length)] ?? IDLE_ANIMATIONS[0];
-      viewer.playAnimation(pick.name);
-      heroIdleRef.current = pick.name;
-      startLoop();
-      scheduleHeroIdleSwitch(pick.duration * 1000 + Math.random() * IDLE_SWITCH_INTERVAL_MS);
-    }, delayMs);
+
+      // Бросок кубика: IDLE_SWITCH_CHANCE_PER_MIN шанс за каждый интервал
+      const shouldSwitch = Math.random() < IDLE_SWITCH_CHANCE_PER_MIN;
+      if (shouldSwitch) {
+        const current = heroIdleRef.current;
+        const pool = IDLE_ANIMATIONS.filter((a) => a.name !== current);
+        const pick = pool[Math.floor(Math.random() * pool.length)] ?? IDLE_ANIMATIONS[0];
+        viewer.playAnimation(pick.name);
+        heroIdleRef.current = pick.name;
+        startLoop();
+      }
+      // Даже без переключения — планируем следующую проверку через тот же интервал
+      scheduleHeroCheck();
+    }, IDLE_CHECK_INTERVAL_MS);
   }
 
   function stopHeroIdleLoop() {
