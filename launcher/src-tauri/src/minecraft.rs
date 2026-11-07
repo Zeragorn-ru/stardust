@@ -88,6 +88,12 @@ pub async fn launch(
         access_token,
     } = options;
 
+    // Cancel checkpoint: весь конвейер подготовки (манифест → Java → версии →
+    // библиотеки → ассеты → natives → модпак) проверяет этот флаг на каждой
+    // границе шага. Флаг глобальный (см. cancel.rs), сбрасывается в начале
+    // play_game — перекрёстного влияния между сборками нет.
+    crate::cancel::check()?;
+
     if let Err(cheat_name) = crate::game_guard::scan_for_cheats() {
         return Err(format!(
             "Обнаружена запрещённая программа: {cheat_name}. Закройте её перед запуском игры."
@@ -105,6 +111,7 @@ pub async fn launch(
     } else {
         crate::backend::fetch_manifest(http, &data_dir).await?
     };
+    crate::cancel::check()?;
     let version_id = resolve_minecraft_version(
         manifest.as_ref(),
         std::env::var("LAUNCHER_MC_VERSION").ok().as_deref(),
@@ -126,6 +133,7 @@ pub async fn launch(
 
     let progress = Progress::new(app.clone());
     let version = ensure_version(&progress, http, &root, &version_id).await?;
+    crate::cancel::check()?;
     let required_java = version.required_java_major()?;
     let java = crate::java::resolve_java(
         java_provider,
@@ -136,12 +144,16 @@ pub async fn launch(
         required_java,
     )
     .await?;
+    crate::cancel::check()?;
     let java_major = crate::java::java_major(&java)?;
     tracing::info!("[game] выбрана Java {java_major} для Minecraft {version_id}: {}", java.display());
 
     ensure_client(&progress, http, &root, &version).await?;
+    crate::cancel::check()?;
     ensure_libraries(&progress, http, &root, &version, concurrency).await?;
+    crate::cancel::check()?;
     ensure_assets(&progress, http, &root, &version, concurrency).await?;
+    crate::cancel::check()?;
     // Ядро сборки из манифеста: NeoForge (installer) или Fabric (статичный
     // profile JSON). Манифеста нет (админский режим/оффлайн) — остаёмся на
     // NeoForge как историческом ядре по умолчанию.
@@ -178,6 +190,7 @@ pub async fn launch(
             .await?
         }
     };
+    crate::cancel::check()?;
     let loader = load_modloader_profile(&root, &loader_profile_id)?;
     if loader.inherits_from != version.id {
         return Err(format!(
@@ -194,6 +207,7 @@ pub async fn launch(
         },
     );
     download_libraries(&progress, http, &root, &loader.libraries, concurrency).await?;
+    crate::cancel::check()?;
     progress.begin(
         Stage::Natives,
         "extracting",
@@ -313,6 +327,9 @@ pub async fn launch(
 
     progress.begin(Stage::Launch, "launching", "Запускаем Minecraft…");
     progress.set_stage_fraction(1.0);
+    // Последняя проверка перед запуском процесса; после spawn отмена
+    // обрабатывается при регистрации процесса в play_game.
+    crate::cancel::check()?;
 
     #[cfg(target_os = "macos")]
     crate::macos_permissions::ensure_microphone_permission();
@@ -1066,6 +1083,7 @@ async fn download_jobs(
 
     while let Some((label, res)) = stream.next().await {
         res?;
+        progress.check_cancel()?;
         progress.item_done(format!("Скачано: {label}"));
     }
     Ok(())
@@ -1122,6 +1140,10 @@ fn extract_zip(zip_path: &Path, target: &Path) -> Result<(), String> {
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| format!("Некорректный natives jar: {e}"))?;
     for i in 0..archive.len() {
+        // natives весят десятки МБ, распаковка — синхронный цикл; чек на каждой
+        // записи, чтобы Esc срабатывал и посреди extraction, а не только между
+        // jar'ами.
+        crate::cancel::check()?;
         let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
         let name = file.name().replace('\\', "/");
         if name.ends_with('/') || name.starts_with("META-INF/") {
@@ -2363,6 +2385,8 @@ async fn download_inner(
                         DownloadScope::Stage => progress.download_tick(downloaded, total, started),
                         DownloadScope::Item => progress.add_bytes(chunk.len() as u64),
                     }
+                    // Отмена не должна затрагивать загрузку Java из настроек.
+                    progress.check_cancel()?;
                 }
                 Ok(Ok(None)) => break,
                 Ok(Err(e)) => {

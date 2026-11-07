@@ -59,6 +59,7 @@ const FALLBACK_SETTINGS: Settings = {
   skipBuildCheck: false,
   autoUpdate: true,
   betaUpdates: false,
+  debugEnabled: false,
 };
 
 // Ключи для dev-фолбэка в браузере.
@@ -658,13 +659,13 @@ export async function importSkinFromLicense(
 }
 
 /** Запустить игру: синхронизация активной сборки (модпака) + старт. */
-export async function playGame(): Promise<void> {
+export async function playGame(launchId: string): Promise<void> {
   const invoke = await getInvoke();
   if (!invoke) {
     await delay(800);
     return;
   }
-  await invoke<void>("play_game");
+  await invoke<void>("play_game", { launchId });
 }
 
 /** Жив ли сейчас процесс игры. */
@@ -849,6 +850,19 @@ export async function setActiveCustomization(
   const invoke = await getInvoke();
   if (!invoke) return;
   await invoke("set_active_customization", { badgeId, gradientId });
+}
+
+/** Открыть отдельное окно отладки анимаций. */
+export async function openDebugWindow(): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Отладочное окно доступно только в приложении");
+  await invoke<void>("open_debug_window");
+}
+
+export async function abortBuild(launchId: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) return;
+  await invoke<void>("stop_game", { launchId });
 }
 
 function delay(ms: number): Promise<void> {

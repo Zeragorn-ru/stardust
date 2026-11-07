@@ -133,6 +133,8 @@ export interface Settings {
   autoUpdate: boolean;
   /** Устанавливать pre-release (бета) версии лаунчера. */
   betaUpdates: boolean;
+  /** Показывать вкладку «Отладка» администратору. */
+  debugEnabled: boolean;
 }
 
 /** Режим запуска лаунчера. */

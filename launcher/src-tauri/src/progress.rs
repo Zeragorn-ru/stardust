@@ -133,6 +133,11 @@ impl Progress {
         Self::with_event(app, LAUNCH_PROGRESS_EVENT)
     }
 
+    /// Проверка отмены относится только к подготовке игры, не к загрузке Java в настройках.
+    pub fn check_cancel(&self) -> Result<(), String> {
+        if self.event == LAUNCH_PROGRESS_EVENT { crate::cancel::check() } else { Ok(()) }
+    }
+
     /// Прогресс для фоновой загрузки Java из настроек (не трогает Play).
     pub fn for_java_download(app: AppHandle) -> Self {
         Self::with_event(app, JAVA_PROGRESS_EVENT)

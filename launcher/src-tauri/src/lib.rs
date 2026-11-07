@@ -2,6 +2,7 @@
 // Бинарь (main.rs) лишь вызывает run().
 
 mod backend;
+mod cancel;
 mod commands;
 mod game_guard;
 mod java;

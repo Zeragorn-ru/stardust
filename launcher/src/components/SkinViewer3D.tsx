@@ -29,6 +29,8 @@ interface Props {
    * Используется при сворачивании лаунчера или когда запущен Minecraft.
    */
   visible?: boolean;
+  /** Ручное управление анимацией в отдельном отладочном окне. */
+  debugPlayback?: { name: string | null; sequence: number; paused: boolean; speed: number };
 }
 
 const DEFAULT_SKIN =
@@ -68,12 +70,15 @@ const SkinViewer3D = memo(function SkinViewer3D({
   height = 360,
   interactive = false,
   visible = true,
+  debugPlayback,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<SkinViewer | null>(null);
   const { animations } = useMotion();
   const animationsRef = useRef(animations);
   animationsRef.current = animations;
+  const debugRef = useRef(debugPlayback);
+  debugRef.current = debugPlayback;
   const [webglFailed, setWebglFailed] = useState(false);
 
   const visibleRef = useRef(visible);
@@ -104,7 +109,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     const v = viewerRef.current;
     if (!v || idleRef.current || !visibleRef.current || !focusedRef.current || document.hidden) return;
     // Hero (не-интерактив) крутим только при включённых анимациях; иначе один кадр.
-    if (!interactive && !animationsRef.current) {
+    if (!debugRef.current && !interactive && !animationsRef.current) {
       renderOnce();
       return;
     }
@@ -122,7 +127,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
     // Hero (главный экран): render loop живёт, пока модель видима — float-анимация
     // не должна замирать на середине движения. Idle-пауза (stopLoop) — только для
     // интерактивного режима (модалка), где пользователь перестал крутить мышью.
-    if (!interactive) {
+    if (!interactive || debugRef.current) {
       if (idleRef.current) {
         idleRef.current = false;
       }
@@ -264,7 +269,12 @@ const SkinViewer3D = memo(function SkinViewer3D({
         viewer.resize(width, height);
         viewerRef.current = viewer;
         loadCurrent();
-        if (interactive) {
+        if (debugRef.current) {
+          const playback = debugRef.current;
+          if (playback.name) viewer.playAnimation(playback.name);
+          viewer.setAnimationSpeed(playback.speed);
+          if (playback.paused) viewer.pauseAnimation();
+        } else if (interactive) {
           if (animations) viewer.playAnimation("float");
         } else if (animations) {
           // Hero: случайные idle-анимации вместо фиксированного float.
@@ -372,7 +382,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
   // Анимация подчиняется глобальному тумблеру «Анимации».
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (!viewer) return;
+    if (!viewer || debugRef.current) return;
     if (interactive) {
       // Интерактивный режим (модалка): фиксированный float, вращение мышью.
       // Idle-ротация hero здесь не нужна.
@@ -392,6 +402,25 @@ const SkinViewer3D = memo(function SkinViewer3D({
       }
     }
   }, [animations, interactive]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !debugPlayback) return;
+    if (debugPlayback.name) viewer.playAnimation(debugPlayback.name);
+    else viewer.stopAnimation();
+    viewer.setAnimationSpeed(debugPlayback.speed);
+    if (debugPlayback.paused) viewer.pauseAnimation();
+    startLoop();
+  }, [debugPlayback?.name, debugPlayback?.sequence]);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !debugPlayback) return;
+    viewer.setAnimationSpeed(debugPlayback.speed);
+    if (debugPlayback.paused) viewer.pauseAnimation();
+    else viewer.resumeAnimation();
+    startLoop();
+  }, [debugPlayback?.paused, debugPlayback?.speed]);
 
   /**
    * Hero idle-цикл: играет случайную анимацию из IDLE_ANIMATIONS, затем

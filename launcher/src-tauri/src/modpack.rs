@@ -397,6 +397,7 @@ pub async fn sync(
     let mut jobs: Vec<DownloadJob> = Vec::new();
 
     for entry in entries.iter() {
+        progress.check_cancel()?;
         let rel = sanitize_rel_path(&entry.path)
             .ok_or_else(|| format!("Недопустимый путь в манифесте: {}", entry.path))?;
         let rel_key = rel.to_string_lossy().replace('\\', "/");

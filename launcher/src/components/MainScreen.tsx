@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen, crashHistory, type CrashAiVerdict } from "../api";
+import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen, crashHistory, type CrashAiVerdict } from "../api";
 import { formatBytes } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
 import { useSkin } from "../skin";
@@ -11,6 +11,8 @@ import CrashHistoryModal from "./CrashHistoryModal";
 import MinecraftNickname from "./MinecraftNickname";
 import McText from "./McText";
 
+// Сохраняем ID между переходами на экран настроек и обратно.
+let activeLaunchId: string | null = null;
 const SERVER_HOST = "play.stardust-mc.xyz";
 const SERVER_STATUS_INTERVAL = 60_000;
 const ACCOUNT_STATUS_INTERVAL = 60_000;
@@ -123,6 +125,29 @@ export default function MainScreen({
   const [lastCrashAt, setLastCrashAt] = useState<string | null>(null);
 
   const playLockRef = useRef(false);
+
+  // Не перехватываем клавиши полей, кнопок или открытых модальных окон.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+      if (document.querySelector('.modal-overlay, .update-overlay, .crash-verdict-overlay, [aria-modal="true"]')) return;
+      // При анимированном переходе старый экран остаётся смонтированным.
+      if (document.querySelector('.screen-exit-left .main, .screen-exit-right .main, .screen-exit-up .main, .screen-exit-down .main')) return;
+      if (e.key === "Enter" && !busy && !ban) {
+        e.preventDefault();
+        void handlePlay();
+      } else if (e.key === "Escape" && busy && activeLaunchId) {
+        e.preventDefault();
+        void abortBuild(activeLaunchId).catch((err) => {
+          onProgressChange({ phase: "error", label: String(err), fraction: null });
+        });
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  });
 
   const refreshCrashHistory = useCallback(() => {
     crashHistory()
@@ -253,11 +278,13 @@ export default function MainScreen({
       return;
     }
     playLockRef.current = true;
+    const launchId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    activeLaunchId = launchId;
     // Новый запуск — прошлый вердикт больше не актуален.
     onDismissCrashVerdict();
     onProgressChange({ phase: "checking", label: "Готовим игру…", fraction: null });
     try {
-      await playGame();
+      await playGame(launchId);
       onRunningChange(true);
       onProgressChange({ phase: "running", label: "Игра запущена", fraction: null });
     } catch (err) {

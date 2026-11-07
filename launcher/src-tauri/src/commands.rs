@@ -70,6 +70,9 @@ pub struct Settings {
     /// Бета-канал обновлений: устанавливать pre-release версии лаунчера.
     #[serde(rename = "betaUpdates", default)]
     pub beta_updates: bool,
+    /// Отладка: показывать кнопку отладочного окна анимаций в админ-настройках.
+    #[serde(rename = "debugEnabled", default)]
+    pub debug_enabled: bool,
 }
 
 /// Дефолт параллельности загрузок: подбираем по числу ядер, но в безопасных
@@ -160,6 +163,7 @@ impl Default for Settings {
             skip_build_check: false,
             auto_update: true,
             beta_updates: false,
+            debug_enabled: false,
         }
     }
 }
@@ -410,6 +414,10 @@ pub struct AppState {
     /// Запущенный процесс игры, если он есть. Не даём запустить вторую копию,
     /// пока предыдущая не завершилась.
     pub game: Mutex<Option<Child>>,
+    /// Идентификатор запуска текущего Child; читается под блокировкой game.
+    pub game_launch_id: Mutex<Option<String>>,
+    /// PID процесса, намеренно остановленного пользователем.
+    pub stopped_game: Mutex<Option<u32>>,
     /// Асинхронный лок на весь цикл play_game: guard → check → launch → record.
     /// Гарантирует, что два одновременных вызова не пройдут проверку параллельно.
     pub launch_lock: tokio::sync::Mutex<()>,
@@ -426,6 +434,8 @@ impl Default for AppState {
             token: Mutex::new(None),
             http: Mutex::new(create_http_client(&ProxyType::default())),
             game: Mutex::new(None),
+            game_launch_id: Mutex::new(None),
+            stopped_game: Mutex::new(None),
             launch_lock: tokio::sync::Mutex::new(()),
             stats_poller_running: Mutex::new(false),
             settings: Mutex::new(None),
@@ -2540,28 +2550,22 @@ async fn delete_account(
 /// не пройдут проверку guard параллельно — lock удерживается на всём
 /// протяжении: проверка → запуск → запись PID.
 #[tauri::command]
-async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+async fn play_game(state: State<'_, AppState>, app: AppHandle, launch_id: String) -> Result<(), String> {
     // Занимаем лок на весь цикл: guard → check → launch → record.
     // Если другой поток уже запускает — ждём его завершения, затем проверяем
     // заново (прошлая игра могла завершиться пока мы ждали).
     let _guard = state.launch_lock.lock().await;
+    crate::cancel::begin(&launch_id);
+    crate::cancel::check()?;
 
     let data_dir = paths::data_dir(&app);
 
     // Не даём запустить вторую копию, пока предыдущая жива.
     // try_wait() попутно собирает завершённый процесс (zombie reaping).
     {
-        let mut guard = state.game.lock().unwrap();
-        if let Some(child) = guard.as_mut() {
-            match child.try_wait() {
-                Ok(Some(_)) | Err(_) => {
-                    *guard = None;
-                    crate::game_guard::clear(&data_dir);
-                }
-                Ok(None) => {
-                    return Err("Игра уже запущена".into());
-                }
-            }
+        let guard = state.game.lock().unwrap();
+        if guard.is_some() {
+            return Err("Игра ещё запущена или завершается".into());
         }
     }
 
@@ -2594,7 +2598,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         }
     }
 
-    let (child, external_mods, launched_game_dir, launched_manifest) = minecraft::launch(
+    let (mut child, external_mods, launched_game_dir, launched_manifest) = minecraft::launch(
         app.clone(),
         &state.http(),
         minecraft::LaunchOptions {
@@ -2629,11 +2633,20 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
         .unwrap_or_default();
 
     let child_id = child.id();
-    crate::game_guard::record(&data_dir, child_id);
-    // Сохраняем на диск: если лаунчер закроется пока игра работает,
-    // при следующем старте bootstrap восстановит и запишет сессию.
-    crate::game_guard::write_session(&data_dir, child_id, &launched_at_str);
-    *state.game.lock().unwrap() = Some(child);
+    {
+        // stop_game берёт тот же лок: отмена в промежутке между spawn и
+        // регистрацией процесса не потеряется.
+        let mut game = state.game.lock().unwrap();
+        if crate::cancel::check().is_err() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("Запуск отменён".into());
+        }
+        crate::game_guard::record(&data_dir, child_id);
+        crate::game_guard::write_session(&data_dir, child_id, &launched_at_str);
+        *state.game_launch_id.lock().unwrap() = Some(launch_id);
+        *game = Some(child);
+    }
 
     // Момент запуска в настенных часах: по нему отличаем артефакты ЭТОЙ
     // сессии (crash-report, hs_err_pid) от оставшихся с прошлых запусков.
@@ -2732,7 +2745,8 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle) -> Result<(), Str
                 || recent_crash_content.is_some()
                 || mod_status.as_deref() == Some("crash"));
 
-        if (quick_exit && looks_like_start_failure) || is_crash {
+        let intentionally_stopped = state_for_stopped_game(&app_handle, child_id);
+        if !intentionally_stopped && ((quick_exit && looks_like_start_failure) || is_crash) {
             if quick_exit && looks_like_start_failure {
                 let label = launch_failure_label(&log_content, exit_code);
                 crate::progress::Progress::error(&app_handle, label);
@@ -3261,6 +3275,30 @@ async fn select_mod_profile(
     .await
 }
 
+fn state_for_stopped_game(app: &AppHandle, pid: u32) -> bool {
+    let state = app.state::<AppState>();
+    let mut stopped = state.stopped_game.lock().unwrap();
+    if *stopped == Some(pid) { *stopped = None; true } else { false }
+}
+
+/// Остановить указанный запуск или принадлежащий ему процесс.
+#[tauri::command]
+fn stop_game(state: State<'_, AppState>, launch_id: String) -> Result<(), String> {
+    let mut game = state.game.lock().unwrap();
+    crate::cancel::request(&launch_id);
+    if let Some(child) = game.as_mut() {
+        if state.game_launch_id.lock().unwrap().as_deref() != Some(launch_id.as_str()) {
+            return Err("Этот запуск больше не активен".into());
+        }
+        let pid = child.id();
+        if child.try_wait().map_err(|e| e.to_string())?.is_none() {
+            child.kill().map_err(|e| format!("Не удалось остановить игру: {e}"))?;
+            *state.stopped_game.lock().unwrap() = Some(pid);
+        }
+    }
+    Ok(())
+}
+
 /// Жив ли сейчас процесс игры. Фронт опрашивает это, чтобы держать
 /// кнопку «Играть» неактивной, пока Minecraft запущен.
 ///
@@ -3272,21 +3310,13 @@ fn game_running(state: State<'_, AppState>, app: AppHandle) -> bool {
     let data_dir = paths::data_dir(&app);
     // Heartbeat-и имеет смысл продлевать, пока PID-файл вообще существует
     // (иначе каждые 1.5с впустую перезаписываем бы файл сессии).
-    if crate::game_guard::is_running(&data_dir) {
+    let tracked_game = crate::game_guard::is_running(&data_dir);
+    if tracked_game {
         crate::game_guard::touch_session(&data_dir);
     }
-    let mut guard = state.game.lock().unwrap();
-    match guard.as_mut() {
-        Some(child) => match child.try_wait() {
-            Ok(Some(_)) | Err(_) => {
-                *guard = None;
-                crate::game_guard::clear(&data_dir);
-                false
-            }
-            Ok(None) => true,
-        },
-        None => false,
-    }
+    // PID-файл позволяет обнаружить игру после перезапуска лаунчера, но не
+    // даёт надёжной идентичности для её принудительной остановки.
+    tracked_game || state.game.lock().unwrap().is_some()
 }
 
 /// Пинг Minecraft-сервера: резолвит SRV-запись `_minecraft._tcp.<host>`,
@@ -3629,6 +3659,34 @@ async fn get_player_skin(
     }
 }
 
+/// Открыть отдельное окно для ручной проверки анимаций.
+#[tauri::command]
+async fn open_debug_window(state: State<'_, AppState>, app: AppHandle) -> Result<(), String> {
+    if !get_settings_cached(&state, &app).debug_enabled {
+        return Err("Отладка выключена в настройках".into());
+    }
+    let (_, token) = current_session(&state)?;
+    if !backend::account_info(&state.http(), &token).await?.is_admin {
+        return Err("Отладка доступна только администраторам".into());
+    }
+    if let Some(window) = app.get_webview_window("debug-window") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        "debug-window",
+        tauri::WebviewUrl::App("index.html#debug".into()),
+    )
+    .title("Отладка анимаций")
+    .inner_size(720.0, 540.0)
+    .resizable(true)
+    .build()
+    .map_err(|e| format!("Не удалось открыть окно: {e}"))?;
+    Ok(())
+}
+
 /// Регистрирует все команды и состояние в Tauri-приложении.
 pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder
@@ -3646,6 +3704,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             logout,
             current_profile,
             get_settings,
+            open_debug_window,
             save_settings,
             get_memory_limits,
             set_auto_update,
@@ -3679,6 +3738,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             change_password,
             delete_account,
             play_game,
+            stop_game,
             game_running,
             get_stats,
             get_news_highlight,
