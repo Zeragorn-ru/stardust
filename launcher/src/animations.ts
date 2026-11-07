@@ -30,7 +30,11 @@ function rotation(p: Vector): Quaternion {
   // Оси модели Blockbench отражены по X относительно модели renderer.
   return quatFromEuler(degToRad(p[0]), degToRad(-p[1]), degToRad(-p[2]));
 }
-const mirror = (p: Vector): Vector => [-p[0], p[1], p[2]];
+// Blockbench и renderer используют противоположное направление глубины.
+// X также отражён из-за зеркального базиса модели, поэтому конвертируем обе
+// оси, перпендикулярные вертикали. Без инверсии Z шаг назад становился шагом
+// вперёд, хотя углы и поза выглядели правильно.
+const mirror = (p: Vector): Vector => [-p[0], p[1], -p[2]];
 function tracks(boneIndex: BoneIndex, rotations: readonly Point[], positions: readonly Point[]): Source[] {
   return [{ boneIndex, rotations, positions }];
 }

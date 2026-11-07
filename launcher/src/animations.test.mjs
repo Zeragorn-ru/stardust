@@ -44,9 +44,9 @@ test('body parent is cancelled for head, global right arm and root leg', () => {
   const body = frame(BoneIndex.Body, 0.5);
   vectorNear(body.rotation, q(-3.0542,-20.3258,0.1672));
   const cases = [
-    [BoneIndex.Head, q(0,-68,0), [0,24,0], [-0.4,0.2,0.4]],
-    [BoneIndex.RightArm, q(-1.0863,-22.9965,2.9245), [-6,24,0], [0,0,2.6]],
-    [BoneIndex.RightLeg, q(-4.9019,-21.5223,6.387), [-2,12,0], [-1.11,0.16,2.45]],
+    [BoneIndex.Head, q(0,-68,0), [0,24,0], [-0.4,0.2,-0.4]],
+    [BoneIndex.RightArm, q(-1.0863,-22.9965,2.9245), [-6,24,0], [0,0,-2.6]],
+    [BoneIndex.RightLeg, q(-4.9019,-21.5223,6.387), [-2,12,0], [-1.11,0.16,-2.45]],
   ];
   const pivots = { [BoneIndex.Head]: [0,24,0], [BoneIndex.RightArm]: [-5,22,0], [BoneIndex.RightLeg]: [-2.39975,0.05103,0.87075] };
   for (const [bone, worldQ, rest, position] of cases) {
@@ -63,8 +63,8 @@ test('body parent is cancelled for head, global right arm and root leg', () => {
 test('classic and slim arms match independent Euler-matrix world positions', () => {
   // Эталон рассчитан напрямую по XYZ Euler-матрицам, без функций renderer.
   const cases = [
-    [clip, 6, [[-5.8253991144128445,24.05468825380674,2.911404048777629], [5.1958198687913235,24.025867852204186,-1.5123769919137195]]],
-    [SLIM_IDLE_ANIMATIONS[0], 5.5, [[-5.3657341878929055,24.02548438414554,2.716839690982499], [4.742245124044065,24.01030654194955,-1.3025489753129365]]],
+    [clip, 6, [[-5.8253991144128445,24.05468825380674,-2.2885959512223706], [5.1958198687913235,24.025867852204186,0.48762300808628056]]],
+    [SLIM_IDLE_ANIMATIONS[0], 5.5, [[-5.3657341878929055,24.02548438414554,-2.483160309017501], [4.742245124044065,24.01030654194955,0.6974510246870651]]],
   ];
   for (const [animation, width, expected] of cases) {
     const body = frame(BoneIndex.Body, 0.5, animation);
