@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { BoneIndex, quatFromEuler, quatMultiply, quatInvert, degToRad } from '@daidr/minecraft-skin-renderer';
-import { IDLE_ANIMATIONS, SLIM_IDLE_ANIMATIONS, animationNameForModel, sampleCurve, convertBlockbenchAnimation, BB_IDLE } from './animations.ts';
+import { IDLE_ANIMATIONS, SLIM_IDLE_ANIMATIONS, SHOW_ANIMATIONS, SLIM_SHOW_ANIMATIONS, animationNameForModel, sampleCurve, convertBlockbenchAnimation, BB_IDLE, BB_SHOW } from './animations.ts';
 
 const near = (a, b, eps = 1e-7) => assert.ok(Math.abs(a-b) < eps, `${a} != ${b}`);
 const vectorNear = (a, b) => { assert.equal(a.length, b.length); a.forEach((v, i) => near(v, b[i])); };
@@ -58,6 +58,42 @@ test('Blockbench smooths a segment when either endpoint is catmullrom', () => {
 
 test('quaternion interpolation is rejected explicitly', () => {
   assert.throws(() => convertBlockbenchAnimation({ name: 'quat', length: 1, quaternion_interpolation: true, animators: {} }), /quaternion_interpolation/);
+});
+
+test('show keeps the exact source keys, absent Body/Waist, and model variants', () => {
+  assert.equal(BB_SHOW.length, 1);
+  assert.equal(BB_SHOW.animators.Body, undefined);
+  assert.equal(BB_SHOW.animators.Waist, undefined);
+  const expected = {
+    Head: { rotation: [[0, -15], [0.7916666666666666, -15], [1, 0]] },
+    'Right Arm': { position: [[0, 47], [0.4583333333333333, 0]] },
+    'Left Arm': { position: [[0, -33], [0.3333333333333333, 0]] },
+    'Right Leg': { position: [[0, 18, -30, 0], [0.625, 0, 0, 0]] },
+    'Left Leg': { position: [[0, -28, -29, 0], [0.7083333333333334, 0, 0, 0]] },
+  };
+  for (const [name, channels] of Object.entries(expected)) {
+    const bone = Object.values(BB_SHOW.animators).find(candidate => candidate.name === name);
+    assert.ok(bone, name);
+    for (const [channel, keys] of Object.entries(channels)) {
+      const actual = bone.keyframes.filter(key => key.channel === channel);
+      assert.deepEqual(actual.map(key => [key.time, ...Object.values(key.data_points[0]).slice(0, channel === 'rotation' ? 1 : (name.includes('Leg') ? 3 : 1))]), keys);
+      assert.ok(actual.every(key => key.interpolation === 'linear' || key.interpolation === 'bezier'));
+    }
+  }
+  assert.equal(SHOW_ANIMATIONS[0].duration, 1);
+  assert.equal(SLIM_SHOW_ANIMATIONS[0].name, 'show_slim');
+  assert.equal(animationNameForModel('show', 'slim'), 'show_slim');
+});
+
+test('bezier uses control values and non-uniform control times per axis', () => {
+  const animation = convertBlockbenchAnimation({ name: 'bezier', length: 1, animators: { Head: { keyframes: [
+    { channel: 'position', time: 0, interpolation: 'bezier', data_points: [{ x: 0, y: 0, z: 0 }], bezier_right_value: [10, 0, 0], bezier_right_time: [0.1, 0.25, 0.1] },
+    { channel: 'position', time: 1, interpolation: 'linear', data_points: [{ x: 20, y: 20, z: 20 }], bezier_left_value: [10, 20, 10], bezier_left_time: [0.9, 0.75, 0.9] },
+  ] } } });
+  const f = frame(BoneIndex.Head, 0.5, animation);
+  assert.ok(f.position.every(value => Number.isFinite(value)));
+  assert.notDeepEqual(f.position, [10, 10, 10]);
+  assert.ok(f.position.some(value => value !== 0));
 });
 
 test('BB_IDLE preserves the source key layout and global flags', () => {
@@ -185,7 +221,7 @@ test('ошибочные входные данные не игнорируютс
   for (const input of [
     { name: 'bad', length: 1, animators: { a: { name: 'unknown' } } },
     base([{ ...key, channel: 'scale' }]), base([{ ...key, data_points: [{ x: '' }] }]),
-    base([{ ...key, data_points: [{ x: 'query.foo' }] }]), base([{ ...key, interpolation: 'bezier' }]),
+    base([{ ...key, data_points: [{ x: 'query.foo' }] }]),
     { ...base([]), loop: 'hold' }, base([key, key]), { name: 'bad', length: 1, bones: { Head: { position: {} } } },
     { name: 'bad', length: 1, animators: { a: { name: 'Head' }, b: { name: 'head' } } },
   ]) assert.throws(() => convertBlockbenchAnimation(input));

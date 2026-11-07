@@ -79,13 +79,14 @@ const pivot: Record<number, Vector> = {
 
 // Вход соответствует сериализованной анимации Blockbench; значения выражений
 // Molang намеренно не вычисляются: поддерживаются только числовые компоненты.
-type BBPoint = { x?: number | string; y?: number | string; z?: number | string };
-type BBKey = { channel?: string; time?: number | string; data_points?: BBPoint[]; interpolation?: string };
+type BBScalar = number | string;
+type BBPoint = { x?: BBScalar | BBScalar[]; y?: BBScalar | BBScalar[]; z?: BBScalar | BBScalar[] } | BBScalar[];
+type BBKey = { channel?: string; time?: BBScalar; data_points?: BBPoint[]; interpolation?: string; bezier_left_value?: BBPoint; bezier_right_value?: BBPoint; bezier_left_time?: BBScalar | BBScalar[]; bezier_right_time?: BBScalar | BBScalar[] };
 type BBBone = { type?: string; name?: string; rotation_global?: boolean; keyframes?: BBKey[]; rotation?: Record<string, unknown>; position?: Record<string, unknown> };
 export type BlockbenchAnimation = { name: string; length?: number | string; animation_length?: number | string; loop?: boolean | string; quaternion_interpolation?: boolean; animators?: Record<string, BBBone>; bones?: Record<string, BBBone> };
 export type SourceLayout = { pivots: Record<string, Vector>; waistPivot: Vector; waistChildren: string[] };
 export type BlockbenchInput = BlockbenchAnimation | { type: "animation"; content: BlockbenchAnimation };
-type Key = { time: number; before: Vector; after: Vector; interpolation: string };
+type Key = { time: number; before: Vector; after: Vector; interpolation: string; bezierLeft?: Vector; bezierRight?: Vector; bezierLeftTime?: Vector; bezierRightTime?: Vector };
 type Channel = Key[];
 type Parsed = { rotations: Channel; positions: Channel; global: boolean };
 const indices: Record<string, BoneIndex> = { head: BoneIndex.Head, body: BoneIndex.Body, rightarm: BoneIndex.RightArm, leftarm: BoneIndex.LeftArm, rightleg: BoneIndex.RightLeg, leftleg: BoneIndex.LeftLeg };
@@ -96,9 +97,17 @@ const number = (v: unknown): number => {
   return n;
 };
 function vector(value: unknown): Vector {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Ожидалась точка Blockbench с x/y/z");
-  const p = value as BBPoint;
+  if (Array.isArray(value)) {
+    if (value.length !== 3) throw new Error("Ожидалась точка Blockbench с тремя компонентами");
+    return value.map(number) as Vector;
+  }
+  if (!value || typeof value !== "object") throw new Error("Ожидалась точка Blockbench с x/y/z");
+  const p = value as BBPoint & Record<string, unknown>;
   return [number(p.x === undefined ? 0 : p.x), number(p.y === undefined ? 0 : p.y), number(p.z === undefined ? 0 : p.z)];
+}
+function scalar(value: BBScalar | BBScalar[] | undefined, index: number, fallback: number): number {
+  if (value === undefined) return fallback;
+  return number(Array.isArray(value) ? value[index] : value);
 }
 function channel(bone: BBBone, name: "rotation" | "position", duration: number): Channel {
   if (bone.rotation !== undefined || bone.position !== undefined) throw new Error("Формат каналов rotation/position не поддерживается; используйте keyframes");
@@ -108,12 +117,19 @@ function channel(bone: BBBone, name: "rotation" | "position", duration: number):
     if (!k || (k.channel !== "rotation" && k.channel !== "position")) throw new Error(`Неподдерживаемый канал Blockbench: ${k?.channel}`);
     if (k.channel !== name) continue;
     const interpolation = k.interpolation ?? "linear";
-    if (!["linear", "catmullrom", "catmull_rom"].includes(interpolation)) throw new Error(`Неподдерживаемая интерполяция: ${interpolation}`);
+    if (!["linear", "catmullrom", "catmull_rom", "bezier"].includes(interpolation)) throw new Error(`Неподдерживаемая интерполяция: ${interpolation}`);
     if (!Array.isArray(k.data_points) || k.data_points.length !== 1) throw new Error("Поддерживается ровно один data_point на ключ; разрывы не поддерживаются");
     const time = number(k.time);
     if (time < 0 || time > duration) throw new Error(`Время ключа вне анимации: ${time}`);
     const point = vector(k.data_points[0]);
-    keys.push({ time, before: point, after: point, interpolation });
+    const bezierLeft = k.bezier_left_value === undefined ? undefined : vector(k.bezier_left_value);
+    const bezierRight = k.bezier_right_value === undefined ? undefined : vector(k.bezier_right_value);
+    // Blockbench stores bezier_*_time as offsets from the key, often per axis.
+    // Keep all three components in the source JSON, using the matching component
+    // for each value axis while solving the cubic time curve.
+    const bezierLeftTime = k.bezier_left_time === undefined ? undefined : [0, 1, 2].map(index => scalar(k.bezier_left_time, index, 0) + time) as Vector;
+    const bezierRightTime = k.bezier_right_time === undefined ? undefined : [0, 1, 2].map(index => scalar(k.bezier_right_time, index, 0) + time) as Vector;
+    keys.push({ time, before: point, after: point, interpolation, bezierLeft, bezierRight, bezierLeftTime, bezierRightTime });
   }
   keys.sort((a, b) => a.time - b.time);
   for (let i = 1; i < keys.length; i++) if (keys[i].time === keys[i-1].time) throw new Error(`Дубликат ключа ${name} на времени ${keys[i].time}`);
@@ -126,6 +142,26 @@ function sample(keys: Channel, time: number, loop: boolean): Vector {
   if (i < 0) return keys[keys.length - 1].after;
   const a = keys[i - 1], b = keys[i], t = (time - a.time) / (b.time - a.time);
   if (a.interpolation === "step") return a.after;
+  if (a.interpolation === "bezier" || b.interpolation === "bezier") {
+    const c1 = a.bezierRight ?? a.after;
+    const c2 = b.bezierLeft ?? b.before;
+    // Blockbench may store non-uniform control times per value axis. Solve
+    // each cubic time curve first, then evaluate that axis's value curve.
+    return [0, 1, 2].map(axis => {
+      const time1 = a.bezierRightTime === undefined ? 1 / 3 : (a.bezierRightTime[axis] - a.time) / (b.time - a.time);
+      const time2 = b.bezierLeftTime === undefined ? 2 / 3 : (b.bezierLeftTime[axis] - a.time) / (b.time - a.time);
+      let u = t;
+      for (let iteration = 0; iteration < 8; iteration++) {
+        const one = 1 - u;
+        const curveTime = 3 * one * one * u * time1 + 3 * one * u * u * time2 + u * u * u;
+        const derivative = 3 * one * one * time1 + 6 * one * u * (time2 - time1) + 3 * u * u * (1 - time2);
+        if (Math.abs(derivative) < 1e-8) break;
+        u = Math.max(0, Math.min(1, u - (curveTime - t) / derivative));
+      }
+      const one = 1 - u;
+      return one*one*one*a.after[axis] + 3*one*one*u*c1[axis] + 3*one*u*u*c2[axis] + u*u*u*b.before[axis];
+    }) as Vector;
+  }
   if (a.interpolation === "catmullrom" || a.interpolation === "catmull_rom" || b.interpolation === "catmullrom" || b.interpolation === "catmull_rom") {
     // Blockbench smooths a segment when either endpoint is catmullrom. Its
     // SplineCurve receives one duplicate endpoint at each open boundary;
@@ -222,12 +258,52 @@ export const BB_IDLE: BlockbenchAnimation = {
     keyframes: ([...s.rotations.map(p => ({ p, channel: "rotation" })), ...s.positions.map(p => ({ p, channel: "position" }))]).map(({ p, channel }) => ({ channel, time: p[0], interpolation: "catmullrom", data_points: [{ x: p[1], y: p[2], z: p[3] }] }))
   }]))
 };
+/** Show-анимация из последнего пользовательского Blockbench JSON. */
+const bezier = (x: number, y: number, z: number) => ({ x, y, z });
+const showBezier = () => ({
+  bezier_left_time: [-0.1, -0.1, -0.1], bezier_left_value: [0, 0, 0],
+  bezier_right_time: [0.1, 0.1, 0.1], bezier_right_value: [0, 0, 0],
+});
+export const BB_SHOW: BlockbenchAnimation = {
+  name: "show", length: 1, loop: "once",
+  // Body и Waist намеренно отсутствуют: в исходном JSON у них нет ключей.
+  animators: {
+    Head: { name: "Head", keyframes: [
+      { channel: "rotation", time: 0, interpolation: "linear", data_points: [bezier(-15, 0, 0)] },
+      { channel: "rotation", time: 0.7916666666666666, interpolation: "linear", data_points: [bezier(-15, 0, 0)] },
+      { channel: "rotation", time: 1, interpolation: "linear", data_points: [bezier(0, 0, 0)] },
+      { channel: "position", time: 0, interpolation: "bezier", data_points: [bezier(0, 26, 0)], ...showBezier() },
+      { channel: "position", time: 0.25, interpolation: "bezier", data_points: [bezier(0, 0, 0)], ...showBezier() },
+    ] },
+    RightArm: { name: "Right Arm", keyframes: [
+      { channel: "position", time: 0, interpolation: "bezier", data_points: [bezier(47, 0, 0)], ...showBezier() },
+      { channel: "position", time: 0.4583333333333333, interpolation: "bezier", data_points: [bezier(0, 0, 0)], ...showBezier() },
+    ] },
+    LeftArm: { name: "Left Arm", keyframes: [
+      { channel: "position", time: 0, interpolation: "bezier", data_points: [bezier(-33, 0, 0)], ...showBezier() },
+      { channel: "position", time: 0.3333333333333333, interpolation: "bezier", data_points: [bezier(0, 0, 0)], ...showBezier() },
+    ] },
+    RightLeg: { name: "Right Leg", keyframes: [
+      { channel: "position", time: 0, interpolation: "bezier", data_points: [bezier(18, -30, 0)], ...showBezier() },
+      { channel: "position", time: 0.625, interpolation: "bezier", data_points: [bezier(0, 0, 0)], ...showBezier() },
+    ] },
+    LeftLeg: { name: "Left Leg", keyframes: [
+      { channel: "position", time: 0, interpolation: "bezier", data_points: [bezier(-28, -29, 0)], ...showBezier() },
+      { channel: "position", time: 0.7083333333333334, interpolation: "bezier", data_points: [bezier(0, 0, 0)], ...showBezier() },
+    ] },
+  },
+};
+
 export const IDLE_ANIMATIONS: Animation[] = [convertBlockbenchAnimation(BB_IDLE)];
 export const SLIM_IDLE_ANIMATIONS: Animation[] = [{ ...convertBlockbenchAnimation(BB_IDLE, "slim"), name: "bb_idle_slim" }];
+export const SHOW_ANIMATIONS: Animation[] = [convertBlockbenchAnimation(BB_SHOW)];
+export const SLIM_SHOW_ANIMATIONS: Animation[] = [{ ...convertBlockbenchAnimation(BB_SHOW, "slim"), name: "show_slim" }];
 
 /** Отладочный UI и цикл используют общие имена, движок — варианты модели. */
 export function animationNameForModel(name: string, model: "classic" | "slim"): string {
   if (model !== "slim") return name;
-  const index = IDLE_ANIMATIONS.findIndex(animation => animation.name === name);
-  return index < 0 ? name : SLIM_IDLE_ANIMATIONS[index].name;
+  const idleIndex = IDLE_ANIMATIONS.findIndex(animation => animation.name === name);
+  if (idleIndex >= 0) return SLIM_IDLE_ANIMATIONS[idleIndex].name;
+  const showIndex = SHOW_ANIMATIONS.findIndex(animation => animation.name === name);
+  return showIndex >= 0 ? SLIM_SHOW_ANIMATIONS[showIndex].name : name;
 }

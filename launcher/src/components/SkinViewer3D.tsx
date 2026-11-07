@@ -6,7 +6,7 @@ import type { SkinModel } from "../types";
 import { animationsEnabled } from "../preferences";
 import { useMotion } from "../motion";
 import { normalizeSkinForViewer } from "../skinNormalize";
-import { IDLE_ANIMATIONS, SLIM_IDLE_ANIMATIONS, animationNameForModel } from "../animations";
+import { IDLE_ANIMATIONS, SLIM_IDLE_ANIMATIONS, SHOW_ANIMATIONS, SLIM_SHOW_ANIMATIONS, animationNameForModel } from "../animations";
 
 use(WebGLRendererPlugin);
 
@@ -88,15 +88,30 @@ const SkinViewer3D = memo(function SkinViewer3D({
   // Hero idle-анимация: имя текущей + таймер следующего переключения.
   const heroIdleRef = useRef<string | null>(null);
   const heroIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heroShowPlayedRef = useRef(false);
+  const heroShowActiveRef = useRef(false);
+  const heroShowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const heroShowGenerationRef = useRef(0);
+  const skinReadyRef = useRef(false);
 
   // Кэш для skin/cape чтобы не перезагружать одно и то же.
   const lastSkinRef = useRef<string>("");
   const lastModelRef = useRef<SkinModel>("classic");
   const lastAppliedModelRef = useRef<SkinModel | null>(null);
   const lastCapeRef = useRef<string | null>(null);
+  const capeGenerationRef = useRef(0);
+  const capeChainRef = useRef<Promise<void>>(Promise.resolve());
   // Очередь загрузок скина: быстрый повторный выбор не должен дать стейл
   // (медленному) промису перезаписать уже применённый новый скин.
   const skinChainRef = useRef<Promise<void>>(Promise.resolve());
+  // Жизненный цикл вьюера: асинхронные загрузки должны перестать трогать его
+  // и refs сразу после cleanup, даже если их промисы завершатся позже.
+  const lifecycleGenerationRef = useRef(0);
+  const viewerActiveRef = useRef(false);
+
+  function isViewerActive(viewer: SkinViewer, generation: number): boolean {
+    return viewerActiveRef.current && lifecycleGenerationRef.current === generation && viewerRef.current === viewer;
+  }
 
   /** Отрисовать один кадр без постоянного requestAnimationFrame. */
   function renderOnce() {
@@ -147,11 +162,19 @@ const SkinViewer3D = memo(function SkinViewer3D({
 
   function loadCurrent() {
     const viewer = viewerRef.current;
-    if (!viewer) return;
+    const lifecycleGeneration = lifecycleGenerationRef.current;
+    if (!viewer || !viewerActiveRef.current) return;
     const src = dataUrl ?? DEFAULT_SKIN;
     if (src !== lastSkinRef.current || model !== lastModelRef.current) {
       lastSkinRef.current = src;
       lastModelRef.current = model;
+      skinReadyRef.current = false;
+      heroShowPlayedRef.current = false;
+      heroShowGenerationRef.current += 1;
+      if (heroShowTimerRef.current) {
+        clearTimeout(heroShowTimerRef.current);
+        heroShowTimerRef.current = null;
+      }
       const modelChanged = model !== lastAppliedModelRef.current;
       viewer.setSlim(model === "slim");
       lastAppliedModelRef.current = model;
@@ -173,36 +196,58 @@ const SkinViewer3D = memo(function SkinViewer3D({
         .catch(() => undefined)
         .then(async () => {
           // Пока грузилось — скин уже сменился: устаревшую задачу пропускаем.
-          if (lastSkinRef.current !== wanted || lastModelRef.current !== wantedModel) return;
+          if (!isViewerActive(viewer, lifecycleGeneration) || lastSkinRef.current !== wanted || lastModelRef.current !== wantedModel) return;
           try {
             const normalized = await normalizeSkinForViewer(wanted);
-            if (lastSkinRef.current !== wanted) return;
+            if (!isViewerActive(viewer, lifecycleGeneration) || lastSkinRef.current !== wanted || lastModelRef.current !== wantedModel) return;
             await viewer.setSkin(normalized);
           } catch {
-            if (lastSkinRef.current !== wanted) return;
+            if (!isViewerActive(viewer, lifecycleGeneration) || lastSkinRef.current !== wanted || lastModelRef.current !== wantedModel) return;
             try {
               await viewer.setSkin(wanted);
             } catch {
-              if (wanted !== DEFAULT_SKIN && lastSkinRef.current === wanted) {
+              if (isViewerActive(viewer, lifecycleGeneration) && wanted !== DEFAULT_SKIN && lastSkinRef.current === wanted && lastModelRef.current === wantedModel) {
                 await viewer.setSkin(DEFAULT_SKIN).catch(() => undefined);
               }
             }
           } finally {
+            if (!isViewerActive(viewer, lifecycleGeneration)) return;
+            if (lastSkinRef.current === wanted && lastModelRef.current === wantedModel) {
+              skinReadyRef.current = true;
+            }
             renderOnce();
+            if (lastSkinRef.current === wanted && lastModelRef.current === wantedModel && animationsRef.current && !debugRef.current && !interactive) {
+              startHeroShowThenIdle();
+            }
           }
         });
     }
     if (capeUrl !== lastCapeRef.current) {
       lastCapeRef.current = capeUrl;
-      if (capeUrl) {
-        viewer.setCape(capeUrl).catch(() => {
-          viewer.setBackEquipment("none");
-        }).finally(renderOnce);
-        viewer.setBackEquipment("cape");
-      } else {
-        viewer.setBackEquipment("none");
-        renderOnce();
-      }
+      const capeGeneration = ++capeGenerationRef.current;
+      const wantedCape = capeUrl;
+      capeChainRef.current = capeChainRef.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (!isViewerActive(viewer, lifecycleGeneration) || capeGeneration !== capeGenerationRef.current || lastCapeRef.current !== wantedCape) return;
+          if (wantedCape) {
+            try {
+              await viewer.setCape(wantedCape);
+              // Проверяем поколение после await: setCape может завершиться уже
+              // после выбора нового плаща и не должен менять состояние поверх него.
+              if (!isViewerActive(viewer, lifecycleGeneration) || capeGeneration !== capeGenerationRef.current || lastCapeRef.current !== wantedCape) return;
+              viewer.setBackEquipment("cape");
+            } catch {
+              if (isViewerActive(viewer, lifecycleGeneration) && capeGeneration === capeGenerationRef.current && lastCapeRef.current === wantedCape) {
+                viewer.setBackEquipment("none");
+              }
+            }
+          } else {
+            if (!isViewerActive(viewer, lifecycleGeneration)) return;
+            viewer.setBackEquipment("none");
+          }
+          if (isViewerActive(viewer, lifecycleGeneration) && capeGeneration === capeGenerationRef.current && lastCapeRef.current === wantedCape) renderOnce();
+        });
     }
   }
 
@@ -241,11 +286,13 @@ const SkinViewer3D = memo(function SkinViewer3D({
     });
 
     // Регистрируем все idle-анимации один раз при монтировании.
-    for (const anim of [...IDLE_ANIMATIONS, ...SLIM_IDLE_ANIMATIONS]) {
+    for (const anim of [...IDLE_ANIMATIONS, ...SLIM_IDLE_ANIMATIONS, ...SHOW_ANIMATIONS, ...SLIM_SHOW_ANIMATIONS]) {
       registerAnimation(anim);
     }
 
     let disposed = false;
+    const lifecycleGeneration = ++lifecycleGenerationRef.current;
+    viewerActiveRef.current = false;
 
     function onContextLost(e: Event) {
       e.preventDefault();
@@ -277,12 +324,13 @@ const SkinViewer3D = memo(function SkinViewer3D({
       autoRotate: false,
     })
       .then((viewer) => {
-        if (disposed) {
+        if (disposed || lifecycleGenerationRef.current !== lifecycleGeneration) {
           viewer.dispose();
           return;
         }
         viewer.resize(width, height);
         viewerRef.current = viewer;
+        viewerActiveRef.current = true;
         loadCurrent();
         if (debugRef.current) {
           const playback = debugRef.current;
@@ -292,16 +340,22 @@ const SkinViewer3D = memo(function SkinViewer3D({
         } else if (interactive) {
           if (animations) viewer.playAnimation("float");
         } else if (animations) {
-          // Hero: случайные idle-анимации вместо фиксированного float.
-          startHeroIdleLoop();
+          // Show запускается после фактической загрузки скина, а не до неё.
+          if (skinReadyRef.current) startHeroShowThenIdle();
         }
         if (visibleRef.current) startLoop();
         resetIdleTimer();
       })
-      .catch(() => setWebglFailed(true));
+      .catch(() => {
+        if (!disposed && lifecycleGenerationRef.current === lifecycleGeneration) {
+          setWebglFailed(true);
+        }
+      });
 
     return () => {
       disposed = true;
+      viewerActiveRef.current = false;
+      ++lifecycleGenerationRef.current;
       canvas.removeEventListener("webglcontextlost", onContextLost);
       canvas.removeEventListener("webglcontextrestored", onContextRestored);
       stopHeroIdleLoop();
@@ -319,7 +373,10 @@ const SkinViewer3D = memo(function SkinViewer3D({
         idleRef.current = false;
         startLoop();
         resetIdleTimer();
+        if (animationsRef.current && !debugRef.current && !interactive) startHeroShowThenIdle();
       } else {
+        interruptHeroShow();
+        stopHeroIdleLoop();
         stopLoop();
       }
     }
@@ -350,9 +407,16 @@ const SkinViewer3D = memo(function SkinViewer3D({
         startLoop();
       }
       resetIdleTimer();
+      if (animationsRef.current && !debugRef.current && !interactive) startHeroShowThenIdle();
     } else {
       canvas.style.display = "none";
       stopLoop();
+      interruptHeroShow();
+      heroShowGenerationRef.current += 1;
+      if (heroShowTimerRef.current) {
+        clearTimeout(heroShowTimerRef.current);
+        heroShowTimerRef.current = null;
+      }
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
         idleTimerRef.current = null;
@@ -409,7 +473,7 @@ const SkinViewer3D = memo(function SkinViewer3D({
       // Hero (главный экран): без autoRotate, случайные idle-анимации.
       viewer.setAutoRotate(false);
       if (animations) {
-        startHeroIdleLoop();
+        startHeroShowThenIdle();
       } else {
         stopHeroIdleLoop();
         viewer.stopAnimation();
@@ -444,10 +508,39 @@ const SkinViewer3D = memo(function SkinViewer3D({
    * на другую случайную анимацию и перезапускает таймер.
    * Таймер гасится при unmount / смене interactive / выключении анимаций.
    */
+  function startHeroShowThenIdle() {
+    if (!visibleRef.current || !focusedRef.current || document.hidden) return;
+    if (heroShowPlayedRef.current) {
+      startHeroIdleLoop();
+      return;
+    }
+    const viewer = viewerRef.current;
+    if (!viewer || !skinReadyRef.current) return;
+    heroShowPlayedRef.current = true;
+    heroShowActiveRef.current = true;
+    stopHeroIdleLoop();
+    if (!SHOW_ANIMATIONS.length) {
+      startHeroIdleLoop();
+      return;
+    }
+    const show = SHOW_ANIMATIONS[0];
+    const generation = heroShowGenerationRef.current;
+    viewer.playAnimation(animationNameForModel(show.name, lastModelRef.current));
+    startLoop();
+    if (heroShowTimerRef.current) clearTimeout(heroShowTimerRef.current);
+    heroShowTimerRef.current = setTimeout(() => {
+      heroShowTimerRef.current = null;
+      if (generation === heroShowGenerationRef.current && viewerRef.current === viewer && visibleRef.current && focusedRef.current && !document.hidden && animationsRef.current && !debugRef.current && !interactive) {
+        heroShowActiveRef.current = false;
+        startHeroIdleLoop();
+      }
+    }, show.duration * 1000);
+  }
+
   function startHeroIdleLoop() {
     stopHeroIdleLoop();
     const viewer = viewerRef.current;
-    if (!viewer) return;
+    if (!viewer || !IDLE_ANIMATIONS.length) return;
     const pick = IDLE_ANIMATIONS[Math.floor(Math.random() * IDLE_ANIMATIONS.length)];
     viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
     heroIdleRef.current = pick.name;
@@ -457,20 +550,34 @@ const SkinViewer3D = memo(function SkinViewer3D({
 
   function scheduleHeroCheck() {
     if (heroIdleTimerRef.current) clearTimeout(heroIdleTimerRef.current);
+    const viewer = viewerRef.current;
+    const lifecycleGeneration = lifecycleGenerationRef.current;
+    if (!viewer || !viewerActiveRef.current) return;
     heroIdleTimerRef.current = setTimeout(() => {
-      const viewer = viewerRef.current;
-      // Вьюер мог быть уничтожен (unmount) или анимации выключены — выходим.
-      if (!viewer || !animationsRef.current) return;
+      // Таймер принадлежит конкретному viewer/lifecycle. Не переносим его
+      // на новый viewer после размонтирования или пересоздания WebGL.
+      if (
+        !isViewerActive(viewer, lifecycleGeneration) ||
+        !animationsRef.current ||
+        !visibleRef.current ||
+        !focusedRef.current ||
+        document.hidden ||
+        debugRef.current ||
+        interactive
+      ) return;
 
       // Бросок кубика: IDLE_SWITCH_CHANCE_PER_MIN шанс за каждый интервал
       const shouldSwitch = Math.random() < IDLE_SWITCH_CHANCE_PER_MIN;
       if (shouldSwitch) {
         const current = heroIdleRef.current;
         const pool = IDLE_ANIMATIONS.filter((a) => a.name !== current);
-        const pick = pool[Math.floor(Math.random() * pool.length)] ?? IDLE_ANIMATIONS[0];
-        viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
-        heroIdleRef.current = pick.name;
-        startLoop();
+        // При единственном idle «переключение» не должно перезапускать тот же клип.
+        const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : undefined;
+        if (pick) {
+          viewer.playAnimation(animationNameForModel(pick.name, lastModelRef.current));
+          heroIdleRef.current = pick.name;
+          startLoop();
+        }
       }
       // Даже без переключения — планируем следующую проверку через тот же интервал
       scheduleHeroCheck();
@@ -482,7 +589,18 @@ const SkinViewer3D = memo(function SkinViewer3D({
       clearTimeout(heroIdleTimerRef.current);
       heroIdleTimerRef.current = null;
     }
+    if (heroShowTimerRef.current) {
+      clearTimeout(heroShowTimerRef.current);
+      heroShowTimerRef.current = null;
+    }
     heroIdleRef.current = null;
+  }
+
+  function interruptHeroShow() {
+    if (!heroShowActiveRef.current) return;
+    heroShowActiveRef.current = false;
+    heroShowPlayedRef.current = false;
+    heroShowGenerationRef.current += 1;
   }
 
   if (webglFailed) {
