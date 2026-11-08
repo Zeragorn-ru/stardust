@@ -1,5 +1,7 @@
+use std::collections::HashSet;
+
 use serde::{Deserialize, Serialize};
-use sqlx::Row;
+use sqlx::{QueryBuilder, Row};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
@@ -210,24 +212,66 @@ impl Store {
     pub async fn record_telemetry(&self, heartbeat: &TelemetryHeartbeat) -> Result<(), StoreError> {
         let players = serde_json::to_value(&heartbeat.players)
             .map_err(|e| StoreError::Backend(e.to_string()))?;
+        let mut tx = self.pool.begin().await?;
         let previous: Option<serde_json::Value> = sqlx::query_scalar(
             "SELECT players FROM server_telemetry_samples ORDER BY recorded_at DESC LIMIT 1",
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(&mut *tx)
         .await?;
+
+        // Keep the original iteration order (including duplicate names), while making
+        // membership checks O(1) instead of scanning the other snapshot for every player.
+        let mut events: Vec<(String, &'static str)> = Vec::new();
         if let Some(previous) = previous {
             let old: Vec<String> = serde_json::from_value(previous).unwrap_or_default();
-            for username in heartbeat.players.iter().filter(|p| !old.contains(p)) {
-                self.record_player_event(username, "join").await?;
-            }
-            for username in old.iter().filter(|p| !heartbeat.players.contains(p)) {
-                self.record_player_event(username, "quit").await?;
-            }
+            let old_set: HashSet<&str> = old.iter().map(String::as_str).collect();
+            let current_set: HashSet<&str> = heartbeat.players.iter().map(String::as_str).collect();
+            events.extend(
+                heartbeat
+                    .players
+                    .iter()
+                    .filter(|username| !old_set.contains(username.as_str()))
+                    .map(|username| (username.clone(), "join")),
+            );
+            events.extend(
+                old.iter()
+                    .filter(|username| !current_set.contains(username.as_str()))
+                    .map(|username| (username.clone(), "quit")),
+            );
         } else {
-            for username in &heartbeat.players {
-                self.record_player_event(username, "join").await?;
-            }
+            events.extend(
+                heartbeat
+                    .players
+                    .iter()
+                    .map(|username| (username.clone(), "join")),
+            );
         }
+
+        if !events.is_empty() {
+            let mut player_events = QueryBuilder::<sqlx::Postgres>::new(
+                "INSERT INTO server_player_events (username, event) ",
+            );
+            player_events.push_values(events.iter(), |mut row, (username, event)| {
+                row.push_bind(username).push_bind(event);
+            });
+            player_events.build().execute(&mut *tx).await?;
+
+            let mut logs = QueryBuilder::<sqlx::Postgres>::new(
+                "INSERT INTO server_logs (event_type, username, summary, details) ",
+            );
+            logs.push_values(events.iter(), |mut row, (username, event)| {
+                row.push_bind(event)
+                    .push_bind(username)
+                    .push_bind(if *event == "join" {
+                        "Игрок вошёл на сервер"
+                    } else {
+                        "Игрок вышел с сервера"
+                    })
+                    .push_bind(serde_json::json!({}));
+            });
+            logs.build().execute(&mut *tx).await?;
+        }
+
         sqlx::query(
             "INSERT INTO server_telemetry_samples (online_count, players, tps, mspt)
              VALUES ($1, $2, $3, $4)",
@@ -236,28 +280,9 @@ impl Store {
         .bind(players)
         .bind(heartbeat.tps.clamp(0.0, 20.0))
         .bind(heartbeat.mspt.max(0.0))
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
-        Ok(())
-    }
-
-    async fn record_player_event(&self, username: &str, event: &str) -> Result<(), StoreError> {
-        sqlx::query("INSERT INTO server_player_events (username, event) VALUES ($1, $2)")
-            .bind(username)
-            .bind(event)
-            .execute(&self.pool)
-            .await?;
-        self.record_server_log(
-            event,
-            Some(username),
-            if event == "join" {
-                "Игрок вошёл на сервер"
-            } else {
-                "Игрок вышел с сервера"
-            },
-            serde_json::json!({}),
-        )
-        .await?;
+        tx.commit().await?;
         Ok(())
     }
 
@@ -400,12 +425,13 @@ impl Store {
         status: &str,
         analysis: &serde_json::Value,
     ) -> Result<(), StoreError> {
-        let result = sqlx::query("UPDATE server_logs SET ai_status = $2, ai_analysis = $3 WHERE id = $1")
-            .bind(id)
-            .bind(status)
-            .bind(analysis)
-            .execute(&self.pool)
-            .await?;
+        let result =
+            sqlx::query("UPDATE server_logs SET ai_status = $2, ai_analysis = $3 WHERE id = $1")
+                .bind(id)
+                .bind(status)
+                .bind(analysis)
+                .execute(&self.pool)
+                .await?;
         if result.rows_affected() == 0 {
             return Err(StoreError::NotFound);
         }
