@@ -67,6 +67,8 @@ jobs:
           cache-on-failure: true
       - name: Test (auth-server, admin-server, telegram-bot, store, protocol, crash-ai)
         run: cargo test -p auth-server -p admin-server -p telegram-bot -p store -p protocol -p crash-ai
+      - name: Clippy (backend)
+        run: cargo clippy -p auth-server -p admin-server -p telegram-bot -p store -p protocol -p crash-ai -- -D warnings
       # Тяжёлая release-сборка всех серверных бинарей за один прогон.
       # Инкрементальный target/ переживает прогоны благодаря rust-cache.
       - name: Build release binaries

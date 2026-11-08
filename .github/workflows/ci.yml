@@ -1,4 +1,6 @@
-# Быстрые проверки на push/PR — без релизов и деплоя.
+# Быстрые проверки на PR и push в master — без релизов и деплоя.
+# На push в master backend/frontend gates выполняются backend.yml: это
+# исключает повторный backend test и web build на одном commit.
 # Для отладки сборки лаунчера используй launcher-build.yml (workflow_dispatch).
 
 name: ci
@@ -6,8 +8,18 @@ name: ci
 on:
   push:
     branches: [master]
+    # Backend и web на push в master проверяются backend.yml. Оставляем здесь
+    # только зоны, которых backend.yml не покрывает.
+    paths:
+      - "launcher/**"
+      - "stardust-mod/**"
+      - "stardust-mod-fabric/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - ".github/workflows/ci.yml"
   pull_request:
-    # PR гоняет только задетые пакеты — полный прогон остаётся на push в master.
+    # PR гоняет только задетые пакеты; backend.yml запускается только на push
+    # в master и поэтому не дублирует эти обязательные PR-проверки.
     paths:
       - "launcher/**"
       - "crates/**"
@@ -39,10 +51,11 @@ concurrency:
 
 jobs:
   backend:
+    # На push в master backend.yml уже выполняет этот gate вместе с release build.
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.target == 'all' ||
-      github.event.inputs.target == 'backend'
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.target == 'all' || github.event.inputs.target == 'backend'))
     runs-on: ubuntu-latest
     container: rust:1.96-bookworm
     steps:
@@ -93,10 +106,11 @@ jobs:
         run: cargo clippy -p launcher --profile launcher-release -- -D warnings
 
   admin-web:
+    # На push в master этот build выполняется внутри backend.yml Docker build.
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.target == 'all' ||
-      github.event.inputs.target == 'admin-web'
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.target == 'all' || github.event.inputs.target == 'admin-web'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -147,10 +161,11 @@ jobs:
         run: ./gradlew build
 
   website:
+    # На push в master этот build выполняется внутри backend.yml Docker build.
     if: >-
-      github.event_name != 'workflow_dispatch' ||
-      github.event.inputs.target == 'all' ||
-      github.event.inputs.target == 'website'
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.target == 'all' || github.event.inputs.target == 'website'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
