@@ -38,6 +38,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle
 
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/')
@@ -77,6 +78,7 @@ jobs:
           distribution: temurin
           # Минимум для loom 1.19.x / Minecraft 26.2 (Java 25).
           java-version: 25
+          cache: gradle
 
       - name: Set version from tag
         if: startsWith(github.ref, 'refs/tags/')
