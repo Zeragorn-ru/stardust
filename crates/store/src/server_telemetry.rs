@@ -10,6 +10,8 @@ use protocol::{ExternalModAllowlistEntry, ExternalModBlockRule, ExternalModPolic
 
 pub const SETTING_SERVER_TELEMETRY_TOKEN: &str = "server_telemetry_token";
 
+const MAX_TELEMETRY_24H_ROWS: i64 = 100_000;
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct TelemetryHeartbeat {
     pub players: Vec<String>,
@@ -452,13 +454,11 @@ impl Store {
         &self,
         since: OffsetDateTime,
     ) -> Result<Vec<TelemetrySample>, StoreError> {
-        let rows = sqlx::query(
+        let sql = format!(
             "SELECT recorded_at, online_count, players, tps, mspt FROM server_telemetry_samples
-             WHERE recorded_at >= $1 ORDER BY recorded_at",
-        )
-        .bind(since)
-        .fetch_all(&self.pool)
-        .await?;
+             WHERE recorded_at >= $1 ORDER BY recorded_at LIMIT {MAX_TELEMETRY_24H_ROWS}"
+        );
+        let rows = sqlx::query(&sql).bind(since).fetch_all(&self.pool).await?;
         rows.into_iter()
             .map(|row| {
                 Ok(TelemetrySample {
@@ -485,13 +485,11 @@ impl Store {
         &self,
         since: OffsetDateTime,
     ) -> Result<Vec<PlayerEvent>, StoreError> {
-        let rows = sqlx::query(
+        let sql = format!(
             "SELECT recorded_at, username, event FROM server_player_events
-             WHERE recorded_at >= $1 ORDER BY recorded_at",
-        )
-        .bind(since)
-        .fetch_all(&self.pool)
-        .await?;
+             WHERE recorded_at >= $1 ORDER BY recorded_at LIMIT {MAX_TELEMETRY_24H_ROWS}"
+        );
+        let rows = sqlx::query(&sql).bind(since).fetch_all(&self.pool).await?;
         Ok(rows
             .into_iter()
             .map(|row| PlayerEvent {

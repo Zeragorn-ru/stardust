@@ -107,6 +107,9 @@ pub struct BuildFileRow {
     pub profile_keys: Vec<String>,
 }
 
+const MAX_BUILDS: i64 = 500;
+const MAX_FILES_PER_BUILD: usize = 50_000;
+
 const BUILD_COLUMNS: &str = "id, name, version, loader_kind, mc_version, loader_version, is_active";
 
 const FILE_COLUMNS: &str = "id, path, sha1, size_bytes, side, kind, overwrite, optional, \
@@ -115,6 +118,17 @@ const FILE_COLUMNS: &str = "id, path, sha1, size_bytes, side, kind, overwrite, o
 impl Store {
     /// Создаёт новую сборку. Не делает её активной автоматически.
     pub async fn create_build(&self, new: NewBuild) -> Result<i64, StoreError> {
+        let mut tx = self.pool().begin().await?;
+        sqlx::query("SELECT pg_advisory_xact_lock($1)")
+            .bind(0x535441524255494c_i64)
+            .execute(&mut *tx)
+            .await?;
+        let count: i64 = sqlx::query_scalar("SELECT count(*) FROM builds")
+            .fetch_one(&mut *tx)
+            .await?;
+        if count >= MAX_BUILDS {
+            return Err(StoreError::TooMany);
+        }
         let id: i64 = sqlx::query_scalar(
             "INSERT INTO builds (name, version, loader_kind, mc_version, loader_version, is_active)
              VALUES ($1, $2, $3, $4, $5, FALSE) RETURNING id",
@@ -124,8 +138,9 @@ impl Store {
         .bind(&new.loader_kind)
         .bind(&new.mc_version)
         .bind(&new.loader_version)
-        .fetch_one(self.pool())
+        .fetch_one(&mut *tx)
         .await?;
+        tx.commit().await?;
         Ok(id)
     }
 
@@ -137,6 +152,16 @@ impl Store {
     /// Копируются только строки БД, всё в одной транзакции. Возвращает id копии.
     pub async fn clone_build(&self, src_id: i64, new_name: &str) -> Result<i64, StoreError> {
         let mut tx = self.pool().begin().await?;
+        sqlx::query("SELECT pg_advisory_xact_lock($1)")
+            .bind(0x535441524255494c_i64)
+            .execute(&mut *tx)
+            .await?;
+        let build_count: i64 = sqlx::query_scalar("SELECT count(*) FROM builds")
+            .fetch_one(&mut *tx)
+            .await?;
+        if build_count >= MAX_BUILDS {
+            return Err(StoreError::TooMany);
+        }
 
         // Копируем заголовок: имя задаёт вызывающий, копия всегда неактивна.
         let new_id: Option<i64> = sqlx::query_scalar(
@@ -156,6 +181,14 @@ impl Store {
         };
 
         // Копируем все строки файлов на новый build_id (id/created_at — свои).
+        let file_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM build_files WHERE build_id = $1")
+                .bind(src_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        if file_count > MAX_FILES_PER_BUILD as i64 {
+            return Err(StoreError::TooMany);
+        }
         sqlx::query(
             "INSERT INTO build_files
                 (build_id, path, sha1, size_bytes, side, kind, overwrite, optional,
@@ -189,7 +222,7 @@ impl Store {
 
     /// Список заголовков всех сборок.
     pub async fn list_builds(&self) -> Result<Vec<BuildHeader>, StoreError> {
-        let sql = format!("SELECT {BUILD_COLUMNS} FROM builds ORDER BY id DESC");
+        let sql = format!("SELECT {BUILD_COLUMNS} FROM builds ORDER BY id DESC LIMIT {MAX_BUILDS}");
         let rows = sqlx::query(&sql).fetch_all(self.pool()).await?;
         Ok(rows.iter().map(row_to_header).collect())
     }
@@ -298,8 +331,9 @@ impl Store {
 
     /// Файлы сборки.
     pub async fn build_files(&self, build_id: i64) -> Result<Vec<BuildFileRow>, StoreError> {
-        let sql =
-            format!("SELECT {FILE_COLUMNS} FROM build_files WHERE build_id = $1 ORDER BY path");
+        let sql = format!(
+            "SELECT {FILE_COLUMNS} FROM build_files WHERE build_id = $1 ORDER BY path LIMIT {MAX_FILES_PER_BUILD}"
+        );
         let rows = sqlx::query(&sql)
             .bind(build_id)
             .fetch_all(self.pool())
@@ -313,6 +347,26 @@ impl Store {
         build_id: i64,
         file: BuildFileInput,
     ) -> Result<i64, StoreError> {
+        let mut tx = self.pool().begin().await?;
+        sqlx::query("SELECT pg_advisory_xact_lock($1)")
+            .bind(0x5354415246494c45_i64)
+            .execute(&mut *tx)
+            .await?;
+        let file_count: i64 =
+            sqlx::query_scalar("SELECT count(*) FROM build_files WHERE build_id = $1")
+                .bind(build_id)
+                .fetch_one(&mut *tx)
+                .await?;
+        let existing: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM build_files WHERE build_id = $1 AND path = $2)",
+        )
+        .bind(build_id)
+        .bind(&file.path)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !existing && file_count >= MAX_FILES_PER_BUILD as i64 {
+            return Err(StoreError::TooMany);
+        }
         let id: i64 = sqlx::query_scalar(
             "INSERT INTO build_files
                 (build_id, path, sha1, size_bytes, side, kind, overwrite, optional,
@@ -343,13 +397,14 @@ impl Store {
         .bind(&file.description)
         .bind(&file.storage_key)
         .bind(&file.profile_keys)
-        .fetch_one(self.pool())
+        .fetch_one(&mut *tx)
         .await?;
         // Сборка изменилась — обновим отметку.
         sqlx::query("UPDATE builds SET updated_at = now() WHERE id = $1")
             .bind(build_id)
-            .execute(self.pool())
+            .execute(&mut *tx)
             .await?;
+        tx.commit().await?;
         Ok(id)
     }
 
