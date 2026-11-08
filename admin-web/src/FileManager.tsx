@@ -4,7 +4,7 @@
 // (напр. `config/foo/bar.toml`). Дерево каталогов мы строим на лету из этих
 // путей: навигация по папкам, хлебные крошки, скачивание и удаление.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { BuildFile, ModProfile } from "./types";
 import { FileUpload, type FileUploadHandle } from "./FileUpload";
@@ -149,6 +149,17 @@ function publicUrl(path: string): string {
   return new URL(path, window.location.origin).toString();
 }
 
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debounced;
+}
+
 export function FileManager({
   buildId,
   files,
@@ -235,7 +246,9 @@ export function FileManager({
   }
 
   const activeFilters = hasActiveFilters(filters);
+  const debouncedQuery = useDebouncedValue(query, 180);
   const searching = query.trim().length > 0 || activeFilters;
+  const searchQuery = debouncedQuery.trim().toLowerCase();
 
   const listing = useMemo(() => buildListing(files, dir), [files, dir]);
 
@@ -268,7 +281,7 @@ export function FileManager({
   // При активных фильтрах/поиске показываем плоский список совпадений по всем папкам.
   const searchResults = useMemo(() => {
     if (!searching) return [];
-    const q = query.trim().toLowerCase();
+    const q = searchQuery;
     return files
       .filter((f) => {
         if (filters.kind !== "all" && f.kind !== filters.kind) return false;
@@ -293,7 +306,7 @@ export function FileManager({
         );
       })
       .sort((a, b) => a.path.localeCompare(b.path));
-  }, [files, query, filters, searching]);
+  }, [files, filters, searchQuery, searching]);
 
   const crumbs = useMemo(() => {
     const norm = normalizeDir(dir);
@@ -343,7 +356,7 @@ export function FileManager({
     anchorIdx.current = null;
   }
 
-  function toggleAllVisible() {
+  const toggleAllVisible = useCallback(() => {
     setSelected((cur) => {
       const next = new Set(cur);
       if (allVisibleSelected) {
@@ -353,7 +366,7 @@ export function FileManager({
       }
       return next;
     });
-  }
+  }, [allVisibleSelected, visibleFiles]);
 
   function clearSelection() {
     setSelected(new Set());
@@ -1783,7 +1796,7 @@ function PromptDialog({
   );
 }
 
-function SelectAllRow({
+const SelectAllRow = memo(function SelectAllRow({
   checked,
   count,
   onToggle,
@@ -1800,9 +1813,9 @@ function SelectAllRow({
       </span>
     </label>
   );
-}
+});
 
-function FileRow({
+const FileRow = memo(function FileRow({
   file,
   selected,
   active,
@@ -2070,7 +2083,7 @@ function FileRow({
       </div>
     </div>
   );
-}
+});
 
 // Диалог управления профилями модов сборки: пресеты вроде
 // «Производительность»/«Качество», которые игрок переключает в лаунчере.
