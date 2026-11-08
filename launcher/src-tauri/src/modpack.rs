@@ -24,9 +24,10 @@
 // менял (текущий SHA-1 совпадает с тем, что мы записали). Так пользовательские
 // правки конфигов не теряются.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
+use std::time::SystemTime;
 
 use futures_util::stream::{self, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -376,6 +377,7 @@ pub async fn sync(
     };
     let mut state = read_state(game_dir);
     let mut desired: BTreeMap<String, String> = BTreeMap::new();
+    let mut sha1_cache = Sha1Cache::default();
 
     let entries: Vec<_> = manifest.client_files().collect();
     let total = entries.len();
@@ -423,7 +425,9 @@ pub async fn sync(
             format!("{rel_key}{DISABLED_SUFFIX}")
         };
 
-        let matches = |path: &Path| file_matches(path, &entry.sha1, entry.size).unwrap_or(false);
+        let mut matches = |path: &Path| {
+            file_matches(path, &entry.sha1, entry.size, &mut sha1_cache).unwrap_or(false)
+        };
 
         // 1. Уже актуален под нужным именем — ничего не делаем, чистим дубль.
         if matches(&active) {
@@ -509,7 +513,7 @@ pub async fn sync(
 
     // Убираем файлы, которые лаунчер ставил раньше, но в новой сборке их больше
     // нет. Удаляем только если игрок файл сам не менял.
-    cleanup_stale(game_dir, &state, &desired);
+    cleanup_stale(game_dir, &state, &desired, &mut sha1_cache);
 
     state.files = desired;
     write_state(game_dir, &state);
@@ -652,9 +656,48 @@ fn apply_enabled_state(game_dir: &Path, rel: &Path, enabled: bool) -> bool {
     }
 }
 
+#[derive(Default)]
+struct Sha1Cache {
+    entries: HashMap<PathBuf, Sha1CacheEntry>,
+}
+
+struct Sha1CacheEntry {
+    len: u64,
+    modified: SystemTime,
+    sha1: String,
+}
+
+impl Sha1Cache {
+    fn sha1(&mut self, path: &Path) -> Option<String> {
+        let metadata = std::fs::metadata(path).ok()?;
+        let len = metadata.len();
+        let modified = metadata.modified().ok()?;
+        if let Some(entry) = self.entries.get(path) {
+            if entry.len == len && entry.modified == modified {
+                return Some(entry.sha1.clone());
+            }
+        }
+        let sha1 = file_sha1(path)?;
+        self.entries.insert(
+            path.to_owned(),
+            Sha1CacheEntry {
+                len,
+                modified,
+                sha1: sha1.clone(),
+            },
+        );
+        Some(sha1)
+    }
+}
+
 /// Удаляет ранее установленные лаунчером файлы, отсутствующие в `desired`,
 /// если их текущий SHA-1 совпадает с записанным (игрок не менял).
-fn cleanup_stale(game_dir: &Path, state: &ManagedState, desired: &BTreeMap<String, String>) {
+fn cleanup_stale(
+    game_dir: &Path,
+    state: &ManagedState,
+    desired: &BTreeMap<String, String>,
+    sha1_cache: &mut Sha1Cache,
+) {
     for (rel_key, recorded_sha1) in &state.files {
         if desired.contains_key(rel_key) {
             continue;
@@ -671,7 +714,8 @@ fn cleanup_stale(game_dir: &Path, state: &ManagedState, desired: &BTreeMap<Strin
         if dis {
             path = disabled_variant(&path);
         }
-        let unchanged = file_sha1(&path)
+        let unchanged = sha1_cache
+            .sha1(&path)
             .map(|h| h.eq_ignore_ascii_case(recorded_sha1))
             .unwrap_or(false);
         if unchanged {
@@ -700,7 +744,12 @@ fn remove_if_exists(path: &Path) {
 /// сработать. Заменой занимается загрузка: она пишет во временный файл и
 /// переименовывает поверх (minecraft.rs `download_to_counted`), а лишние
 //  дубли чистятся после успешной загрузки.
-fn file_matches(path: &Path, expected_sha1: &str, expected_size: u64) -> Result<bool, String> {
+fn file_matches(
+    path: &Path,
+    expected_sha1: &str,
+    expected_size: u64,
+    sha1_cache: &mut Sha1Cache,
+) -> Result<bool, String> {
     if !path.exists() {
         return Ok(false);
     }
@@ -716,7 +765,7 @@ fn file_matches(path: &Path, expected_sha1: &str, expected_size: u64) -> Result<
         return Ok(false);
     }
 
-    match file_sha1(path) {
+    match sha1_cache.sha1(path) {
         Some(actual) if actual.eq_ignore_ascii_case(expected_sha1) => Ok(true),
         Some(actual) => {
             tracing::warn!(
