@@ -1902,9 +1902,16 @@ impl Store {
     > {
         let lower_names: Vec<String> = names.iter().map(|n| n.to_lowercase()).collect();
         let rows = sqlx::query(
-            "SELECT username, active_badge_id, active_gradient_id
-             FROM accounts
-             WHERE username_lower = ANY($1)",
+            "SELECT a.username,
+                    b.id AS badge_id, b.emoji AS badge_emoji, b.label AS badge_label,
+                    b.description AS badge_description, b.color AS badge_color,
+                    g.id AS gradient_id, g.label AS gradient_label,
+                    g.description AS gradient_description,
+                    g.color_start AS gradient_color_start, g.color_end AS gradient_color_end
+             FROM accounts a
+             LEFT JOIN badges b ON b.id = a.active_badge_id
+             LEFT JOIN gradients g ON g.id = a.active_gradient_id
+             WHERE a.username_lower = ANY($1)",
         )
         .bind(&lower_names)
         .fetch_all(&self.pool)
@@ -1913,42 +1920,20 @@ impl Store {
         let mut result = std::collections::HashMap::new();
         for row in rows {
             let username: String = row.get("username");
-            let badge_id: Option<i32> = row.get("active_badge_id");
-            let gradient_id: Option<i32> = row.get("active_gradient_id");
-
-            let badge = if let Some(id) = badge_id {
-                let r = sqlx::query(
-                    "SELECT id, emoji, label, description, color FROM badges WHERE id = $1",
-                )
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
-                r.map(|r| Badge {
-                    id: r.get("id"),
-                    emoji: r.get("emoji"),
-                    label: r.get("label"),
-                    description: r.get("description"),
-                    color: r.get("color"),
-                })
-            } else {
-                None
-            };
-
-            let gradient = if let Some(id) = gradient_id {
-                let r = sqlx::query("SELECT id, label, description, color_start, color_end FROM gradients WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&self.pool)
-                    .await?;
-                r.map(|r| Gradient {
-                    id: r.get("id"),
-                    label: r.get("label"),
-                    description: r.get("description"),
-                    color_start: r.get("color_start"),
-                    color_end: r.get("color_end"),
-                })
-            } else {
-                None
-            };
+            let badge = row.get::<Option<i32>, _>("badge_id").map(|id| Badge {
+                id,
+                emoji: row.get("badge_emoji"),
+                label: row.get("badge_label"),
+                description: row.get("badge_description"),
+                color: row.get("badge_color"),
+            });
+            let gradient = row.get::<Option<i32>, _>("gradient_id").map(|id| Gradient {
+                id,
+                label: row.get("gradient_label"),
+                description: row.get("gradient_description"),
+                color_start: row.get("gradient_color_start"),
+                color_end: row.get("gradient_color_end"),
+            });
 
             let name_color = gradient.as_ref().map(|g| g.color_start.clone());
             result.insert(username, (badge, gradient, name_color));
@@ -1958,38 +1943,40 @@ impl Store {
 
     /// Подгружает объекты бейджа/градиента по active_*_id.
     async fn attach_cosmetics(&self, mut account: Account) -> Account {
-        if let Some(id) = account.active_badge_id {
-            if let Ok(Some(row)) =
-                sqlx::query("SELECT id, emoji, label, description, color FROM badges WHERE id = $1")
-                    .bind(id)
-                    .fetch_optional(&self.pool)
-                    .await
-            {
-                account.active_badge = Some(Badge {
-                    id: row.get("id"),
-                    emoji: row.get("emoji"),
-                    label: row.get("label"),
-                    description: row.get("description"),
-                    color: row.get("color"),
-                });
-            }
+        if account.active_badge_id.is_none() && account.active_gradient_id.is_none() {
+            return account;
         }
-        if let Some(id) = account.active_gradient_id {
-            if let Ok(Some(row)) = sqlx::query(
-                "SELECT id, label, description, color_start, color_end FROM gradients WHERE id = $1",
-            )
-            .bind(id)
-            .fetch_optional(&self.pool)
-            .await
-            {
-                account.active_gradient = Some(Gradient {
-                    id: row.get("id"),
-                    label: row.get("label"),
-                    description: row.get("description"),
-                    color_start: row.get("color_start"),
-                    color_end: row.get("color_end"),
-                });
-            }
+
+        let row = sqlx::query(
+            "SELECT b.id AS badge_id, b.emoji AS badge_emoji, b.label AS badge_label,
+                    b.description AS badge_description, b.color AS badge_color,
+                    g.id AS gradient_id, g.label AS gradient_label,
+                    g.description AS gradient_description,
+                    g.color_start AS gradient_color_start, g.color_end AS gradient_color_end
+             FROM (SELECT $1::INT AS badge_id, $2::INT AS gradient_id) ids
+             LEFT JOIN badges b ON b.id = ids.badge_id
+             LEFT JOIN gradients g ON g.id = ids.gradient_id",
+        )
+        .bind(account.active_badge_id)
+        .bind(account.active_gradient_id)
+        .fetch_optional(&self.pool)
+        .await;
+
+        if let Ok(Some(row)) = row {
+            account.active_badge = row.get::<Option<i32>, _>("badge_id").map(|id| Badge {
+                id,
+                emoji: row.get("badge_emoji"),
+                label: row.get("badge_label"),
+                description: row.get("badge_description"),
+                color: row.get("badge_color"),
+            });
+            account.active_gradient = row.get::<Option<i32>, _>("gradient_id").map(|id| Gradient {
+                id,
+                label: row.get("gradient_label"),
+                description: row.get("gradient_description"),
+                color_start: row.get("gradient_color_start"),
+                color_end: row.get("gradient_color_end"),
+            });
         }
         account
     }
