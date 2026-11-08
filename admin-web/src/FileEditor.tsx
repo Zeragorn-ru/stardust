@@ -102,8 +102,12 @@ export function FileEditor({
   const toast = useToast();
   const confirm = useConfirm();
   useBodyScrollLock();
-  const [text, setText] = useState("");
-  const [original, setOriginal] = useState("");
+  // Текст хранится в самом textarea: React не получает мегабайтную строку на
+  // каждый ввод и не запускает рендер всего модального окна при каждом символе.
+  const contentRef = useRef("");
+  const originalRef = useRef("");
+  const [dirty, setDirty] = useState(false);
+  const [totalLines, setTotalLines] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -139,7 +143,6 @@ export function FileEditor({
   const fileName = baseName(file.path);
   const needsJsonValidation = JSON_EXT.has(fileExt(fileName));
 
-  const dirty = text !== original;
   const dirtyRef = useRef(dirty);
   dirtyRef.current = dirty;
 
@@ -156,8 +159,11 @@ export function FileEditor({
       .getFileContent(file.sha1)
       .then(async (content) => {
         if (!alive) return;
-        setText(content);
-        setOriginal(content);
+        contentRef.current = content;
+        originalRef.current = content;
+        if (taRef.current) taRef.current.value = content;
+        setDirty(false);
+        setTotalLines(content.split("\n").length);
         setBinaryError(looksBinary(content));
         const sha = await computeSha1(content);
         if (!alive) return;
@@ -247,7 +253,8 @@ export function FileEditor({
     try {
       await api.updateFileContent(file.id, content, base);
       toast.success("Файл сохранён");
-      setOriginal(content);
+      originalRef.current = content;
+      setDirty(false);
       setBaseSha1(await computeSha1(content));
       setConflict(null);
       setJsonError(null);
@@ -277,15 +284,20 @@ export function FileEditor({
 
   // Сохранение: сначала валидация JSON (п.6) — битый конфиг не уходит на
   // сервер, пока явно не нажмут «Сохранить всё равно» (forceJson).
+  function currentText(): string {
+    return taRef.current?.value ?? contentRef.current;
+  }
+
   async function save(forceJson = false, base?: string) {
+    const content = currentText();
     if (needsJsonValidation && !forceJson) {
-      const problem = validateJson(text);
+      const problem = validateJson(content);
       if (problem) {
         setJsonError(problem);
         return;
       }
     }
-    await putContent(text, base ?? baseSha1 ?? undefined);
+    await putContent(content, base ?? baseSha1 ?? undefined);
   }
 
   // «Обновить базу и сохранить»: серверная копия уходит в фоновый state
@@ -293,7 +305,8 @@ export function FileEditor({
   // повторяем PUT текстом пользователя поверх новой базы.
   async function resolveKeepLocal() {
     if (!conflict) return;
-    setOriginal(conflict.content);
+    originalRef.current = conflict.content;
+    setDirty(currentText() !== originalRef.current);
     setBaseSha1(conflict.sha1);
     setConflict(null);
     setSaveError(null);
@@ -315,8 +328,11 @@ export function FileEditor({
     ) {
       return;
     }
-    setText(conflict.content);
-    setOriginal(conflict.content);
+    contentRef.current = conflict.content;
+    originalRef.current = conflict.content;
+    if (taRef.current) taRef.current.value = conflict.content;
+    setDirty(false);
+    setTotalLines(conflict.content.split("\n").length);
     setBaseSha1(conflict.sha1);
     setConflict(null);
     setSaveError(null);
@@ -353,23 +369,24 @@ export function FileEditor({
   function updateCursor(el?: HTMLTextAreaElement) {
     const target = el || taRef.current;
     if (!target) return;
-    const v = text.slice(0, target.selectionStart);
+    const v = target.value.slice(0, target.selectionStart);
     const lines = v.split("\n");
     setPosLine(lines.length);
     setPosCol(lines[lines.length - 1].length + 1);
   }
 
   useEffect(() => {
-    requestAnimationFrame(() => updateCursor());
-  }, [text]);
-
-  // Подсчёт total строк для отображения.
-  const totalLines = text.split("\n").length;
+    if (loading || binaryError) return;
+    const frame = requestAnimationFrame(() => updateCursor());
+    return () => cancelAnimationFrame(frame);
+  }, [loading, binaryError]);
 
   // Правка текста снимает предупреждение о JSON: панель снова появится
   // только после новой попытки сохранения.
   function editText(value: string) {
-    setText(value);
+    contentRef.current = value;
+    setDirty(value !== originalRef.current);
+    setTotalLines(value.split("\n").length);
     setJsonError(null);
   }
 
@@ -387,7 +404,7 @@ export function FileEditor({
     if (isNaN(n) || n < 1 || n > totalLines) return;
     setShowQuickLine(false);
     // Вычисляем смещение начала строки n (0-based index).
-    const rows = text.split("\n");
+    const rows = currentText().split("\n");
     let offset = 0;
     for (let i = 0; i < n - 1 && i < rows.length; i++) {
       offset += rows[i].length + 1;
@@ -437,7 +454,7 @@ export function FileEditor({
       const ta = e.currentTarget;
       const start = ta.selectionStart;
       const end = ta.selectionEnd;
-      editText(text.slice(0, start) + "  " + text.slice(end));
+      editText(ta.value.slice(0, start) + "  " + ta.value.slice(end));
       requestAnimationFrame(() => {
         ta.selectionStart = ta.selectionEnd = start + 2;
       });
@@ -543,7 +560,7 @@ export function FileEditor({
             ref={taRef}
             className="editor-area mono"
             aria-label={`Содержимое файла ${fileName}`}
-            value={text}
+            defaultValue={contentRef.current}
             spellCheck={false}
             onChange={(e) => editText(e.target.value)}
             onKeyDown={onKeyDown}
