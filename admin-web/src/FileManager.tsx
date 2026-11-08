@@ -45,8 +45,20 @@ import {
 import "./FileManager.css";
 import { KINDS, SIDES, guessKind } from "./fileUtils";
 
+const KIND_LABELS: Record<string, string> = {
+  mod: "мод",
+  config: "конфиг",
+  resource: "ресурсы",
+  other: "другое",
+};
+
 function sideLabel(s: string): string {
   return s === "both" ? "обе" : s === "client" ? "клиент" : "сервер";
+}
+
+/** Перевод типа файла в русский язык (для отображения в UI). */
+function kindLabel(k: string): string {
+  return KIND_LABELS[k] ?? k;
 }
 
 /** Русская плюрализация: 1 мод / 2-4 мода / 5+ модов, включая 21 мод. */
@@ -811,8 +823,8 @@ export function FileManager({
         <div className="fm-chips">
           {filters.kind !== "all" && (
             <span className="fm-chip">
-              Тип: {filters.kind}
-              <button type="button" className="fm-chip-x" aria-label={`Убрать фильтр: тип ${filters.kind}`} onClick={() => setFilters((f) => ({ ...f, kind: "all" }))}>×</button>
+              Тип: {kindLabel(filters.kind)}
+              <button type="button" className="fm-chip-x" aria-label={`Убрать фильтр: тип ${kindLabel(filters.kind)}`} onClick={() => setFilters((f) => ({ ...f, kind: "all" }))}>×</button>
             </span>
           )}
           {filters.side !== "all" && (
@@ -886,7 +898,7 @@ export function FileManager({
                   className={`fm-filter-opt${filters.kind === k ? " active" : ""}`}
                   onClick={() => setFilters((f) => ({ ...f, kind: k }))}
                 >
-                  {k === "all" ? "все" : k}
+                  {k === "all" ? "все" : kindLabel(k)}
                 </button>
               ))}
             </div>
@@ -1012,7 +1024,7 @@ export function FileManager({
           selectedProfiles={profilesOfSelected}
           onToggleProfile={bulkToggleProfile}
           onSide={(s) => bulkPatch({ side: s }, `Сторона → ${sideLabel(s)}`)}
-          onKind={(k) => bulkPatch({ kind: k }, `Тип → ${k}`)}
+          onKind={(k) => bulkPatch({ kind: k }, `Тип → ${kindLabel(k)}`)}
           onOptional={(v) =>
             bulkPatch(
               { optional: v },
@@ -1388,7 +1400,7 @@ function BulkBar({
                 disabled={busy}
                 onClick={() => onKind(k)}
               >
-                {k}
+                {kindLabel(k)}
               </button>
             ))}
             <button
@@ -1396,7 +1408,7 @@ function BulkBar({
               type="button"
               title={`Применить выбранный тип ко всем файлам в «${dir || ".minecraft"}»`}
               disabled={busy}
-              onClick={() => onBulkPatchDir("kind", common.kind ?? KINDS[0], `Тип → ${common.kind ?? "—"}`)}
+              onClick={() => onBulkPatchDir("kind", common.kind ?? KINDS[0], `Тип → ${common.kind ? kindLabel(common.kind) : "—"}`)}
             >
               <IconCornerUp size={14} />
             </button>
@@ -1921,7 +1933,7 @@ function FileRow({
             <span className="fm-size num">{formatSize(file.sizeBytes)}</span>
           </div>
           <div className="fm-file-subline">
-            <span className={`tag kind-${file.kind}`}>{file.kind}</span>
+            <span className={`tag kind-${file.kind}`}>{kindLabel(file.kind)}</span>
             <span className="fm-meta muted">{sideLabel(file.side)}</span>
             {file.optional && (
               <span
@@ -2217,6 +2229,7 @@ function ModProfilesDialog({
                 <button
                   className="icon-only"
                   title={`Переименовать/править ${p.name}`}
+                  aria-label={`Переименовать профиль «${p.name}»`}
                   disabled={busy}
                   onClick={() => startEdit(p)}
                 >
@@ -2225,6 +2238,7 @@ function ModProfilesDialog({
                 <button
                   className="danger icon-only"
                   title={`Удалить профиль ${p.name}`}
+                  aria-label={`Удалить профиль «${p.name}»`}
                   disabled={busy}
                   onClick={() => void remove(p)}
                 >
@@ -2469,7 +2483,7 @@ function FileSettingsDrawer({
                     aria-pressed={kind === k}
                     onClick={() => setKind(k)}
                   >
-                    {k}
+                    {kindLabel(k)}
                   </button>
                 ))}
               </div>
