@@ -42,6 +42,7 @@ import {
   IconTrash,
 } from "./ui/icons";
 
+import "./FileManager.css";
 import { KINDS, SIDES, guessKind } from "./fileUtils";
 
 function sideLabel(s: string): string {
@@ -215,7 +216,7 @@ export function FileManager({
   async function copyPublicLink(path: string, label: string) {
     try {
       await navigator.clipboard.writeText(publicUrl(path));
-      toast.success(`${label} скопирована`);
+      toast.success(`${label} скопировано`);
     } catch {
       toast.error(`Не удалось скопировать ${label.toLowerCase()}`);
     }
@@ -508,8 +509,8 @@ export function FileManager({
     } else if (targets.length > 0) {
       toast.success(
         removing
-          ? `${profileName}: убрано из ${targets.length} файл(ов)`
-          : `${profileName}: добавлено ${targets.length} файл(ов)`,
+        ? `${profileName}: убрано из ${pluralRu(targets.length, 'файл', 'файла', 'файлов')}`
+          : `${profileName}: добавлено ${pluralRu(targets.length, 'файл', 'файла', 'файлов')}`,
       );
     }
     onChanged();
@@ -534,7 +535,7 @@ export function FileManager({
         `${label}: применено к ${sel.length - failed.length}, не удалось: ${failed.length}`,
       );
     } else {
-      toast.success(`${label}: ${sel.length} файл(ов)`);
+      toast.success(`${label}: ${pluralRu(sel.length, 'файл', 'файла', 'файлов')}`);
     }
     onChanged();
   }
@@ -569,7 +570,7 @@ export function FileManager({
       setSelected((cur) => new Set([...cur, ...ids]));
       toast.error(`${label} применено к ${targets.length - failedFiles.length}, не удалось: ${failedFiles.length}`);
     } else {
-      toast.success(`${label} применено к ${targets.length} файл(ов)`);
+      toast.success(`${label} применено к ${pluralRu(targets.length, 'файл', 'файла', 'файлов')}`);
     }
   }
 
@@ -583,7 +584,7 @@ export function FileManager({
     if (sel.length === 0) return;
     const ok = await confirm({
       title: "Удалить выбранные файлы?",
-      body: `Будет удалено файлов: ${sel.length}`,
+      body: `Будет удалено ${pluralRu(sel.length, 'файл', 'файла', 'файлов')}`,
       confirmText: "Удалить всё",
       danger: true,
     });
@@ -597,7 +598,7 @@ export function FileManager({
       );
     } else {
       clearSelection();
-      toast.success(`Удалено файлов: ${sel.length}`);
+      toast.success(`Удалено ${pluralRu(sel.length, 'файл', 'файла', 'файлов')}`);
     }
     onChanged();
   }
@@ -607,7 +608,7 @@ export function FileManager({
     const victims = files.filter((f) => f.path.startsWith(prefix));
     const ok = await confirm({
       title: "Удалить папку?",
-      body: `${folder.path} — будет удалено файлов: ${victims.length}`,
+      body: `${folder.path} — ${pluralRu(victims.length, 'будет удалён файл', 'будут удалены файла', 'будут удалены файлов')}`,
       confirmText: "Удалить всё",
       danger: true,
     });
@@ -625,7 +626,7 @@ export function FileManager({
     if (failed) {
       toast.error(`Не удалось удалить файлов: ${failed}`);
     } else {
-      toast.success(`Папка удалена (${victims.length} файлов)`);
+      toast.success(`Папка удалена (${pluralRu(victims.length, 'файл', 'файла', 'файлов')})`);
     }
     onChanged();
   }
@@ -695,12 +696,12 @@ export function FileManager({
       title: dir === "" ? ".minecraft" : dir,
       items: [
         {
-          label: "Новая папка",
+          label: "Создать папку",
           icon: <IconFolder size={15} />,
           onSelect: () => setCreating("folder"),
         },
         {
-          label: "Новый файл",
+          label: "Создать файл",
           icon: <IconPlus size={15} />,
           onSelect: () => setCreating("file"),
         },
@@ -1130,7 +1131,7 @@ export function FileManager({
                 <span className="fm-folder-text">
                   <span className="fm-name">{folder.name}</span>
                   <span className="fm-meta muted">
-                    {folder.fileCount} файл(ов) · {formatSize(folder.totalSize)}
+                    {pluralRu(folder.fileCount, 'файл', 'файла', 'файлов')} · {formatSize(folder.totalSize)}
                   </span>
                 </span>
               </button>
@@ -1169,7 +1170,7 @@ export function FileManager({
                         {
                           label:
                             archivingFolder === folder.path
-                              ? `Готовлю архив… (${folder.fileCount} файл(ов))`
+                              ? `Готовлю архив… (${pluralRu(folder.fileCount, 'файл', 'файла', 'файлов')})`
                               : `Скачать папку (${folder.fileCount})`,
                           icon: <IconDownload size={15} />,
                           disabled: archivingFolder !== null,
@@ -1328,6 +1329,10 @@ function BulkBar({
   /** Текущая папка для подсказок кнопок dir-патча. */
   dir: string;
 }) {
+  // Второй уровень панели раскрыт. Значения чип-групп приходят в `common`
+  // (выводятся из выделения), поэтому сворачивание ничего не сбрасывает.
+  const [moreOpen, setMoreOpen] = useState(false);
+
   return (
     <div className="fm-bulk">
       <div className="fm-bulk-count">
@@ -1399,129 +1404,6 @@ function BulkBar({
         </div>
 
         <div className="fm-bulk-group">
-          <span className="fm-bulk-label">Опциональный</span>
-          <div className="seg">
-            <button
-              type="button"
-              className={`seg-btn${common.optional ? " active" : ""}`}
-              aria-pressed={common.optional}
-              disabled={busy}
-              onClick={() => onOptional(true)}
-            >
-              да
-            </button>
-            <button
-              type="button"
-              className={`seg-btn${!common.optional ? " active" : ""}`}
-              aria-pressed={!common.optional}
-              disabled={busy}
-              onClick={() => onOptional(false)}
-            >
-              нет
-            </button>
-            <button
-              className="bulk-dir-arrow"
-              type="button"
-              title={`Применить выбранную опциональность ко всем файлам в «${dir || ".minecraft"}»`}
-              disabled={busy}
-              onClick={() => onBulkPatchDir("optional", common.optional, common.optional ? "Опциональные" : "Не опциональные")}
-            >
-              <IconCornerUp size={14} />
-            </button>
-          </div>
-        </div>
-
-        <div className="fm-bulk-group">
-          <span className="fm-bulk-label">По умолч.</span>
-          <div className="seg">
-            <button
-              type="button"
-              className={`seg-btn${common.enabledByDefault ? " active" : ""}`}
-              aria-pressed={common.enabledByDefault}
-              disabled={busy}
-              onClick={() => onEnabled(true)}
-            >
-              вкл
-            </button>
-            <button
-              type="button"
-              className={`seg-btn${!common.enabledByDefault ? " active" : ""}`}
-              aria-pressed={!common.enabledByDefault}
-              disabled={busy}
-              onClick={() => onEnabled(false)}
-            >
-              выкл
-            </button>
-            <button
-              className="bulk-dir-arrow"
-              type="button"
-              title={`Применить выбор по умолчанию ко всем файлам в «${dir || ".minecraft"}»`}
-              disabled={busy}
-              onClick={() => onBulkPatchDir("enabledByDefault", common.enabledByDefault, common.enabledByDefault ? "Вкл. по умолчанию" : "Выкл. по умолчанию")}
-            >
-              <IconCornerUp size={14} />
-            </button>
-          </div>
-        </div>
-
-        <div className="fm-bulk-group">
-          <span className="fm-bulk-label">Перезапись</span>
-          <div className="seg">
-            <button
-              type="button"
-              className={`seg-btn${common.overwrite ? " active" : ""}`}
-              aria-pressed={common.overwrite}
-              disabled={busy}
-              onClick={() => onOverwrite(true)}
-            >
-              да
-            </button>
-            <button
-              type="button"
-              className={`seg-btn${!common.overwrite ? " active" : ""}`}
-              aria-pressed={!common.overwrite}
-              disabled={busy}
-              onClick={() => onOverwrite(false)}
-            >
-              нет
-            </button>
-            <button
-              className="bulk-dir-arrow"
-              type="button"
-              title={`Применить выбор перезаписи ко всем файлам в «${dir || ".minecraft"}»`}
-              disabled={busy}
-              onClick={() => onBulkPatchDir("overwrite", common.overwrite, common.overwrite ? "Перезаписывать" : "Не перезаписывать")}
-            >
-              <IconCornerUp size={14} />
-            </button>
-          </div>
-        </div>
-
-        {modProfiles.length > 0 && (
-          <div className="fm-bulk-group">
-            <span className="fm-bulk-label">Профили</span>
-            <div className="fm-profile-chips">
-              {modProfiles.map((p) => {
-                const on = selectedProfiles.has(p.key);
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    className={`fm-profile-chip${on ? " on" : ""}`}
-                    disabled={busy}
-                    aria-pressed={on}
-                    title={on ? "Убрать выделенные файлы из профиля" : "Добавить выделенные файлы в профиль"}
-                    onClick={() => onToggleProfile(p.key)}
-                  >
-                    <McText text={p.name} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="fm-bulk-group">
           <span className="fm-bulk-label">Отключён</span>
           <div className="seg">
             <button
@@ -1555,6 +1437,24 @@ function BulkBar({
         </div>
       </div>
 
+      {/* Кнопка открытия второго уровня — прямой ребёнок панели, вне
+          .fm-bulk-controls: на мобильном ряд контролов прокручивается
+          горизонтально, и триггер не должен уезжать за прокрутку.
+          Hick's law: на первом уровне только счётчик, главные переключатели
+          (Сторона/Тип/Отключён) и действия — остальное под «Ещё настройки». */}
+      <button
+        className="fm-bulk-more-btn"
+        type="button"
+        disabled={busy}
+        aria-expanded={moreOpen}
+        aria-controls="fm-bulk-more-panel"
+        onClick={() => setMoreOpen((v) => !v)}
+      >
+        <IconSettings size={15} />
+        Ещё настройки
+        <IconChevronRight className="fm-bulk-more-chevron" size={14} />
+      </button>
+
       <div className="fm-bulk-actions">
         <button className="danger" disabled={busy} onClick={onDelete}>
           <IconTrash size={15} />
@@ -1564,6 +1464,136 @@ function BulkBar({
           Снять
         </button>
       </div>
+
+      {/* Второй уровень рендерится только раскрытым — свёрнутые чип-группы
+          не попадают в tab-order; значения приходят из `common` (выделение),
+          поэтому сворачивание ничего не сбрасывает. */}
+      {moreOpen && (
+        <div className="fm-bulk-more-panel">
+          <div className="fm-bulk-group">
+            <span className="fm-bulk-label">Опциональный</span>
+            <div className="seg">
+              <button
+                type="button"
+                className={`seg-btn${common.optional ? " active" : ""}`}
+                aria-pressed={common.optional}
+                disabled={busy}
+                onClick={() => onOptional(true)}
+              >
+                да
+              </button>
+              <button
+                type="button"
+                className={`seg-btn${!common.optional ? " active" : ""}`}
+                aria-pressed={!common.optional}
+                disabled={busy}
+                onClick={() => onOptional(false)}
+              >
+                нет
+              </button>
+              <button
+                className="bulk-dir-arrow"
+                type="button"
+                title={`Применить выбранную опциональность ко всем файлам в «${dir || ".minecraft"}»`}
+                disabled={busy}
+                onClick={() => onBulkPatchDir("optional", common.optional, common.optional ? "Опциональные" : "Не опциональные")}
+              >
+                <IconCornerUp size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="fm-bulk-group">
+            <span className="fm-bulk-label">По умолч.</span>
+            <div className="seg">
+              <button
+                type="button"
+                className={`seg-btn${common.enabledByDefault ? " active" : ""}`}
+                aria-pressed={common.enabledByDefault}
+                disabled={busy}
+                onClick={() => onEnabled(true)}
+              >
+                вкл
+              </button>
+              <button
+                type="button"
+                className={`seg-btn${!common.enabledByDefault ? " active" : ""}`}
+                aria-pressed={!common.enabledByDefault}
+                disabled={busy}
+                onClick={() => onEnabled(false)}
+              >
+                выкл
+              </button>
+              <button
+                className="bulk-dir-arrow"
+                type="button"
+                title={`Применить выбор по умолчанию ко всем файлам в «${dir || ".minecraft"}»`}
+                disabled={busy}
+                onClick={() => onBulkPatchDir("enabledByDefault", common.enabledByDefault, common.enabledByDefault ? "Вкл. по умолчанию" : "Выкл. по умолчанию")}
+              >
+                <IconCornerUp size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="fm-bulk-group">
+            <span className="fm-bulk-label">Перезапись</span>
+            <div className="seg">
+              <button
+                type="button"
+                className={`seg-btn${common.overwrite ? " active" : ""}`}
+                aria-pressed={common.overwrite}
+                disabled={busy}
+                onClick={() => onOverwrite(true)}
+              >
+                да
+              </button>
+              <button
+                type="button"
+                className={`seg-btn${!common.overwrite ? " active" : ""}`}
+                aria-pressed={!common.overwrite}
+                disabled={busy}
+                onClick={() => onOverwrite(false)}
+              >
+                нет
+              </button>
+              <button
+                className="bulk-dir-arrow"
+                type="button"
+                title={`Применить выбор перезаписи ко всем файлам в «${dir || ".minecraft"}»`}
+                disabled={busy}
+                onClick={() => onBulkPatchDir("overwrite", common.overwrite, common.overwrite ? "Перезаписывать" : "Не перезаписывать")}
+              >
+                <IconCornerUp size={14} />
+              </button>
+            </div>
+          </div>
+
+          {modProfiles.length > 0 && (
+            <div className="fm-bulk-group">
+              <span className="fm-bulk-label">Профили</span>
+              <div className="fm-profile-chips">
+                {modProfiles.map((p) => {
+                  const on = selectedProfiles.has(p.key);
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      className={`fm-profile-chip${on ? " on" : ""}`}
+                      disabled={busy}
+                      aria-pressed={on}
+                      title={on ? "Убрать выделенные файлы из профиля" : "Добавить выделенные файлы в профиль"}
+                      onClick={() => onToggleProfile(p.key)}
+                    >
+                      <McText text={p.name} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Частичный сбой: выделены только неудавшиеся строки; список с
           серверными сообщениями и кнопка повтора (как «Повторить ошибки»
@@ -1632,7 +1662,7 @@ function NewMenu({
             }}
           >
             <IconFolder size={15} className="folder" />
-            Папку
+            Создать папку
           </button>
           <button
             className="fm-newmenu-item"
@@ -1642,7 +1672,7 @@ function NewMenu({
             }}
           >
             <IconFile size={15} />
-            Файл
+            Создать файл
           </button>
         </div>
       )}
@@ -1801,7 +1831,7 @@ function FileRow({
   async function copyFileField(value: string, label: string) {
     try {
       await navigator.clipboard.writeText(value);
-      toast.success(`${label} скопирован`);
+      toast.success(`${label} скопировано`);
     } catch {
       toast.error(`Не удалось скопировать ${label.toLowerCase()}`);
     }

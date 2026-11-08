@@ -1,0 +1,77 @@
+/* Панели редактора файла: конфликт версий, предупреждение о битом JSON и
+   блокировка бинарников. styles.css остаётся нетронутым — сюда переезжает
+   только новое, в токенах дизайн-системы и по образцу глобального .error. */
+
+/* Общий каркас панели: под textarea, над editor-actions. */
+.file-editor .editor-conflict,
+.file-editor .editor-json-warning,
+.file-editor .editor-binary {
+    flex: none;
+    margin-top: var(--space-3);
+    padding: var(--space-3);
+    border-radius: var(--radius);
+    font-size: var(--fs-sm);
+}
+
+/* Конфликт версий (409): предупреждающая рамка, текст и кнопки решения. */
+.file-editor .editor-conflict {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+    background: var(--warn-soft);
+    border: 1px solid var(--warn);
+}
+
+.file-editor .editor-conflict-text {
+    flex: 1;
+    min-width: 200px;
+    margin: 0;
+    color: var(--text);
+}
+
+.file-editor .editor-conflict-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+/* Битый JSON перед сохранением: то же предупреждение, справа кнопка
+   «Сохранить всё равно». */
+.file-editor .editor-json-warning {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    background: var(--warn-soft);
+    border: 1px solid var(--warn);
+}
+
+.file-editor .editor-json-text {
+    flex: 1;
+    min-width: 200px;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--text);
+}
+
+.file-editor .editor-json-detail {
+    color: var(--muted);
+    font-size: var(--fs-xs);
+    overflow-wrap: anywhere;
+}
+
+/* Бинарный файл: редактирование отключено, остаётся только «Закрыть». */
+.file-editor .editor-binary {
+    background: var(--danger-soft);
+    border: 1px solid var(--danger);
+    text-align: center;
+}
+
+.file-editor .editor-binary p {
+    margin: 0 0 var(--space-3);
+    color: var(--danger-text);
+}

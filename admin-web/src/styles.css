@@ -1667,8 +1667,9 @@ td.num {
 }
 
 .fm-file-subline {
-    flex-wrap: nowrap;
-    white-space: nowrap;
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow: hidden;
 }
 
 .fm-file-subline .tag,
@@ -1742,6 +1743,11 @@ td.num {
     min-height: 34px;
     border-radius: var(--radius-sm);
     background: var(--surface);
+    /* WCAG 2.5.5: 34+px boxes padded with space-3 give ≥46px effective targets */
+}
+
+.fm-actions .icon-only {
+    padding: var(--space-3);
 }
 
 .fm-actions .icon-only:hover,
@@ -1766,10 +1772,10 @@ td.num {
     border-color: var(--accent);
 }
 
-/* Выделение/edited — на cyan-акценте (план 3.8). */
+/* Выделение редактируемой строки: усиленный фон поверх базовой поверхности */
 .fm-row.file.editing {
     border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-    background: color-mix(in srgb, var(--accent) 8%, rgba(255, 255, 255, 0.025));
+    background: color-mix(in srgb, var(--accent) 14%, var(--bg));
 }
 
 /* Свойства файла: shadcn-like sheet по центру, mobile превращает его в bottom sheet. */
@@ -2803,6 +2809,44 @@ td.num {
     font-size: var(--fs-sm);
 }
 
+/* --- Курсор позиция в editor-head-meta --- */
+.editor-pos {
+    min-width: 4em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Кнопка «jump-to-line» — текстовый инпут раскрывается внутри кнопки. */
+.quick-line-wrap {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1px;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.quick-line-wrap input {
+    width: 2.6em;
+    padding: 0 var(--space-1);
+    text-align: right;
+    font: var(--fs-sm)/1 var(--font-mono);
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius-sm);
+    margin-left: 2px;
+    vertical-align: baseline;
+}
+
+.quick-line-wrap input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: var(--ring);
+}
+
+.editor-jump-btn {
+    /* компактная ссылка для jump-to-line */
+}
+
 /* --- Responsive --- */
 
 /* Планшеты и узкие окна: сайдбар становится верхней панелью, мастер-детейл
@@ -2875,7 +2919,7 @@ td.num {
     }
     button.icon-only,
     button.danger.icon-only {
-        padding: var(--space-2);
+        padding: var(--space-3);
     }
     .nav-item {
         padding: var(--space-3);

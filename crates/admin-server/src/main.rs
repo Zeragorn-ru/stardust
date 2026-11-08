@@ -49,6 +49,10 @@ const MAX_UPLOAD_BYTES: usize = 512 * 1024 * 1024; // 512 МБ
 /// Общий лимит тела для всех остальных (JSON) маршрутов — включая
 /// анонимные /api/login и /files.
 const MAX_JSON_BODY_BYTES: usize = 16 * 1024 * 1024; // 16 МБ
+/// Отдельный лимит для PUT содержимого файла сборки: редактор пишет
+/// текстовые конфиги, 16 МБ из общего JSON-лимита здесь только расширяют
+/// DoS-поверхность authenticated-эндпоинта.
+const MAX_FILE_CONTENT_BODY_BYTES: usize = 2 * 1024 * 1024; // 2 МБ
 const MAX_NEWS_TITLE_CHARS: usize = 120;
 const MAX_NEWS_MARKDOWN_CHARS: usize = 12_000;
 const MAX_GUIDE_TITLE_CHARS: usize = 120;
@@ -421,7 +425,11 @@ async fn main() {
         )
         .route(
             "/api/builds/files/:file_id/content",
-            axum::routing::put(update_file_content),
+            axum::routing::put(update_file_content)
+                // Отдельный лимит только на этот маршрут (текстовые конфиги);
+                // общий JSON-лимит ниже по стеку слоёв его не поднимает,
+                // а роут-левел слой применяется раньше общего.
+                .layer(DefaultBodyLimit::max(MAX_FILE_CONTENT_BODY_BYTES)),
         )
         .route("/api/accounts", get(list_accounts))
         .route(
@@ -2175,6 +2183,17 @@ async fn update_file_content(
     Json(body): Json<UpdateContent>,
 ) -> Result<Json<BuildFileDto>, ApiError> {
     require_admin(&state, &headers).await?;
+
+    // JSON допускает escape U+0000 в строках, и такой контент доходит сюда
+    // валидным UTF-8. В текстовом конфиге null byte — это бинарные данные:
+    // он ломает round-trip (редактор и diff-тулзы его теряют), а сервер
+    // хранил бы байт, который клиент больше не может воспроизвести.
+    if body.content.contains('\0') {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Файл содержит бинарные данные",
+        ));
+    }
 
     let current = state.store.build_file(file_id).await.map_err(map_store)?;
     if let Some(base) = body.base_sha1.as_deref().filter(|b| !b.is_empty()) {

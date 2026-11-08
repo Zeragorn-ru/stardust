@@ -1,0 +1,92 @@
+/* Стили панели массовых операций FileManager (двухуровневая BulkBar).
+   Все селекторы — с префиксом .fm-bulk-, чтобы не конфликтовать со
+   styles.css и mobile.css, которые переопределяют компоновку на узких
+   экранах. */
+
+/* Кнопка-шейм второго уровня. По форме — как остальные контролы тулбара
+   (.fm-filter-btn), но нейтральная: на первом уровне не перетягивает
+   внимание с главных переключателей. */
+.fm-bulk-more-btn {
+    align-self: flex-end;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-h-sm);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: var(--fs-md);
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+        background var(--ease),
+        color var(--ease),
+        border-color var(--ease);
+}
+
+.fm-bulk-more-btn:hover:not(:disabled) {
+    background: var(--panel-3);
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+
+.fm-bulk-more-btn[aria-expanded="true"] {
+    background: var(--accent-soft);
+    color: var(--text);
+    border-color: var(--accent);
+}
+
+.fm-bulk-more-btn .fm-bulk-more-chevron {
+    transition: transform var(--ease);
+}
+
+.fm-bulk-more-btn[aria-expanded="true"] .fm-bulk-more-chevron {
+    transform: rotate(90deg);
+}
+
+/* Второй уровень: остальные чип-группы. flex-basis: 100% — ложится
+   отдельной строкой под основными контролами (в .fm-bulk стоит
+   flex-wrap, а в мобильной grid-раскладке строка и так одна на блок).
+   Развёрнутый уровень рендерится условно, поэтому свёрнутые группы
+   не попадают в tab-order. */
+.fm-bulk-more-panel {
+    flex-basis: 100%;
+    display: flex;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    animation: fm-bulk-more-in var(--ease);
+}
+
+@keyframes fm-bulk-more-in {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+}
+
+/* На узких экранах панель плотнее — как остальная часть BulkBar в
+   media-правилах styles.css. */
+@media (max-width: 640px) {
+    .fm-bulk-more-panel {
+        gap: var(--space-3);
+    }
+
+    .fm-bulk-more-btn {
+        align-self: auto;
+    }
+}
+
+/* Мобильный рендер (.m-screen из mobile.css): тот же touch-target,
+   что у кнопок действий; селектор ограниченным, чтобы не тяпнуть
+   desktop-раскладку. */
+.m-screen .fm-bulk-more-btn {
+    min-height: var(--touch-h);
+    justify-content: center;
+}
