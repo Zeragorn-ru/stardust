@@ -222,6 +222,13 @@ button.icon-only {
     padding: var(--space-2);
 }
 
+/* Disabled action buttons on non-editable files — muted stroke, no hover. */
+.fm-action--disabled,
+button.icon-only:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
 button.link-btn {
     background: transparent;
     border-color: transparent;

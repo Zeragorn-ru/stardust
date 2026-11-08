@@ -775,7 +775,7 @@ export function FileManager({
         <button
           type="button"
           className="icon-only"
-          title="Профили модов (пресеты для лаунчера)"
+          aria-label="Профили модов (пресеты для лаунчера)"
           onClick={() => setProfilesOpen(true)}
         >
           <IconLayers size={15} />
@@ -1138,7 +1138,7 @@ export function FileManager({
               <div className="fm-actions">
                 <button
                   className="danger icon-only"
-                  title="Удалить папку"
+                  aria-label="Удалить папку"
                   disabled={archivingFolder !== null}
                   onClick={() => removeFolder(folder)}
                 >
@@ -1242,7 +1242,7 @@ export function FileManager({
 
       {creating && (
         <PromptDialog
-          title={creating === "folder" ? "Новая папка" : "Новый файл"}
+          title={creating === "folder" ? "Создать папку" : "Создать файл"}
           label={
             creating === "folder"
               ? `Имя папки в ${dir ? `.minecraft/${dir}/` : ".minecraft/"}`
@@ -1977,18 +1977,18 @@ function FileRow({
         </div>
       </div>
       <div className="fm-actions" aria-label={`Действия для ${baseName(file.path)}`}>
-        {editable && (
-          <button
-            className="icon-only"
-            title="Редактировать текст"
-            onClick={onEdit}
-          >
-            <IconPencil size={15} />
-          </button>
-        )}
+        <button
+          className={`icon-only${editable ? "" : " fm-action--disabled"}`}
+          aria-label={editable ? "Редактировать текст" : "Нельзя редактировать текстовые файлы"}
+          title={editable ? undefined : "Нельзя редактировать текстовые файлы"}
+          disabled={!editable}
+          onClick={onEdit}
+        >
+          <IconPencil size={15} />
+        </button>
         <button
           className={`icon-only fm-props-btn${active ? " active" : ""}`}
-          title="Свойства файла"
+          aria-label="Свойства файла"
           onClick={onEditProps}
         >
           <IconSettings size={15} />
@@ -2005,9 +2005,9 @@ function FileRow({
           {/* Одна кнопка копирования с меню (путь/SHA-1/ссылка) вместо трёх
               неразличимых иконок: смысл действия виден в пунктах меню. */}
           <button
-            type="button"
             className="icon-only"
             title="Скопировать (путь, SHA-1 или ссылку)"
+            aria-label="Скопировать (путь, SHA-1 или ссылку)"
             aria-haspopup="menu"
             onClick={(e) =>
               menu(e, {
@@ -2042,6 +2042,7 @@ function FileRow({
             className="icon-only"
             href={`/files/${file.sha1}`}
             download={baseName(file.path)}
+            aria-label="Скачать"
             title="Скачать"
           >
             <IconDownload size={15} />
@@ -2049,7 +2050,7 @@ function FileRow({
         </span>
         <button
           className="danger icon-only"
-          title="Удалить файл"
+          aria-label="Удалить файл"
           onClick={onDelete}
         >
           <IconTrash size={15} />
@@ -2428,7 +2429,7 @@ function FileSettingsDrawer({
               <span className="fm-drawer-hero-meta muted">{formatSize(file.sizeBytes)} · {shortSha(file.sha1)}</span>
             </div>
           </div>
-          <button className="icon-only" title="Закрыть" onClick={() => void tryClose()}>
+          <button className="icon-only" aria-label="Закрыть" onClick={() => void tryClose()}>
             <IconClose size={16} />
           </button>
         </header>
