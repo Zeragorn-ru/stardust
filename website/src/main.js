@@ -82,6 +82,9 @@ async function copyText(value) {
   } catch { return false; }
 }
 
+const RELEASE_CACHE_KEY = 'stardust:stable-release';
+const RELEASE_CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function applyReleaseLinks() {
   const links = [...document.querySelectorAll('[data-platform]')];
   links.forEach((link) => { link.href = RELEASE_URL; });
@@ -91,31 +94,51 @@ async function applyReleaseLinks() {
   const primary = document.querySelector('[data-primary-download]');
   if (primary && active) primary.href = active.href;
   try {
-    // Алиас содержит только latest.json; установщики лежат в релизе указанной версии.
-    const alias = await fetchJson(RELEASE_API_URL);
-    const metadataAsset = alias.assets?.find((asset) => asset.name === 'latest.json');
-    if (!metadataAsset?.url?.startsWith('https://api.github.com/repos/Zeragorn-ru/stardust/releases/assets/')) throw new Error('Нет метаданных stable');
-    const response = await fetch(metadataAsset.url, { headers: { Accept: 'application/octet-stream' } });
-    if (!response.ok) throw new Error('Метаданные stable недоступны');
-    const metadata = await response.json();
-    const version = String(metadata.version || '').replace(/^v/, '');
-    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Некорректная версия stable');
-    const release = await fetchJson(`${RELEASE_TAG_API}v${version}`);
-    if (release.tag_name !== `v${version}` || release.draft) throw new Error('Некорректный релиз stable');
-    const assets = Array.isArray(release.assets) ? release.assets : [];
-    const urls = {
-      windows: findAsset(assets, /\.(exe|msi)$/i),
-      macos: findAsset(assets, /\.dmg$/i),
-      linux: findAsset(assets, /\.(AppImage|deb|rpm)$/i),
-    };
-    links.forEach((link) => { link.href = urls[link.dataset.platform] || release.html_url; });
+    const release = readReleaseCache() || await fetchStableRelease();
+    const urls = release.urls;
+    links.forEach((link) => { link.href = urls[link.dataset.platform] || release.htmlUrl; });
     if (primary && active && urls[active.dataset.platform]) primary.href = urls[active.dataset.platform];
     const status = document.querySelector('[data-release-status]');
-    if (status) status.textContent = `Стабильная версия ${release.tag_name} · установщики из GitHub.`;
+    if (status) status.textContent = `Стабильная версия ${release.tagName} · установщики из GitHub.`;
   } catch {
     const status = document.querySelector('[data-release-status]');
     if (status) status.textContent = 'Не удалось определить стабильную версию — откроется страница канала stable.';
   }
+}
+
+async function fetchStableRelease() {
+  // Алиас содержит только latest.json; установщики лежат в релизе указанной версии.
+  const alias = await fetchJson(RELEASE_API_URL);
+  const metadataAsset = alias.assets?.find((asset) => asset.name === 'latest.json');
+  if (!metadataAsset?.url?.startsWith('https://api.github.com/repos/Zeragorn-ru/stardust/releases/assets/')) throw new Error('Нет метаданных stable');
+  const response = await fetch(metadataAsset.url, { headers: { Accept: 'application/octet-stream' } });
+  if (!response.ok) throw new Error('Метаданные stable недоступны');
+  const metadata = await response.json();
+  const version = String(metadata.version || '').replace(/^v/, '');
+  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Некорректная версия stable');
+  const release = await fetchJson(`${RELEASE_TAG_API}v${version}`);
+  if (release.tag_name !== `v${version}` || release.draft) throw new Error('Некорректный релиз stable');
+  const assets = Array.isArray(release.assets) ? release.assets : [];
+  const result = {
+    cachedAt: Date.now(),
+    tagName: release.tag_name,
+    htmlUrl: release.html_url,
+    urls: {
+      windows: findAsset(assets, /\.(exe|msi)$/i),
+      macos: findAsset(assets, /\.dmg$/i),
+      linux: findAsset(assets, /\.(AppImage|deb|rpm)$/i),
+    },
+  };
+  try { sessionStorage.setItem(RELEASE_CACHE_KEY, JSON.stringify(result)); } catch { /* storage недоступен */ }
+  return result;
+}
+
+function readReleaseCache() {
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(RELEASE_CACHE_KEY) || 'null');
+    if (cached?.cachedAt && Date.now() - cached.cachedAt < RELEASE_CACHE_TTL_MS && cached.tagName && cached.htmlUrl && cached.urls) return cached;
+  } catch { /* storage недоступен или содержит повреждённые данные */ }
+  return null;
 }
 
 function findAsset(assets, pattern) {
@@ -220,7 +243,7 @@ async function loadLeaderboards() {
   try {
     const data = await fetchJson(`${adminBase}/public/leaderboards`);
     targets.forEach((target) => {
-      const rows = data[target.dataset.leaderboard] || [];
+      const rows = (data[target.dataset.leaderboard] || []).slice(0, 10);
       if (!rows.length) { settle(target, '<p class="muted">Пока недостаточно данных.</p>'); return; }
       settle(target, rows.map((entry) => `<div class="leaderboard-row"><span class="leaderboard-rank">${entry.rank}</span><strong>${escapeHtml(entry.username)}</strong><span>${formatLeaderboardValue(target.dataset.leaderboard, entry.value)}</span></div>`).join(''));
     });
