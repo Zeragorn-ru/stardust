@@ -94,7 +94,7 @@ async function applyReleaseLinks() {
   const primary = document.querySelector('[data-primary-download]');
   if (primary && active) primary.href = active.href;
   try {
-    const release = readReleaseCache() || await fetchStableRelease();
+    const release = readReleaseCache() || await loadReleaseMetadata();
     const urls = release.urls;
     links.forEach((link) => { link.href = urls[link.dataset.platform] || release.htmlUrl; });
     if (primary && active && urls[active.dataset.platform]) primary.href = urls[active.dataset.platform];
@@ -106,31 +106,49 @@ async function applyReleaseLinks() {
   }
 }
 
-async function fetchStableRelease() {
-  // Алиас содержит только latest.json; установщики лежат в релизе указанной версии.
-  const alias = await fetchJson(RELEASE_API_URL);
-  const metadataAsset = alias.assets?.find((asset) => asset.name === 'latest.json');
-  if (!metadataAsset?.url?.startsWith('https://api.github.com/repos/Zeragorn-ru/stardust/releases/assets/')) throw new Error('Нет метаданных stable');
-  const response = await fetch(metadataAsset.url, { headers: { Accept: 'application/octet-stream' } });
-  if (!response.ok) throw new Error('Метаданные stable недоступны');
-  const metadata = await response.json();
-  const version = String(metadata.version || '').replace(/^v/, '');
-  if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Некорректная версия stable');
-  const release = await fetchJson(`${RELEASE_TAG_API}v${version}`);
-  if (release.tag_name !== `v${version}` || release.draft) throw new Error('Некорректный релиз stable');
-  const assets = Array.isArray(release.assets) ? release.assets : [];
-  const result = {
-    cachedAt: Date.now(),
-    tagName: release.tag_name,
-    htmlUrl: release.html_url,
-    urls: {
-      windows: findAsset(assets, /\.(exe|msi)$/i),
-      macos: findAsset(assets, /\.dmg$/i),
-      linux: findAsset(assets, /\.(AppImage|deb|rpm)$/i),
-    },
-  };
+async function loadReleaseMetadata() {
+  try {
+    // CI вкладывает проверенный снимок в сборку; локальный dev без него использует API.
+    const local = await fetchJson('/release-metadata.json');
+    validateReleaseMetadata(local);
+    const result = {
+      cachedAt: Date.now(),
+      tagName: local.tag,
+      htmlUrl: local.releaseUrl,
+      urls: local.assets,
+    };
+    writeReleaseCache(result);
+    return result;
+  } catch {
+    // Старые деплои и локальный dev без generated asset используют GitHub API.
+    const alias = await fetchJson(RELEASE_API_URL);
+    const metadataAsset = alias.assets?.find((asset) => asset.name === 'latest.json');
+    if (!metadataAsset?.url?.startsWith('https://api.github.com/repos/Zeragorn-ru/stardust/releases/assets/')) throw new Error('Нет метаданных stable');
+    const response = await fetch(metadataAsset.url, { headers: { Accept: 'application/octet-stream' } });
+    if (!response.ok) throw new Error('Метаданные stable недоступны');
+    const metadata = await response.json();
+    const version = String(metadata.version || '').replace(/^v/, '');
+    if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Некорректная версия stable');
+    const release = await fetchJson(`${RELEASE_TAG_API}v${version}`);
+    if (release.tag_name !== `v${version}` || release.draft) throw new Error('Некорректный релиз stable');
+    const assets = Array.isArray(release.assets) ? release.assets : [];
+    const result = {
+      cachedAt: Date.now(),
+      tagName: release.tag_name,
+      htmlUrl: release.html_url,
+      urls: {
+        windows: findAsset(assets, /\.(exe|msi)$/i),
+        macos: findAsset(assets, /\.dmg$/i),
+        linux: findAsset(assets, /\.(AppImage|deb|rpm)$/i),
+      },
+    };
+    writeReleaseCache(result);
+    return result;
+  }
+}
+
+function writeReleaseCache(result) {
   try { sessionStorage.setItem(RELEASE_CACHE_KEY, JSON.stringify(result)); } catch { /* storage недоступен */ }
-  return result;
 }
 
 function readReleaseCache() {
@@ -141,6 +159,12 @@ function readReleaseCache() {
   return null;
 }
 
+function validateReleaseMetadata(metadata) {
+  if (!/^\d+\.\d+\.\d+$/.test(String(metadata?.version || '')) || metadata.tag !== `v${metadata.version}` || !metadata.releaseUrl) {
+    throw new Error('Некорректные локальные метаданные stable');
+  }
+  if (!metadata.assets || typeof metadata.assets !== 'object') throw new Error('Нет установщиков stable');
+}
 function findAsset(assets, pattern) {
   return assets.find((asset) => pattern.test(asset.name || '') && !/bootstrap|sha256/i.test(asset.name || ''))?.browser_download_url || '';
 }

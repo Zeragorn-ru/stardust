@@ -169,6 +169,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
       # --- website: Vite build + nginx ---
+      - name: Generate website release metadata
+        if: matrix.kind == 'web' && matrix.name == 'website'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci/generate-website-release-metadata.sh website/public/release-metadata.json
       - name: Build and push (website)
         if: matrix.kind == 'web' && matrix.name == 'website'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
