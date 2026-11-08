@@ -15,27 +15,28 @@
 // Свёрнутое состояние сайдбара запоминается в localStorage (как выбор
 // интерфейса и фильтры аккаунтов) и переживает перезагрузку страницы.
 
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { FeedbackProvider } from "../ui/feedback";
 import { ContextMenuProvider } from "../ui/ContextMenu";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { Login } from "../Login";
-import { BuildsPage } from "./BuildsPage";
-import { OverviewView } from "../views/OverviewView";
-import { AccountsView } from "../views/AccountsView";
-import { SettingsView } from "../views/SettingsView";
-import { CustomizationView } from "../views/CustomizationView";
-import { NewsView } from "../views/NewsView";
-import { GuidesView } from "../views/GuidesView";
-import { LogsView } from "../views/LogsView";
-import { ExternalModsView } from "../views/ExternalModsView";
-import { SeasonsView } from "../views/SeasonsView";
-import { ReleasesView } from "../views/ReleasesView";
 import { NAV, NAV_GROUPS, navItem, subrouteTitle } from "../ui/navConfig";
 import { McText } from "../ui/McText";
 import { IconLogout, IconSmartphone } from "../ui/icons";
 import { switchViewHref } from "../app/viewMode";
+
+const AccountsView = lazy(() => import("../views/AccountsView").then(({ AccountsView }) => ({ default: AccountsView })));
+const CustomizationView = lazy(() => import("../views/CustomizationView").then(({ CustomizationView }) => ({ default: CustomizationView })));
+const ExternalModsView = lazy(() => import("../views/ExternalModsView").then(({ ExternalModsView }) => ({ default: ExternalModsView })));
+const GuidesView = lazy(() => import("../views/GuidesView").then(({ GuidesView }) => ({ default: GuidesView })));
+const LogsView = lazy(() => import("../views/LogsView").then(({ LogsView }) => ({ default: LogsView })));
+const NewsView = lazy(() => import("../views/NewsView").then(({ NewsView }) => ({ default: NewsView })));
+const OverviewView = lazy(() => import("../views/OverviewView").then(({ OverviewView }) => ({ default: OverviewView })));
+const ReleasesView = lazy(() => import("../views/ReleasesView").then(({ ReleasesView }) => ({ default: ReleasesView })));
+const SeasonsView = lazy(() => import("../views/SeasonsView").then(({ SeasonsView }) => ({ default: SeasonsView })));
+const SettingsView = lazy(() => import("../views/SettingsView").then(({ SettingsView }) => ({ default: SettingsView })));
+const BuildsPage = lazy(() => import("./BuildsPage").then(({ BuildsPage }) => ({ default: BuildsPage })));
 
 const SIDEBAR_STORAGE_KEY = "stardust.admin.sidebar.collapsed";
 
@@ -167,25 +168,34 @@ function Shell() {
           </div>
         </header>
         <main className="content">
-          <Routes>
-            <Route path="/overview" element={<OverviewView />} />
-            <Route path="/builds" element={<BuildsPage />} />
-            <Route path="/builds/:id" element={<BuildsPage />} />
-            <Route path="/accounts" element={<AccountsView />} />
-            <Route path="/customization" element={<CustomizationView />} />
-            {/* Редакторы новостей/гайдов — маршруты (план 3.6): NewsView и
-                GuidesView сами различают индекс и подмаршрут по useParams. */}
-            <Route path="/news" element={<NewsView />} />
-            <Route path="/news/:id" element={<NewsView />} />
-            <Route path="/guides" element={<GuidesView />} />
-            <Route path="/guides/:id" element={<GuidesView />} />
-            <Route path="/logs" element={<LogsView />} />
-            <Route path="/mods" element={<ExternalModsView />} />
-            <Route path="/seasons" element={<SeasonsView />} />
-            <Route path="/releases" element={<ReleasesView />} />
-            <Route path="/settings" element={<SettingsView />} />
-            <Route path="*" element={<Navigate to="/overview" replace />} />
-          </Routes>
+          <Suspense
+            fallback={
+              <div className="view muted pad">
+                <span className="spinner" />
+                Загрузка раздела…
+              </div>
+            }
+          >
+            <Routes>
+              <Route path="/overview" element={<OverviewView />} />
+              <Route path="/builds" element={<BuildsPage />} />
+              <Route path="/builds/:id" element={<BuildsPage />} />
+              <Route path="/accounts" element={<AccountsView />} />
+              <Route path="/customization" element={<CustomizationView />} />
+              {/* Редакторы новостей/гайдов — маршруты (план 3.6): NewsView и
+                  GuidesView сами различают индекс и подмаршрут по useParams. */}
+              <Route path="/news" element={<NewsView />} />
+              <Route path="/news/:id" element={<NewsView />} />
+              <Route path="/guides" element={<GuidesView />} />
+              <Route path="/guides/:id" element={<GuidesView />} />
+              <Route path="/logs" element={<LogsView />} />
+              <Route path="/mods" element={<ExternalModsView />} />
+              <Route path="/seasons" element={<SeasonsView />} />
+              <Route path="/releases" element={<ReleasesView />} />
+              <Route path="/settings" element={<SettingsView />} />
+              <Route path="*" element={<Navigate to="/overview" replace />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>
