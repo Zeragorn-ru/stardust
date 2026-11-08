@@ -6345,19 +6345,27 @@ async fn deps_check(
         .map(|f| (f.path.clone(), state.modpack_dir.join(&f.sha1)))
         .collect();
 
-    // Читаем metadatas: modId → (jar_path, provided_mod_ids, raw_toml).
-    let mut all_provided: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let mut mod_entries: Vec<(String, std::path::PathBuf, Vec<String>, String)> = Vec::new();
+    let total_mods = mod_jars.len();
 
-    for (path, jar_path) in &mod_jars {
-        let Some(toml_text) = read_neoforge_toml(jar_path) else {
-            continue;
-        };
-        let mod_ids = extract_mod_ids(&toml_text);
-        for id in &mod_ids {
-            all_provided.insert(id.clone());
-        }
-        mod_entries.push((path.clone(), jar_path.clone(), mod_ids, toml_text));
+    // Чтение JAR и распаковка TOML — блокирующая работа с диском и CPU.
+    // Обрабатываем весь пакет одной задачей, чтобы не занимать worker-поток
+    // Tokio на время проверки и не создавать по задаче на каждый мод.
+    let mod_entries = tokio::task::spawn_blocking(move || {
+        mod_jars
+            .into_iter()
+            .filter_map(|(path, jar_path)| {
+                let toml_text = read_neoforge_toml(&jar_path)?;
+                let mod_ids = extract_mod_ids(&toml_text);
+                Some((path, jar_path, mod_ids, toml_text))
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| internal(format!("задача проверки зависимостей: {e}")))?;
+
+    let mut all_provided: std::collections::HashSet<String> = std::collections::HashSet::new();
+    for (_, _, mod_ids, _) in &mod_entries {
+        all_provided.extend(mod_ids.iter().cloned());
     }
 
     let mut problems = Vec::new();
@@ -6392,7 +6400,7 @@ async fn deps_check(
     Ok(Json(DepsCheckResult {
         build_id: record.header.id,
         build_name: record.header.name.clone(),
-        total_mods: mod_jars.len(),
+        total_mods,
         problems,
     }))
 }
