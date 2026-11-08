@@ -1524,6 +1524,19 @@ td.num {
     overflow: visible;
 }
 
+.fm-progressive-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+}
+
+.fm-progressive-more button {
+    min-height: 40px;
+}
+
 .fm-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

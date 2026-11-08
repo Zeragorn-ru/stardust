@@ -120,6 +120,48 @@ function buildListing(files: BuildFile[], dir: string): Listing {
 const KIND_FILTERS = ["mod", "config", "resource", "other"] as const;
 const SIDE_FILTERS = ["client", "server", "both"] as const;
 
+// Не создаём виртуализированный скролл-контейнер: строки имеют разную высоту
+// (особенно на мобильных), а selection/shift-selection должны продолжать
+// работать по полному массиву. Вместо этого большие списки раскрываются
+// порциями, сохраняя обычный DOM и клавиатурную навигацию браузера.
+const PROGRESSIVE_BATCH = 200;
+
+function useProgressiveLimit(itemCount: number, resetKey: string): [number, () => void] {
+  const [limit, setLimit] = useState(() => Math.min(itemCount, PROGRESSIVE_BATCH));
+
+  useEffect(() => {
+    setLimit(Math.min(itemCount, PROGRESSIVE_BATCH));
+  }, [itemCount, resetKey]);
+
+  function showMore() {
+    setLimit((current) => Math.min(itemCount, current + PROGRESSIVE_BATCH));
+  }
+
+  return [limit, showMore];
+}
+
+function ProgressiveMore({
+  shown,
+  total,
+  onShowMore,
+}: {
+  shown: number;
+  total: number;
+  onShowMore: () => void;
+}) {
+  if (shown >= total) return null;
+  return (
+    <div className="fm-progressive-more">
+      <button type="button" className="secondary" onClick={onShowMore}>
+        Показать ещё ({total - shown})
+      </button>
+      <span className="muted" aria-live="polite">
+        Показано {shown} из {total}
+      </span>
+    </div>
+  );
+}
+
 interface FileFilters {
   kind: string;
   side: string;
@@ -322,8 +364,19 @@ export function FileManager({
   const visibleFiles = searching ? searchResults : listing.files;
   const allVisibleSelected =
     visibleFiles.length > 0 && visibleFiles.every((f) => selected.has(f.id));
+  const progressiveKey = `${dir}|${searching ? query : ""}|${JSON.stringify(filters)}`;
+  const [visibleFileLimit, showMoreFiles] = useProgressiveLimit(
+    visibleFiles.length,
+    progressiveKey,
+  );
+  const [visibleFolderLimit, showMoreFolders] = useProgressiveLimit(
+    listing.folders.length,
+    dir,
+  );
+  const renderedFiles = visibleFiles.slice(0, visibleFileLimit);
+  const renderedFolders = listing.folders.slice(0, visibleFolderLimit);
 
-  // Индекс последнего клика — якорь для shift-выделения диапазона.
+  // Индекс последнего клика — якорь для shift-выделения.
   const anchorIdx = useRef<number | null>(null);
 
   function toggleOne(id: number, e?: { shiftKey?: boolean }) {
@@ -1083,7 +1136,7 @@ export function FileManager({
               count={visibleFiles.length}
               onToggle={toggleAllVisible}
             />
-            {searchResults.map((f) => (
+            {renderedFiles.map((f) => (
               <FileRow
                 key={f.id}
                 file={f}
@@ -1103,6 +1156,11 @@ export function FileManager({
                 }}
               />
             ))}
+            <ProgressiveMore
+              shown={renderedFiles.length}
+              total={searchResults.length}
+              onShowMore={showMoreFiles}
+            />
           </div>
         )
       ) : (
@@ -1133,7 +1191,7 @@ export function FileManager({
             />
           )}
 
-          {listing.folders.map((folder) => (
+          {renderedFolders.map((folder) => (
             <div
               key={folder.path}
               className="fm-row folder"
@@ -1218,7 +1276,7 @@ export function FileManager({
             </div>
           ))}
 
-          {listing.files.map((f) => (
+          {renderedFiles.map((f) => (
             <FileRow
               key={f.id}
               file={f}
@@ -1233,6 +1291,16 @@ export function FileManager({
               onFilterProfile={filterByProfile}
             />
           ))}
+          <ProgressiveMore
+            shown={renderedFolders.length}
+            total={listing.folders.length}
+            onShowMore={showMoreFolders}
+          />
+          <ProgressiveMore
+            shown={renderedFiles.length}
+            total={listing.files.length}
+            onShowMore={showMoreFiles}
+          />
         </div>
       )}
 
