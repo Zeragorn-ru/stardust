@@ -12,6 +12,10 @@ NPM ?= npm
 help: ## Показать цели
 	@grep -E '^[a-zA-Z0-9_.-]+:.*##' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
 
+.PHONY: performance-baseline
+performance-baseline: ## Измерить frontend-сборки и release-сборку backend
+	bash scripts/performance-baseline.sh
+
 # ─── Backend (Rust workspace) ───────────────────────────────────────────────
 
 .PHONY: test-backend
