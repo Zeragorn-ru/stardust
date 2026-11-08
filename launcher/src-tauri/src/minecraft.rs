@@ -213,7 +213,14 @@ pub async fn launch(
         "extracting",
         "Распаковываем native-библиотеки…",
     );
-    extract_natives(&root, &version, &loader.libraries)?;
+    let native_artifacts = native_artifact_paths(&root, &version, &loader.libraries);
+    let native_root = root.clone();
+    let native_version_id = version.id.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        extract_natives(&native_root, &native_version_id, &native_artifacts)
+    })
+    .await
+    .map_err(|error| format!("Не удалось распаковать native-библиотеки: {error}"))??;
 
     let legacy = root.join("game");
     if legacy.is_dir() && !crate::paths::game_dir(&data_dir, manifest.as_ref()).exists() {
@@ -1089,14 +1096,12 @@ async fn download_jobs(
     Ok(())
 }
 
-fn extract_natives(
+fn native_artifact_paths(
     root: &Path,
     version: &VersionJson,
     loader_libraries: &[Library],
-) -> Result<(), String> {
-    let dir = natives_dir(root, &version.id);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-
+) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
     let mut extracted = std::collections::HashSet::new();
     let launch_features = LaunchFeatures::default();
     let libraries = version
@@ -1114,7 +1119,7 @@ fn extract_natives(
                         .join("libraries")
                         .join(library_rel_path(&artifact.path));
                     if jar_path.exists() && extracted.insert(artifact.path.clone()) {
-                        extract_zip(&jar_path, &dir)?;
+                        paths.push(jar_path);
                     }
                 }
             }
@@ -1127,10 +1132,24 @@ fn extract_natives(
                     .join("libraries")
                     .join(library_rel_path(&artifact.path));
                 if jar_path.exists() && extracted.insert(artifact.path.clone()) {
-                    extract_zip(&jar_path, &dir)?;
+                    paths.push(jar_path);
                 }
             }
         }
+    }
+    paths
+}
+
+fn extract_natives(
+    root: &Path,
+    version_id: &str,
+    native_paths: &[PathBuf],
+) -> Result<(), String> {
+    let dir = natives_dir(root, version_id);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    for jar_path in native_paths {
+        extract_zip(jar_path, &dir)?;
     }
     Ok(())
 }
