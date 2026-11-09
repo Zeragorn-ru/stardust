@@ -22,7 +22,37 @@ on:
           - macos
 
 jobs:
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    # The release token is stored in the protected environment.
+    environment: launcher-release
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Create pre-release
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists"
+            exit 0
+          fi
+          if gh release create "$GITHUB_REF_NAME" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Launcher $GITHUB_REF_NAME" \
+            --generate-notes; then
+            echo "Created release $GITHUB_REF_NAME"
+          else
+            # A concurrent rerun may have created it after the view above.
+            gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1
+          fi
+
   release:
+    needs: create-release
+    if: ${{ always() && (!startsWith(github.ref, 'refs/tags/') || needs.create-release.result == 'success') }}
     permissions:
       contents: write
     strategy:
@@ -91,34 +121,8 @@ jobs:
         with:
           version: ${{ github.ref_name }}
 
-      # Параллельные leg создают релиз одновременно: 422 already_exists в окне
-      # между view и create — ретраим, релиз в итоге видят все legs.
-      # Каждый новый релиз лаунчера стартует как pre-release: GitHub сам
-      # исключает pre-release из указателя latest. Продвижение в stable
-      # выполняется позже из админ-панели (не в этом workflow).
-      - name: "⑦ Create pre-release"
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-              echo "Release $GITHUB_REF_NAME already exists"
-              exit 0
-            fi
-            if gh release create "$GITHUB_REF_NAME" \
-              --target "$GITHUB_SHA" \
-              --prerelease \
-              --title "Launcher $GITHUB_REF_NAME" \
-              --generate-notes 2>/dev/null; then
-              echo "Created release $GITHUB_REF_NAME"
-              exit 0
-            fi
-            echo "Попытка $attempt создать релиз не удалась (гонка leg?), ждём 3с"
-            sleep 3
-          done
-          echo "ERROR: не удалось создать релиз $GITHUB_REF_NAME" >&2
-          exit 1
-
+      # Релиз создаётся отдельной job до запуска матрицы, поэтому у него
+      # единственный creator. Job ниже только загружает собранные assets.
       - name: "⑦ Wait for token"
         if: startsWith(github.ref, 'refs/tags/')
         uses: ./.github/actions/launcher-wait-token
