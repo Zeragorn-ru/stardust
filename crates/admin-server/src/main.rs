@@ -2452,6 +2452,69 @@ impl SftpHandler {
     }
 }
 
+fn check_server_key_blocking(
+    known_hosts_path: &std::path::Path,
+    host_id: &str,
+    confirmation: &HostKeyConfirmation,
+    key_str: &str,
+    mismatch: &Arc<std::sync::Mutex<Option<HostKeyChanged>>>,
+) -> Result<bool, russh::Error> {
+    let _guard = KNOWN_HOSTS_LOCK
+        .lock()
+        .map_err(|_| russh::Error::UnknownKey)?;
+    let handler = SftpHandler {
+        known_hosts_path: known_hosts_path.to_path_buf(),
+        host_id: host_id.to_string(),
+        confirmation: confirmation.clone(),
+        mismatch: Arc::clone(mismatch),
+    };
+    let mut hosts = handler.load_hosts()?;
+    if confirmation.confirmed_host.is_some()
+        && confirmation.confirmed_host.as_deref() != Some(host_id)
+    {
+        return Err(russh::Error::UnknownKey);
+    }
+    if confirmation.confirmed_fingerprint.is_some() && !hosts.contains_key(host_id) {
+        return Err(russh::Error::UnknownKey);
+    }
+    match hosts.get(host_id) {
+        Some(known) if known == key_str => Ok(true),
+        Some(known) => {
+            let changed = HostKeyChanged {
+                host: host_id.to_string(),
+                fingerprint: key_str.to_string(),
+                known_fingerprint: known.clone(),
+            };
+            let mut pending = PENDING_HOST_KEYS
+                .lock()
+                .map_err(|_| russh::Error::UnknownKey)?;
+            let observed = pending
+                .get(host_id)
+                .is_some_and(|p| p.fingerprint == key_str && p.known_fingerprint == *known);
+            if observed
+                && confirmation.confirmed_host.as_deref() == Some(host_id)
+                && confirmation.confirmed_fingerprint.as_deref() == Some(key_str)
+                && confirmation.known_fingerprint.as_deref() == Some(known)
+            {
+                hosts.insert(host_id.to_string(), key_str.to_string());
+                handler.save_hosts(&hosts)?;
+                pending.remove(host_id);
+                Ok(true)
+            } else {
+                pending.insert(host_id.to_string(), changed.clone());
+                *mismatch.lock().map_err(|_| russh::Error::UnknownKey)? = Some(changed);
+                Err(russh::Error::UnknownKey)
+            }
+        }
+        None => {
+            tracing::info!("[sftp] Первое подключение, сохраняем ключ хоста");
+            hosts.insert(host_id.to_string(), key_str.to_string());
+            handler.save_hosts(&hosts)?;
+            Ok(true)
+        }
+    }
+}
+
 impl russh::client::Handler for SftpHandler {
     type Error = russh::Error;
 
@@ -2464,61 +2527,21 @@ impl russh::client::Handler for SftpHandler {
             .fingerprint(russh::keys::ssh_key::HashAlg::Sha256)
             .to_string();
 
-        // Атомарная проверка и обновление для параллельных SFTP-подключений.
-        let _guard = KNOWN_HOSTS_LOCK
-            .lock()
-            .map_err(|_| russh::Error::UnknownKey)?;
-        let mut hosts = self.load_hosts()?;
-        if self.confirmation.confirmed_host.is_some()
-            && self.confirmation.confirmed_host.as_deref() != Some(&self.host_id)
-        {
-            return Err(russh::Error::UnknownKey);
-        }
-        if self.confirmation.confirmed_fingerprint.is_some() && !hosts.contains_key(&self.host_id) {
-            return Err(russh::Error::UnknownKey);
-        }
-        let host_key = hosts.get(&self.host_id);
-
-        match host_key {
-            Some(known) if known == &key_str => {
-                // Ключ совпал — хост известен и доверен.
-                Ok(true)
-            }
-            Some(known) => {
-                let changed = HostKeyChanged {
-                    host: self.host_id.clone(),
-                    fingerprint: key_str.clone(),
-                    known_fingerprint: known.clone(),
-                };
-                let mut pending = PENDING_HOST_KEYS
-                    .lock()
-                    .map_err(|_| russh::Error::UnknownKey)?;
-                let observed = pending
-                    .get(&self.host_id)
-                    .is_some_and(|p| p.fingerprint == key_str && p.known_fingerprint == *known);
-                if observed
-                    && self.confirmation.confirmed_host.as_deref() == Some(&self.host_id)
-                    && self.confirmation.confirmed_fingerprint.as_deref() == Some(&key_str)
-                    && self.confirmation.known_fingerprint.as_deref() == Some(known)
-                {
-                    hosts.insert(self.host_id.clone(), key_str);
-                    self.save_hosts(&hosts)?;
-                    pending.remove(&self.host_id);
-                    Ok(true)
-                } else {
-                    pending.insert(self.host_id.clone(), changed.clone());
-                    *self.mismatch.lock().map_err(|_| russh::Error::UnknownKey)? = Some(changed);
-                    Err(russh::Error::UnknownKey)
-                }
-            }
-            None => {
-                // Первое подключение — сохраняем ключ.
-                tracing::info!("[sftp] Первое подключение, сохраняем ключ хоста");
-                hosts.insert(self.host_id.clone(), key_str);
-                self.save_hosts(&hosts)?;
-                Ok(true)
-            }
-        }
+        let known_hosts_path = self.known_hosts_path.clone();
+        let host_id = self.host_id.clone();
+        let confirmation = self.confirmation.clone();
+        let mismatch = Arc::clone(&self.mismatch);
+        tokio::task::spawn_blocking(move || {
+            check_server_key_blocking(
+                &known_hosts_path,
+                &host_id,
+                &confirmation,
+                &key_str,
+                &mismatch,
+            )
+        })
+        .await
+        .map_err(|_| russh::Error::UnknownKey)?
     }
 }
 
