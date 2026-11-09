@@ -12,6 +12,31 @@ pub const SETTING_SERVER_TELEMETRY_TOKEN: &str = "server_telemetry_token";
 
 const MAX_TELEMETRY_24H_ROWS: i64 = 100_000;
 
+fn telemetry_limit_query(table: &str, columns: &str) -> String {
+    format!(
+        "SELECT {columns} FROM {table} WHERE recorded_at >= $1 ORDER BY recorded_at LIMIT {MAX_TELEMETRY_24H_ROWS}"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn telemetry_queries_include_the_row_limit() {
+        let samples = telemetry_limit_query(
+            "server_telemetry_samples",
+            "recorded_at, online_count, players, tps, mspt",
+        );
+        let events = telemetry_limit_query("server_player_events", "recorded_at, username, event");
+
+        assert!(samples.ends_with("LIMIT 100000"));
+        assert!(events.ends_with("LIMIT 100000"));
+        assert!(samples.contains("WHERE recorded_at >= $1 ORDER BY recorded_at"));
+        assert!(events.contains("WHERE recorded_at >= $1 ORDER BY recorded_at"));
+    }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct TelemetryHeartbeat {
     pub players: Vec<String>,
@@ -454,9 +479,9 @@ impl Store {
         &self,
         since: OffsetDateTime,
     ) -> Result<Vec<TelemetrySample>, StoreError> {
-        let sql = format!(
-            "SELECT recorded_at, online_count, players, tps, mspt FROM server_telemetry_samples
-             WHERE recorded_at >= $1 ORDER BY recorded_at LIMIT {MAX_TELEMETRY_24H_ROWS}"
+        let sql = telemetry_limit_query(
+            "server_telemetry_samples",
+            "recorded_at, online_count, players, tps, mspt",
         );
         let rows = sqlx::query(&sql).bind(since).fetch_all(&self.pool).await?;
         rows.into_iter()
@@ -485,10 +510,7 @@ impl Store {
         &self,
         since: OffsetDateTime,
     ) -> Result<Vec<PlayerEvent>, StoreError> {
-        let sql = format!(
-            "SELECT recorded_at, username, event FROM server_player_events
-             WHERE recorded_at >= $1 ORDER BY recorded_at LIMIT {MAX_TELEMETRY_24H_ROWS}"
-        );
+        let sql = telemetry_limit_query("server_player_events", "recorded_at, username, event");
         let rows = sqlx::query(&sql).bind(since).fetch_all(&self.pool).await?;
         Ok(rows
             .into_iter()

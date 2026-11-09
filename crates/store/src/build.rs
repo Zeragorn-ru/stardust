@@ -112,6 +112,66 @@ const MAX_FILES_PER_BUILD: usize = 50_000;
 
 const BUILD_COLUMNS: &str = "id, name, version, loader_kind, mc_version, loader_version, is_active";
 
+fn build_count_limit_reached(count: i64) -> bool {
+    count >= MAX_BUILDS
+}
+
+fn clone_file_limit_exceeded(count: i64) -> bool {
+    count > MAX_FILES_PER_BUILD as i64
+}
+
+fn file_insert_limit_reached(existing: bool, count: i64) -> bool {
+    !existing && count >= MAX_FILES_PER_BUILD as i64
+}
+
+fn list_builds_query() -> String {
+    format!("SELECT {BUILD_COLUMNS} FROM builds ORDER BY id DESC LIMIT {MAX_BUILDS}")
+}
+
+fn build_files_query() -> String {
+    format!(
+        "SELECT {FILE_COLUMNS} FROM build_files WHERE build_id = $1 ORDER BY path LIMIT {MAX_FILES_PER_BUILD}"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_limit_boundary_and_overflow() {
+        assert!(!build_count_limit_reached(MAX_BUILDS - 1));
+        assert!(build_count_limit_reached(MAX_BUILDS));
+        assert!(build_count_limit_reached(MAX_BUILDS + 1));
+    }
+
+    #[test]
+    fn file_insert_limit_allows_replacement_at_boundary() {
+        assert!(!file_insert_limit_reached(
+            false,
+            (MAX_FILES_PER_BUILD - 1) as i64,
+        ));
+        assert!(file_insert_limit_reached(false, MAX_FILES_PER_BUILD as i64));
+        assert!(!file_insert_limit_reached(true, MAX_FILES_PER_BUILD as i64));
+        assert!(file_insert_limit_reached(
+            false,
+            MAX_FILES_PER_BUILD as i64 + 1
+        ));
+    }
+
+    #[test]
+    fn clone_file_limit_matches_existing_semantics() {
+        assert!(!clone_file_limit_exceeded(MAX_FILES_PER_BUILD as i64));
+        assert!(clone_file_limit_exceeded(MAX_FILES_PER_BUILD as i64 + 1));
+    }
+
+    #[test]
+    fn list_queries_include_hard_limits() {
+        assert!(list_builds_query().ends_with("LIMIT 500"));
+        assert!(build_files_query().ends_with("LIMIT 50000"));
+    }
+}
+
 const FILE_COLUMNS: &str = "id, path, sha1, size_bytes, side, kind, overwrite, optional, \
      enabled_by_default, disabled, mod_id, display_name, description, storage_key, profile_keys";
 
@@ -126,7 +186,7 @@ impl Store {
         let count: i64 = sqlx::query_scalar("SELECT count(*) FROM builds")
             .fetch_one(&mut *tx)
             .await?;
-        if count >= MAX_BUILDS {
+        if build_count_limit_reached(count) {
             return Err(StoreError::TooMany);
         }
         let id: i64 = sqlx::query_scalar(
@@ -159,7 +219,7 @@ impl Store {
         let build_count: i64 = sqlx::query_scalar("SELECT count(*) FROM builds")
             .fetch_one(&mut *tx)
             .await?;
-        if build_count >= MAX_BUILDS {
+        if build_count_limit_reached(build_count) {
             return Err(StoreError::TooMany);
         }
 
@@ -186,7 +246,7 @@ impl Store {
                 .bind(src_id)
                 .fetch_one(&mut *tx)
                 .await?;
-        if file_count > MAX_FILES_PER_BUILD as i64 {
+        if clone_file_limit_exceeded(file_count) {
             return Err(StoreError::TooMany);
         }
         sqlx::query(
@@ -222,7 +282,7 @@ impl Store {
 
     /// Список заголовков всех сборок.
     pub async fn list_builds(&self) -> Result<Vec<BuildHeader>, StoreError> {
-        let sql = format!("SELECT {BUILD_COLUMNS} FROM builds ORDER BY id DESC LIMIT {MAX_BUILDS}");
+        let sql = list_builds_query();
         let rows = sqlx::query(&sql).fetch_all(self.pool()).await?;
         Ok(rows.iter().map(row_to_header).collect())
     }
@@ -331,9 +391,7 @@ impl Store {
 
     /// Файлы сборки.
     pub async fn build_files(&self, build_id: i64) -> Result<Vec<BuildFileRow>, StoreError> {
-        let sql = format!(
-            "SELECT {FILE_COLUMNS} FROM build_files WHERE build_id = $1 ORDER BY path LIMIT {MAX_FILES_PER_BUILD}"
-        );
+        let sql = build_files_query();
         let rows = sqlx::query(&sql)
             .bind(build_id)
             .fetch_all(self.pool())
@@ -364,7 +422,7 @@ impl Store {
         .bind(&file.path)
         .fetch_one(&mut *tx)
         .await?;
-        if !existing && file_count >= MAX_FILES_PER_BUILD as i64 {
+        if file_insert_limit_reached(existing, file_count) {
             return Err(StoreError::TooMany);
         }
         let id: i64 = sqlx::query_scalar(
