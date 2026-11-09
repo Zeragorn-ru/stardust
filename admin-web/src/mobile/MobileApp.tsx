@@ -5,23 +5,23 @@
 // деталей уходит назад по истории, и системный Back не реоткрывает
 // закрытую сборку.
 
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { FeedbackProvider } from "../ui/feedback";
 import { ContextMenuProvider } from "../ui/ContextMenu";
 import { AuthProvider, useAuth } from "../app/useAuth";
 import { MobileLogin } from "./MobileLogin";
-import { MobileOverview } from "./MobileOverview";
-import { MobileBuilds } from "./MobileBuilds";
-import { MobileBuildDetail } from "./MobileBuildDetail";
-import { MobileAccounts } from "./MobileAccounts";
-import { MobileSettings } from "./MobileSettings";
-import { MobileCustomization } from "./MobileCustomization";
-import { MobileSeasons } from "./MobileSeasons";
-import { ReleasesView } from "../views/ReleasesView";
-import { NewsView } from "../views/NewsView";
-import { GuidesView } from "../views/GuidesView";
-import { LogsView } from "../views/LogsView";
-import { ExternalModsView } from "../views/ExternalModsView";
+const MobileOverview = lazy(() => import("./MobileOverview").then(({ MobileOverview }) => ({ default: MobileOverview })));
+const MobileBuilds = lazy(() => import("./MobileBuilds").then(({ MobileBuilds }) => ({ default: MobileBuilds })));
+const MobileBuildDetail = lazy(() => import("./MobileBuildDetail").then(({ MobileBuildDetail }) => ({ default: MobileBuildDetail })));
+const MobileAccounts = lazy(() => import("./MobileAccounts").then(({ MobileAccounts }) => ({ default: MobileAccounts })));
+const MobileSettings = lazy(() => import("./MobileSettings").then(({ MobileSettings }) => ({ default: MobileSettings })));
+const MobileCustomization = lazy(() => import("./MobileCustomization").then(({ MobileCustomization }) => ({ default: MobileCustomization })));
+const MobileSeasons = lazy(() => import("./MobileSeasons").then(({ MobileSeasons }) => ({ default: MobileSeasons })));
+const ReleasesView = lazy(() => import("../views/ReleasesView").then(({ ReleasesView }) => ({ default: ReleasesView })));
+const NewsView = lazy(() => import("../views/NewsView").then(({ NewsView }) => ({ default: NewsView })));
+const GuidesView = lazy(() => import("../views/GuidesView").then(({ GuidesView }) => ({ default: GuidesView })));
+const LogsView = lazy(() => import("../views/LogsView").then(({ LogsView }) => ({ default: LogsView })));
+const ExternalModsView = lazy(() => import("../views/ExternalModsView").then(({ ExternalModsView }) => ({ default: ExternalModsView })));
 import { IconArrowLeft, IconClose, IconLogout } from "../ui/icons";
 import { McText } from "../ui/McText";
 import { NAV, NAV_GROUPS, isNavTab, type NavTab } from "../ui/navConfig";
@@ -231,6 +231,7 @@ function Shell() {
       </aside>
 
       <main className="m-content">
+        <Suspense fallback={<div className="login-wrap muted"><span className="spinner" />Загрузка раздела…</div>}>
         {activeTab === "overview" && <MobileOverview onOpenTab={openTab} onOpenBuild={openBuild} />}
         {activeTab === "builds" && selectedBuildId == null && <MobileBuilds onOpenBuild={openBuild} />}
         {activeTab === "builds" && selectedBuildId != null && (
@@ -254,6 +255,7 @@ function Shell() {
           </div>
         )}
         {activeTab === "settings" && <MobileSettings />}
+        </Suspense>
       </main>
     </div>
   );
