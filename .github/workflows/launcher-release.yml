@@ -32,6 +32,11 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
     steps:
+      # gh release create --generate-notes вызывает git для определения
+      # предыдущего релиза, поэтому job должен иметь рабочее дерево.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
       - name: Create pre-release
         shell: bash
         run: |
