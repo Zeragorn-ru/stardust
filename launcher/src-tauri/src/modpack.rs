@@ -425,6 +425,17 @@ pub async fn sync(
             format!("{rel_key}{DISABLED_SUFFIX}")
         };
 
+        // Выключенный мод загружаем лениво: если ни одной его копии ещё нет
+        // на диске, оставляем файл отсутствующим до включения. Уже скачанный
+        // `.dis` при этом остаётся управляемым файлом и не удаляется.
+        if !enabled && !active.exists() && !inactive.exists() {
+            progress.item_done(format!(
+                "Сборка {}: {} (отключён)",
+                manifest.version, rel_key
+            ));
+            continue;
+        }
+
         let mut matches = |path: &Path| {
             file_matches(path, &entry.sha1, entry.size, &mut sha1_cache).unwrap_or(false)
         };
