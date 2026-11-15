@@ -24,11 +24,13 @@ use axum::{
     Json, Router,
 };
 use futures_util::TryStreamExt;
+use protocol::{ChallengeStatus, ChallengeStatusRequest};
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use store::{
-    NewBuild, Role, SeasonRow, Store, SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY,
-    SETTING_BACKUP_BUCKET, SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
+    ChallengeOutcome, NewBuild, Role, SeasonRow, Store, CHALLENGE_LOGIN_2FA,
+    SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET,
+    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
     SETTING_BACKUP_SECRET_KEY, SETTING_CRASH_AI_API_KEY, SETTING_CRASH_AI_ENABLED,
     SETTING_CRASH_AI_ENDPOINT, SETTING_CRASH_AI_MODEL, SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST,
     SETTING_SFTP_HOST_FINGERPRINT, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
@@ -345,6 +347,7 @@ async fn main() {
         // --- Админка (нужен токен админа) ---
         .route("/api/login", post(login))
         .route("/api/login/2fa", post(login_2fa))
+        .route("/api/login/2fa/status", post(login_2fa_status))
         .route("/api/logout", post(logout))
         .route("/api/me", get(me))
         .route("/api/settings", get(get_settings).put(update_settings))
@@ -770,6 +773,48 @@ async fn login_2fa(
         username: account.username,
         uuid,
     }))
+}
+
+/// Опрос статуса второго фактора после нажатия кнопки в Telegram.
+/// Сессию выдаём только после повторной проверки бана и роли администратора.
+async fn login_2fa_status(
+    State(state): State<Shared>,
+    Json(req): Json<ChallengeStatusRequest>,
+) -> Result<Json<ChallengeStatus>, ApiError> {
+    let status = match state
+        .store
+        .poll_challenge(&req.challenge, Some(CHALLENGE_LOGIN_2FA))
+        .await
+        .map_err(internal)?
+    {
+        ChallengeOutcome::Pending => ChallengeStatus::Pending,
+        ChallengeOutcome::Approved(uuid) => {
+            let account = state
+                .store
+                .find_by_uuid(&uuid)
+                .await
+                .ok_or_else(|| ApiError::new(StatusCode::UNAUTHORIZED, "Аккаунт не найден"))?;
+            if account.is_banned() {
+                return Err(ApiError::new(StatusCode::FORBIDDEN, "Аккаунт заблокирован"));
+            }
+            if !account.is_admin() {
+                return Err(ApiError::new(
+                    StatusCode::FORBIDDEN,
+                    "Аккаунт больше не администратор",
+                ));
+            }
+            let token = state.store.create_session(&uuid).await.map_err(internal)?;
+            ChallengeStatus::Approved {
+                auth: Some(protocol::AuthResponse {
+                    profile: account.profile(),
+                    token,
+                }),
+            }
+        }
+        ChallengeOutcome::Denied => ChallengeStatus::Denied,
+        ChallengeOutcome::Expired | ChallengeOutcome::NotFound => ChallengeStatus::Expired,
+    };
+    Ok(Json(status))
 }
 
 async fn logout(State(state): State<Shared>, headers: HeaderMap) -> Result<StatusCode, ApiError> {

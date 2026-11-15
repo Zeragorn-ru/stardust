@@ -464,8 +464,38 @@ pub struct PasswordlessLoginRequest {
 #[cfg(test)]
 mod tests {
     use super::{
-        Badge, BanInfo, Gradient, PlayerCustomization, PlayerProfile, ServerPlayerCustomization,
+        AuthResponse, Badge, BanInfo, ChallengeStatus, Gradient, PlayerCustomization,
+        PlayerProfile, ServerPlayerCustomization,
     };
+
+    #[test]
+    fn challenge_status_approved_carries_session_for_button_login() {
+        let status = ChallengeStatus::Approved {
+            auth: Some(AuthResponse {
+                profile: PlayerProfile {
+                    id: "abc".into(),
+                    name: "Steve".into(),
+                    active_badge: None,
+                    active_gradient: None,
+                    ban: None,
+                    news_seen_at: None,
+                },
+                token: "tok".into(),
+            }),
+        };
+        let json = serde_json::to_value(&status).unwrap();
+        // admin-web ждёт `status` + `auth.token`/`auth.profile.name`; если
+        // форма ответа изменится, вход кнопкой в Telegram снова сломается.
+        assert_eq!(json["status"], "approved");
+        assert_eq!(json["auth"]["token"], "tok");
+        assert_eq!(json["auth"]["profile"]["name"], "Steve");
+    }
+
+    #[test]
+    fn challenge_status_pending_is_a_bare_tag() {
+        let json = serde_json::to_value(ChallengeStatus::Pending).unwrap();
+        assert_eq!(json, serde_json::json!({ "status": "pending" }));
+    }
 
     #[test]
     fn player_profile_uses_camel_case_for_frontends() {

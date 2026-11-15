@@ -118,7 +118,10 @@ async function request<T>(
   if (resp.status === 204) return undefined as T;
 
   // Протухший/отозванный токен: выходим сразу, дальнейшие запросы бессмысленны.
-  if (resp.status === 401 && token && path !== "/api/login") {
+  // Всё, что относится к самому логину (включая опрос 2FA), исключаем: 401 там
+  // означает «неверный код/истёкший challenge», а не мёртвую сессию. Иначе
+  // 401 от ручного login2fa мог бы стереть токен, только что выданный poll-ом.
+  if (resp.status === 401 && token && !path.startsWith("/api/login")) {
     onAuthRejected();
   }
 
@@ -148,6 +151,14 @@ export interface LoginResult {
   username?: string;
   uuid?: string;
   challenge?: string;
+}
+
+export interface Login2faStatus {
+  status: "pending" | "approved" | "denied" | "expired";
+  auth?: {
+    profile: { name: string };
+    token: string;
+  };
 }
 
 export interface SftpHostKeyChanged {
@@ -193,6 +204,15 @@ export const api = {
     });
     if (res.token) setToken(res.token);
     return res;
+  },
+
+  async login2faStatus(challenge: string): Promise<Login2faStatus> {
+    // Токен сохраняет вызывающий компонент — только когда он действительно
+    // собирается войти. Иначе заброшенный опрос (размонтирование, отменённый
+    // challenge) оставлял бы в localStorage живую сессию.
+    return request<Login2faStatus>("POST", "/api/login/2fa/status", {
+      challenge,
+    });
   },
 
   async logout(): Promise<void> {
