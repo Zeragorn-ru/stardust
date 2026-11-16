@@ -38,6 +38,20 @@ pub(crate) struct SearchQuery {
     loader: Option<String>,
     #[serde(rename = "mcVersion")]
     mc_version: Option<String>,
+    /// Смещение для пагинации (Load more). По умолчанию 0.
+    #[serde(default)]
+    offset: usize,
+    /// Сортировка: `relevance` | `downloads` | `newest` | `updated` | `follows`.
+    sort: Option<String>,
+    /// Категории через запятую: `optimization,performance`.
+    categories: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct DetailQuery {
+    source: Option<String>,
+    #[serde(rename = "projectId")]
+    project_id: String,
 }
 
 #[derive(Deserialize)]
@@ -104,6 +118,48 @@ pub(crate) struct ModVersion {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SearchResult {
     hits: Vec<ModHit>,
+    /// Общее число результатов (для показа "Показать ещё").
+    total_count: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ModGalleryItem {
+    url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    featured: bool,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ModDetail {
+    source: String,
+    id: String,
+    slug: String,
+    title: String,
+    description: String,
+    author: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    icon_url: Option<String>,
+    downloads: i64,
+    categories: Vec<String>,
+    /// Полное описание: Markdown для Modrinth, HTML для CurseForge.
+    body: String,
+    /// `"markdown"` или `"html"`.
+    body_format: String,
+    gallery: Vec<ModGalleryItem>,
+    followers: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    issues_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    wiki_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    discord_url: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -133,6 +189,33 @@ fn sanitize_token(value: &str) -> Option<String> {
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
         .then(|| value.to_string())
+}
+
+/// Валидация projectId/query: длиннее `sanitize_token` (до 128 символов),
+/// допускает тот же набор символов. Modrinth slug бывает длиннее 32 символов,
+/// поэтому для `project_id` отдельная проверка.
+fn sanitize_project_id(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() || value.len() > 128 {
+        return None;
+    }
+    value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_'))
+        .then(|| value.to_string())
+}
+
+/// Сопоставляет значение sort из UI с внутренним ключом сортировки.
+/// `relevance` и пустое значение уходят как `None` — хостинги и так сортируют
+/// по релевантности по умолчанию.
+fn sanitize_sort(sort: Option<&str>) -> Option<String> {
+    match sort.unwrap_or("").trim() {
+        "downloads" => Some("downloads".to_string()),
+        "newest" => Some("newest".to_string()),
+        "updated" => Some("updated".to_string()),
+        "follows" => Some("follows".to_string()),
+        _ => None, // "relevance" = по умолчанию
+    }
 }
 
 fn source_of(q: &str) -> Result<&'static str, ApiError> {
@@ -169,6 +252,8 @@ fn check_status(resp: &reqwest::Response, what: &str) -> Result<(), ApiError> {
 struct MrSearch {
     #[serde(default)]
     hits: Vec<MrHit>,
+    #[serde(default, rename = "total_hits")]
+    total_hits: usize,
 }
 
 #[derive(Deserialize)]
@@ -241,6 +326,49 @@ struct MrProject {
     title: String,
 }
 
+/// Полный проект Modrinth для `/v2/project/{id}`.
+#[derive(Deserialize)]
+struct MrDetailedProject {
+    id: String,
+    #[serde(default)]
+    slug: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    body: String,
+    #[serde(default)]
+    icon_url: Option<String>,
+    #[serde(default)]
+    downloads: i64,
+    #[serde(default)]
+    followers: i64,
+    #[serde(default)]
+    categories: Vec<String>,
+    #[serde(default)]
+    gallery: Vec<MrGalleryItem>,
+    #[serde(default)]
+    issues_url: Option<String>,
+    #[serde(default)]
+    source_url: Option<String>,
+    #[serde(default)]
+    wiki_url: Option<String>,
+    #[serde(default)]
+    discord_url: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct MrGalleryItem {
+    url: String,
+    #[serde(default)]
+    featured: bool,
+    #[serde(default)]
+    title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+}
+
 impl MrVersion {
     fn into_dto(self) -> ModVersion {
         // У версии бывает несколько файлов (sources, javadoc, dev). Берём
@@ -276,13 +404,25 @@ impl MrVersion {
     }
 }
 
-fn modrinth_facets(loader: &Option<String>, mc_version: &Option<String>) -> String {
+fn modrinth_facets(
+    loader: &Option<String>,
+    mc_version: &Option<String>,
+    categories: &Option<String>,
+) -> String {
     let mut facets = vec!["[\"project_type:mod\"]".to_string()];
     if let Some(mc) = mc_version {
         facets.push(format!("[\"versions:{mc}\"]"));
     }
     if let Some(loader) = loader {
         facets.push(format!("[\"categories:{loader}\"]"));
+    }
+    if let Some(cats) = categories {
+        for cat in cats.split(',') {
+            let cat = cat.trim();
+            if !cat.is_empty() {
+                facets.push(format!("[\"categories:{cat}\"]"));
+            }
+        }
     }
     format!("[{}]", facets.join(","))
 }
@@ -292,15 +432,21 @@ async fn modrinth_search(
     query: &str,
     loader: Option<String>,
     mc_version: Option<String>,
-) -> Result<Vec<ModHit>, ApiError> {
+    offset: usize,
+    sort: Option<String>,
+    categories: Option<String>,
+) -> Result<(Vec<ModHit>, usize), ApiError> {
+    // Маппинг сортировки в index-параметр Modrinth.
+    let index = sort.as_deref().unwrap_or("relevance");
     let mut url = reqwest::Url::parse("https://api.modrinth.com/v2/search")
         .map_err(|e| upstream_error("Modrinth", e))?;
     {
         let mut pairs = url.query_pairs_mut();
         pairs.append_pair("query", query);
         pairs.append_pair("limit", &SEARCH_LIMIT.to_string());
-        pairs.append_pair("index", "relevance");
-        pairs.append_pair("facets", &modrinth_facets(&loader, &mc_version));
+        pairs.append_pair("offset", &offset.to_string());
+        pairs.append_pair("index", index);
+        pairs.append_pair("facets", &modrinth_facets(&loader, &mc_version, &categories));
     }
     let resp = state
         .http
@@ -315,7 +461,8 @@ async fn modrinth_search(
         .await
         .map_err(|e| upstream_error("Modrinth", e))?;
 
-    Ok(parsed
+    let total = parsed.total_hits;
+    let hits = parsed
         .hits
         .into_iter()
         .map(|h| ModHit {
@@ -329,7 +476,8 @@ async fn modrinth_search(
             downloads: h.downloads,
             categories: h.display_categories,
         })
-        .collect())
+        .collect();
+    Ok((hits, total))
 }
 
 async fn modrinth_versions(
@@ -418,6 +566,53 @@ async fn enrich_modrinth_dependency_titles(
     Ok(())
 }
 
+/// Запрашивает полные данные проекта Modrinth по id или slug.
+async fn modrinth_detail(
+    state: &Shared,
+    project_id: &str,
+) -> Result<ModDetail, ApiError> {
+    let url = format!("https://api.modrinth.com/v2/project/{project_id}");
+    let resp = state
+        .http
+        .get(&url)
+        .timeout(UPSTREAM_TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| upstream_error("Modrinth", e))?;
+    check_status(&resp, "Modrinth")?;
+    let p: MrDetailedProject = resp.json().await.map_err(|e| upstream_error("Modrinth", e))?;
+    Ok(ModDetail {
+        source: "modrinth".to_string(),
+        id: p.id,
+        slug: p.slug,
+        title: p.title,
+        description: p.description,
+        // Modrinth /v2/project/{id} не содержит имени автора — фронт берёт
+        // его из результата поиска (ModHit). Оставляем пустым.
+        author: String::new(),
+        icon_url: p.icon_url,
+        downloads: p.downloads,
+        categories: p.categories,
+        body: p.body,
+        body_format: "markdown".to_string(),
+        gallery: p
+            .gallery
+            .into_iter()
+            .map(|g| ModGalleryItem {
+                url: g.url,
+                featured: g.featured,
+                title: g.title,
+                description: g.description,
+            })
+            .collect(),
+        followers: p.followers,
+        issues_url: p.issues_url,
+        source_url: p.source_url,
+        wiki_url: p.wiki_url,
+        discord_url: p.discord_url,
+    })
+}
+
 // ───────────────────────── CurseForge ─────────────────────────
 
 /// CurseForge использует числовые коды загрузчиков.
@@ -455,6 +650,26 @@ struct CfCategory {
 }
 
 #[derive(Deserialize)]
+struct CfScreenshot {
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    description: String,
+}
+
+#[derive(Deserialize)]
+struct CfLinks {
+    #[serde(rename = "issuesUrl", default)]
+    issues_url: Option<String>,
+    #[serde(rename = "sourceUrl", default)]
+    source_url: Option<String>,
+    #[serde(rename = "wikiUrl", default)]
+    wiki_url: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct CfMod {
     id: i64,
     #[serde(default)]
@@ -471,6 +686,25 @@ struct CfMod {
     authors: Vec<CfAuthor>,
     #[serde(default)]
     categories: Vec<CfCategory>,
+    #[serde(default)]
+    screenshots: Vec<CfScreenshot>,
+    #[serde(rename = "links", default)]
+    links: Option<CfLinks>,
+}
+
+/// Пагинация в ответе CurseForge поиска.
+#[derive(Deserialize)]
+struct CfPagination {
+    #[serde(rename = "totalCount", default)]
+    total_count: usize,
+}
+
+#[derive(Deserialize)]
+struct CfSearchResp {
+    #[serde(default)]
+    data: Vec<CfMod>,
+    #[serde(default)]
+    pagination: Option<CfPagination>,
 }
 
 #[derive(Deserialize)]
@@ -572,7 +806,9 @@ async fn curseforge_search(
     query: &str,
     loader: Option<String>,
     mc_version: Option<String>,
-) -> Result<Vec<ModHit>, ApiError> {
+    offset: usize,
+    sort: Option<String>,
+) -> Result<(Vec<ModHit>, usize), ApiError> {
     let key = curseforge_key(state).await?;
     let mut url = reqwest::Url::parse("https://api.curseforge.com/v1/mods/search")
         .map_err(|e| upstream_error("CurseForge", e))?;
@@ -581,9 +817,18 @@ async fn curseforge_search(
         pairs.append_pair("gameId", CURSEFORGE_GAME_ID);
         pairs.append_pair("classId", CURSEFORGE_CLASS_ID);
         pairs.append_pair("searchFilter", query);
-        pairs.append_pair("sortField", "2"); // популярность
+        // Маппинг sort → числовой sortField CurseForge.
+        // 2 = популярность (Popularity), 6 = загрузки, 3 = дата обновления, 1 = подписчики.
+        let sort_field = match sort.as_deref().unwrap_or("") {
+            "downloads" => "6",
+            "newest" | "updated" => "3",
+            "follows" => "1",
+            _ => "2", // relevance → популярность
+        };
+        pairs.append_pair("sortField", sort_field);
         pairs.append_pair("sortOrder", "desc");
         pairs.append_pair("pageSize", &SEARCH_LIMIT.to_string());
+        pairs.append_pair("index", &offset.to_string());
         if let Some(mc) = &mc_version {
             pairs.append_pair("gameVersion", mc);
         }
@@ -600,12 +845,16 @@ async fn curseforge_search(
         .await
         .map_err(|e| upstream_error("CurseForge", e))?;
     check_status(&resp, "CurseForge")?;
-    let parsed: CfEnvelope<Vec<CfMod>> = resp
+    let parsed: CfSearchResp = resp
         .json()
         .await
         .map_err(|e| upstream_error("CurseForge", e))?;
 
-    Ok(parsed
+    let total = parsed
+        .pagination
+        .map(|p| p.total_count)
+        .unwrap_or(parsed.data.len());
+    let hits = parsed
         .data
         .into_iter()
         .map(|m| ModHit {
@@ -614,16 +863,13 @@ async fn curseforge_search(
             slug: m.slug,
             title: m.name,
             description: m.summary,
-            author: m
-                .authors
-                .first()
-                .map(|a| a.name.clone())
-                .unwrap_or_default(),
+            author: m.authors.first().map(|a| a.name.clone()).unwrap_or_default(),
             icon_url: m.logo.and_then(|l| l.url),
             downloads: m.download_count,
             categories: m.categories.into_iter().map(|c| c.name).collect(),
         })
-        .collect())
+        .collect();
+    Ok((hits, total))
 }
 
 async fn curseforge_versions(
@@ -669,6 +915,87 @@ async fn curseforge_versions(
         .collect())
 }
 
+/// Запрашивает полные данные мода CurseForge: основные поля + HTML-описание.
+async fn curseforge_detail(
+    state: &Shared,
+    project_id: &str,
+) -> Result<ModDetail, ApiError> {
+    let key = curseforge_key(state).await?;
+
+    // Получаем основные данные мода.
+    let mod_resp = state
+        .http
+        .get(format!("https://api.curseforge.com/v1/mods/{project_id}"))
+        .header("x-api-key", &key)
+        .timeout(UPSTREAM_TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| upstream_error("CurseForge", e))?;
+    check_status(&mod_resp, "CurseForge")?;
+    let envelope: CfEnvelope<CfMod> = mod_resp
+        .json()
+        .await
+        .map_err(|e| upstream_error("CurseForge", e))?;
+    let m = envelope.data;
+
+    // Получаем HTML-описание отдельным запросом.
+    let desc_resp = state
+        .http
+        .get(format!(
+            "https://api.curseforge.com/v1/mods/{project_id}/description"
+        ))
+        .header("x-api-key", &key)
+        .timeout(UPSTREAM_TIMEOUT)
+        .send()
+        .await
+        .map_err(|e| upstream_error("CurseForge", e))?;
+    check_status(&desc_resp, "CurseForge")?;
+    #[derive(Deserialize)]
+    struct CfDesc {
+        data: String,
+    }
+    let body = desc_resp
+        .json::<CfDesc>()
+        .await
+        .map(|d| d.data)
+        .unwrap_or_default();
+
+    Ok(ModDetail {
+        source: "curseforge".to_string(),
+        id: m.id.to_string(),
+        slug: m.slug.clone(),
+        title: m.name.clone(),
+        description: m.summary.clone(),
+        author: m.authors.first().map(|a| a.name.clone()).unwrap_or_default(),
+        icon_url: m.logo.and_then(|l| l.url),
+        downloads: m.download_count,
+        categories: m.categories.iter().map(|c| c.name.clone()).collect(),
+        body,
+        body_format: "html".to_string(),
+        gallery: m
+            .screenshots
+            .into_iter()
+            .filter_map(|s| {
+                s.url.map(|url| ModGalleryItem {
+                    url,
+                    featured: false,
+                    title: if s.title.is_empty() { None } else { Some(s.title) },
+                    description: if s.description.is_empty() {
+                        None
+                    } else {
+                        Some(s.description)
+                    },
+                })
+            })
+            .collect(),
+        followers: 0,
+        issues_url: m.links.as_ref().and_then(|l| l.issues_url.clone()),
+        source_url: m.links.as_ref().and_then(|l| l.source_url.clone()),
+        wiki_url: m.links.as_ref().and_then(|l| l.wiki_url.clone()),
+        discord_url: None,
+    })
+}
+
 // ───────────────────────── Резолв и обработчики ─────────────────────────
 
 /// Берёт из списка лучшую версию: сначала release, потом любую. Список
@@ -700,7 +1027,7 @@ async fn versions_for(
     Ok(versions)
 }
 
-/// `GET /api/mods/search?source=&query=&loader=&mcVersion=`
+/// `GET /api/mods/search?source=&query=&loader=&mcVersion=&offset=&sort=&categories=`
 pub(crate) async fn search_mods(
     State(state): State<Shared>,
     headers: HeaderMap,
@@ -718,12 +1045,18 @@ pub(crate) async fn search_mods(
     }
     let loader = q.loader.as_deref().and_then(sanitize_token);
     let mc_version = q.mc_version.as_deref().and_then(sanitize_token);
+    let sort = sanitize_sort(q.sort.as_deref());
+    let offset = q.offset;
 
-    let hits = match source {
-        "curseforge" => curseforge_search(&state, &query, loader, mc_version).await?,
-        _ => modrinth_search(&state, &query, loader, mc_version).await?,
+    let (hits, total_count) = match source {
+        "curseforge" => {
+            curseforge_search(&state, &query, loader, mc_version, offset, sort).await?
+        }
+        _ => {
+            modrinth_search(&state, &query, loader, mc_version, offset, sort, q.categories).await?
+        }
     };
-    Ok(Json(SearchResult { hits }))
+    Ok(Json(SearchResult { hits, total_count }))
 }
 
 /// `GET /api/mods/versions?source=&projectId=&loader=&mcVersion=`
@@ -763,6 +1096,25 @@ pub(crate) async fn resolve_mod(
     }))
 }
 
+/// `GET /api/mods/detail?source=&projectId=` — полные данные проекта для карточки мода.
+pub(crate) async fn mod_detail(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Query(q): Query<DetailQuery>,
+) -> Result<Json<ModDetail>, ApiError> {
+    require_admin(&state, &headers).await?;
+    let project_id = sanitize_project_id(&q.project_id).ok_or_else(|| {
+        ApiError::new(StatusCode::BAD_REQUEST, "Некорректный projectId")
+    })?;
+    let source = source_of(q.source.as_deref().unwrap_or(""))?;
+    let detail = match source {
+        "modrinth" => modrinth_detail(&state, &project_id).await?,
+        "curseforge" => curseforge_detail(&state, &project_id).await?,
+        _ => unreachable!(),
+    };
+    Ok(Json(detail))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -778,7 +1130,7 @@ mod tests {
 
     #[test]
     fn modrinth_facets_include_loader_and_version() {
-        let facets = modrinth_facets(&Some("neoforge".to_string()), &Some("1.21.1".to_string()));
+        let facets = modrinth_facets(&Some("neoforge".to_string()), &Some("1.21.1".to_string()), &None);
         assert!(facets.contains("project_type:mod"));
         assert!(facets.contains("versions:1.21.1"));
         assert!(facets.contains("categories:neoforge"));

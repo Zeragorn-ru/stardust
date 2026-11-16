@@ -400,6 +400,7 @@ async fn main() {
         // Прокси поиска модов на Modrinth/CurseForge: браузер не ходит
         // на внешние API напрямую (CORS у CurseForge нет, ключ — секрет).
         .route("/api/mods/search", get(mods::search_mods))
+        .route("/api/mods/detail", get(mods::mod_detail))
         .route("/api/mods/versions", get(mods::mod_versions))
         .route("/api/mods/resolve", get(mods::resolve_mod))
         .route(
