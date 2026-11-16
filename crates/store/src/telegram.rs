@@ -50,6 +50,9 @@ pub const SETTING_CRASH_AI_ENDPOINT: &str = "crash_ai_endpoint";
 pub const SETTING_CRASH_AI_MODEL: &str = "crash_ai_model";
 /// Ключ настройки: API-ключ провайдера (секрет, наружу не отдаём).
 pub const SETTING_CRASH_AI_API_KEY: &str = "crash_ai_api_key";
+/// Ключ настройки: API-ключ CurseForge для поиска модов из админки
+/// (секрет, наружу не отдаём). Без него работает только Modrinth.
+pub const SETTING_CURSEFORGE_API_KEY: &str = "curseforge_api_key";
 
 /// Время жизни кода привязки Telegram.
 const LINK_TTL: Duration = Duration::minutes(15);

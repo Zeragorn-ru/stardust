@@ -399,12 +399,14 @@ impl Store {
         Ok(rows.iter().map(row_to_file).collect())
     }
 
-    /// Добавляет/заменяет файл сборки (upsert по (build_id, path)).
+    /// Вставляет или обновляет файл сборки по (build_id, path). Возвращает
+    /// `(file_id, was_existing)` — `was_existing` true, если по этому пути
+    /// уже был файл и его запись перезаписана (ON CONFLICT DO UPDATE).
     pub async fn upsert_build_file(
         &self,
         build_id: i64,
         file: BuildFileInput,
-    ) -> Result<i64, StoreError> {
+    ) -> Result<(i64, bool), StoreError> {
         let mut tx = self.pool().begin().await?;
         sqlx::query("SELECT pg_advisory_xact_lock($1)")
             .bind(0x5354415246494c45_i64)
@@ -463,7 +465,7 @@ impl Store {
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;
-        Ok(id)
+        Ok((id, existing))
     }
 
     /// Обновляет только метаданные файла (sha1/контент/путь не трогаем).

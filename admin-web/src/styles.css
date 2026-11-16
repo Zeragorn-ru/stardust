@@ -5720,3 +5720,15 @@ input[type="radio"] {
     line-height: 1;
     user-select: none;
 }
+
+/* «Найти моды» в тулбаре файлового менеджера: ведёт в поиск Modrinth/
+   CurseForge с уже выставленными MC-версией и загрузчиком сборки. Подпись
+   на мобильном скрывается так же, как у manifest — см. mobile.css. */
+.fm-modsearch-btn__label {
+    font-size: var(--fs-sm);
+    color: var(--muted);
+}
+
+.fm-modsearch-btn:hover .fm-modsearch-btn__label {
+    color: var(--text);
+}

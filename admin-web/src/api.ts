@@ -16,9 +16,14 @@ import type {
   DepsCheckResult,
   Gradient,
   Guide,
+  InstallModRequest,
+  InstallModResult,
   LauncherChannel,
   LauncherRelease,
+  ModHit,
   ModProfile,
+  ModSource,
+  ModVersion,
   NewsPost,
   PlayerCustomization,
   PlayerStats,
@@ -143,6 +148,22 @@ function safeJson(text: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+/** Query-строка для эндпоинтов /api/mods/*. */
+function modSearchParams(params: {
+  source: string;
+  query?: string;
+  projectId?: string;
+  loader?: string;
+  mcVersion?: string;
+}): string {
+  const qs = new URLSearchParams({ source: params.source });
+  if (params.query) qs.set("query", params.query);
+  if (params.projectId) qs.set("projectId", params.projectId);
+  if (params.loader) qs.set("loader", params.loader);
+  if (params.mcVersion) qs.set("mcVersion", params.mcVersion);
+  return qs.toString();
 }
 
 export interface LoginResult {
@@ -354,6 +375,42 @@ export const api = {
     return request("DELETE", `/api/builds/${buildId}/mod-profiles/${key}`);
   },
 
+  // Скачивает указанные файлы с CDN прямо на сервер и кладёт их в сборку.
+  // Браузер в передаче байтов не участвует: сервер сам считает SHA-1 и
+  // регистрирует файл, а мы получаем результат построчно (в т.ч. ошибки).
+  installMods(buildId: number, items: InstallModRequest[]): Promise<InstallModResult[]> {
+    return request("POST", `/api/builds/${buildId}/install-mods`, items);
+  },
+
+  searchMods(params: {
+    source: ModSource;
+    query: string;
+    loader?: string;
+    mcVersion?: string;
+  }): Promise<{ hits: ModHit[] }> {
+    return request("GET", `/api/mods/search?${modSearchParams(params)}`);
+  },
+
+  modVersions(params: {
+    source: ModSource;
+    projectId: string;
+    loader?: string;
+    mcVersion?: string;
+  }): Promise<{ versions: ModVersion[] }> {
+    return request("GET", `/api/mods/versions?${modSearchParams(params)}`);
+  },
+
+  // Одна лучшая версия проекта под MC/загрузчик — для автоустановки
+  // зависимостей мода (пользователь их не выбирает).
+  resolveMod(params: {
+    source: ModSource;
+    projectId: string;
+    loader?: string;
+    mcVersion?: string;
+  }): Promise<{ version: ModVersion | null }> {
+    return request("GET", `/api/mods/resolve?${modSearchParams(params)}`);
+  },
+
   // Содержимое файла читаем напрямую из контент-адресного хранилища по sha1.
   async getFileContent(sha1: string): Promise<string> {
     const headers: Record<string, string> = {};
@@ -533,6 +590,7 @@ export const api = {
     crashAiEndpoint?: string;
     crashAiModel?: string;
     crashAiApiKey?: string;
+    curseforgeApiKey?: string;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
   },

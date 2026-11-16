@@ -338,12 +338,17 @@ export function BuildDetail({
         )}
 
       <div className="panel">
-        <FileManager
-          buildId={buildId}
-          files={files}
-          modProfiles={detail?.modProfiles ?? []}
-          onChanged={load}
-        />
+        {detail ? (
+          <FileManager
+            buildId={buildId}
+            build={detail}
+            files={files}
+            modProfiles={detail.modProfiles}
+            onChanged={load}
+          />
+        ) : (
+          <p className="muted">Загрузка сборки…</p>
+        )}
       </div>
 
       {editing && (

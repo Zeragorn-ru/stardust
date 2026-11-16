@@ -44,6 +44,7 @@ use tower_http::services::ServeDir;
 
 mod backup;
 mod crash_ai;
+mod mods;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
 /// Задаётся только на multipart-маршруте загрузки, не глобально.
@@ -82,6 +83,10 @@ struct AppState {
     files_base_url: String,
     /// HTTP-клиент для скачивания закреплённого authlib-injector.
     http: reqwest::Client,
+    /// Отдельный клиент для скачивания модов с CDN: редиректы проверяются
+    /// политикой (см. `allowed_redirect`), чтобы allowlist нельзя было
+    /// обойти редиректом на внутренний адрес.
+    mod_download_http: reqwest::Client,
     /// URL jar-файла последней StarDust-сборки.
     injector_url: String,
     /// URL JSON-метаданных последней версии.
@@ -225,6 +230,22 @@ async fn main() {
             .user_agent(concat!("admin-server/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("не удалось собрать HTTP-клиент"),
+        mod_download_http: reqwest::Client::builder()
+            .user_agent(concat!("admin-server/", env!("CARGO_PKG_VERSION")))
+            // Каждый редирект обязан остаться на разрешённом CDN: reqwest
+            // спросит политику до перехода, а не после.
+            .redirect(reqwest::redirect::Policy::custom(|attempt| {
+                if attempt.previous().len() > 5 {
+                    return attempt.error("слишком много редиректов");
+                }
+                if is_allowed_mod_url(attempt.url().as_str()).is_ok() {
+                    attempt.follow()
+                } else {
+                    attempt.stop()
+                }
+            }))
+            .build()
+            .expect("не удалось собрать HTTP-клиент для модов"),
         injector_url,
         injector_metadata_url,
         injector_version,
@@ -375,6 +396,12 @@ async fn main() {
             post(upload_file).layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES)),
         )
         .route("/api/builds/:id/folder-archive", get(folder_archive))
+        .route("/api/builds/:id/install-mods", post(install_mods))
+        // Прокси поиска модов на Modrinth/CurseForge: браузер не ходит
+        // на внешние API напрямую (CORS у CurseForge нет, ключ — секрет).
+        .route("/api/mods/search", get(mods::search_mods))
+        .route("/api/mods/versions", get(mods::mod_versions))
+        .route("/api/mods/resolve", get(mods::resolve_mod))
         .route(
             "/api/builds/:id/mod-profiles",
             get(list_mod_profiles).post(upsert_mod_profile),
@@ -893,6 +920,9 @@ struct SettingsDto {
     /// Установлен ли AI-ключ (сам ключ наружу не отдаём — секрет).
     #[serde(rename = "crashAiApiKeySet")]
     crash_ai_api_key_set: bool,
+    /// Установлен ли ключ CurseForge (нужен для поиска модов оттуда).
+    #[serde(rename = "curseforgeApiKeySet")]
+    curseforge_api_key_set: bool,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -916,6 +946,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_CRASH_AI_ENDPOINT,
         SETTING_CRASH_AI_MODEL,
         SETTING_CRASH_AI_API_KEY,
+        store::SETTING_CURSEFORGE_API_KEY,
     ];
     let map = state
         .store
@@ -955,6 +986,9 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         crash_ai_endpoint: get(SETTING_CRASH_AI_ENDPOINT).filter(|s| !s.trim().is_empty()),
         crash_ai_model: get(SETTING_CRASH_AI_MODEL).filter(|s| !s.trim().is_empty()),
         crash_ai_api_key_set: get(SETTING_CRASH_AI_API_KEY)
+            .map(|k| !k.trim().is_empty())
+            .unwrap_or(false),
+        curseforge_api_key_set: get(store::SETTING_CURSEFORGE_API_KEY)
             .map(|k| !k.trim().is_empty())
             .unwrap_or(false),
     })
@@ -1020,6 +1054,8 @@ struct UpdateSettingsRequest {
     crash_ai_model: Option<String>,
     #[serde(rename = "crashAiApiKey", default)]
     crash_ai_api_key: Option<String>,
+    #[serde(rename = "curseforgeApiKey", default)]
+    curseforge_api_key: Option<String>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -1187,6 +1223,7 @@ async fn update_settings(
         (req.crash_ai_endpoint, SETTING_CRASH_AI_ENDPOINT),
         (req.crash_ai_model, SETTING_CRASH_AI_MODEL),
         (req.crash_ai_api_key, SETTING_CRASH_AI_API_KEY),
+        (req.curseforge_api_key, store::SETTING_CURSEFORGE_API_KEY),
     ] {
         if let Some(value) = value {
             let value = value.trim();
@@ -2016,7 +2053,7 @@ async fn upload_file(
         profile_keys: meta.profiles.unwrap_or_default(),
     };
 
-    let id = state
+    let (id, _) = state
         .store
         .upsert_build_file(build_id, file.clone())
         .await
@@ -2057,6 +2094,325 @@ struct UploadMeta {
     description: Option<String>,
     /// Профили модов, в которых состоит файл (ключи); пусто/не задано — общий.
     profiles: Option<Vec<String>>,
+}
+
+/// Один мод для установки через `POST /api/builds/:id/install-mods`:
+/// бэкенд сам скачивает файл по `url` (с разрешённого CDN) и кладёт в сборку.
+/// Так админка может искать моды на Modrinth/CurseForge и добавлять их, не
+/// выкачивая JAR в браузер и не грузя его обратно на сервер.
+#[derive(Deserialize)]
+struct InstallModItem {
+    /// Прямой HTTPS-URL файла (jar/zip/…). Хост должен быть в allowlist.
+    url: String,
+    /// Путь относительно `.minecraft` (напр. `mods/sodium.jar`).
+    path: String,
+    #[serde(default)]
+    side: Option<String>,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    overwrite: Option<bool>,
+    #[serde(default)]
+    optional: Option<bool>,
+    #[serde(rename = "enabledByDefault", default)]
+    enabled_by_default: Option<bool>,
+    #[serde(rename = "modId", default)]
+    mod_id: Option<String>,
+    #[serde(rename = "displayName", default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    profiles: Option<Vec<String>>,
+}
+
+#[derive(Serialize)]
+struct InstallModResult {
+    #[serde(rename = "fileId")]
+    file_id: i64,
+    path: String,
+    sha1: String,
+    #[serde(rename = "sizeBytes")]
+    size_bytes: i64,
+    /// true, если файл по этому пути уже был — его содержимое и метаданные
+    /// перезаписаны (как при повторной multipart-загрузке).
+    replaced: bool,
+    error: Option<String>,
+}
+
+/// Скачивает файлы по HTTPS и добавляет их в сборку, вычисляя SHA-1 и кладя
+/// байты в контент-адресное хранилище. Хост URL должен быть в allowlist, чтобы
+/// админка не могла заставить сервер тянуть произвольные адреса (SSRF).
+async fn install_mods(
+    State(state): State<Shared>,
+    headers: HeaderMap,
+    Path(build_id): Path<i64>,
+    Json(items): Json<Vec<InstallModItem>>,
+) -> Result<Json<Vec<InstallModResult>>, ApiError> {
+    require_admin(&state, &headers).await?;
+
+    if state
+        .store
+        .get_build(build_id)
+        .await
+        .map_err(internal)?
+        .is_none()
+    {
+        return Err(ApiError::new(StatusCode::NOT_FOUND, "Сборка не найдена"));
+    }
+
+    if items.is_empty() {
+        return Ok(Json(vec![]));
+    }
+    if items.len() > 50 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Не более 50 файлов за один запрос",
+        ));
+    }
+
+    let mut results = Vec::with_capacity(items.len());
+    // Общий бюджет пачки: 50 зависших CDN по 180 с держали бы браузер
+    // часами. Не влезли — честно говорим об этом в строках результата.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    for item in items {
+        if tokio::time::Instant::now() >= deadline {
+            results.push(InstallModResult {
+                file_id: 0,
+                path: item.path.clone(),
+                sha1: String::new(),
+                size_bytes: 0,
+                replaced: false,
+                error: Some(
+                    "Превышено время установки пачки — повторите для оставшихся".to_string(),
+                ),
+            });
+            continue;
+        }
+        match install_one_mod(&state, build_id, &item).await {
+            Ok(r) => results.push(r),
+            Err(e) => {
+                // Один битый URL не должен валить всю пачку: возвращаем
+                // ошибку построчно, чтобы админка показала её рядом с файлом.
+                results.push(InstallModResult {
+                    file_id: 0,
+                    path: item.path.clone(),
+                    sha1: String::new(),
+                    size_bytes: 0,
+                    replaced: false,
+                    error: Some(e.message),
+                });
+            }
+        }
+    }
+    Ok(Json(results))
+}
+
+/// Разрешённые хосты для скачивания модов. Только CDN мод-хостингов и GitHub
+/// (для релизов модов, хостящихся там). Без этого allowlist любой админ мог бы
+/// заставить сервер тянуть внутренние адреса (SSRF).
+const ALLOWED_MOD_HOSTS: &[&str] = &[
+    "cdn.modrinth.com",
+    "edge.forgecdn.net",
+    "media.forgecdn.net",
+    "files.minecraftforge.net",
+    "maven.fabricmc.net",
+    "github.com",
+    "objects.githubusercontent.com",
+    "raw.githubusercontent.com",
+    "mediafilez.forgecdn.net",
+];
+
+/// Максимальный размер одного скачиваемого файла. Моды редко превышают 50 МБ,
+/// 256 МБ — щедрый запас; сверх этого — ошибка, чтобы чужой CDN не забил диск.
+const MAX_INSTALL_MOD_BYTES: u64 = 256 * 1024 * 1024;
+
+fn is_allowed_mod_url(raw: &str) -> Result<(), ApiError> {
+    if !raw.starts_with("https://") {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "URL должен начинаться с https://",
+        ));
+    }
+    let rest = &raw[8..];
+    let host = rest.split('/').next().unwrap_or("");
+    // Учитываем `user@host:port` — берём только хост.
+    let host = host.split('@').next_back().unwrap_or(host);
+    let host = host.split(':').next().unwrap_or(host);
+    if !ALLOWED_MOD_HOSTS.contains(&host) {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            format!("Хост не разрешён: {host}"),
+        ));
+    }
+    Ok(())
+}
+
+/// Проверяет путь относительно `.minecraft` на обход каталога (как upload_file).
+fn validate_rel_path(path_str: &str) -> Result<(), ApiError> {
+    if path_str.trim().is_empty() {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "Пустой path"));
+    }
+    let p = std::path::Path::new(path_str.trim());
+    for comp in p.components() {
+        match comp {
+            std::path::Component::Prefix(_) => {
+                return Err(ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Недопустимый префикс пути",
+                ));
+            }
+            std::path::Component::RootDir => {
+                return Err(ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Абсолютный путь запрещен",
+                ));
+            }
+            std::path::Component::ParentDir => {
+                return Err(ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "Выход за пределы директории запрещен",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+/// Скачивает один файл и добавляет его в сборку. Возвращает запись результата:
+/// успех с `file_id`/`sha1`/`replaced`, либо ошибка в `error`.
+async fn install_one_mod(
+    state: &Shared,
+    build_id: i64,
+    item: &InstallModItem,
+) -> Result<InstallModResult, ApiError> {
+    use tokio::io::AsyncWriteExt;
+    is_allowed_mod_url(&item.url)?;
+    validate_rel_path(&item.path)?;
+
+    // Скачиваем в tempfile в каталоге хранилища, чтобы потом переименовать
+    // (атомарно) в `<sha1>` без копирования между дисками.
+    let mut resp = state
+        .mod_download_http
+        .get(&item.url)
+        .header(
+            header::USER_AGENT,
+            concat!("stardust-admin/", env!("CARGO_PKG_VERSION")),
+        )
+        // Зависший CDN не должен держать запрос админки вечно: 256 МБ по
+        // медленному каналу всё равно укладываются в 3 минуты.
+        .timeout(Duration::from_secs(180))
+        .send()
+        .await
+        .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, format!("скачивание: {e}")))?;
+    if !resp.status().is_success() {
+        return Err(ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            format!("CDN вернул {}", resp.status()),
+        ));
+    }
+    // reqwest сам ходит по редиректам, и разрешённый хост мог увести на
+    // внутренний адрес. Проверяем финальный URL, а не только исходный.
+    is_allowed_mod_url(resp.url().as_str()).map_err(|_| {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "CDN перенаправил на неразрешённый хост",
+        )
+    })?;
+    if resp.content_length().unwrap_or(0) > MAX_INSTALL_MOD_BYTES {
+        return Err(ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "Файл больше 256 МБ",
+        ));
+    }
+
+    let tp = tempfile::NamedTempFile::new_in(&state.modpack_dir)
+        .map_err(|e| internal(format!("temp file: {e}")))?;
+    let mut file = tokio::fs::File::create(tp.path())
+        .await
+        .map_err(|e| internal(format!("create temp: {e}")))?;
+    let mut total: u64 = 0;
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, format!("stream: {e}")))?
+    {
+        total += chunk.len() as u64;
+        if total > MAX_INSTALL_MOD_BYTES {
+            drop(file);
+            tokio::fs::remove_file(tp.path()).await.ok();
+            return Err(ApiError::new(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "Файл больше 256 МБ",
+            ));
+        }
+        file.write_all(&chunk)
+            .await
+            .map_err(|e| internal(format!("write: {e}")))?;
+    }
+    file.flush()
+        .await
+        .map_err(|e| internal(format!("flush: {e}")))?;
+    drop(file);
+    let temp_path = tp
+        .into_temp_path()
+        .keep()
+        .map_err(|e| internal(format!("keep temp: {e}")))?;
+
+    let (sha1, size_bytes) = tokio::task::spawn_blocking({
+        let path = temp_path.clone();
+        move || sha1_and_size_of_file(&path)
+    })
+    .await
+    .map_err(|e| internal(format!("join: {e}")))?
+    .map_err(|e| internal(format!("hash temp: {e}")))?;
+
+    let dest = state.modpack_dir.join(&sha1);
+    if dest.exists() {
+        // Файл с таким содержимым уже есть в хранилище — temp не нужен.
+        tokio::fs::remove_file(&temp_path).await.ok();
+    } else {
+        tokio::fs::rename(&temp_path, &dest)
+            .await
+            .map_err(|e| internal(format!("rename temp: {e}")))?;
+    }
+
+    let path_trim = item.path.trim().to_string();
+    let file_input = store::BuildFileInput {
+        path: path_trim.clone(),
+        sha1: sha1.clone(),
+        size_bytes,
+        side: item.side.clone().unwrap_or_else(|| "both".to_string()),
+        kind: item.kind.clone().unwrap_or_else(|| "mod".to_string()),
+        overwrite: item.overwrite.unwrap_or(true),
+        optional: item.optional.unwrap_or(false),
+        enabled_by_default: item.enabled_by_default.unwrap_or(true),
+        disabled: false,
+        mod_id: item.mod_id.clone(),
+        display_name: item.display_name.clone(),
+        description: item.description.clone(),
+        storage_key: sha1.clone(),
+        profile_keys: item.profiles.clone().unwrap_or_default(),
+    };
+
+    // upsert_build_file заменяет существующую запись с тем же path → замену
+    // фиксируем как replaced=true (метаданные сброшены, как при повторной
+    // multipart-загрузке).
+    let (file_id, replaced) = state
+        .store
+        .upsert_build_file(build_id, file_input.clone())
+        .await
+        .map_err(map_store)?;
+
+    Ok(InstallModResult {
+        file_id,
+        path: file_input.path,
+        sha1: file_input.sha1,
+        size_bytes: file_input.size_bytes,
+        replaced,
+        error: None,
+    })
 }
 
 #[derive(Deserialize)]
@@ -4713,6 +5069,7 @@ async fn do_deploy_mod(state: Shared) -> Result<String, ApiError> {
         .upsert_build_file(build.header.id, file_input)
         .await
         .map_err(map_store)?;
+    let _ = state; // upsert возвращает (file_id, replaced); тут ни то, ни другое не нужно.
 
     tracing::info!(
         "deploy-mod: {jar_name} добавлен в сборку #{} (путь: {file_path})",

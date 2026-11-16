@@ -2323,3 +2323,9 @@
 .news-editor-backdrop--mobile .news-editor__body-field:has(.news-editor__mobile-preview) textarea {
     display: none;
 }
+
+/* Подпись «Найти моды» в тулбаре: на мобильном оставляем только иконку,
+   как у кнопки manifest (тулбар и так тесный). */
+.m-screen .fm-modsearch-btn__label {
+    display: none;
+}

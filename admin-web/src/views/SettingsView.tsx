@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "../api";
 import type { BackupStatus, Settings } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
-import { IconBox, IconKey, IconSettings, IconTelegram } from "../ui/icons";
+import { IconBox, IconKey, IconPuzzle, IconSettings, IconTelegram } from "../ui/icons";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
 import { Field, FieldInput } from "../ui/Field";
 import { formatDateTime, formatSize } from "../format";
@@ -84,6 +84,11 @@ export function SettingsView() {
   // флаг установлен/нет; пустое поле при сохранении = не менять).
   const [githubToken, setGithubToken] = useState("");
   const [savingGithubToken, setSavingGithubToken] = useState(false);
+
+  // CurseForge API-ключ: без него поиск модов работает только через
+  // Modrinth. Ключ — секрет, наружу отдаётся флагом.
+  const [curseforgeApiKey, setCurseforgeApiKey] = useState("");
+  const [savingCurseforge, setSavingCurseforge] = useState(false);
 
   // AI-анализ крашей: endpoint/модель/ключ + тумблер. Ключ — секрет,
   // после сохранения поле пустое (в DTO только флаг crashAiApiKeySet).
@@ -348,6 +353,24 @@ export function SettingsView() {
       );
     } finally {
       setSavingGithubToken(false);
+    }
+  }
+
+  async function saveCurseforgeKey() {
+    const trimmed = curseforgeApiKey.trim();
+    if (!trimmed) return;
+    setSavingCurseforge(true);
+    try {
+      const next = await api.saveSettings({ curseforgeApiKey: trimmed });
+      setSettings(next);
+      setCurseforgeApiKey("");
+      toast.success("Ключ CurseForge сохранён");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Не удалось сохранить ключ CurseForge",
+      );
+    } finally {
+      setSavingCurseforge(false);
     }
   }
 
@@ -744,6 +767,70 @@ export function SettingsView() {
                       onClick={saveGithubToken}
                     >
                       {savingGithubToken ? "Сохранение…" : "Сохранить токен"}
+                    </Button>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
+
+            <Card className="settings-card">
+              <CardHeader className="settings-card-head">
+                <IconPuzzle />
+                <div>
+                  <CardTitle>CurseForge API</CardTitle>
+                  <CardDescription>
+                    Ключ для поиска модов на CurseForge. Modrinth работает без ключа.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+
+              {loading ? (
+                <p className="muted">
+                  <span className="spinner" />
+                  Загрузка…
+                </p>
+              ) : (
+                <CardContent>
+                  <div className="settings-status">
+                    {settings?.curseforgeApiKeySet ? (
+                      <Badge variant="secondary">ключ установлен</Badge>
+                    ) : (
+                      <Badge variant="outline">не настроен</Badge>
+                    )}
+                  </div>
+
+                  <Field
+                    label={settings?.curseforgeApiKeySet
+                      ? "Новый ключ (оставьте пустым, чтобы не менять)"
+                      : "API-ключ CurseForge"}
+                    hint="Получить ключ: console.curseforge.com → API Keys"
+                  >
+                    {(control) => (
+                      <FieldInput
+                        control={control}
+                        type="password"
+                        autoComplete="off"
+                        placeholder="$2a$10$…"
+                        value={curseforgeApiKey}
+                        onChange={(e) => setCurseforgeApiKey(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && curseforgeApiKey.trim() && !savingCurseforge)
+                            void saveCurseforgeKey();
+                        }}
+                      />
+                    )}
+                  </Field>
+
+                  <p className="muted">
+                    Используется в «Сборки» → «Найти моды» для установки модов прямо в сборку.
+                  </p>
+
+                  <div className="modal-actions">
+                    <Button
+                      disabled={!curseforgeApiKey.trim() || savingCurseforge}
+                      onClick={() => void saveCurseforgeKey()}
+                    >
+                      {savingCurseforge ? "Сохранение…" : "Сохранить ключ"}
                     </Button>
                   </div>
                 </CardContent>

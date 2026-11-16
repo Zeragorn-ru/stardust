@@ -310,6 +310,7 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
       <div className="panel m-fm-panel">
         <FileManager
           buildId={buildId}
+          build={detail}
           files={files}
           modProfiles={detail?.modProfiles ?? []}
           onChanged={load}

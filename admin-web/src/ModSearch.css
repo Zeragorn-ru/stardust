@@ -1,0 +1,308 @@
+/* Диалог поиска модов (Modrinth/CurseForge). Раскладка рассчитана на
+   широкое модальное окно: слева-сверху источник и строка поиска, ниже —
+   прокручиваемый список результатов или версий. На узких экранах диалог
+   занимает весь экран, как .modal-editor. */
+
+.modal.modsearch {
+    max-width: 720px;
+    display: flex;
+    flex-direction: column;
+    max-height: 86vh;
+    padding: var(--space-5);
+}
+
+@media (max-width: 600px) {
+    .modal.modsearch {
+        max-width: 100%;
+        max-height: 100dvh;
+        height: 100dvh;
+        border-radius: 0;
+        padding: var(--space-4);
+    }
+}
+
+.modsearch-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.modsearch-head-title {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    min-width: 0;
+    color: var(--accent);
+}
+
+.modsearch-head-title h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: var(--fs-lg);
+    overflow-wrap: anywhere;
+}
+
+.modsearch-sub {
+    margin: 2px 0 0;
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+}
+
+.modsearch-controls {
+    display: grid;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.modsearch-sources {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    width: fit-content;
+}
+
+.modsearch-sources button {
+    padding: var(--space-2) var(--space-4);
+    border: none;
+    border-radius: calc(var(--radius-sm) - 2px);
+    background: transparent;
+    color: var(--muted);
+    font-weight: 600;
+    font-size: var(--fs-sm);
+    cursor: pointer;
+}
+
+.modsearch-sources button.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.modsearch-form {
+    display: flex;
+    gap: var(--space-2);
+    align-items: stretch;
+}
+
+.modsearch-form .search {
+    flex: 1;
+}
+
+.modsearch-hint {
+    margin: 0 0 var(--space-2);
+    font-size: var(--fs-xs);
+}
+
+.modsearch-results,
+.modsearch-versions {
+    display: grid;
+    gap: var(--space-2);
+    overflow-y: auto;
+    min-height: 0;
+    padding-right: 2px;
+}
+
+.modsearch-empty {
+    margin: var(--space-6) 0;
+    text-align: center;
+    font-size: var(--fs-sm);
+}
+
+.modsearch-hit {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elev);
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.modsearch-hit:hover {
+    border-color: var(--accent-visible);
+    background: var(--panel);
+}
+
+.modsearch-hit.installed {
+    border-left: 3px solid var(--ok);
+}
+
+.modsearch-hit img,
+.modsearch-hit-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    background: var(--panel-2);
+}
+
+.modsearch-hit-icon {
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+}
+
+.modsearch-hit-body {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.modsearch-hit-title {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.modsearch-hit-author {
+    color: var(--text-dim);
+    font-size: var(--fs-xs);
+    font-weight: 500;
+}
+
+.modsearch-hit-desc {
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.modsearch-hit-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: 2px;
+    color: var(--text-dim);
+    font-size: var(--fs-xs);
+}
+
+.modsearch-chip {
+    padding: 1px var(--space-2);
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+}
+
+/* ── Шаг версий ── */
+
+.modsearch-deps-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0;
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+}
+
+.modsearch-version-list {
+    display: grid;
+    gap: var(--space-2);
+}
+
+.modsearch-version {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-elev);
+}
+
+.modsearch-version.recommended {
+    border-color: var(--accent-visible);
+    background: var(--accent-tint);
+}
+
+.modsearch-version.blocked {
+    opacity: 0.65;
+}
+
+.modsearch-version-main {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+
+.modsearch-version-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.modsearch-type {
+    padding: 1px var(--space-2);
+    border-radius: 999px;
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: var(--fs-micro);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.modsearch-type--release {
+    background: var(--ok-soft);
+    color: var(--ok);
+}
+
+.modsearch-type--beta {
+    background: var(--warn-soft);
+    color: var(--warn);
+}
+
+.modsearch-type--alpha {
+    background: var(--danger-soft);
+    color: var(--danger-text);
+}
+
+.modsearch-type.recommended-tag {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.modsearch-type.installed-tag {
+    background: var(--ok-soft);
+    color: var(--ok);
+}
+
+.modsearch-version-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    color: var(--text-dim);
+    font-size: var(--fs-xs);
+    font-family: var(--font-mono);
+    overflow-wrap: anywhere;
+}
+
+.modsearch-dep-count {
+    color: var(--info);
+}
+
+.modsearch-blocked {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--danger-text);
+    font-size: var(--fs-xs);
+}

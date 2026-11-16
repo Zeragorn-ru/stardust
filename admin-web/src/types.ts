@@ -81,6 +81,8 @@ export interface Settings {
   crashAiModel?: string;
   /** Установлен ли AI-ключ (секреты наружу не отдаём). */
   crashAiApiKeySet?: boolean;
+  /** Установлен ли ключ CurseForge (для поиска модов оттуда). */
+  curseforgeApiKeySet?: boolean;
 }
 
 // ───── Сезоны и релизы лаунчера ─────
@@ -205,6 +207,81 @@ export interface UploadMeta {
   description?: string | null;
   /** Профили, в которых состоит файл; пусто/не задано — «общий». */
   profiles?: string[];
+}
+
+// ───── Поиск модов (Modrinth / CurseForge) ─────
+
+/** Источник поиска модов. CurseForge требует API-ключ в настройках. */
+export type ModSource = "modrinth" | "curseforge";
+
+/** Результат поиска: проект (мод) на хостинге. */
+export interface ModHit {
+  source: ModSource;
+  /** Modrinth project_id или числовой modId CurseForge (строкой). */
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  author: string;
+  iconUrl: string | null;
+  downloads: number;
+  categories: string[];
+}
+
+/** Зависимость версии мода. `projectId` нужен, чтобы доустановить её. */
+export interface ModDependency {
+  projectId?: string;
+  versionId?: string;
+  /** `required` | `optional` | `incompatible` | `embedded` | `unknown`. */
+  dependencyType: string;
+  /** Название проекта, если хостинг его отдал. */
+  title?: string;
+}
+
+/** Конкретная версия (файл) мода под MC-версию и загрузчик сборки. */
+export interface ModVersion {
+  id: string;
+  name: string;
+  versionNumber: string;
+  /** `release` | `beta` | `alpha`. */
+  versionType: string;
+  datePublished: string | null;
+  downloads: number;
+  fileName: string;
+  /** `null` — хостинг запретил прямую загрузку файла. */
+  fileUrl: string | null;
+  fileSize: number;
+  /**
+   * `client_only` | `server_only` | `client_and_server` | `unknown`.
+   * Подсказка для стороны файла при установке.
+   */
+  environment: string;
+  dependencies: ModDependency[];
+}
+
+/** Запрос установки файла в сборку (POST /api/builds/:id/install-mods). */
+export interface InstallModRequest {
+  url: string;
+  path: string;
+  side?: string;
+  kind?: string;
+  overwrite?: boolean;
+  optional?: boolean;
+  enabledByDefault?: boolean;
+  modId?: string;
+  displayName?: string;
+  description?: string;
+  profiles?: string[];
+}
+
+/** Результат установки одного файла; `error` заполнен при неудаче. */
+export interface InstallModResult {
+  fileId: number;
+  path: string;
+  sha1: string;
+  sizeBytes: number;
+  replaced: boolean;
+  error: string | null;
 }
 
 export interface BuildCheckProblem {

@@ -6,8 +6,9 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
-import type { BuildFile, ModProfile } from "./types";
+import type { BuildFile, BuildHeader, ModProfile } from "./types";
 import { FileUpload, type FileUploadHandle } from "./FileUpload";
+import { ModSearch } from "./ModSearch";
 import { FileEditor, isEditable } from "./FileEditor";
 import {
   baseName,
@@ -37,6 +38,7 @@ import {
   IconLayers,
   IconPencil,
   IconPlus,
+  IconPuzzle,
   IconSearch,
   IconSettings,
   IconTrash,
@@ -204,11 +206,14 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 export function FileManager({
   buildId,
+  build,
   files,
   modProfiles,
   onChanged,
 }: {
   buildId: number;
+  /** Заголовок сборки: поиск модов фильтрует по MC-версии и загрузчику. */
+  build: BuildHeader;
   files: BuildFile[];
   modProfiles: ModProfile[];
   onChanged: () => void;
@@ -218,6 +223,8 @@ export function FileManager({
   const menu = useContextMenu();
   // Диалог управления профилями модов сборки.
   const [profilesOpen, setProfilesOpen] = useState(false);
+  // Поиск и установка модов из Modrinth/CurseForge.
+  const [modSearchOpen, setModSearchOpen] = useState(false);
   const [dir, setDir] = useState("");
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FileFilters>(EMPTY_FILTERS);
@@ -852,6 +859,16 @@ export function FileManager({
         />
         <button
           type="button"
+          className="secondary icon-btn fm-modsearch-btn"
+          aria-label="Найти и установить моды из Modrinth/CurseForge"
+          title="Найти и установить моды из Modrinth/CurseForge"
+          onClick={() => setModSearchOpen(true)}
+        >
+          <IconPuzzle size={15} />
+          <span className="fm-modsearch-btn__label">Найти моды</span>
+        </button>
+        <button
+          type="button"
           className="icon-only"
           aria-label="Профили модов (пресеты для лаунчера)"
           onClick={() => setProfilesOpen(true)}
@@ -1330,6 +1347,15 @@ export function FileManager({
           files={files}
           onClose={() => setProfilesOpen(false)}
           onChanged={onChanged}
+        />
+      )}
+
+      {modSearchOpen && (
+        <ModSearch
+          build={build}
+          files={files}
+          onClose={() => setModSearchOpen(false)}
+          onInstalled={onChanged}
         />
       )}
 
