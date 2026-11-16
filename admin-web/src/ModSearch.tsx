@@ -20,7 +20,7 @@ import type {
   ModSource,
   ModVersion,
 } from "./types";
-import { formatSize } from "./format";
+import { formatSize, slugifyModId } from "./format";
 import { useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import { useDialogFocus } from "./ui/useDialogFocus";
@@ -235,8 +235,11 @@ export function ModSearch({
           side: sideFor(res.version),
           kind: "mod",
           overwrite: true,
-          // slug зависимости неизвестен — modId выведет админ позже из
-          // свойств файла, если он нужен для профилей.
+          // slug проекта-зависимости хостинг в этом ответе не отдаёт, но
+          // modId нужен серверу, чтобы убрать прошлую версию зависимости
+          // (иначе две версии одного мода в mods/). Выводим из имени файла
+          // тем же правилом, что и при обычной загрузке.
+          modId: slugifyModId(res.version.fileName || dep.projectId || "mod"),
           displayName: dep.title,
         });
       } catch {

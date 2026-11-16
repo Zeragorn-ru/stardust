@@ -2373,9 +2373,12 @@ async fn install_one_mod(
         // Файл с таким содержимым уже есть в хранилище — temp не нужен.
         tokio::fs::remove_file(&temp_path).await.ok();
     } else {
-        tokio::fs::rename(&temp_path, &dest)
-            .await
-            .map_err(|e| internal(format!("rename temp: {e}")))?;
+        // До переименования temp принадлежит нам: если оно не удалось,
+        // удаляем его сами, чтобы битый JAR не осел в каталоге хранилища.
+        if let Err(e) = tokio::fs::rename(&temp_path, &dest).await {
+            tokio::fs::remove_file(&temp_path).await.ok();
+            return Err(internal(format!("rename temp: {e}")));
+        }
     }
 
     let path_trim = item.path.trim().to_string();
@@ -2404,6 +2407,24 @@ async fn install_one_mod(
         .upsert_build_file(build_id, file_input.clone())
         .await
         .map_err(map_store)?;
+
+    // Новая версия мода приходит под новым именем файла (`sodium-0.8.12.jar`
+    // → `sodium-0.8.13.jar`), и одной upsert-записи мало: старый JAR остался
+    // бы в mods/, а NeoForge/Fabric падают при двух версиях одного мода.
+    // Убираем прочие файлы с тем же mod_id. Не трогаем «общие» файлы без
+    // mod_id и не считаем удалённые в `replaced` — это отдельная семантика.
+    if let Some(mod_id) = file_input.mod_id.as_deref().filter(|m| !m.is_empty()) {
+        let removed = state
+            .store
+            .delete_other_build_files_by_mod_id(build_id, mod_id, &file_input.path)
+            .await
+            .map_err(map_store)?;
+        if removed > 0 {
+            tracing::info!(
+                "install-mod: {mod_id} — удалены старые версии файлов: {removed}"
+            );
+        }
+    }
 
     Ok(InstallModResult {
         file_id,

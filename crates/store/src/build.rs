@@ -562,6 +562,30 @@ impl Store {
             .await?;
         Ok(result.rows_affected())
     }
+
+    /// Удаляет все файлы с тем же `mod_id`, кроме файла по `keep_path`.
+    /// Нужен при установке новой версии мода: старый JAR с другим именем
+    /// (в нём зашита версия) иначе останется в `mods/`, и загрузчик увидит
+    /// две версии одного мода. Удаляем только записи сборки — блоб в
+    /// контент-адресном хранилище остаётся (на него могут ссылаться другие
+    /// сборки, а сборщик мусора живёт отдельно).
+    pub async fn delete_other_build_files_by_mod_id(
+        &self,
+        build_id: i64,
+        mod_id: &str,
+        keep_path: &str,
+    ) -> Result<u64, StoreError> {
+        let result = sqlx::query(
+            "DELETE FROM build_files
+             WHERE build_id = $1 AND mod_id = $2 AND path <> $3",
+        )
+        .bind(build_id)
+        .bind(mod_id)
+        .bind(keep_path)
+        .execute(self.pool())
+        .await?;
+        Ok(result.rows_affected())
+    }
 }
 
 /// Описание профиля опциональных модов сборки (пресет «Производительность»
