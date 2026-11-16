@@ -20,6 +20,7 @@ import type {
   InstallModResult,
   LauncherChannel,
   LauncherRelease,
+  ModDetail,
   ModHit,
   ModProfile,
   ModSource,
@@ -157,12 +158,20 @@ function modSearchParams(params: {
   projectId?: string;
   loader?: string;
   mcVersion?: string;
+  offset?: number;
+  sort?: string;
+  categories?: string[];
 }): string {
   const qs = new URLSearchParams({ source: params.source });
   if (params.query) qs.set("query", params.query);
   if (params.projectId) qs.set("projectId", params.projectId);
   if (params.loader) qs.set("loader", params.loader);
   if (params.mcVersion) qs.set("mcVersion", params.mcVersion);
+  if (params.offset != null && params.offset > 0) qs.set("offset", String(params.offset));
+  if (params.sort) qs.set("sort", params.sort);
+  if (params.categories && params.categories.length > 0) {
+    qs.set("categories", params.categories.join(","));
+  }
   return qs.toString();
 }
 
@@ -387,7 +396,10 @@ export const api = {
     query: string;
     loader?: string;
     mcVersion?: string;
-  }): Promise<{ hits: ModHit[] }> {
+    offset?: number;
+    sort?: string;
+    categories?: string[];
+  }): Promise<{ hits: ModHit[]; totalCount: number }> {
     return request("GET", `/api/mods/search?${modSearchParams(params)}`);
   },
 
@@ -409,6 +421,12 @@ export const api = {
     mcVersion?: string;
   }): Promise<{ version: ModVersion | null }> {
     return request("GET", `/api/mods/resolve?${modSearchParams(params)}`);
+  },
+
+  /** Полные детали мода (описание, галерея, ссылки). */
+  modDetail(params: { source: ModSource; projectId: string }): Promise<ModDetail> {
+    const p = new URLSearchParams({ source: params.source, projectId: params.projectId });
+    return request<ModDetail>("GET", `/api/mods/detail?${p}`);
   },
 
   // Содержимое файла читаем напрямую из контент-адресного хранилища по sha1.

@@ -433,3 +433,26 @@ export interface ExternalModBlockRule {
   nameSubstring?: string;
   createdAt: string;
 }
+
+// ───── Детали мода ─────
+
+export interface ModGalleryItem {
+  url: string;
+  title: string | null;
+  description: string | null;
+  featured: boolean;
+}
+
+/** Полная карточка мода с описанием и галереей. */
+export interface ModDetail extends ModHit {
+  /** Описание: Markdown (Modrinth) или HTML (CurseForge). */
+  body: string;
+  /** `"markdown"` или `"html"`. */
+  bodyFormat: "markdown" | "html";
+  gallery: ModGalleryItem[];
+  followers: number;
+  issuesUrl: string | null;
+  sourceUrl: string | null;
+  wikiUrl: string | null;
+  discordUrl: string | null;
+}
