@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { api, ApiError } from "../api";
 import type { Account, BuildHeader, ServerTelemetry, Settings } from "../types";
 import { formatTelemetryTime } from "../format";
-import { IconBox, IconSync, IconUsers } from "../ui/icons";
+import { IconBox, IconPlus, IconSettings, IconSync, IconUsers } from "../ui/icons";
 import { useToast } from "../ui/feedback";
 import { useAsyncData } from "../ui/useAsyncData";
 import { ErrorPanel, LoadPanel, StaleBanner } from "../ui/EmptyState";
@@ -123,12 +123,45 @@ export function OverviewView() {
             <StaleBanner onRetry={reload} busy={refreshing}>{error}</StaleBanner>
           )}
 
-          <section className="ops-grid">
-            <MetricCard label="Сборки" value={builds.length} hint={activeBuild ? `Активна: ${activeBuild.name}` : "Активная сборка не выбрана"} tone="blue" />
-            <MetricCard label="Аккаунты" value={accounts.length} hint={`${totals.admins} админ(ов), ${totals.banned} в бане`} tone="green" />
-            <MetricCard label="Telegram" value={settings?.telegramTokenSet ? "подключен" : "отключен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "Токен не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
-            <MetricCard label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "не настроен"} hint={settings?.sftpHost || "Подключение не настроено"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+          <section className="dashboard-stats">
+            <div className="dashboard-stat dashboard-stat--accent">
+              <span className="dashboard-stat-label"><IconBox size={12} />Активная сборка</span>
+              <span className="dashboard-stat-value">{activeBuild ? <McText text={activeBuild.name} /> : "—"}</span>
+              <span className="dashboard-stat-sub">{activeBuild ? `${activeBuild.loaderKind} · MC ${activeBuild.mcVersion} · v${activeBuild.version}` : "Активная сборка не выбрана"}</span>
+            </div>
+            <div className="dashboard-stat dashboard-stat--info">
+              <span className="dashboard-stat-label"><IconUsers size={12} />Аккаунтов</span>
+              <span className="dashboard-stat-value">{accounts.length}</span>
+              <span className="dashboard-stat-sub">{totals.admins} {totals.admins === 1 ? "администратор" : "администраторов"}</span>
+            </div>
+            <div className="dashboard-stat dashboard-stat--warn">
+              <span className="dashboard-stat-label"><IconUsers size={12} />Администраторов</span>
+              <span className="dashboard-stat-value">{totals.admins}</span>
+              <span className="dashboard-stat-sub">{totals.banned > 0 ? `${totals.banned} заблокировано` : "Банов нет"}</span>
+            </div>
+            <div className="dashboard-stat dashboard-stat--ok">
+              <span className="dashboard-stat-label"><IconUsers size={12} />Telegram</span>
+              <span className="dashboard-stat-value">{totals.linked}</span>
+              <span className="dashboard-stat-sub">{`${totals.linked} из ${accounts.length} привязано`}</span>
+            </div>
           </section>
+
+          <div className="dashboard-quick-actions">
+            {activeBuild && (
+              <Link className="dashboard-quick-action" to={`/builds/${activeBuild.id}`}>
+                <IconPlus size={13} />
+                Добавить файл
+              </Link>
+            )}
+            <Link className="dashboard-quick-action" to="/accounts">
+              <IconUsers size={13} />
+              Создать аккаунт
+            </Link>
+            <Link className="dashboard-quick-action" to="/settings">
+              <IconSettings size={13} />
+              Настройки
+            </Link>
+          </div>
 
           <TelemetryPanel telemetry={telemetry} />
 
@@ -212,8 +245,15 @@ function TelemetryPanel({ telemetry }: { telemetry: ServerTelemetry | null }) {
         <CardHeader>
           <div>
                <span className="eyebrow">Телеметрия сервера</span>
-            <CardTitle>График онлайна за 24 часа</CardTitle>
-            <CardDescription>Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
+            <CardTitle>
+              <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                Сервер
+                {latest && latest.onlineCount > 0 && (
+                  <span className="status-dot status-dot--live" aria-label="Есть активные игроки" />
+                )}
+              </span>
+            </CardTitle>
+            <CardDescription>График онлайна за 24 часа. Нажмите на график, чтобы увидеть игроков в этот момент.</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -334,16 +374,6 @@ function PerformanceMetric({ label, values, tone }: { label: string; values: Arr
         {values.map((value, index) => <span key={`${label}-${index}`}>{value === undefined ? "—" : value.toFixed(1)}</span>)}
       </div>
       <div className="telemetry-metrics-labels"><span>сейчас</span><span>5 мин</span><span>10 мин</span></div>
-    </div>
-  );
-}
-
-function MetricCard({ label, value, hint, tone }: { label: string; value: string | number; hint: string; tone: "blue" | "green" | "yellow" }) {
-  return (
-    <div className={`metric-card metric-card--${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{hint}</small>
     </div>
   );
 }

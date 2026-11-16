@@ -6,7 +6,7 @@ import { parseDate } from "../format";
 import { useToast } from "../ui/feedback";
 import { useAsyncData } from "../ui/useAsyncData";
 import { ErrorPanel, LoadPanel, StaleBanner } from "../ui/EmptyState";
-import { IconBox, IconChevronRight, IconSync, IconUsers } from "../ui/icons";
+import { IconBox, IconChevronRight, IconSettings, IconSync, IconUsers } from "../ui/icons";
 import { McText } from "../ui/McText";
 
 type MobileTab = "overview" | "builds" | "accounts" | "customization" | "settings";
@@ -100,11 +100,45 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
             <StaleBanner onRetry={reload} busy={refreshing}>{error}</StaleBanner>
           )}
 
-          <div className="m-metric-grid">
-            <Metric label="Сборки" value={String(builds.length)} hint={activeBuild?.name ?? "активная не выбрана"} tone="blue" />
-            <Metric label="Игроки" value={String(accounts.length)} hint={`${stats.admins} админ · ${stats.banned} бан`} tone="green" />
-           <Metric label="Telegram" value={settings?.telegramTokenSet ? "подключён" : "не настроен"} hint={settings?.telegramBotUsername ? `@${settings.telegramBotUsername}` : "не задан"} tone={settings?.telegramTokenSet ? "green" : "yellow"} />
-           <Metric label="SFTP" value={settings?.sftpPasswordSet ? "готов" : "настроить"} hint={settings?.sftpHost || "хост не задан"} tone={settings?.sftpPasswordSet ? "green" : "yellow"} />
+          <div className="dashboard-stats">
+            <div className="dashboard-stat dashboard-stat--accent">
+              <span className="dashboard-stat-label"><IconBox size={12} />Активная сборка</span>
+              <span className="dashboard-stat-value">{activeBuild ? <McText text={activeBuild.name} /> : "—"}</span>
+              <span className="dashboard-stat-sub">{activeBuild ? `v${activeBuild.version} · ${activeBuild.loaderKind}` : "Не выбрана"}</span>
+            </div>
+            <div className="dashboard-stat dashboard-stat--info">
+              <span className="dashboard-stat-label"><IconUsers size={12} />Аккаунтов</span>
+              <span className="dashboard-stat-value">{accounts.length}</span>
+              <span className="dashboard-stat-sub">{`${stats.admins} администраторов`}</span>
+            </div>
+            <div className="dashboard-stat dashboard-stat--ok">
+              <span className="dashboard-stat-label"><IconUsers size={12} />Telegram</span>
+              <span className="dashboard-stat-value">{stats.linked}</span>
+              <span className="dashboard-stat-sub">{`${stats.linked} из ${accounts.length} привязано`}</span>
+            </div>
+            <div className={`dashboard-stat dashboard-stat--${settings?.sftpPasswordSet ? "ok" : "warn"}`}>
+              <span className="dashboard-stat-label"><IconBox size={12} />SFTP</span>
+              <span className="dashboard-stat-value">{settings?.sftpPasswordSet ? "готов" : "настроить"}</span>
+              <span className="dashboard-stat-sub">{settings?.sftpHost || "хост не задан"}</span>
+            </div>
+          </div>
+
+          <div className="m-quick-actions">
+            <button className="m-quick-btn" type="button" onClick={() => onOpenTab("builds")}>
+              <IconBox size={18} />
+              <span className="m-quick-btn-label">Сборки</span>
+              <IconChevronRight size={16} className="m-quick-btn-chevron" />
+            </button>
+            <button className="m-quick-btn" type="button" onClick={() => onOpenTab("accounts")}>
+              <IconUsers size={18} />
+              <span className="m-quick-btn-label">Аккаунты</span>
+              <IconChevronRight size={16} className="m-quick-btn-chevron" />
+            </button>
+            <button className="m-quick-btn" type="button" onClick={() => onOpenTab("settings")}>
+              <IconSettings size={18} />
+              <span className="m-quick-btn-label">Настройки</span>
+              <IconChevronRight size={16} className="m-quick-btn-chevron" />
+            </button>
           </div>
 
           {telemetry && telemetry.samples.length > 0 && (() => {
@@ -259,12 +293,3 @@ export function MobileOverview({ onOpenTab, onOpenBuild }: MobileOverviewProps) 
   );
 }
 
-function Metric({ label, value, hint, tone }: { label: string; value: string; hint: string; tone: "blue" | "green" | "yellow" }) {
-  return (
-    <div className={`m-metric m-metric--${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{hint}</small>
-    </div>
-  );
-}

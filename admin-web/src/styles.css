@@ -5732,3 +5732,88 @@ input[type="radio"] {
 .fm-modsearch-btn:hover .fm-modsearch-btn__label {
     color: var(--text);
 }
+
+/* ─── Dashboard stats ─────────────────────────────── */
+.dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+@media (max-width: 1100px) { .dashboard-stats { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .dashboard-stats { grid-template-columns: 1fr; } }
+
+.dashboard-stat {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    transition: border-color var(--ease);
+}
+.dashboard-stat:hover { border-color: var(--border-strong); }
+.dashboard-stat-label {
+    font-size: var(--fs-xs);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.dashboard-stat-value {
+    font-size: clamp(22px, 2.5vw, 32px);
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+}
+.dashboard-stat-sub {
+    font-size: var(--fs-xs);
+    color: var(--text-dim);
+}
+.dashboard-stat--ok .dashboard-stat-label { color: var(--ok); }
+.dashboard-stat--warn .dashboard-stat-label { color: var(--warn); }
+.dashboard-stat--info .dashboard-stat-label { color: var(--info); }
+.dashboard-stat--accent .dashboard-stat-label { color: var(--accent); }
+
+/* ─── Dashboard quick actions ─────────────────────── */
+.dashboard-quick-actions {
+    display: flex;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-6);
+}
+.dashboard-quick-action {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--muted);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+    transition: all var(--ease);
+    text-decoration: none;
+}
+.dashboard-quick-action:hover { border-color: var(--accent); color: var(--accent); background: var(--panel-3); }
+
+/* ─── FileManager file count ──────────────────────── */
+.fm-file-count {
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.status-dot--live {
+    background: var(--ok);
+    box-shadow: 0 0 8px rgba(95, 240, 167, 0.7);
+    animation: pulse 1.6s ease-in-out infinite;
+}

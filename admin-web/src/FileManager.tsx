@@ -892,6 +892,13 @@ export function FileManager({
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
+        {searching && (
+          <span className="fm-file-count muted">
+            {searchResults.length !== files.length
+              ? `${searchResults.length} из ${files.length}`
+              : searchResults.length}
+          </span>
+        )}
         <button
           className={`fm-filter-btn${filtersOpen ? " active" : ""}${activeFilters ? " has-filters" : ""}`}
           onClick={() => setFiltersOpen((v) => !v)}

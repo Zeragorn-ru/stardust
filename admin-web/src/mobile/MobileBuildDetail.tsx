@@ -175,7 +175,7 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
             </button>
           )}
         </div>
-        <div className="m-detail-secondary-actions">
+        <div className="m-detail-secondary-actions m-detail-secondary-actions--split">
           <button className="secondary" onClick={() => setEditing(true)}>
             Редактировать
           </button>
@@ -219,13 +219,15 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
               </a>
             </span>
           )}
+        </div>
+        <div className="m-detail-delete-row">
           <button
             className="danger icon-btn"
             onClick={() => void actions.removeBuild()}
             disabled={actions.busyDelete}
           >
             <IconTrash size={15} />{" "}
-            {actions.busyDelete ? "Удаление…" : "Удалить"}
+            {actions.busyDelete ? "Удаление…" : "Удалить сборку"}
           </button>
         </div>
       </div>
