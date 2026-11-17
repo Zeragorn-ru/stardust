@@ -240,10 +240,15 @@ export function ModSearch({
 
   const loadMore = useCallback(() => void runSearch(false), [runSearch]);
 
+  // Последний запрос, ушедший в API: чтобы живой поиск не дублировал
+  // запрос после Enter или смены фильтров.
+  const searchedQueryRef = useRef("");
+
   // Смена источника/сортировки/категорий — новый поиск с первой страницы.
   // Этот же эффект делает первичный поиск при открытии: отдельный пустой
   // useEffect давал два-три параллельных одинаковых запроса на маунте.
   useEffect(() => {
+    searchedQueryRef.current = query.trim();
     void runSearch(true);
     setPicked(null);
     setDetail(null);
@@ -251,6 +256,22 @@ export function ModSearch({
     setMobileView("list");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [source, sort, selectedCategories]);
+
+  // Живой поиск: фильтры срабатывают мгновенно, а ввод — с задержкой,
+  // чтобы API не дёргался на каждую букву.
+  useEffect(() => {
+    const value = query.trim();
+    if (value === searchedQueryRef.current) return;
+    const timer = window.setTimeout(() => {
+      searchedQueryRef.current = value;
+      void runSearch(true);
+      setPicked(null);
+      setDetail(null);
+      setVersionsOpen(false);
+      setMobileView("list");
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [query, runSearch]);
 
   // ───── Детали мода ─────
 
@@ -531,7 +552,6 @@ export function ModSearch({
               <div className="modsearch-search-bar">
                 <form
                   className="search"
-                  style={{ flex: 1 }}
                   onSubmit={(e) => { e.preventDefault(); void runSearch(true); }}
                 >
                   <IconSearch size={14} />
@@ -539,8 +559,19 @@ export function ModSearch({
                     autoFocus
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder={`Название мода`}
+                    placeholder="Название мода"
+                    aria-label="Поиск модов по названию"
                   />
+                  {query && (
+                    <button
+                      type="button"
+                      className="modsearch-search-clear"
+                      aria-label="Очистить поиск"
+                      onClick={() => setQuery("")}
+                    >
+                      <IconClose size={12} />
+                    </button>
+                  )}
                 </form>
                 <select
                   className="modsearch-sort-select"
