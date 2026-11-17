@@ -473,7 +473,7 @@ export function ModSearch({
                     autoFocus
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder={`Название мода (${loader ?? "любой"} · ${build.mcVersion})`}
+                    placeholder={`Название мода`}
                   />
                 </form>
                 <select
@@ -525,11 +525,7 @@ export function ModSearch({
                         className={`modsearch-hit${picked?.id === h.id && picked.source === h.source ? " active" : ""}${isInstalled(h) ? " installed" : ""}`}
                         onClick={() => void pickMod(h)}
                       >
-                        {h.iconUrl ? (
-                          <img src={h.iconUrl} alt="" loading="lazy" className="modsearch-hit-img" />
-                        ) : (
-                          <span className="modsearch-hit-icon"><IconPuzzle size={18} /></span>
-                        )}
+                        <HitIcon url={h.iconUrl} />
                         <span className="modsearch-hit-body">
                           <span className="modsearch-hit-title">
                             {h.title}
@@ -598,11 +594,7 @@ export function ModSearch({
                 <>
                   <div className="modsearch-detail-header">
                     <div className="modsearch-detail-top">
-                      {detail.iconUrl ? (
-                        <img src={detail.iconUrl} alt="" className="modsearch-detail-img" />
-                      ) : (
-                        <span className="modsearch-detail-icon"><IconPuzzle size={24} /></span>
-                      )}
+                      <HitIcon url={detail.iconUrl} large />
                       <div className="modsearch-detail-title-block">
                         <h3>{detail.title}</h3>
                         <span className="modsearch-detail-author">{detail.author}</span>
@@ -658,7 +650,6 @@ export function ModSearch({
                           key={img.url}
                           src={img.url}
                           alt={img.title ?? ""}
-                          loading="lazy"
                           onClick={() => setLightboxUrl(img.url)}
                         />
                       ))}
@@ -723,6 +714,36 @@ export function ModSearch({
         </div>
       )}
     </>
+  );
+}
+
+// ───── Иконка мода с fallback на placeholder ─────
+//
+// При ошибке загрузки (CORS, 404 и т.п.) показываем иконку пазла.
+// loading="eager" — иконки в видимой области, lazy мешает первому рендеру.
+
+function HitIcon({ url, large }: { url: string | null; large?: boolean }) {
+  const [failed, setFailed] = useState(false);
+  const size = large ? 56 : 44;
+  const cls = large ? "modsearch-detail-img" : "modsearch-hit-img";
+  const placeholderCls = large ? "modsearch-detail-icon" : "modsearch-hit-icon";
+  const iconSize = large ? 24 : 20;
+
+  if (!url || failed) {
+    return (
+      <span className={placeholderCls} style={{ width: size, height: size }}>
+        <IconPuzzle size={iconSize} />
+      </span>
+    );
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      className={cls}
+      style={{ width: size, height: size }}
+      onError={() => setFailed(true)}
+    />
   );
 }
 

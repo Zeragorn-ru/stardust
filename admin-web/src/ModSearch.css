@@ -876,6 +876,10 @@
     height: 100dvh;
     border-radius: 0;
     border: none;
+    /* учитываем Dynamic Island / notch */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: border-box;
   }
 
   .modsearch-body {
@@ -912,6 +916,7 @@
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     border-top: 1px solid var(--border);
     border-right: none;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .modsearch-sidebar.open {
@@ -921,7 +926,7 @@
   .modsearch-detail-pane {
     display: none;
     position: absolute;
-    /* 56px header + ~72px search bar с переносом на мобильном */
+    /* 56px header + safe-area-inset-top уже в shell */
     inset: 56px 0 0;
     z-index: 5;
     background: var(--bg);
@@ -957,18 +962,6 @@
 
   .modsearch-mobile-back:hover {
     color: var(--text);
-  }
-
-  /* Карточки модов: немного просторнее на телефоне */
-  .modsearch-hit {
-    padding: 12px 10px;
-  }
-
-  .modsearch-hit-img,
-  .modsearch-hit-icon {
-    width: 44px;
-    height: 44px;
-    flex-shrink: 0;
   }
 
   /* Версии drawer: на мобильном занимает весь экран */
