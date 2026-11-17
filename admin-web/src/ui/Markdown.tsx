@@ -84,6 +84,47 @@ const OL_ITEM_RE = /^\d+\.\s+/;
 // Строка начинается с новой блочной структуры — абзац на ней заканчивается.
 const BLOCK_START_RE = /^(#{1,3}\s|[-*]\s|\d+\.\s)/;
 
+/**
+ * Приводит сырой HTML внутри Markdown к тексту: описания на Modrinth массово
+ * содержат `<center>`, `<img>`, `<br>`, `<details>` — без нормализации они
+ * попадали в вывод literal-тегами. Картинки переводим в `![alt](src)`,
+ * `<br>` — в перевод строки, остальные теги превращаем в их текст.
+ *
+ * Разметка идёт через DOMParser: скрипты и обработчики не исполняются,
+ * а результат рендерится React-элементами, поэтому XSS тут невозможен.
+ */
+function normalizeInlineHtml(text: string): string {
+  if (!/<[a-z!/][^>]*>/i.test(text)) return text;
+  const doc = new DOMParser().parseFromString(text, "text/html");
+  const walk = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return node.nodeValue ?? "";
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const el = node as Element;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "br") return "\n";
+    if (tag === "img") {
+      const src = el.getAttribute("src") ?? "";
+      const alt = el.getAttribute("alt") ?? "";
+      // Только http(s): прочие схемы в src недопустимы.
+      return /^https?:\/\//.test(src) ? `![${alt}](${src})` : "";
+    }
+    const inner = Array.from(el.childNodes).map(walk).join("");
+    // Блочные теги разделяем пустой строкой, чтобы абзацы не склеивались.
+    return BLOCK_TAGS.has(tag) ? `\n\n${inner}\n\n` : inner;
+  };
+  return Array.from(doc.body.childNodes)
+    .map(walk)
+    .join("")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+/** Теги, которые в описаниях ведут себя как блочные. */
+const BLOCK_TAGS = new Set([
+  "p", "div", "center", "blockquote", "h1", "h2", "h3", "h4", "h5", "h6",
+  "ul", "ol", "li", "table", "tr", "td", "th", "section", "article", "details",
+  "summary", "pre",
+]);
+
 const HEADING_TAGS = ["h1", "h2", "h3"] as const;
 
 /** Разметить текст в блоки: заголовки, списки, абзацы. */
@@ -168,5 +209,5 @@ export function Markdown({ text }: { text: string }) {
       </p>
     );
   }
-  return <div className="md-preview">{renderBlocks(text)}</div>;
+  return <div className="md-preview">{renderBlocks(normalizeInlineHtml(text))}</div>;
 }

@@ -188,10 +188,16 @@ export function ModSearch({
       setHasMore(hitsRef.current.length < (res.totalCount ?? 0));
     } catch (err) {
       if (seq !== searchSeq.current) return;
+      const message = err instanceof ApiError ? err.message : "Не удалось выполнить поиск";
       if (reset) {
         hitsRef.current = [];
         setHits([]);
-        setSearchError(err instanceof ApiError ? err.message : "Не удалось выполнить поиск");
+        setHasMore(false);
+        setTotalCount(0);
+        setSearchError(message);
+      } else {
+        // Ошибку догрузки раньше глотали молча: кнопка выглядела зависшей.
+        setSearchError(message);
       }
     } finally {
       if (seq === searchSeq.current) {
@@ -244,8 +250,15 @@ export function ModSearch({
 
   // ───── Версии ─────
 
+  // Устаревший ответ не должен перезаписывать версии другого мода: пока
+  // грузились версии A, пользователь мог выбрать B. Иначе «В сборку»
+  // поставит файл чужого проекта.
+  const versionsRef = useRef<string | null>(null);
+
   const loadVersions = useCallback(async () => {
     if (!picked) return;
+    const key = `${picked.source}:${picked.id}`;
+    versionsRef.current = key;
     setVersionsOpen(true);
     setVersionsLoading(true);
     setVersionsError(null);
@@ -258,11 +271,13 @@ export function ModSearch({
         loader,
         mcVersion: build.mcVersion,
       });
+      if (versionsRef.current !== key) return;
       setVersions(res.versions);
     } catch (err) {
+      if (versionsRef.current !== key) return;
       setVersionsError(err instanceof ApiError ? err.message : "Не удалось получить версии");
     } finally {
-      setVersionsLoading(false);
+      if (versionsRef.current === key) setVersionsLoading(false);
     }
   }, [picked, loader, build.mcVersion]);
 
@@ -368,9 +383,15 @@ export function ModSearch({
 
   const dialogRef = useRef<HTMLDivElement>(null);
   useBodyScrollLock();
-  useDialogFocus(dialogRef, () => {
-    if (!installing) onClose();
-  });
+  // Стартовый фокус — строка поиска, а не первая кнопка «Закрыть» в шапке:
+  // иначе autoFocus у input перебивается, и набранный запрос уходит в никуда.
+  useDialogFocus(
+    dialogRef,
+    () => {
+      if (!installing) onClose();
+    },
+    { focusSelector: ".modsearch-search-bar input" },
+  );
 
   const toggleCategory = (cat: string) =>
     setSelectedCategories((prev) =>
@@ -698,7 +719,21 @@ export function ModSearch({
       </div>
 
       {lightboxUrl && (
-        <div className="modsearch-lightbox" onClick={() => setLightboxUrl(null)}>
+        <div
+          className="modsearch-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Просмотр скриншота"
+          onClick={() => setLightboxUrl(null)}
+          // Лайтбокс перекрывает диалог поиска: Escape должен закрывать
+          // именно его, оставляя поиск открытым.
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              setLightboxUrl(null);
+            }
+          }}
+        >
           <img src={lightboxUrl} alt="" onClick={(e) => e.stopPropagation()} />
           <button
             className="modsearch-lightbox-close icon-only ghost"
@@ -715,31 +750,29 @@ export function ModSearch({
 
 // ───── Иконка мода с fallback на placeholder ─────
 //
-// При ошибке загрузки (CORS, 404 и т.п.) показываем иконку пазла.
-// loading="eager" — иконки в видимой области, lazy мешает первому рендеру.
+// При ошибке загрузки (CSP, CORS, 404) показываем иконку пазла. Без
+// loading="lazy": иконки в видимой области иначе не грузятся до скролла.
 
 function HitIcon({ url, large }: { url: string | null; large?: boolean }) {
+  // Сбрасываем ошибку при смене url: иначе одна битая иконка включала бы
+  // заглушку-пазл для всех следующих модов в панели деталей.
   const [failed, setFailed] = useState(false);
-  const size = large ? 56 : 44;
+  useEffect(() => setFailed(false), [url]);
+
   const cls = large ? "modsearch-detail-img" : "modsearch-hit-img";
   const placeholderCls = large ? "modsearch-detail-icon" : "modsearch-hit-icon";
+  // Размеры задаёт CSS (.modsearch-hit-img 40px, .modsearch-detail-img 56px).
   const iconSize = large ? 24 : 20;
 
   if (!url || failed) {
     return (
-      <span className={placeholderCls} style={{ width: size, height: size }}>
+      <span className={placeholderCls}>
         <IconPuzzle size={iconSize} />
       </span>
     );
   }
   return (
-    <img
-      src={url}
-      alt=""
-      className={cls}
-      style={{ width: size, height: size }}
-      onError={() => setFailed(true)}
-    />
+    <img src={url} alt="" className={cls} onError={() => setFailed(true)} />
   );
 }
 

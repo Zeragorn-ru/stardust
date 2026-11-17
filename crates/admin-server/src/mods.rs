@@ -404,6 +404,21 @@ impl MrVersion {
     }
 }
 
+/// Сколько категорий максимум принимаем от клиента: больше в UI не выбрать,
+/// а каждая — группа в facets-JSON.
+const MAX_SEARCH_CATEGORIES: usize = 8;
+
+/// Потолок смещения пагинации: глубже в мод-хостингах всё равно никто не
+/// листает, а безлимитный offset — бесплатная нагрузка на upstream.
+const MAX_SEARCH_OFFSET: usize = 10_000;
+
+/// Facets Modrinth. Группы внутри массива объединяются по AND, значения
+/// внутри группы — по OR.
+///
+/// Выбранные в UI категории кладём ОДНОЙ группой: два чипа означают «мод в
+/// любой из них». Отдельными группами Modrinth требовал бы «и optimization,
+/// и utility одновременно» — при мультивыборе это почти всегда 0 результатов,
+/// и поиск выглядел сломанным.
 fn modrinth_facets(
     loader: &Option<String>,
     mc_version: &Option<String>,
@@ -413,18 +428,36 @@ fn modrinth_facets(
     if let Some(mc) = mc_version {
         facets.push(format!("[\"versions:{mc}\"]"));
     }
-    if let Some(loader) = loader {
+    // Загрузчик остаётся отдельной группой (AND): сборка запускается только
+    // им, и OR с категориями вернул бы моды под Fabric/Quilt.
+    if let Some(loader) = loader.as_deref().and_then(sanitize_tag) {
         facets.push(format!("[\"categories:{loader}\"]"));
     }
     if let Some(cats) = categories {
-        for cat in cats.split(',') {
-            let cat = cat.trim();
-            if !cat.is_empty() {
-                facets.push(format!("[\"categories:{cat}\"]"));
-            }
+        let selected: Vec<String> = cats
+            .split(',')
+            .filter_map(|cat| sanitize_tag(cat.trim()))
+            .take(MAX_SEARCH_CATEGORIES)
+            .map(|cat| format!("\"categories:{cat}\""))
+            .collect();
+        if !selected.is_empty() {
+            facets.push(format!("[{}]", selected.join(",")));
         }
     }
     format!("[{}]", facets.join(","))
+}
+
+/// Категория/загрузчик Modrinth: только латиница, цифры и дефис. Отсекает
+/// кавычки и скобки, которыми можно было бы сломать facets-JSON.
+fn sanitize_tag(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() || value.len() > 32 {
+        return None;
+    }
+    value
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+        .then(|| value.to_ascii_lowercase())
 }
 
 async fn modrinth_search(
@@ -818,12 +851,15 @@ async fn curseforge_search(
         pairs.append_pair("classId", CURSEFORGE_CLASS_ID);
         pairs.append_pair("searchFilter", query);
         // Маппинг sort → числовой sortField CurseForge.
-        // 2 = популярность (Popularity), 6 = загрузки, 3 = дата обновления, 1 = подписчики.
+        // 2 = Popularity, 6 = TotalDownloads, 3 = LastUpdated,
+        // 11 = SubmittedDate (новые по дате публикации), 1 = Featured.
+        // Отдельной сортировки «по подпискам» в API нет — ближайшее по
+        // смыслу — популярность, а не «избранное».
         let sort_field = match sort.as_deref().unwrap_or("") {
             "downloads" => "6",
-            "newest" | "updated" => "3",
-            "follows" => "1",
-            _ => "2", // relevance → популярность
+            "newest" => "11",
+            "updated" => "3",
+            _ => "2", // relevance/follows → популярность
         };
         pairs.append_pair("sortField", sort_field);
         pairs.append_pair("sortOrder", "desc");
@@ -1046,7 +1082,9 @@ pub(crate) async fn search_mods(
     let loader = q.loader.as_deref().and_then(sanitize_token);
     let mc_version = q.mc_version.as_deref().and_then(sanitize_token);
     let sort = sanitize_sort(q.sort.as_deref());
-    let offset = q.offset;
+    // Хостинги отдают пагинацию по смещению; без потолка админка могла бы
+    // пробить произвольно глубокую страницу и получить 502 от upstream.
+    let offset = q.offset.min(MAX_SEARCH_OFFSET);
 
     let (hits, total_count) = match source {
         "curseforge" => {
@@ -1134,6 +1172,35 @@ mod tests {
         assert!(facets.contains("project_type:mod"));
         assert!(facets.contains("versions:1.21.1"));
         assert!(facets.contains("categories:neoforge"));
+    }
+
+    #[test]
+    fn modrinth_facets_merge_categories_into_one_or_group() {
+        // Два чипа в UI — OR внутри одной группы, а не AND по группам:
+        // иначе комбинация «optimization + utility» давала почти 0.
+        let facets = modrinth_facets(
+            &Some("neoforge".to_string()),
+            &Some("1.21.1".to_string()),
+            &Some("optimization,utility".to_string()),
+        );
+        assert!(facets.contains("[\"categories:optimization\",\"categories:utility\"]"));
+        // Загрузчик — отдельная группа (AND с категориями).
+        assert!(facets.contains("\"categories:neoforge\""));
+    }
+
+    #[test]
+    fn modrinth_facets_drop_injection_and_excess_categories() {
+        let facets = modrinth_facets(
+            &None,
+            &None,
+            &Some("x\"]]},optimization,utility,magic,storage,food,mobs,equipment,transportation".to_string()),
+        );
+        // Инъекция `x"]]}` не должна попасть в facets: остаётся только
+        // alnum/дефис, всё остальное отбрасывается.
+        assert!(!facets.contains("x\"]]}"), "инъекция в facets: {facets}");
+        assert!(serde_json::from_str::<serde_json::Value>(&facets).is_ok());
+        // Не больше MAX_SEARCH_CATEGORIES валидных категорий в группе.
+        assert_eq!(facets.matches("\"categories:").count(), MAX_SEARCH_CATEGORIES);
     }
 
     #[test]

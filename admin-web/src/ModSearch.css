@@ -308,10 +308,8 @@
   background: transparent;
   border: 1px solid transparent;
   transition: background var(--ease), border-color var(--ease);
-  /* без overflow: hidden описание уходит за границу карточки */
+  /* Описание (line-clamp) не должно вылезать за границу карточки. */
   overflow: hidden;
-  /* фиксируем высоту: не растягиваем до соседей */
-  box-sizing: border-box;
 }
 
 .modsearch-hit:hover {
