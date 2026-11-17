@@ -44,6 +44,24 @@ const MODRINTH_CATEGORIES = [
   "transportation", "worldgen", "decoration", "game-mechanics",
 ];
 
+/** Русские подписи категорий Modrinth (в API — только латинские слаги). */
+const CATEGORY_LABELS: Record<string, string> = {
+  optimization: "Оптимизация",
+  utility: "Утилиты",
+  adventure: "Приключения",
+  magic: "Магия",
+  storage: "Хранение",
+  food: "Еда",
+  technology: "Технологии",
+  mobs: "Мобы",
+  library: "Библиотеки",
+  equipment: "Снаряжение",
+  transportation: "Транспорт",
+  worldgen: "Генерация мира",
+  decoration: "Декорации",
+  "game-mechanics": "Механики",
+};
+
 const SORT_OPTIONS = [
   { value: "downloads", label: "По загрузкам" },
   { value: "newest",    label: "Новые" },
@@ -476,7 +494,18 @@ export function ModSearch({
 
               {source === "modrinth" && (
                 <div className="modsearch-filter-group">
-                  <p className="modsearch-filter-label">Категории</p>
+                  <div className="modsearch-filter-head">
+                    <p className="modsearch-filter-label">Категории</p>
+                    {selectedCategories.length > 0 && (
+                      <button
+                        type="button"
+                        className="modsearch-filter-reset"
+                        onClick={() => setSelectedCategories([])}
+                      >
+                        Сбросить
+                      </button>
+                    )}
+                  </div>
                   <div className="modsearch-filter-tags">
                     {MODRINTH_CATEGORIES.map((cat) => (
                       <button
@@ -484,10 +513,15 @@ export function ModSearch({
                         className={`modsearch-filter-tag${selectedCategories.includes(cat) ? " active" : ""}`}
                         onClick={() => toggleCategory(cat)}
                       >
-                        {cat}
+                        {CATEGORY_LABELS[cat] ?? cat}
                       </button>
                     ))}
                   </div>
+                  {selectedCategories.length > 1 && (
+                    <p className="modsearch-filter-hint">
+                      Показаны моды из любой выбранной категории
+                    </p>
+                  )}
                 </div>
               )}
             </aside>
