@@ -4892,6 +4892,16 @@ input[type="radio"] {
     margin: 0;
 }
 
+/* Картинки в Markdown-теле (описания модов Modrinth): не вылезаем за
+   пределы панели, длинные скриншоты не ломают раскладку. */
+.md-preview__img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
+    margin: var(--space-2) 0;
+}
+
 @media (max-width: 960px) {
     .route-editor__form {
         grid-template-columns: 1fr;

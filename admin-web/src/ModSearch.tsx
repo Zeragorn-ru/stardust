@@ -33,11 +33,14 @@ import "./ModSearch.css";
 /** Загрузчики, которые понимает Modrinth. */
 const SEARCHABLE_LOADERS = new Set(["neoforge", "forge", "fabric", "quilt"]);
 
-/** Популярные категории Modrinth — хардкод, дополнительный запрос не нужен. */
+/** Популярные категории Modrinth — хардкод, дополнительный запрос не нужен.
+ *  Имена строго из /v2/tag/category: `tech`, `transport` и
+ *  `world-generation` в Modrinth не существуют — такой фильтр давал 0
+ *  результатов при любом запросе. */
 const MODRINTH_CATEGORIES = [
   "optimization", "utility", "adventure", "magic", "storage",
-  "food", "tech", "mobs", "library", "equipment",
-  "transport", "world-generation", "decoration", "game-mechanics",
+  "food", "technology", "mobs", "library", "equipment",
+  "transportation", "worldgen", "decoration", "game-mechanics",
 ];
 
 const SORT_OPTIONS = [
@@ -152,10 +155,14 @@ export function ModSearch({
   // ───── Поиск ─────
 
   const searchSeq = useRef(0);
+  // Зеркало hits для пагинации: runSearch мемоизирован по фильтрам, и в его
+  // замыкании `hits` застыл бы на моменте смены фильтров — «Загрузить ещё»
+  // запрашивал offset 0 и дублировал первую страницу.
+  const hitsRef = useRef<ModHit[]>([]);
 
   const runSearch = useCallback(async (reset = true) => {
     if (!canSearch) return;
-    const offset = reset ? 0 : hits.length;
+    const offset = reset ? 0 : hitsRef.current.length;
     const seq = ++searchSeq.current;
     if (reset) {
       setSearching(true);
@@ -174,16 +181,14 @@ export function ModSearch({
         categories: selectedCategories.length > 0 ? selectedCategories : undefined,
       });
       if (seq !== searchSeq.current) return;
-      if (reset) {
-        setHits(res.hits);
-      } else {
-        setHits(prev => [...prev, ...res.hits]);
-      }
+      hitsRef.current = reset ? res.hits : [...hitsRef.current, ...res.hits];
+      setHits(hitsRef.current);
       setTotalCount(res.totalCount ?? 0);
-      setHasMore((reset ? res.hits.length : hits.length + res.hits.length) < (res.totalCount ?? 0));
+      setHasMore(hitsRef.current.length < (res.totalCount ?? 0));
     } catch (err) {
       if (seq !== searchSeq.current) return;
       if (reset) {
+        hitsRef.current = [];
         setHits([]);
         setSearchError(err instanceof ApiError ? err.message : "Не удалось выполнить поиск");
       }
@@ -198,24 +203,17 @@ export function ModSearch({
 
   const loadMore = useCallback(() => void runSearch(false), [runSearch]);
 
-  // При смене источника/сортировки/категорий — сбрасываем поиск.
+  // Смена источника/сортировки/категорий — новый поиск с первой страницы.
+  // Этот же эффект делает первичный поиск при открытии: отдельный пустой
+  // useEffect давал два-три параллельных одинаковых запроса на маунте.
   useEffect(() => {
     void runSearch(true);
     setPicked(null);
     setDetail(null);
     setVersionsOpen(false);
+    setMobileView("list");
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, sort]);
-
-  // Первичный поиск при открытии.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void runSearch(true); }, []);
-
-  // При смене категорий — сброс.
-  useEffect(() => {
-    void runSearch(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategories]);
+  }, [source, sort, selectedCategories]);
 
   // ───── Детали мода ─────
 

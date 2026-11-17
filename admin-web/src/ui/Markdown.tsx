@@ -8,9 +8,12 @@
 
 import type { ReactNode } from "react";
 
-// Инлайн-разметка: жирный, курсив, код, ссылка. Разделение через split
-// с захватывающей группой кладёт совпадения между кусками plain-текста.
-const INLINE_RE = /(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))/g;
+// Инлайн-разметка: картинка в ссылке, картинка, жирный, курсив, код, ссылка.
+// Разделение через split с захватывающей группой кладёт совпадения между
+// кусками plain-текста. Ссылочная картинка (`[![alt](img)](href)`) должна
+// идти первой: иначе её съест обычный шаблон картинки.
+const INLINE_RE =
+  /(\[!\[[^\]\n]*\]\(https?:\/\/[^\s)]+\)\]\(https?:\/\/[^\s)]+\)|!\[[^\]\n]*\]\(https?:\/\/[^\s)]+\)|\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`\n]+`|\[[^\]\n]+\]\(https?:\/\/[^\s)]+\))/g;
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const out: ReactNode[] = [];
@@ -19,7 +22,39 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     const part = parts[i];
     if (!part) continue;
     const key = `${keyPrefix}-${i}`;
-    if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) {
+    if (part.startsWith("[![")) {
+      const linked =
+        /^\[!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)\]\((https?:\/\/[^\s)]+)\)$/.exec(part);
+      if (linked) {
+        out.push(
+          <a key={key} href={linked[3]} target="_blank" rel="noopener noreferrer">
+            <img
+              src={linked[2]}
+              alt={linked[1]}
+              className="md-preview__img"
+              loading="lazy"
+            />
+          </a>,
+        );
+      } else {
+        out.push(part);
+      }
+    } else if (part.startsWith("![")) {
+      const img = /^!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)$/.exec(part);
+      if (img) {
+        out.push(
+          <img
+            key={key}
+            src={img[2]}
+            alt={img[1]}
+            className="md-preview__img"
+            loading="lazy"
+          />,
+        );
+      } else {
+        out.push(part);
+      }
+    } else if (part.length > 4 && part.startsWith("**") && part.endsWith("**")) {
       out.push(<strong key={key}>{part.slice(2, -2)}</strong>);
     } else if (part.length > 2 && part.startsWith("`") && part.endsWith("`")) {
       out.push(<code key={key}>{part.slice(1, -1)}</code>);
