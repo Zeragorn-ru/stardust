@@ -624,43 +624,6 @@
     font-weight: 750;
 }
 
-.m-metric-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-}
-
-.m-metric {
-    min-height: 116px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-4);
-    border: 1px solid var(--hairline);
-    border-radius: var(--radius-lg);
-    background: var(--surface);
-}
-
-.m-metric span,
-.m-metric small {
-    color: var(--muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.m-metric strong {
-    font-size: var(--fs-metric);
-    line-height: 1;
-    letter-spacing: -0.055em;
-}
-
-.m-metric--blue { box-shadow: inset 0 -54px 70px rgba(138, 180, 248, 0.055); }
-.m-metric--green { box-shadow: inset 0 -54px 70px rgba(95, 240, 167, 0.05); }
-.m-metric--yellow { box-shadow: inset 0 -54px 70px rgba(255, 209, 102, 0.045); }
-
 .m-section-card {
     padding: var(--space-4);
     margin-bottom: var(--space-4);
@@ -934,7 +897,6 @@
 .m-detail-secondary-actions .icon-btn {
     padding-inline: var(--space-3);
 }
-
 
 .m-stats {
     display: grid;
@@ -1674,9 +1636,6 @@
         display: none;
     }
 
-    .m-metric-grid {
-        gap: var(--space-2);
-    }
 
     .m-journey-grid {
         grid-template-columns: 1fr;
@@ -2356,11 +2315,6 @@
 
 /* Кнопка удаления на мобильных деталях сборки: отдельный блок внизу,
    не слипается с остальными вторичными действиями. */
-.m-detail-secondary-actions--split {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-}
 .m-detail-delete-row {
     margin-top: var(--space-4);
 }

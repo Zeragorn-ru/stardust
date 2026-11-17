@@ -797,7 +797,6 @@
 .modsearch-type--beta    { background: var(--warn); color: var(--on-accent); }
 .modsearch-type--alpha   { background: var(--danger); color: #fff; }
 .modsearch-type.recommended-tag { background: var(--accent-2); color: var(--on-accent); }
-.modsearch-type.installed-tag   { background: var(--ok); color: var(--on-accent); }
 
 /* ───── Скелетон детали ───── */
 

@@ -175,7 +175,7 @@ export function MobileBuildDetail({ buildId, onBack, onOpenBuild }: MobileBuildD
             </button>
           )}
         </div>
-        <div className="m-detail-secondary-actions m-detail-secondary-actions--split">
+        <div className="m-detail-secondary-actions">
           <button className="secondary" onClick={() => setEditing(true)}>
             Редактировать
           </button>
