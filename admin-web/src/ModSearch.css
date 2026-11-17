@@ -977,10 +977,13 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* Версии drawer: на мобильном занимает весь экран под шапкой;
-     safe-area-inset-top уже учтён в shell. */
+  /* Детали и версии: absolute-потомок считается от padding-box, а
+     safe-area-inset-top уже съеден padding-ом shell — без прибавки
+     панель заезжала под шапку на устройствах с вырезом. */
+  .modsearch-detail-pane,
   .modsearch-versions-drawer {
-    inset: 56px 0 0;
+    inset: calc(56px + env(safe-area-inset-top, 0px)) 0
+      env(safe-area-inset-bottom, 0px);
   }
 }
 
