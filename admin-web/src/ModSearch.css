@@ -308,6 +308,10 @@
   background: transparent;
   border: 1px solid transparent;
   transition: background var(--ease), border-color var(--ease);
+  /* без overflow: hidden описание уходит за границу карточки */
+  overflow: hidden;
+  /* фиксируем высоту: не растягиваем до соседей */
+  box-sizing: border-box;
 }
 
 .modsearch-hit:hover {
@@ -348,6 +352,8 @@
 .modsearch-hit-body {
   flex: 1;
   min-width: 0;
+  /* overflow hidden нужен, иначе text-overflow / line-clamp не работают */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -876,6 +882,25 @@
     grid-template-columns: 1fr;
   }
 
+  /* Строка поиска: инпут на всю ширину, sort + кнопка фильтров ниже */
+  .modsearch-search-bar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .modsearch-search-bar .search {
+    order: -1;
+    flex-basis: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .modsearch-sort-select {
+    flex: 1;
+    min-width: 0;
+  }
+
   .modsearch-sidebar {
     display: none;
     position: fixed;
@@ -896,6 +921,7 @@
   .modsearch-detail-pane {
     display: none;
     position: absolute;
+    /* 56px header + ~72px search bar с переносом на мобильном */
     inset: 56px 0 0;
     z-index: 5;
     background: var(--bg);
@@ -931,6 +957,23 @@
 
   .modsearch-mobile-back:hover {
     color: var(--text);
+  }
+
+  /* Карточки модов: немного просторнее на телефоне */
+  .modsearch-hit {
+    padding: 12px 10px;
+  }
+
+  .modsearch-hit-img,
+  .modsearch-hit-icon {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  /* Версии drawer: на мобильном занимает весь экран */
+  .modsearch-versions-drawer {
+    inset: 56px 0 0;
   }
 }
 
