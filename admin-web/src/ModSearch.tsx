@@ -84,6 +84,18 @@ function modIdFromSlug(slug: string): string {
   return slug.trim().toLowerCase() || "mod";
 }
 
+/** Внешняя ссылка из ответа хостинга: оставляем только http(s).
+ *  `javascript:` в href React 18 ещё исполняет (только предупреждает). */
+function externalUrl(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function ModSearch({
   build,
   files,
@@ -617,7 +629,11 @@ export function ModSearch({
                       <HitIcon url={detail.iconUrl} large />
                       <div className="modsearch-detail-title-block">
                         <h3>{detail.title}</h3>
-                        <span className="modsearch-detail-author">{detail.author}</span>
+                        {/* Modrinth /v2/project не отдаёт автора — берём его
+                            из результата поиска (picked), а не из деталей. */}
+                        <span className="modsearch-detail-author">
+                          {detail.author || picked?.author || "неизвестный автор"}
+                        </span>
                       </div>
                     </div>
                     <div className="modsearch-detail-stats">
@@ -637,30 +653,7 @@ export function ModSearch({
                         ))}
                       </div>
                     )}
-                    {(detail.issuesUrl || detail.sourceUrl || detail.wikiUrl || detail.discordUrl) && (
-                      <div className="modsearch-detail-links">
-                        {detail.issuesUrl && (
-                          <a href={detail.issuesUrl} target="_blank" rel="noreferrer" className="modsearch-detail-link">
-                            Issues
-                          </a>
-                        )}
-                        {detail.sourceUrl && (
-                          <a href={detail.sourceUrl} target="_blank" rel="noreferrer" className="modsearch-detail-link">
-                            Source
-                          </a>
-                        )}
-                        {detail.wikiUrl && (
-                          <a href={detail.wikiUrl} target="_blank" rel="noreferrer" className="modsearch-detail-link">
-                            Wiki
-                          </a>
-                        )}
-                        {detail.discordUrl && (
-                          <a href={detail.discordUrl} target="_blank" rel="noreferrer" className="modsearch-detail-link">
-                            Discord
-                          </a>
-                        )}
-                      </div>
-                    )}
+                    <DetailLinks detail={detail} />
                   </div>
 
                   {detail.gallery.length > 0 && (
@@ -798,6 +791,33 @@ function DetailSkeleton() {
 }
 
 // ───── Drawer версий ─────
+
+/** Внешние ссылки мода. Пустой список — блок не рендерится. */
+function DetailLinks({ detail }: { detail: ModDetail }) {
+  const links: Array<[string, string | null]> = [
+    ["Issues", externalUrl(detail.issuesUrl)],
+    ["Source", externalUrl(detail.sourceUrl)],
+    ["Wiki", externalUrl(detail.wikiUrl)],
+    ["Discord", externalUrl(detail.discordUrl)],
+  ];
+  const present = links.filter(([, href]) => href !== null);
+  if (present.length === 0) return null;
+  return (
+    <div className="modsearch-detail-links">
+      {present.map(([label, href]) => (
+        <a
+          key={label}
+          href={href!}
+          target="_blank"
+          rel="noreferrer"
+          className="modsearch-detail-link"
+        >
+          {label}
+        </a>
+      ))}
+    </div>
+  );
+}
 
 function VersionsDrawer({
   hit,
