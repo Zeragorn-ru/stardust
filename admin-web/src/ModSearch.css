@@ -870,39 +870,12 @@
 
 /* ───── Мобильная адаптация ───── */
 
-@media (max-width: 700px) {
-  .modsearch-shell {
-    width: 100vw;
-    height: 100dvh;
-    border-radius: 0;
-    border: none;
-    /* учитываем Dynamic Island / notch */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    box-sizing: border-box;
-  }
-
+/* Узкий десктоп/планшет: три колонки (240 + 380) оставляют списку
+   116px при окне 769px — детали уезжают в отдельный слой по клику,
+   фильтры прячутся в bottom-sheet. */
+@media (max-width: 1180px) {
   .modsearch-body {
     grid-template-columns: 1fr;
-  }
-
-  /* Строка поиска: инпут на всю ширину, sort + кнопка фильтров ниже */
-  .modsearch-search-bar {
-    flex-wrap: wrap;
-    padding: 10px 12px;
-    gap: 8px;
-  }
-
-  .modsearch-search-bar .search {
-    order: -1;
-    flex-basis: 100%;
-    min-width: 0;
-    width: 100%;
-  }
-
-  .modsearch-sort-select {
-    flex: 1;
-    min-width: 0;
   }
 
   .modsearch-sidebar {
@@ -916,18 +889,21 @@
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     border-top: 1px solid var(--border);
     border-right: none;
-    padding-bottom: env(safe-area-inset-bottom);
   }
 
   .modsearch-sidebar.open {
     display: flex;
   }
 
+  .modsearch-filters-btn {
+    display: flex;
+  }
+
   .modsearch-detail-pane {
     display: none;
     position: absolute;
-    /* 56px header + safe-area-inset-top уже в shell */
-    inset: 56px 0 0;
+    /* 56px header + 1px граница */
+    inset: 57px 0 0;
     z-index: 5;
     background: var(--bg);
     border-left: none;
@@ -936,10 +912,6 @@
   .modsearch-detail-pane.mobile-active {
     display: flex;
     flex-direction: column;
-  }
-
-  .modsearch-filters-btn {
-    display: flex;
   }
 
   .modsearch-mobile-back {
@@ -964,13 +936,55 @@
     color: var(--text);
   }
 
-  /* Версии drawer: на мобильном занимает весь экран */
+  .modsearch-versions-drawer {
+    inset: 57px 0 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .modsearch-shell {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+    border: none;
+    /* учитываем Dynamic Island / notch */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-sizing: border-box;
+  }
+
+  /* Строка поиска: инпут на всю ширину, sort + кнопка фильтров ниже */
+  .modsearch-search-bar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .modsearch-search-bar .search {
+    order: -1;
+    flex-basis: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .modsearch-sort-select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* Нижний sheet фильтров не должен прятаться под home-индикатором. */
+  .modsearch-sidebar {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Версии drawer: на мобильном занимает весь экран под шапкой;
+     safe-area-inset-top уже учтён в shell. */
   .modsearch-versions-drawer {
     inset: 56px 0 0;
   }
 }
 
-@media (min-width: 701px) {
+@media (min-width: 1181px) {
   .modsearch-mobile-back {
     display: none;
   }
