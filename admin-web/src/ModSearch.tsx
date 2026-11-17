@@ -15,6 +15,7 @@ import type {
 } from "./types";
 import { formatSize, slugifyModId } from "./format";
 import { Markdown } from "./ui/Markdown";
+import { SafeHtml } from "./ui/SafeHtml";
 import { useToast } from "./ui/feedback";
 import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import { useDialogFocus } from "./ui/useDialogFocus";
@@ -658,10 +659,7 @@ export function ModSearch({
                     {detail.bodyFormat === "markdown" ? (
                       <Markdown text={detail.body} />
                     ) : (
-                      <div
-                        className="modsearch-html-body"
-                        dangerouslySetInnerHTML={{ __html: detail.body }}
-                      />
+                      <SafeHtml html={detail.body} className="modsearch-html-body" />
                     )}
                   </div>
 
