@@ -32,12 +32,31 @@ fn fixed_java_version(major: u32) -> Option<[u32; 4]> {
 }
 
 /// Разбирает `21.0.13.1` / `21.0.13` / `17.0.21` в компоненты для сравнения.
+///
+/// Хвост после `+` — это номер билда (`21.0.13+9`), а не компонент версии:
+/// он не должен превращаться в четвёртую цифру и «обгонять» выпуск фикса.
 fn version_components(version: &str) -> Vec<u32> {
     version
+        .split('+')
+        .next()
+        .unwrap_or(version)
         .split(|c: char| !c.is_ascii_digit())
         .filter(|part| !part.is_empty())
         .filter_map(|part| part.parse::<u32>().ok())
         .collect()
+}
+
+/// Компонентное сравнение: `21.0.13` < `21.0.13.1` < `21.0.14`.
+fn version_less(older: &str, newer: &str) -> bool {
+    let mut a = [0u32; 4];
+    let mut b = [0u32; 4];
+    for (slot, value) in a.iter_mut().zip(version_components(older)) {
+        *slot = value;
+    }
+    for (slot, value) in b.iter_mut().zip(version_components(newer)) {
+        *slot = value;
+    }
+    a < b
 }
 
 /// Уязвима ли эта сборка Java к CVE-2026-114938.
@@ -486,37 +505,160 @@ fn bundled_home_of(exe: &Path) -> PathBuf {
         .unwrap_or_else(|| exe.to_path_buf())
 }
 
-/// Отметка «перекачку под CVE уже пробовали».
+/// Отметка «смотрели, что раздаёт вендор».
 ///
-/// Adoptium на момент правки не выпустил фикс и отдаёт уязвимый 21.0.13+9.
-/// Без отметки лаунчер качал бы его заново на каждом запуске (50 МБ), поэтому
-/// повторяем попытку не чаще раза в неделю — тогда вышедший фикс подхватится
-/// сам, а трафик не расходуется.
-fn cve_refresh_marker(data_dir: &Path, vendor: JavaVendor, major: u32) -> PathBuf {
+/// Нужна только чтобы не дёргать сеть на каждом запуске: сама по себе она
+/// ничего не решает, перекачка идёт лишь когда версия у вендора новее.
+fn vendor_check_marker(data_dir: &Path, vendor: JavaVendor, major: u32) -> PathBuf {
     data_dir
         .join("runtime")
         .join(vendor.id())
-        .join(format!(".cve-2026-114938-{major}"))
+        .join(format!(".vendor-check-{major}"))
 }
 
-fn should_refresh_cached_vulnerable(data_dir: &Path, vendor: JavaVendor, major: u32) -> bool {
-    const RETRY_SECS: u64 = 7 * 24 * 60 * 60;
-    let marker = cve_refresh_marker(data_dir, vendor, major);
+fn should_check_vendor(data_dir: &Path, vendor: JavaVendor, major: u32) -> bool {
+    // Раз в сутки: фиксы выходят не каждую минуту, а лишние запросы на
+    // каждый старт лаунчера бессмысленны. Если вендор отдал ту же версию,
+    // ничего не качаем — при следующем старте спросим снова.
+    const CHECK_SECS: u64 = 24 * 60 * 60;
+    let marker = vendor_check_marker(data_dir, vendor, major);
     let Some(modified) = fs::metadata(&marker).and_then(|m| m.modified()).ok() else {
         return true;
     };
     modified
         .elapsed()
-        .map(|age| age.as_secs() >= RETRY_SECS)
+        .map(|age| age.as_secs() >= CHECK_SECS)
         .unwrap_or(true)
 }
 
-fn mark_cve_refresh_attempt(data_dir: &Path, vendor: JavaVendor, major: u32) {
-    let marker = cve_refresh_marker(data_dir, vendor, major);
+fn mark_vendor_check(data_dir: &Path, vendor: JavaVendor, major: u32) {
+    let marker = vendor_check_marker(data_dir, vendor, major);
     if let Some(parent) = marker.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    let _ = fs::write(&marker, b"attempted");
+    let _ = fs::write(&marker, b"checked");
+}
+
+/// Что вендор раздаёт прямо сейчас: `21.0.13.1` / `21.0.13+9` → `21.0.13.1`.
+///
+/// Спрашиваем по-разному: у Adoptium и Zulu есть метаданные-API, у Corretto
+/// и Microsoft — только редирект `latest`, из имени файла которого и
+/// достаётся версия (HEAD без тела).
+async fn vendor_latest_version(
+    vendor: JavaVendor,
+    http: &reqwest::Client,
+    major: u32,
+) -> Result<String, String> {
+    let version = match vendor {
+        JavaVendor::Temurin => {
+            let arch = if cfg!(target_arch = "aarch64") { "aarch64" } else { "x64" };
+            let os = if cfg!(target_os = "macos") {
+                "mac"
+            } else if cfg!(target_os = "linux") {
+                "linux"
+            } else {
+                "windows"
+            };
+            let body: serde_json::Value = http
+                .get(format!(
+                    "https://api.adoptium.net/v3/assets/latest/{major}/hotspot?architecture={arch}&image_type=jre&os={os}&vendor=eclipse"
+                ))
+                .send()
+                .await
+                .map_err(|e| format!("Adoptium API: {e}"))?
+                .error_for_status()
+                .map_err(|e| format!("Adoptium API: {e}"))?
+                .json()
+                .await
+                .map_err(|e| format!("Adoptium API: {e}"))?;
+            body.get(0)
+                .and_then(|r| r.get("version"))
+                .and_then(|v| v.get("semver"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Adoptium API: не удалось прочитать версию".to_string())?
+                .to_string()
+        }
+        JavaVendor::Corretto | JavaVendor::Microsoft | JavaVendor::Oracle => {
+            // HEAD: `latest`-ссылка редиректит на файл с версией в имени.
+            let url = resolve_download_url(vendor, http, major).await?;
+            let resp = http
+                .head(&url)
+                .send()
+                .await
+                .map_err(|e| format!("{}: {e}", vendor.name()))?
+                .error_for_status()
+                .map_err(|e| format!("{}: {e}", vendor.name()))?;
+            resp.url()
+                .path_segments()
+                .and_then(|mut segments| segments.next_back())
+                .map(str::to_string)
+                .ok_or_else(|| format!("{}: не удалось определить версию", vendor.name()))?
+        }
+        JavaVendor::Zulu => {
+            // Zulu-API отдаёт `java_version` пакета; на `latest=true` берём первый.
+            let platform = current_platform();
+            let (os, arch) = match (platform.os, platform.arch) {
+                ("macos", "aarch64") => ("macos", "arm"),
+                ("macos", "x64") => ("macos", "x86_64"),
+                ("linux", "aarch64") => ("linux", "aarch64"),
+                ("linux", "x64") => ("linux", "x86_64"),
+                ("windows", "aarch64") => ("windows", "aarch64"),
+                ("windows", "x64") => ("windows", "x86_64"),
+                _ => ("linux", "x86_64"),
+            };
+            let body: serde_json::Value = http
+                .get(format!(
+                    "https://api.azul.com/metadata/v1/zulu/packages/?java_version={major}&os={os}&arch={arch}&java_package_type=jre&availability_types=ca&release_status=ga&latest=true&distribution=zulu"
+                ))
+                .send()
+                .await
+                .map_err(|e| format!("Azul API: {e}"))?
+                .error_for_status()
+                .map_err(|e| format!("Azul API: {e}"))?
+                .json()
+                .await
+                .map_err(|e| format!("Azul API: {e}"))?;
+            let parts = body
+                .get(0)
+                .and_then(|p| p.get("java_version"))
+                .and_then(|v| v.as_array())
+                .ok_or_else(|| "Azul API: не удалось прочитать версию".to_string())?;
+            parts
+                .iter()
+                .filter_map(|v| v.as_u64())
+                .map(|v| v.to_string())
+                .collect::<Vec<_>>()
+                .join(".")
+        }
+    };
+    Ok(version)
+}
+
+/// Версия из имени файла: `amazon-corretto-21.0.13.1.2-linux-x64.tar.gz` →
+/// `21.0.13.1.2`, `microsoft-jdk-21.0.13.0.2-macos-aarch64.tar.gz` → `21.0.13.0.2`,
+/// `OpenJDK21U-jre_x64_linux_hotspot_21.0.13_9.tar.gz` → `21.0.13`.
+///
+/// В именах вендоров версия идёт ПЕРВЫМ сегментом из цифр и точек сразу
+/// после названия продукта (в хвосте — биты платформы вроде `64`/`9`).
+fn version_from_artifact(name: &str) -> Option<String> {
+    let bytes = name.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i].is_ascii_digit() {
+            let start = i;
+            while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == b'.') {
+                i += 1;
+            }
+            let candidate = name[start..i].trim_end_matches('.');
+            // Нужен хотя бы `X.Y`: одиночные числа — это `64`, `9`, `21` из
+            // `OpenJDK21U`.
+            if candidate.matches('.').count() >= 1 {
+                return Some(candidate.to_string());
+            }
+        }
+        i += 1;
+    }
+    None
 }
 
 async fn ensure_downloaded_java(
@@ -527,31 +669,50 @@ async fn ensure_downloaded_java(
     major: u32,
 ) -> Result<PathBuf, String> {
     if let Some(java) = bundled_java_for(data_dir, vendor, major) {
-        // Кэш содержит сборку с CVE-2026-114938. Пробуем перекачать: вендор
-        // мог уже выпустить фикс. Если и новая сборка уязвима — работаем с
-        // ней (играть можно) и неделю не дёргаем сеть повторно.
-        let vulnerable = probe_java_exe(&version_check_bin(&bundled_home_of(&java)))
-            .is_some_and(|p| is_vulnerable_java(&p.version, p.major));
+        let cached = probe_java_exe(&version_check_bin(&bundled_home_of(&java)))
+            .map(|p| p.version)
+            .unwrap_or_default();
+        let vulnerable = is_vulnerable_java(&cached, major);
         if !vulnerable {
             return Ok(java);
         }
-        if !should_refresh_cached_vulnerable(data_dir, vendor, major) {
+        // Кэш уязвим (CVE-2026-114938) — но обновление имеет смысл, только
+        // если вендор УЖЕ выпустил исправленную сборку. Таймер тут не
+        // годится: он бы либо тянул 50 МБ каждый запуск, либо навсегда
+        // пропускал вышедший фикс. Спрашиваем версию у вендора.
+        if !should_check_vendor(data_dir, vendor, major) {
             tracing::warn!(
-                "[java] {} Java {major} остаётся уязвимой к CVE-2026-114938 (повторная попытка позже)",
+                "[java] {} Java {major} уязвима к CVE-2026-114938 (версию вендора проверяли недавно)",
                 vendor.name()
             );
             return Ok(java);
         }
-        mark_cve_refresh_attempt(data_dir, vendor, major);
-        tracing::warn!(
-            "[java] {} Java {major} содержит CVE-2026-114938 — пробуем скачать свежую сборку",
-            vendor.name()
-        );
-        match download_java_version(vendor, progress, http, data_dir, major).await {
-            Ok(fresh) => return Ok(fresh),
+        mark_vendor_check(data_dir, vendor, major);
+        match vendor_latest_version(vendor, http, major).await {
+            Ok(latest) => {
+                let latest = version_from_artifact(&latest).unwrap_or(latest);
+                if !version_less(&cached, &latest) {
+                    tracing::warn!(
+                        "[java] {} всё ещё раздаёт уязвимую {cached} — обновления нет",
+                        vendor.name()
+                    );
+                    return Ok(java);
+                }
+                tracing::warn!(
+                    "[java] {} раздаёт {latest} вместо уязвимой {cached} — обновляем",
+                    vendor.name()
+                );
+                match download_java_version(vendor, progress, http, data_dir, major).await {
+                    Ok(fresh) => return Ok(fresh),
+                    Err(err) => {
+                        // Сеть/диск подвели — играть на кэше можно.
+                        tracing::warn!("[java] не удалось обновить уязвимую Java: {err}");
+                        return Ok(java);
+                    }
+                }
+            }
             Err(err) => {
-                // Сеть/диск подвели — играть на кэше можно, но предупреждаем.
-                tracing::warn!("[java] не удалось обновить уязвимую Java: {err}");
+                tracing::warn!("[java] не удалось узнать версию {}: {err}", vendor.name());
                 return Ok(java);
             }
         }
@@ -1561,6 +1722,33 @@ mod tests {
         // Неизвестный формат версии: сборку считаем уязвимой, чтобы
         // предупреждение не потерялось, но требуемую версию не блокируем.
         assert!(is_vulnerable_java("", 21));
+    }
+
+    #[test]
+    fn version_less_handles_patch_respins() {
+        assert!(version_less("21.0.13", "21.0.13.1"));
+        assert!(version_less("21.0.13+9", "21.0.13.1.2"));
+        assert!(!version_less("21.0.13.1", "21.0.13"));
+        assert!(!version_less("21.0.13.1.2", "21.0.13.1.2"));
+        assert!(version_less("21.0.13", "21.0.14"));
+        assert!(!version_less("21.0.14", "21.0.13.1"));
+    }
+
+    #[test]
+    fn version_from_artifact_reads_vendor_filenames() {
+        assert_eq!(
+            version_from_artifact("amazon-corretto-21.0.13.1.2-linux-x64.tar.gz").as_deref(),
+            Some("21.0.13.1.2")
+        );
+        assert_eq!(
+            version_from_artifact("microsoft-jdk-21.0.13.0.2-macos-aarch64.tar.gz").as_deref(),
+            Some("21.0.13.0.2")
+        );
+        assert_eq!(
+            version_from_artifact("OpenJDK21U-jre_x64_linux_hotspot_21.0.13_9.tar.gz").as_deref(),
+            Some("21.0.13")
+        );
+        assert_eq!(version_from_artifact("latest").as_deref(), None);
     }
 
     #[test]
