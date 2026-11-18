@@ -145,8 +145,26 @@ pub async fn launch(
     )
     .await?;
     crate::cancel::check()?;
-    let java_major = crate::java::java_major(&java)?;
+    let (java_version, java_major) = crate::java::java_version(&java)?;
     tracing::info!("[game] выбрана Java {java_major} для Minecraft {version_id}: {}", java.display());
+
+    // CVE-2026-114938: уязвимый путь Base64-интринсика достижим только на
+    // x86-64 с AVX-512 VBMI + BMI2. Если сборка не пропатчена, а CPU такой
+    // путь исполняет — гасим аппаратный Base64 целиком. Это штатная
+    // митигация из advisory: цена — чуть медленнее декодирование Base64.
+    let java_cve_exposed = crate::java::is_vulnerable_java(&java_version, java_major)
+        && crate::java::cpu_reaches_vulnerable_base64();
+    if java_cve_exposed {
+        tracing::warn!(
+            "[game] Java {java_version} уязвима к CVE-2026-114938 и {} — включаем -XX:-UseBASE64Intrinsics",
+            crate::java::cpu_exposure_summary()
+        );
+    } else if crate::java::is_vulnerable_java(&java_version, java_major) {
+        tracing::info!(
+            "[game] Java {java_version} уязвима к CVE-2026-114938, но {}",
+            crate::java::cpu_exposure_summary()
+        );
+    }
 
     ensure_client(&progress, http, &root, &version).await?;
     crate::cancel::check()?;
@@ -290,6 +308,13 @@ pub async fn launch(
     args.push(format!("-Xms{xms}M"));
     args.push(format!("-Xmx{memory}M"));
     args.extend(jvm_tuning_args(java_provider, java_major));
+
+    // CVE-2026-114938: уязвимая сборка на CPU с AVX-512 VBMI исполняла бы
+    // повреждённый ассемблерный Base64-декодер. Отключаем интринсик — это
+    // официальная митигация до обновления Java.
+    if java_cve_exposed {
+        args.push("-XX:-UseBASE64Intrinsics".into());
+    }
 
     // JVM-аргументы NeoForge (module-path, --add-opens и т.д.) с подстановкой
     // плейсхолдеров. Без них BootstrapLauncher не стартует.

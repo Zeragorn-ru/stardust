@@ -102,6 +102,8 @@ export interface JavaInstallation {
   source: string;
   /** Сборка содержит незакрытую CVE-2026-114938 (RCE в компиляторе). */
   vulnerable: boolean;
+  /** Уязвимый путь реально достижим на этом CPU (нужен x86-64 с AVX-512 VBMI). */
+  cpuExposed: boolean;
 }
 
 /** Поставщик Java для скачивания. */

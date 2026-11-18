@@ -78,7 +78,41 @@ pub(crate) fn is_vulnerable_java(version: &str, major: u32) -> bool {
     for (slot, value) in current.iter_mut().zip(parts) {
         *slot = value;
     }
+    // Баг появился в 17.0.6: в более ранних сборках Base64-интринсика в
+    // таком виде просто нет (пишет Calif.io в разборе Java4Shell).
+    if major == 17 && current < [17, 0, 6, 0] {
+        return false;
+    }
     current < fixed
+}
+
+/// Достигает ли этот CPU уязвимого пути Base64-декодера.
+///
+/// Java4Shell живёт в hand-rolled ассемблере под AVX-512 VBMI: на ARM64 и
+/// на x86-64 без AVX-512 VBMI (нужны AVX-512F, AVX-512BW, VBMI и BMI2)
+/// этот код не исполняется. Проверяем CPU, а не его модель — AVX-512 может
+/// быть выключен в BIOS, и тогда эксплойт тоже не срабатывает.
+pub(crate) fn cpu_reaches_vulnerable_base64() -> bool {
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    {
+        is_x86_feature_detected!("avx512f")
+            && is_x86_feature_detected!("avx512bw")
+            && is_x86_feature_detected!("avx512vbmi")
+            && is_x86_feature_detected!("bmi2")
+    }
+    #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+    {
+        false
+    }
+}
+
+/// Человекочитаемое объяснение CPU-гейта для UI и логов.
+pub(crate) fn cpu_exposure_summary() -> &'static str {
+    if cpu_reaches_vulnerable_base64() {
+        "процессор исполняет уязвимый AVX-512 VBMI путь Base64-декодера"
+    } else {
+        "на этом процессоре уязвимый AVX-512 VBMI путь недостижим (нужен x86-64 с AVX-512 VBMI и BMI2)"
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,6 +246,9 @@ pub struct JavaInstallation {
     pub source: String,
     /// Сборка содержит незакрытую CVE-2026-114938 (см. `is_vulnerable_java`).
     pub vulnerable: bool,
+    /// Уязвимый путь реально достижим на этом CPU (AVX-512 VBMI).
+    /// `vulnerable && !cpu_exposed` — обновиться стоит, но эксплойт не сработает.
+    pub cpu_exposed: bool,
 }
 
 struct JavaProbe {
@@ -253,6 +290,7 @@ fn collect_installations(data_dir: &Path, deep: bool) -> Vec<JavaInstallation> {
                 major: probe.major,
                 source: source.to_string(),
                 vulnerable: is_vulnerable_java(&probe.version, probe.major),
+                cpu_exposed: cpu_reaches_vulnerable_base64(),
             });
         }
     };
@@ -353,9 +391,10 @@ fn discover_best_java(data_dir: &Path, required_major: u32) -> Option<PathBuf> {
         .map(|p| launch_exe_from(&p))
 }
 
-pub(crate) fn java_major(path: &Path) -> Result<u32, String> {
+/// Версия и мажор выбранной Java — для проверки на CVE перед запуском.
+pub(crate) fn java_version(path: &Path) -> Result<(String, u32), String> {
     probe_java_exe(&console_java_exe(path))
-        .map(|p| p.major)
+        .map(|p| (p.version, p.major))
         .ok_or_else(|| format!("Не удалось определить версию Java: {}", path.display()))
 }
 
@@ -1716,12 +1755,34 @@ mod tests {
         // Более новые минорки безопасны по определению порога.
         assert!(!is_vulnerable_java("21.0.14", 21));
         assert!(!is_vulnerable_java("22.0.1", 22));
+        // Баг появился в 17.0.6: ровно с неё путь уже уязвим, раньше — нет.
+        assert!(!is_vulnerable_java("17.0.5", 17));
+        assert!(is_vulnerable_java("17.0.6", 17));
+        assert!(is_vulnerable_java("17.0.7", 17));
         // Не-LTS ветки в бюллетене не фигурируют — не трогаем.
         assert!(!is_vulnerable_java("11.0.33", 11));
         assert!(!is_vulnerable_java("8u511b33", 8));
         // Неизвестный формат версии: сборку считаем уязвимой, чтобы
         // предупреждение не потерялось, но требуемую версию не блокируем.
         assert!(is_vulnerable_java("", 21));
+    }
+
+    #[test]
+    fn cpu_exposure_requires_avx512_vbmi() {
+        // На ARM64 уязвимый путь не исполняется; на x86-64 с AVX-512 VBMI —
+        // да. Тест-хост может быть любым, поэтому проверяем согласованность:
+        // exposure без AVX-512 VBMI/AVX-512F/BMI2 невозможен.
+        let exposed = cpu_reaches_vulnerable_base64();
+        #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+        {
+            let all = is_x86_feature_detected!("avx512f")
+                && is_x86_feature_detected!("avx512bw")
+                && is_x86_feature_detected!("avx512vbmi")
+                && is_x86_feature_detected!("bmi2");
+            assert_eq!(exposed, all);
+        }
+        #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+        assert!(!exposed);
     }
 
     #[test]

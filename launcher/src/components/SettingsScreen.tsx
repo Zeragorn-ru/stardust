@@ -1209,12 +1209,20 @@ export default function SettingsScreen({
                 )}
                 {/* CVE-2026-114938 живёт в самой JVM, и Adoptium на момент
                     правки ещё не выпустил фикс: честно предупреждаем, а не
-                    делаем вид, что «обновление всё решит». */}
+                    делаем вид, что «обновление всё решит». Уязвимый путь
+                    (AVX-512 VBMI Base64-интринсик) исполняется только на
+                    x86-64 с AVX-512 VBMI и BMI2 — на остальных CPU это
+                    риск на будущее, а не активная дыра. */}
                 {(javaInstalls ?? []).some((install) => install.vulnerable) && (
                   <p className="muted java-card__msg java-card__msg--warn" role="alert">
-                    Найдена Java с незакрытой CVE-2026-114938 (RCE в компиляторе).
-                    Обновите сборку или выберите другого поставщика: Corretto и Zulu
-                    уже выпустили исправленные 21.0.13.1, у Temurin фикса пока нет.
+                    Найдена Java с незакрытой CVE-2026-114938 (переполнение в
+                    Base64-декодере, переполнение кучи → RCE).
+                    {(javaInstalls ?? []).some(
+                      (install) => install.vulnerable && install.cpuExposed,
+                    )
+                      ? " На этом процессоре уязвимый путь достижим — лаунчер добавит -XX:-UseBASE64Intrinsics при запуске. Обновите сборку."
+                      : " На этом процессоре уязвимый путь (AVX-512 VBMI) недостижим, но сборку всё равно стоит обновить."}{" "}
+                    Corretto и Zulu уже выпустили исправленные 21.0.13.1.
                   </p>
                 )}
                 {javaListError && (
@@ -1259,8 +1267,15 @@ export default function SettingsScreen({
                             <span className="muted"> · {install.version}</span>
                             {install.vulnerable && (
                               <span
-                                className="badge badge--danger java-list__cve"
-                                title="CVE-2026-114938: уязвимость в компиляторе Java. Обновите сборку."
+                                className={
+                                  "badge java-list__cve" +
+                                  (install.cpuExposed ? " badge--danger" : " badge--muted")
+                                }
+                                title={
+                                  install.cpuExposed
+                                    ? "CVE-2026-114938: уязвимый Base64-путь исполняется на этом CPU. Обновите сборку — до этого лаунчер добавит -XX:-UseBASE64Intrinsics."
+                                    : "CVE-2026-114938: сборка не пропатчена, но уязвимый путь (AVX-512 VBMI) на этом CPU недостижим."
+                                }
                               >
                                 CVE-2026-114938
                               </span>
