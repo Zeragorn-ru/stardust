@@ -15,7 +15,7 @@ COPY admin-web/ ./
 RUN npm run build
 
 # --- Раздача статики + прокси на admin-server ---
-FROM nginx:1.27-alpine AS admin-web
+FROM nginx:1.31.9-alpine AS admin-web
 
 COPY deploy/admin-web.nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /build/dist /usr/share/nginx/html
