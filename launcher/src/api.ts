@@ -166,8 +166,19 @@ export async function onJavaProgress(
   }
 }
 
-/** Подписаться на ход переноса папки данных. */
-export async function onDataDirectoryProgress(
+/** Кэш Java изменился сам (фоновая проверка CVE): перечитать установки. */
+export async function onJavaRuntimeChanged(handler: () => void): Promise<() => void> {
+  try {
+    const mod = await import("@tauri-apps/api/event");
+    return mod.listen("launcher://java-runtime-changed", () => {
+      handler();
+    });
+  } catch {
+    return () => undefined;
+  }
+}
+
+/** Подписаться на ход переноса папки данных. */export async function onDataDirectoryProgress(
   handler: (progress: DataDirectoryProgress) => void,
 ): Promise<() => void> {
   try {

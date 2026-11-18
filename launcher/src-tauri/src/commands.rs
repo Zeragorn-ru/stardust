@@ -803,6 +803,49 @@ pub fn bootstrap(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Фоновая проверка уязвимой Java при старте лаунчера.
+///
+/// Без неё фикс подхватывался бы только при нажатии «Играть»: игрок видит
+/// красный бейдж CVE-2026-114938 в настройках, а лаунчер ничего не делает.
+/// Здесь мы сами досматриваем вендоров и ставим исправленную сборку, как
+/// только она появляется. Сетевая проверка гасится маркером (раз в сутки),
+/// поэтому простой запуск лаунчера без фикса ничего не качает.
+pub fn spawn_java_cve_check(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let data_dir = paths::data_dir(&app);
+        // Не трогаем runtime, пока игра запущена: заменять Java под живой
+        // JVM нельзя. Проверим при следующем старте.
+        if crate::game_guard::is_running(&data_dir) {
+            tracing::info!("[java] игра запущена — проверку CVE-2026-114938 откладываем");
+            return;
+        }
+        let state = app.state::<AppState>();
+        let _guard = state.launch_lock.lock().await;
+        // Лок взяли: перепроверяем состояние, пока ждали.
+        if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&data_dir) {
+            return;
+        }
+        let http = state.http.lock().unwrap().clone();
+        // Отдельный канал прогресса: стартовая проверка не должна занимать
+        // глобальный прогресс и блокировать кнопку «Играть».
+        let progress = crate::progress::Progress::for_java_download(app.clone());
+        match crate::java::refresh_vulnerable_cached_java(&progress, &http, &data_dir).await {
+            Ok(Some(vendor)) => {
+                tracing::warn!(
+                    "[java] фоновая проверка: уязвимая Java заменена на исправную сборку {}",
+                    vendor.name()
+                );
+                // Настройки могли быть открыты: без события бейдж
+                // CVE-2026-114938 останется висеть на уже вылеченной сборке.
+                use tauri::Emitter;
+                let _ = app.emit(crate::progress::JAVA_RUNTIME_CHANGED_EVENT, ());
+            }
+            Ok(None) => tracing::debug!("[java] фоновая проверка: исправных сборок у вендоров пока нет"),
+            Err(err) => tracing::warn!("[java] фоновая проверка Java не удалась: {err}"),
+        }
+    });
+}
+
 /// Удаляет временные файлы, оставшиеся от прерванных загрузок прошлых
 /// запусков. Имена содержат PID процесса-создателя, поэтому текущий запуск
 /// никогда не совпадает с ними — активные загрузки не трогаем.
@@ -1527,9 +1570,12 @@ async fn download_java(
     // Отдельный канал: иначе Settings → «Скачать Java» залипает в глобальном
     // progress и блокирует кнопку «Играть» на главном экране.
     let progress = crate::progress::Progress::for_java_download(app.clone());
-    let path = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
+    let (path, actual) = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
+    // Вендор мог подмениться: если у запрошенного не было фикса
+    // CVE-2026-114938, скачали исправную сборку соседа. Настройки должны
+    // указывать на ту Java, которая реально лежит на диске.
     let mut settings = get_settings_cached(&state, &app);
-    settings.java_provider = match vendor {
+    settings.java_provider = match actual {
         java::JavaVendor::Temurin => JavaProvider::Temurin,
         java::JavaVendor::Corretto => JavaProvider::Corretto,
         java::JavaVendor::Microsoft => JavaProvider::Microsoft,

@@ -82,6 +82,9 @@ pub enum DownloadScope {
 pub const LAUNCH_PROGRESS_EVENT: &str = "launcher://progress";
 /// Отдельный канал для загрузки Java из настроек — не блокирует Play.
 pub const JAVA_PROGRESS_EVENT: &str = "launcher://java-progress";
+/// Кэш Java изменился сам (фоновая проверка CVE-2026-114938): UI должен
+/// перечитать список установок, иначе бейдж уязвимости останется висеть.
+pub const JAVA_RUNTIME_CHANGED_EVENT: &str = "launcher://java-runtime-changed";
 
 /// Payload события прогресса. `fraction` — общий прогресс 0..1.
 #[derive(Debug, Clone, Serialize)]

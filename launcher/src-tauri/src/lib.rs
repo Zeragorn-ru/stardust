@@ -100,6 +100,10 @@ pub fn run() {
         )
         .setup(|app| {
             commands::bootstrap(app.handle())?;
+            // CVE-2026-114938: фиксы выходят у вендоров несинхронно.
+            // Проверяем кэш в фоне, чтобы вылеченная сборка подхватилась
+            // сама, а не ждала нажатия «Играть».
+            commands::spawn_java_cve_check(app.handle().clone());
 
             // macOS: нативная шапка. На macOS окно создаётся сразу с нативными
             // декорациями (tauri.macos.conf.json: decorations:true + Overlay),

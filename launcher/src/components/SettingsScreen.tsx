@@ -14,6 +14,7 @@ import {
   listJavaDownloadVendors,
   listJavaInstallations,
   listJavaInstallationsDeep,
+  onJavaRuntimeChanged,
   onJavaProgress,
   onDataDirectoryProgress,
   onUpdateProgress,
@@ -236,6 +237,20 @@ export default function SettingsScreen({
     if (section === "game") {
       void refreshJavaList();
     }
+  }, [section]);
+
+  // Фоновая проверка CVE-2026-114938 могла подменить уязвимый рантайм:
+  // перечитываем список, чтобы красный бейдж не висел на вылеченной сборке.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    void onJavaRuntimeChanged(() => {
+      if (section === "game") void refreshJavaList();
+    }).then((stop) => {
+      unlisten = stop;
+    });
+    return () => {
+      unlisten?.();
+    };
   }, [section]);
 
   // Проверка изменений для автосохранения.
