@@ -514,13 +514,13 @@ fn bundled_runtime_dir(data_dir: &Path, vendor: JavaVendor, major: u32) -> Optio
 /// чтобы в списке установок не висела сборка, которую лаунчер уже не
 /// использует. Проверка версии здесь обязательна: под тем же каталогом
 /// может лежать уже вылеченный рантайм, и его трогать нельзя.
-fn remove_vulnerable_runtime(data_dir: &Path, vendor: JavaVendor, major: u32) {
+fn remove_vulnerable_runtime(data_dir: &Path, vendor: JavaVendor, major: u32) -> bool {
     let Some(dir) = bundled_runtime_dir(data_dir, vendor, major) else {
-        return;
+        return false;
     };
     let exe = version_check_bin(&dir);
     if !probe_java_exe(&exe).is_some_and(|p| is_vulnerable_java(&p.version, p.major)) {
-        return;
+        return false;
     }
     let runtime = data_dir.join("runtime").join(vendor.id()).join(format!("java-{major}"));
     if let Err(err) = fs::remove_dir_all(&runtime) {
@@ -528,12 +528,13 @@ fn remove_vulnerable_runtime(data_dir: &Path, vendor: JavaVendor, major: u32) {
             "[java] не удалось убрать уязвимый {} {major}: {err}",
             vendor.name()
         );
-        return;
+        return false;
     }
     tracing::info!(
         "[java] уязвимый рантайм {} {major} удалён после установки исправной сборки",
         vendor.name()
     );
+    true
 }
 
 fn bundled_java_for(data_dir: &Path, vendor: JavaVendor, major: u32) -> Option<PathBuf> {    let home = bundled_runtime_dir(data_dir, vendor, major)?;
@@ -861,6 +862,13 @@ pub async fn refresh_vulnerable_cached_java(
     // `ensure_downloaded_java`), качать вторую незачем — иначе уязвимый
     // рантайм, оставшийся по соседству, тянул бы фикс заново каждый день.
     if bundled_java_entry(data_dir, JAVA_VERSION).is_some_and(|(_, _, vulnerable)| !vulnerable) {
+        // Но уязвимый рантайм рядом всё ещё торчит в списке установок
+        // красным бейджем — убираем его, раз уж есть чем заменить.
+        for vendor in JavaVendor::managed() {
+            if remove_vulnerable_runtime(data_dir, vendor, JAVA_VERSION) {
+                return Ok(Some(vendor));
+            }
+        }
         return Ok(None);
     }
     for vendor in JavaVendor::managed() {
@@ -896,8 +904,7 @@ pub async fn refresh_vulnerable_cached_java(
                 // в списке установок, и игрок продолжает видеть красный
                 // бейдж CVE на сборке, которую лаунчер уже не использует.
                 remove_vulnerable_runtime(data_dir, vendor, JAVA_VERSION);
-                return Ok(Some(fixed));
-            }
+                return Ok(Some(fixed));            }
             Err(err) => return Err(err),
         }
     }
