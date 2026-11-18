@@ -508,14 +508,28 @@ fn bundled_runtime_dir(data_dir: &Path, vendor: JavaVendor, major: u32) -> Optio
     find_java_home_under(&dir)
 }
 
+/// Убирает все уязвимые управляемые рантаймы. Вызывается, когда исправная
+/// сборка уже есть в кэше: качать ничего не надо, но строки с красным
+/// бейджем CVE в списке установок остались бы висеть.
+///
+/// Возвращает вендора первого удалённого рантайма (для лога/события UI).
+fn drop_stale_vulnerable_runtimes(data_dir: &Path, major: u32) -> Option<JavaVendor> {
+    let mut removed = None;
+    for vendor in JavaVendor::managed() {
+        if remove_vulnerable_runtime(data_dir, vendor, major) {
+            removed.get_or_insert(vendor);
+        }
+    }
+    removed
+}
+
 /// Удаляет управляемый рантайм вендора — только если он уязвим.
 ///
 /// Вызывается после успешной установки исправной сборки другого вендора,
 /// чтобы в списке установок не висела сборка, которую лаунчер уже не
 /// использует. Проверка версии здесь обязательна: под тем же каталогом
 /// может лежать уже вылеченный рантайм, и его трогать нельзя.
-fn remove_vulnerable_runtime(data_dir: &Path, vendor: JavaVendor, major: u32) -> bool {
-    let Some(dir) = bundled_runtime_dir(data_dir, vendor, major) else {
+fn remove_vulnerable_runtime(data_dir: &Path, vendor: JavaVendor, major: u32) -> bool {    let Some(dir) = bundled_runtime_dir(data_dir, vendor, major) else {
         return false;
     };
     let exe = version_check_bin(&dir);
@@ -862,14 +876,9 @@ pub async fn refresh_vulnerable_cached_java(
     // `ensure_downloaded_java`), качать вторую незачем — иначе уязвимый
     // рантайм, оставшийся по соседству, тянул бы фикс заново каждый день.
     if bundled_java_entry(data_dir, JAVA_VERSION).is_some_and(|(_, _, vulnerable)| !vulnerable) {
-        // Но уязвимый рантайм рядом всё ещё торчит в списке установок
-        // красным бейджем — убираем его, раз уж есть чем заменить.
-        for vendor in JavaVendor::managed() {
-            if remove_vulnerable_runtime(data_dir, vendor, JAVA_VERSION) {
-                return Ok(Some(vendor));
-            }
-        }
-        return Ok(None);
+        // Но уязвимые рантаймы рядом всё ещё торчат в списке установок
+        // красным бейджем — убираем их все, раз уж есть чем заменить.
+        return Ok(drop_stale_vulnerable_runtimes(data_dir, JAVA_VERSION));
     }
     for vendor in JavaVendor::managed() {
         let Some(java) = bundled_java_for(data_dir, vendor, JAVA_VERSION) else {
@@ -903,7 +912,9 @@ pub async fn refresh_vulnerable_cached_java(
                 // Уязвимый рантайм больше не нужен: без удаления он остаётся
                 // в списке установок, и игрок продолжает видеть красный
                 // бейдж CVE на сборке, которую лаунчер уже не использует.
-                remove_vulnerable_runtime(data_dir, vendor, JAVA_VERSION);
+                // Уязвимый рантайм мог остаться и у другого вендора —
+                // чистим все, иначе бейдж просто переедет на соседнюю строку.
+                drop_stale_vulnerable_runtimes(data_dir, JAVA_VERSION);
                 return Ok(Some(fixed));            }
             Err(err) => return Err(err),
         }
@@ -2046,7 +2057,44 @@ mod tests {
         remove_vulnerable_runtime(&root, JavaVendor::Temurin, 21);
         assert!(bundled_runtime_dir(&root, JavaVendor::Temurin, 21).is_none());
         // Вылеченную сборку того же метода не трогаем.
-        remove_vulnerable_runtime(&root, JavaVendor::Zulu, 21);
+        assert!(!remove_vulnerable_runtime(&root, JavaVendor::Zulu, 21));
+        assert!(bundled_runtime_dir(&root, JavaVendor::Zulu, 21).is_some());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refresh_removes_every_vulnerable_runtime() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!(
+            "stardust-java-refresh-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        // Уязвимые Temurin и Corretto + исправный Zulu, который игра возьмёт.
+        for (vendor, version) in [
+            (JavaVendor::Temurin, "21.0.13"),
+            (JavaVendor::Corretto, "21.0.13"),
+            (JavaVendor::Zulu, "21.0.13.1"),
+        ] {
+            let runtime = root.join("runtime").join(vendor.id()).join("java-21");
+            fs::create_dir_all(runtime.join("bin")).unwrap();
+            fs::write(runtime.join(".complete"), b"ok").unwrap();
+            let exe = runtime.join("bin/java");
+            fs::write(&exe, format!("#!/bin/sh\nprintf 'openjdk version \"{version}\"\\n' >&2\n")).unwrap();
+            fs::set_permissions(&exe, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        // Сети здесь нет — но она и не нужна: исправная сборка уже в кэше,
+        // значит фоновая проверка только чистит уязвимые рантаймы.
+        assert_eq!(
+            drop_stale_vulnerable_runtimes(&root, 21),
+            Some(JavaVendor::Temurin)
+        );
+        assert!(bundled_runtime_dir(&root, JavaVendor::Temurin, 21).is_none());
+        assert!(bundled_runtime_dir(&root, JavaVendor::Corretto, 21).is_none());
         assert!(bundled_runtime_dir(&root, JavaVendor::Zulu, 21).is_some());
         fs::remove_dir_all(root).unwrap();
     }
