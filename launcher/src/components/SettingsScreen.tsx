@@ -1207,6 +1207,16 @@ export default function SettingsScreen({
                 {javaDownloadError && (
                   <p className="muted java-card__msg" role="alert">Ошибка скачивания: {javaDownloadError}</p>
                 )}
+                {/* CVE-2026-114938 живёт в самой JVM, и Adoptium на момент
+                    правки ещё не выпустил фикс: честно предупреждаем, а не
+                    делаем вид, что «обновление всё решит». */}
+                {(javaInstalls ?? []).some((install) => install.vulnerable) && (
+                  <p className="muted java-card__msg java-card__msg--warn" role="alert">
+                    Найдена Java с незакрытой CVE-2026-114938 (RCE в компиляторе).
+                    Обновите сборку или выберите другого поставщика: Corretto и Zulu
+                    уже выпустили исправленные 21.0.13.1, у Temurin фикса пока нет.
+                  </p>
+                )}
                 {javaListError && (
                   <p className="muted java-card__msg" role="alert">Ошибка поиска: {javaListError}</p>
                 )}
@@ -1247,6 +1257,14 @@ export default function SettingsScreen({
                           <span className="java-list__title">
                             Java {install.major}
                             <span className="muted"> · {install.version}</span>
+                            {install.vulnerable && (
+                              <span
+                                className="badge badge--danger java-list__cve"
+                                title="CVE-2026-114938: уязвимость в компиляторе Java. Обновите сборку."
+                              >
+                                CVE-2026-114938
+                              </span>
+                            )}
                           </span>
                           <span className="muted java-list__source">{install.source}</span>
                           <button

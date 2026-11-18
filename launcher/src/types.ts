@@ -100,6 +100,8 @@ export interface JavaInstallation {
   version: string;
   major: number;
   source: string;
+  /** Сборка содержит незакрытую CVE-2026-114938 (RCE в компиляторе). */
+  vulnerable: boolean;
 }
 
 /** Поставщик Java для скачивания. */

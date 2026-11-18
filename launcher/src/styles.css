@@ -4056,6 +4056,14 @@ button,
     line-height: 1.45;
 }
 
+.java-card__msg--warn {
+    padding: 8px 10px;
+    border-left: 3px solid rgba(220, 60, 60, 0.9);
+    border-radius: 6px;
+    background: rgba(220, 60, 60, 0.12);
+    color: var(--text);
+}
+
 .java-list {
     display: flex;
     flex-direction: column;
@@ -4443,6 +4451,17 @@ button.info-card__path--link:hover:not(:disabled) {
 .badge--muted {
     background: rgba(255, 255, 255, 0.16);
     color: var(--text-muted, rgba(255, 255, 255, 0.7));
+}
+
+/* Уязвимая сборка Java (CVE-2026-114938) — заметная красная плашка. */
+.badge--danger {
+    background: rgba(220, 60, 60, 0.9);
+    color: #fff;
+}
+
+.java-list__cve {
+    margin-left: 6px;
+    vertical-align: middle;
 }
 
 /* Settings update card — override UpdateModal glass card properties */

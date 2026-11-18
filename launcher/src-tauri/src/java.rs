@@ -11,6 +11,57 @@ use crate::progress::Progress;
 
 pub const JAVA_VERSION: u32 = 21;
 
+/// CVE-2026-114938 (Oracle Critical Security Patch Update от 17.11.2026,
+/// компонент `hotspot/compiler`, CVSS 8.1): RCE в компиляторе затронула
+/// 17.0.21, 21.0.13, 25.0.5 и 27.0.1. Oracle перевыпустил сборки с
+/// четвёртой цифрой (`21.0.13.1`), Corretto/Zulu уже её раздают, а Adoptium
+/// на момент правки отдаёт ещё уязвимый `21.0.13+9`.
+///
+/// Порог — первая ИСПРАВЛЕННАЯ версия; всё, что меньше, считается
+/// уязвимым. Сравнение компонентное: `21.0.13` < `21.0.13.1`, а
+/// `21.0.14` уже больше.
+fn fixed_java_version(major: u32) -> Option<[u32; 4]> {
+    match major {
+        17 => Some([17, 0, 21, 1]),
+        21 => Some([21, 0, 13, 1]),
+        25 => Some([25, 0, 5, 1]),
+        27 => Some([27, 0, 1, 1]),
+        // 8/11 и не-LTS ветки в бюллетене по этому CVE не фигурируют.
+        _ => None,
+    }
+}
+
+/// Разбирает `21.0.13.1` / `21.0.13` / `17.0.21` в компоненты для сравнения.
+fn version_components(version: &str) -> Vec<u32> {
+    version
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|part| !part.is_empty())
+        .filter_map(|part| part.parse::<u32>().ok())
+        .collect()
+}
+
+/// Уязвима ли эта сборка Java к CVE-2026-114938.
+///
+/// Версия без патча (`None`) не проверяется: неизвестную сборку страшнее
+/// объявить безопасной, но и блокировать игру из-за неё нельзя — поэтому
+/// её считаем уязвимой. Пользователь увидит предупреждение и сможет
+/// обновиться.
+pub(crate) fn is_vulnerable_java(version: &str, major: u32) -> bool {
+    let Some(fixed) = fixed_java_version(major) else {
+        return false;
+    };
+    let parts = version_components(version);
+    if parts.is_empty() {
+        return true;
+    }
+    // Дополняем нулями до фиксированной длины: `21.0.13` == [21,0,13,0].
+    let mut current = [0u32; 4];
+    for (slot, value) in current.iter_mut().zip(parts) {
+        *slot = value;
+    }
+    current < fixed
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum JavaProvider {
@@ -140,6 +191,8 @@ pub struct JavaInstallation {
     pub version: String,
     pub major: u32,
     pub source: String,
+    /// Сборка содержит незакрытую CVE-2026-114938 (см. `is_vulnerable_java`).
+    pub vulnerable: bool,
 }
 
 struct JavaProbe {
@@ -177,9 +230,10 @@ fn collect_installations(data_dir: &Path, deep: bool) -> Vec<JavaInstallation> {
             out.push(JavaInstallation {
                 path: probe.exe.to_string_lossy().into_owned(),
                 home: probe.home.to_string_lossy().into_owned(),
-                version: probe.version,
+                version: probe.version.clone(),
                 major: probe.major,
                 source: source.to_string(),
+                vulnerable: is_vulnerable_java(&probe.version, probe.major),
             });
         }
     };
@@ -206,6 +260,10 @@ fn collect_installations(data_dir: &Path, deep: bool) -> Vec<JavaInstallation> {
     out.sort_by(|a, b| {
         b.major
             .cmp(&a.major)
+            // Внутри одной мажорной версии безопасная сборка идёт первой:
+            // иначе discover_best_java возьмёт уязвимый рантайм, хотя рядом
+            // лежит уже пропатченный (CVE-2026-114938).
+            .then_with(|| a.vulnerable.cmp(&b.vulnerable))
             .then_with(|| a.source.cmp(&b.source))
             .then_with(|| a.path.cmp(&b.path))
     });
@@ -246,8 +304,19 @@ pub async fn resolve_java(
                 .await
         }
         JavaProvider::Auto => {
-            if let Some(path) = bundled_java(data_dir, required_major) {
-                return Ok(path);
+            if let Some((vendor, path, vulnerable)) = bundled_java_entry(data_dir, required_major) {
+                if !vulnerable {
+                    return Ok(path);
+                }
+                // Единственный кэшированный рантайм уязвим (CVE-2026-114938):
+                // пробуем обновить его у вендора, при неудаче — играем как есть.
+                tracing::warn!(
+                    "[java] кэш {} содержит CVE-2026-114938 — проверяем обновление",
+                    vendor.name()
+                );
+                return ensure_downloaded_java(vendor, progress, http, data_dir, required_major)
+                    .await
+                    .or(Ok(path));
             }
             if let Some(path) = discover_best_java(data_dir, required_major) {
                 return Ok(path);
@@ -391,10 +460,63 @@ fn bundled_java_for(data_dir: &Path, vendor: JavaVendor, major: u32) -> Option<P
     }
 }
 
-fn bundled_java(data_dir: &Path, major: u32) -> Option<PathBuf> {
-    JavaVendor::managed()
+/// Кэшированный рантайм с отметкой уязвимости и вендором — чтобы Auto мог
+/// не только выбрать безопасный, но и обновить единственный уязвимый.
+fn bundled_java_entry(data_dir: &Path, major: u32) -> Option<(JavaVendor, PathBuf, bool)> {
+    let all: Vec<_> = JavaVendor::managed()
         .into_iter()
-        .find_map(|vendor| bundled_java_for(data_dir, vendor, major))
+        .filter_map(|vendor| {
+            let path = bundled_java_for(data_dir, vendor, major)?;
+            let vulnerable = probe_java_exe(&version_check_bin(&bundled_home_of(&path)))
+                .is_some_and(|p| is_vulnerable_java(&p.version, p.major));
+            Some((vendor, path, vulnerable))
+        })
+        .collect();
+    all.iter()
+        .find(|(_, _, vulnerable)| !*vulnerable)
+        .or_else(|| all.first())
+        .cloned()
+}
+
+/// `<home>/bin/java` → `<home>`.
+fn bundled_home_of(exe: &Path) -> PathBuf {
+    exe.parent()
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| exe.to_path_buf())
+}
+
+/// Отметка «перекачку под CVE уже пробовали».
+///
+/// Adoptium на момент правки не выпустил фикс и отдаёт уязвимый 21.0.13+9.
+/// Без отметки лаунчер качал бы его заново на каждом запуске (50 МБ), поэтому
+/// повторяем попытку не чаще раза в неделю — тогда вышедший фикс подхватится
+/// сам, а трафик не расходуется.
+fn cve_refresh_marker(data_dir: &Path, vendor: JavaVendor, major: u32) -> PathBuf {
+    data_dir
+        .join("runtime")
+        .join(vendor.id())
+        .join(format!(".cve-2026-114938-{major}"))
+}
+
+fn should_refresh_cached_vulnerable(data_dir: &Path, vendor: JavaVendor, major: u32) -> bool {
+    const RETRY_SECS: u64 = 7 * 24 * 60 * 60;
+    let marker = cve_refresh_marker(data_dir, vendor, major);
+    let Some(modified) = fs::metadata(&marker).and_then(|m| m.modified()).ok() else {
+        return true;
+    };
+    modified
+        .elapsed()
+        .map(|age| age.as_secs() >= RETRY_SECS)
+        .unwrap_or(true)
+}
+
+fn mark_cve_refresh_attempt(data_dir: &Path, vendor: JavaVendor, major: u32) {
+    let marker = cve_refresh_marker(data_dir, vendor, major);
+    if let Some(parent) = marker.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::write(&marker, b"attempted");
 }
 
 async fn ensure_downloaded_java(
@@ -405,7 +527,34 @@ async fn ensure_downloaded_java(
     major: u32,
 ) -> Result<PathBuf, String> {
     if let Some(java) = bundled_java_for(data_dir, vendor, major) {
-        return Ok(java);
+        // Кэш содержит сборку с CVE-2026-114938. Пробуем перекачать: вендор
+        // мог уже выпустить фикс. Если и новая сборка уязвима — работаем с
+        // ней (играть можно) и неделю не дёргаем сеть повторно.
+        let vulnerable = probe_java_exe(&version_check_bin(&bundled_home_of(&java)))
+            .is_some_and(|p| is_vulnerable_java(&p.version, p.major));
+        if !vulnerable {
+            return Ok(java);
+        }
+        if !should_refresh_cached_vulnerable(data_dir, vendor, major) {
+            tracing::warn!(
+                "[java] {} Java {major} остаётся уязвимой к CVE-2026-114938 (повторная попытка позже)",
+                vendor.name()
+            );
+            return Ok(java);
+        }
+        mark_cve_refresh_attempt(data_dir, vendor, major);
+        tracing::warn!(
+            "[java] {} Java {major} содержит CVE-2026-114938 — пробуем скачать свежую сборку",
+            vendor.name()
+        );
+        match download_java_version(vendor, progress, http, data_dir, major).await {
+            Ok(fresh) => return Ok(fresh),
+            Err(err) => {
+                // Сеть/диск подвели — играть на кэше можно, но предупреждаем.
+                tracing::warn!("[java] не удалось обновить уязвимую Java: {err}");
+                return Ok(java);
+            }
+        }
     }
 
     download_java_version(vendor, progress, http, data_dir, major).await
@@ -1388,6 +1537,30 @@ mod tests {
     fn parse_java_major_handles_modern_and_legacy() {
         assert_eq!(parse_java_major("21.0.11"), Some(21));
         assert_eq!(parse_java_major("1.8.0_402"), Some(8));
+    }
+
+    #[test]
+    fn cve_2026_114938_flags_unpatched_21() {
+        // Ровно версии из бюллетеня Oracle — уязвимы.
+        assert!(is_vulnerable_java("21.0.13", 21));
+        assert!(is_vulnerable_java("17.0.21", 17));
+        assert!(is_vulnerable_java("25.0.5", 25));
+        assert!(is_vulnerable_java("27.0.1", 27));
+        // Перевыпуски с четвёртой цифрой содержат фикс.
+        assert!(!is_vulnerable_java("21.0.13.1", 21));
+        assert!(!is_vulnerable_java("21.0.13.1+2", 21));
+        assert!(!is_vulnerable_java("17.0.21.1", 17));
+        assert!(!is_vulnerable_java("25.0.5.1", 25));
+        assert!(!is_vulnerable_java("27.0.1.1", 27));
+        // Более новые минорки безопасны по определению порога.
+        assert!(!is_vulnerable_java("21.0.14", 21));
+        assert!(!is_vulnerable_java("22.0.1", 22));
+        // Не-LTS ветки в бюллетене не фигурируют — не трогаем.
+        assert!(!is_vulnerable_java("11.0.33", 11));
+        assert!(!is_vulnerable_java("8u511b33", 8));
+        // Неизвестный формат версии: сборку считаем уязвимой, чтобы
+        // предупреждение не потерялось, но требуемую версию не блокируем.
+        assert!(is_vulnerable_java("", 21));
     }
 
     #[test]
