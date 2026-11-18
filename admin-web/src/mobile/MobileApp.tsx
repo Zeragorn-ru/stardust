@@ -6,6 +6,7 @@
 // закрытую сборку.
 
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { FeedbackProvider } from "../ui/feedback";
 import { ContextMenuProvider } from "../ui/ContextMenu";
 import { AuthProvider, useAuth } from "../app/useAuth";
@@ -30,13 +31,21 @@ import { useDialogFocus } from "../ui/useDialogFocus";
 
 export function MobileApp() {
   return (
-    <FeedbackProvider>
-      <ContextMenuProvider>
-        <AuthProvider>
-          <Gate />
-        </AuthProvider>
-      </ContextMenuProvider>
-    </FeedbackProvider>
+    // Переиспользуемые десктопные экраны (новости, гайды, журнал, внешние
+    // моды) дёргают useNavigate/useParams/useSearchParams/Link. Мобильный
+    // шелл живёт вне data-роутера, и без контекста эти хуки бросали
+    // «may be used only in the context of a <Router>» — вкладка падала
+    // целиком в пустой экран. MemoryRouter даёт им контекст, не трогая
+    // адресную строку (навигация мобильного шелла — в query-параметрах).
+    <MemoryRouter>
+      <FeedbackProvider>
+        <ContextMenuProvider>
+          <AuthProvider>
+            <Gate />
+          </AuthProvider>
+        </ContextMenuProvider>
+      </FeedbackProvider>
+    </MemoryRouter>
   );
 }
 
