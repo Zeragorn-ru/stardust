@@ -1630,6 +1630,9 @@ async fn current_profile(
         Ok(profile) => {
             set_runtime_session(&state, profile.clone(), saved.token);
             recover_pending_session(&app, &state);
+            // Автологин — тоже вход: досылаем отчёты о крашах, которые не
+            // ушли, пока сессии не было (смена пароля её отозвала, сеть падала).
+            drain_pending_crashes_spawn(&app);
             spawn_stats_poller(&app, &state);
             Ok(Some(profile))
         }
@@ -1645,6 +1648,9 @@ async fn current_profile(
             let profile = saved.profile.clone();
             set_runtime_session(&state, profile.clone(), saved.token);
             recover_pending_session(&app, &state);
+            // Токен на руках — попробуем дослать отчёты: если сеть уже
+            // вернулась, они уйдут сейчас.
+            drain_pending_crashes_spawn(&app);
             spawn_stats_poller(&app, &state);
             Ok(Some(profile))
         }
