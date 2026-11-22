@@ -830,25 +830,53 @@ pub struct ReportCrashResponse {
     pub ai_enabled: bool,
 }
 
+/// Отказ отправки отчёта о краше. Разделяем постоянные и временные: очередь
+/// ретраит только временные, иначе отчёт с отвергнутым телом (400/413/403)
+/// переотправлялся бы до лимита попыток и всё равно выбрасывался.
+pub enum ReportCrashError {
+    /// Нет связи, таймаут, 5xx, 429 — отчёт имеет смысл повторить позже.
+    Retryable(String),
+    /// Сервер отверг запрос по существу (401/403/400/413) — повтор не поможет.
+    Permanent(String),
+}
+
+impl std::fmt::Display for ReportCrashError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Retryable(m) | Self::Permanent(m) => f.write_str(m),
+        }
+    }
+}
+
 pub async fn report_crash(
     client: &reqwest::Client,
     token: &str,
     req: &ReportCrashRequest,
-) -> Result<Option<ReportCrashResponse>, String> {
+) -> Result<Option<ReportCrashResponse>, ReportCrashError> {
     let resp = client
         .post(format!("{}/api/report-crash", base_url()))
         .bearer_auth(token)
         .json(&req)
         .send()
         .await
-        .map_err(network_error)?;
-    if resp.status().is_success() {
+        .map_err(|e| ReportCrashError::Retryable(network_error(e)))?;
+    let status = resp.status();
+    if status.is_success() {
         // Сервер старше reportId отвечает пустым 200 — это не ошибка.
         return Ok(resp.json::<ReportCrashResponse>().await.ok());
     }
-    match resp.json::<ErrorBody>().await {
-        Ok(body) => Err(body.error),
-        Err(_) => Err("Не удалось отправить отчет о краше".to_string()),
+    let message = match resp.json::<ErrorBody>().await {
+        Ok(body) => body.error,
+        Err(_) => format!("Не удалось отправить отчет о краше ({status})"),
+    };
+    // 429 и 408 — «попробуй позже»; остальные 4xx окончательны.
+    let retryable = status.is_server_error()
+        || status == reqwest::StatusCode::TOO_MANY_REQUESTS
+        || status == reqwest::StatusCode::REQUEST_TIMEOUT;
+    if retryable {
+        Err(ReportCrashError::Retryable(message))
+    } else {
+        Err(ReportCrashError::Permanent(message))
     }
 }
 
@@ -939,5 +967,41 @@ pub async fn mark_news_seen(
     match resp.json::<ErrorBody>().await {
         Ok(body) => Err(body.error),
         Err(_) => Err("Не удалось отметить новости прочитанными".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod report_crash_error_tests {
+    use reqwest::StatusCode;
+
+    /// Зеркалит условие в `report_crash`: повторяем только временные отказы.
+    fn retryable(status: StatusCode) -> bool {
+        status.is_server_error()
+            || status == StatusCode::TOO_MANY_REQUESTS
+            || status == StatusCode::REQUEST_TIMEOUT
+    }
+
+    #[test]
+    fn transient_statuses_are_retryable() {
+        for s in [
+            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::BAD_GATEWAY,
+            StatusCode::TOO_MANY_REQUESTS,
+            StatusCode::REQUEST_TIMEOUT,
+        ] {
+            assert!(retryable(s), "{s} должен ретраиться");
+        }
+    }
+
+    #[test]
+    fn rejected_bodies_are_permanent() {
+        for s in [
+            StatusCode::BAD_REQUEST,
+            StatusCode::UNAUTHORIZED,
+            StatusCode::FORBIDDEN,
+            StatusCode::PAYLOAD_TOO_LARGE,
+        ] {
+            assert!(!retryable(s), "{s} не должен ретраиться");
+        }
     }
 }

@@ -1229,16 +1229,41 @@ fn shrink_crash_request(mut req: backend::ReportCrashRequest) -> backend::Report
     req
 }
 
+/// Очередь правят из разных задач (краш игры, drain при входе, повтор после
+/// запуска), поэтому все чтения-изменения-записи идут под одним мьютексом.
+/// Без него drain успевал прочитать файл, сходить в сеть и записать «остаток»
+/// поверх отчёта, сохранённого в это время, — свежий краш терялся.
+static PENDING_CRASHES_LOCK: std::sync::OnceLock<std::sync::Mutex<()>> =
+    std::sync::OnceLock::new();
+
+fn pending_crashes_lock() -> &'static std::sync::Mutex<()> {
+    PENDING_CRASHES_LOCK.get_or_init(|| std::sync::Mutex::new(()))
+}
+
+fn read_pending_crashes(path: &std::path::Path) -> Vec<PendingCrash> {
+    std::fs::read(path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+/// Заменяет файл очереди атомарно (tmp + rename).
+fn write_pending_crashes(path: &std::path::Path, pending: &[PendingCrash]) {
+    let bytes = serde_json::to_vec(pending).unwrap_or_default();
+    let tmp = path.with_extension("json.tmp");
+    if std::fs::write(&tmp, &bytes).is_ok() {
+        let _ = std::fs::rename(&tmp, path);
+    }
+}
+
 fn save_pending_crash(
     data_dir: &std::path::Path,
     profile_id: &str,
     req: backend::ReportCrashRequest,
 ) {
     let path = pending_crashes_path(data_dir);
-    let mut pending: Vec<PendingCrash> = std::fs::read(&path)
-        .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default();
+    let _guard = pending_crashes_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let mut pending = read_pending_crashes(&path);
     pending.push(PendingCrash {
         profile_id: profile_id.to_string(),
         attempts: 0,
@@ -1253,29 +1278,41 @@ fn save_pending_crash(
     write_pending_crashes(&path, &pending);
 }
 
-fn write_pending_crashes(path: &std::path::Path, pending: &[PendingCrash]) {
-    let bytes = serde_json::to_vec(pending).unwrap_or_default();
-    let tmp = path.with_extension("json.tmp");
-    if std::fs::write(&tmp, &bytes).is_ok() {
-        let _ = std::fs::rename(&tmp, path);
+/// Сливает неудавшиеся записи (они старше) с теми, что сохранили, пока шла
+/// отправка. При переполнении выбрасываем СТАРЫЕ (с начала): они уже
+/// несколько раз не ушли, а свежий краш игрок ещё не видел в истории.
+fn merge_pending(failed: Vec<PendingCrash>, saved_while_sending: Vec<PendingCrash>) -> Vec<PendingCrash> {
+    let mut merged = failed;
+    merged.extend(saved_while_sending);
+    if merged.len() > MAX_PENDING_CRASHES {
+        let extra = merged.len() - MAX_PENDING_CRASHES;
+        merged.drain(..extra);
     }
+    merged
 }
 
 /// Повторная отправка отчётов, ждавших входа. Записи чужих профилей остаются
 /// на месте: токен берётся из файла сессии и принадлежит текущему профилю.
+///
+/// Файл читается и переписывается под мьютексом, сеть — вне его: иначе
+/// блокировали бы сохранение нового краша на всё время отправки.
 async fn drain_pending_crashes(
     http: &reqwest::Client,
     app: &tauri::AppHandle,
     data_dir: &std::path::Path,
 ) {
     let path = pending_crashes_path(data_dir);
-    let pending: Vec<PendingCrash> = match std::fs::read(&path) {
-        Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
-        Err(_) => return,
+    let pending = {
+        let _guard = pending_crashes_lock().lock().unwrap_or_else(|e| e.into_inner());
+        let pending = read_pending_crashes(&path);
+        if pending.is_empty() {
+            return;
+        }
+        // Забираем очередь себе: пока идёт сеть, save_pending_crash допишет
+        // свежие отчёты в пустой файл, и мы их не затрём.
+        let _ = std::fs::remove_file(&path);
+        pending
     };
-    if pending.is_empty() {
-        return;
-    }
     tracing::info!("[crash] повтор отправки {} отчётов из очереди", pending.len());
     let mut remaining = Vec::new();
     for mut item in pending {
@@ -1292,7 +1329,11 @@ async fn drain_pending_crashes(
                     spawn_crash_ai_poll(app, http, &token, resp.report_id);
                 }
             }
-            Err(e) => {
+            Err(backend::ReportCrashError::Permanent(e)) => {
+                // Повтор не поможет: тело или права отвергнуты навсегда.
+                tracing::error!("[crash] отчёт из очереди отвергнут: {e}");
+            }
+            Err(backend::ReportCrashError::Retryable(e)) => {
                 tracing::warn!("[crash] повтор отчёта не удался: {e}");
                 item.attempts += 1;
                 if item.attempts < MAX_CRASH_ATTEMPTS {
@@ -1304,10 +1345,11 @@ async fn drain_pending_crashes(
         }
     }
     if remaining.is_empty() {
-        let _ = std::fs::remove_file(&path);
-    } else {
-        write_pending_crashes(&path, &remaining);
+        return;
     }
+    let _guard = pending_crashes_lock().lock().unwrap_or_else(|e| e.into_inner());
+    let merged = merge_pending(remaining, read_pending_crashes(&path));
+    write_pending_crashes(&path, &merged);
 }
 
 /// Запускает drain в фоне — из мест, где нельзя блокировать вход.
@@ -3043,14 +3085,22 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle, launch_id: String
                         spawn_crash_ai_poll(&app_handle, &http, &token, resp.report_id);
                     }
                     Ok(_) => {}
-                    Err(e) => {
-                        // Отчёт не дошёл (сессию отозвали сменой пароля,
-                        // сеть пропала, сервер лежит). Не теряем его: кладём
-                        // в очередь и отправим на следующем входе.
-                        tracing::warn!(
-                            "[crash] отчёт не отправлен: {e}, сохраняем в очередь"
-                        );
-                        save_pending_crash(&data_dir2, &profile_id, crash_req);
+                    Err(err) => {
+                        match err {
+                            // Сессию отозвали сменой пароля, сеть пропала,
+                            // сервер лежит — не теряем отчёт, отправим позже.
+                            backend::ReportCrashError::Retryable(e) => {
+                                tracing::warn!(
+                                    "[crash] отчёт не отправлен: {e}, сохраняем в очередь"
+                                );
+                                save_pending_crash(&data_dir2, &profile_id, crash_req);
+                            }
+                            // Сервер отверг запрос по существу — повтор
+                            // ничего не изменит, только забьёт очередь.
+                            backend::ReportCrashError::Permanent(e) => {
+                                tracing::error!("[crash] отчёт отвергнут: {e}");
+                            }
+                        }
                     }
                 }
             }
@@ -4287,5 +4337,51 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
         assert_eq!(shrunk.log, "boom");
         assert_eq!(shrunk.crash_report.as_deref(), Some("report"));
         assert_eq!(shrunk.debug_log.as_deref(), Some("debug"));
+    }
+
+    fn crash_req(tag: &str) -> backend::ReportCrashRequest {
+        backend::ReportCrashRequest {
+            exit_code: None,
+            log: tag.to_string(),
+            crash_report: None,
+            debug_log: None,
+            launcher_log: None,
+            mod_report: None,
+            environment: None,
+            mods: None,
+            jvm_log: None,
+        }
+    }
+
+    fn pending(tag: &str) -> PendingCrash {
+        PendingCrash {
+            profile_id: "p".into(),
+            attempts: 0,
+            request: crash_req(tag),
+        }
+    }
+
+    #[test]
+    fn merge_keeps_saved_while_sending() {
+        // Пока drain слал old-1/old-2, игра упала и сохранила fresh.
+        let merged = merge_pending(
+            vec![pending("old-1"), pending("old-2")],
+            vec![pending("fresh")],
+        );
+        let tags: Vec<&str> = merged.iter().map(|p| p.request.log.as_str()).collect();
+        assert_eq!(tags, vec!["old-1", "old-2", "fresh"]);
+    }
+
+    #[test]
+    fn merge_drops_oldest_when_over_cap() {
+        let mut failed = Vec::new();
+        for i in 0..MAX_PENDING_CRASHES {
+            failed.push(pending(&format!("old-{i}")));
+        }
+        let merged = merge_pending(failed, vec![pending("fresh")]);
+        assert_eq!(merged.len(), MAX_PENDING_CRASHES);
+        // Старейший выброшен, свежий сохранён.
+        assert_eq!(merged.first().unwrap().request.log, "old-1");
+        assert_eq!(merged.last().unwrap().request.log, "fresh");
     }
 }
