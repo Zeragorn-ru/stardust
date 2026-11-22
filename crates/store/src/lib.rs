@@ -2135,7 +2135,7 @@ fn str_to_model(s: &str) -> SkinModel {
     }
 }
 
-fn normalize_uuid(uuid: &str) -> String {
+pub(crate) fn normalize_uuid(uuid: &str) -> String {
     uuid.replace('-', "").to_lowercase()
 }
 

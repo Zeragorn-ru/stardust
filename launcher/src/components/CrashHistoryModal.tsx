@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { crashHistory, type CrashHistoryEntry } from "../api";
 import McText from "./McText";
 
@@ -20,11 +20,39 @@ function formatRecordedAt(iso: string): string {
   return `${day}.${mon}${yearPart} ${time}`;
 }
 
+/**
+ * Текст ошибки Tauri-команды: команды возвращают `Result<_, String>`, поэтому
+ * отказ приходит строкой, а не `Error`, — `instanceof Error` его бы потерял.
+ */
+function errorMessage(reason: unknown): string {
+  if (reason instanceof Error) return reason.message;
+  if (typeof reason === "string" && reason.trim()) return reason;
+  return "Не удалось загрузить историю";
+}
+
 /** Короткая подпись статуса записи: что с AI-разбором. */
 function statusLabel(entry: CrashHistoryEntry): string | null {
   if (entry.aiStatus === "failed") return "разбор не удался";
-  if (!entry.aiStatus) return "ждёт разбора";
+  // «pending» — сервер уже разбирает прямо сейчас, вердикт придёт опросом
+  // сразу после краша. Остальные значения (чаще всего null при выключенном
+  // AI) разбора не ждут вовсе: обещать «ждёт разбора» там нельзя.
+  if (entry.aiStatus === "pending") return "разбираем…";
   return null;
+}
+
+/**
+ * Что показать в раскрытой записи, если вердикта нет. Для `pending` — честное
+ * «скоро»; для `failed` — ошибку разбора; для `null` (AI выключен на сервере)
+ * — что разбора не будет, иначе игрок будет ждать его вечно.
+ */
+function pendingText(entry: CrashHistoryEntry): string {
+  if (entry.aiStatus === "failed") {
+    return "AI не смог разобрать этот краш. Полный отчёт остался у администраторов.";
+  }
+  if (entry.aiStatus === "pending") {
+    return "AI-вердикт ещё не готов — обычно это занимает несколько секунд после краша.";
+  }
+  return "Автоматический разбор этого краша не выполнялся. Полный отчёт остался у администраторов.";
 }
 
 /**
@@ -39,15 +67,15 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
   const [openId, setOpenId] = useState<number | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(() => {
+    setEntries(null);
+    setError(null);
     crashHistory()
-      .then((list) => { if (!cancelled) setEntries(list); })
-      .catch((reason) => {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Не удалось загрузить историю");
-      });
-    return () => { cancelled = true; };
+      .then(setEntries)
+      .catch((reason) => setError(errorMessage(reason)));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   // Escape закрывает; фокус держим внутри диалога.
   useEffect(() => {
@@ -93,7 +121,12 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
           <p className="muted crash-history__state"><span className="spinner" /> Загружаем историю…</p>
         )}
         {error && (
-          <p className="muted crash-history__state" role="alert">{error}</p>
+          <div className="crash-history__empty" role="alert">
+            <strong>{error}</strong>
+            <button type="button" className="btn btn--ghost" onClick={load}>
+              Попробовать снова
+            </button>
+          </div>
         )}
         {entries !== null && entries.length === 0 && (
           <div className="crash-history__empty">
@@ -108,7 +141,11 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
         {entries !== null && entries.length > 0 && (
           <ul className="crash-history__list">
             {entries.map((entry) => {
-              const analysis = entry.aiAnalysis;
+              // Пока идёт разбор, сервер кладёт пустой объект — для показа это
+              // то же, что вердикта нет.
+              const analysis = entry.aiAnalysis && Object.keys(entry.aiAnalysis).length > 0
+                ? entry.aiAnalysis
+                : undefined;
               const open = openId === entry.id;
               const severity = analysis?.severity ?? "";
               const status = statusLabel(entry);
@@ -116,7 +153,7 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
               return (
                 <li
                   key={entry.id}
-                  className={`crash-history__item crash-history__item--${entry.aiStatus ?? "pending"}`}
+                  className={`crash-history__item crash-history__item--${entry.aiStatus ?? "none"}`}
                 >
                   <button
                     type="button"
@@ -150,11 +187,7 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
                       {analysis?.suggestion && <p><span>Что сделать:</span> <McText text={analysis.suggestion} /></p>}
                       {analysis?.error && <p><span>Ошибка разбора:</span> {analysis.error}</p>}
                       {!analysis && (
-                        <p className="muted">
-                          {entry.aiStatus === "failed"
-                            ? "AI не смог разобрать этот краш. Полный отчёт остался у администраторов."
-                            : "AI-вердикт ещё не готов — обновите список позже."}
-                        </p>
+                        <p className="muted">{pendingText(entry)}</p>
                       )}
                     </div>
                   )}

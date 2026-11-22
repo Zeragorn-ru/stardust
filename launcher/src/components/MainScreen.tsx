@@ -123,6 +123,9 @@ export default function MainScreen({
   // показать на главном экране, были ли падения (null — ещё грузим/нет связи).
   const [crashCount, setCrashCount] = useState<number | null>(null);
   const [lastCrashAt, setLastCrashAt] = useState<string | null>(null);
+  // Последнее обновление сорвалось: на экране могут быть устаревшие данные,
+  // и «Чисто» после упавшей игры читалось бы как «всё хорошо».
+  const [crashStale, setCrashStale] = useState(false);
 
   const playLockRef = useRef(false);
 
@@ -154,8 +157,11 @@ export default function MainScreen({
       .then((entries) => {
         setCrashCount(entries.length);
         setLastCrashAt(entries[0]?.recordedAt ?? null);
+        setCrashStale(false);
       })
-      .catch(() => undefined);
+      // Ошибку не превращаем в «крашей не было»: помечаем данные устаревшими,
+      // чтобы карточка не утверждала, что аварий нет, по несвежему ответу.
+      .catch(() => setCrashStale(true));
   }, []);
 
   // Загружаем статистику и настройки при монтировании.
@@ -497,6 +503,11 @@ export default function MainScreen({
                         </span>
                       )}
                     </>
+                  ) : crashStale ? (
+                    <span className="hero__stat">
+                      <span className="hero__stat-value hero__stat-value--muted">—</span>
+                      <span className="hero__stat-label">нет связи</span>
+                    </span>
                   ) : (
                     <span className="hero__stat">
                       <span className="hero__stat-value hero__stat-value--online">Чисто</span>

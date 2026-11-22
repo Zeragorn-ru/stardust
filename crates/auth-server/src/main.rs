@@ -1502,6 +1502,7 @@ async fn stats_record_session(
         .record_server_log(
             "game_session",
             Some(&account.username),
+            Some(&account.uuid),
             "Игровая сессия завершена",
             serde_json::json!({
                 "durationSeconds": req.duration_seconds,
@@ -1588,6 +1589,7 @@ async fn report_crash(
         .record_server_log(
             "client_crash",
             Some(&account.username),
+            Some(&account.uuid),
             &crash_db_summary(req.exit_code, req.mod_report.as_deref(), req.crash_report.as_deref(), Some(&req.log)),
             serde_json::json!({
                 "exitCode": req.exit_code,
@@ -1690,6 +1692,20 @@ async fn crash_analysis(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     let account = current_account(&state, &headers).await?;
+    // Владелец — по uuid аккаунта, а не по нику: ник можно сменить, и тогда
+    // сравнение строк отдало бы игроку 403 на его же старый отчёт, а новый
+    // владелец освободившегося ника — чужой.
+    let owner = state
+        .store
+        .server_log_account_uuid(id)
+        .await
+        .map_err(|e| match e {
+            StoreError::NotFound => ApiError::new(StatusCode::NOT_FOUND, "Отчёт не найден"),
+            other => other.into(),
+        })?;
+    if owner.as_deref() != Some(account.uuid.as_str()) {
+        return Err(ApiError::new(StatusCode::FORBIDDEN, "Чужой отчёт"));
+    }
     // Явное сообщение: дефолтный From<StoreError> ответил бы «Аккаунт не
     // найден», что для отсутствующего отчёта вводит в заблуждение.
     let log = state
@@ -1700,9 +1716,6 @@ async fn crash_analysis(
             StoreError::NotFound => ApiError::new(StatusCode::NOT_FOUND, "Отчёт не найден"),
             other => other.into(),
         })?;
-    if log.username.as_deref() != Some(account.username.as_str()) {
-        return Err(ApiError::new(StatusCode::FORBIDDEN, "Чужой отчёт"));
-    }
     Ok(Json(serde_json::json!({
         "status": log.ai_status,
         "analysis": log.ai_analysis,
@@ -1716,13 +1729,10 @@ async fn crash_history(
     headers: HeaderMap,
 ) -> Result<Json<Vec<store::server_telemetry::ServerLogEntry>>, ApiError> {
     let account = current_account(&state, &headers).await?;
-    // server_logs.username хранит НИК (так пишет report_crash), а не uuid.
-    // Раньше сюда передавался account.uuid — условие никогда не совпадало,
-    // и история крашей всегда возвращалась пустой.
-    let logs = state
-        .store
-        .crash_history_for(&account.username, 50)
-        .await?;
+    // Ключ — uuid аккаунта: ник изменяем, поэтому старые записи после смены
+    // ника по нику не найти, а по освободившемуся нику их получил бы новый
+    // владелец (вместе с AI-вердиктом, где окружение чужой машины).
+    let logs = state.store.crash_history_for(&account.uuid, 50).await?;
     Ok(Json(logs))
 }
 
@@ -1776,6 +1786,7 @@ async fn report_server_crash(
         .store
         .record_server_log(
             "server_crash",
+            None,
             None,
             "Dedicated server завершился аварийно",
             serde_json::json!({
@@ -1866,6 +1877,7 @@ async fn report_external_mods(
             .record_server_log(
                 "external_mods_allowed",
                 Some(&account.username),
+                Some(&account.uuid),
                 "Запуск только с разрешенными сторонними модами",
                 serde_json::json!({ "mods": mods }),
             )
@@ -1886,6 +1898,7 @@ async fn report_external_mods(
         .record_server_log(
             "external_mods",
             Some(&account.username),
+            Some(&account.uuid),
             "Запуск Minecraft со сторонними модами",
             serde_json::json!({ "mods": mods }),
         )

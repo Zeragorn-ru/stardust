@@ -5,7 +5,7 @@ use sqlx::{QueryBuilder, Row};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
-use crate::{Store, StoreError};
+use crate::{normalize_uuid, Store, StoreError};
 use protocol::{ExternalModAllowlistEntry, ExternalModBlockRule, ExternalModPolicy};
 
 pub const SETTING_SERVER_TELEMETRY_TOKEN: &str = "server_telemetry_token";
@@ -313,21 +313,40 @@ impl Store {
         Ok(())
     }
 
+    /// Владелец записи журнала: uuid аккаунта, либо `None`, если запись ни к
+    /// кому не привязана (например, старые строки с изменённым ником).
+    /// `Err(NotFound)` — записи нет.
+    pub async fn server_log_account_uuid(&self, id: i64) -> Result<Option<String>, StoreError> {
+        let row: Option<Option<String>> =
+            sqlx::query_scalar("SELECT account_uuid FROM server_logs WHERE id = $1")
+                .bind(id)
+                .fetch_optional(&self.pool)
+                .await?;
+        row.ok_or(StoreError::NotFound)
+    }
+
     /// Пишет запись журнала и возвращает её id (нужен auth-server'у, чтобы
     /// отдать его лаунчеру для опроса AI-разбора краша).
+    ///
+    /// `username` — для отображения в админке, `account_uuid` — ключ владельца.
+    /// Привязка к аккаунту обязана идти по uuid: ник изменяем, и после смены
+    /// ника запись по нику уже не найти (а после освобождения ника на неё
+    /// наткнулся бы новый владелец).
     pub async fn record_server_log(
         &self,
         event_type: &str,
         username: Option<&str>,
+        account_uuid: Option<&str>,
         summary: &str,
         details: serde_json::Value,
     ) -> Result<i64, StoreError> {
         let id: i64 = sqlx::query_scalar(
-            "INSERT INTO server_logs (event_type, username, summary, details)
-             VALUES ($1, $2, $3, $4) RETURNING id",
+            "INSERT INTO server_logs (event_type, username, account_uuid, summary, details)
+             VALUES ($1, $2, $3, $4, $5) RETURNING id",
         )
         .bind(event_type)
         .bind(username)
+        .bind(account_uuid)
         .bind(summary)
         .bind(details)
         .fetch_one(&self.pool)
@@ -382,19 +401,23 @@ impl Store {
     /// История крашей ОДНОГО игрока (для экрана «История крашей» в лаунчере).
     /// Без полных логов (details): список лёгкий, вердикт AI прилагается.
     /// Свежие сверху, не более `limit`.
+    ///
+    /// Выборка по `account_uuid`, а не по нику: ник можно сменить, и прежняя
+    /// история не должна от этого пропадать; равно как и доставаться тому, кто
+    /// займёт освободившийся ник.
     pub async fn crash_history_for(
         &self,
-        username: &str,
+        account_uuid: &str,
         limit: i64,
     ) -> Result<Vec<ServerLogEntry>, StoreError> {
         let rows = sqlx::query(
             "SELECT id, recorded_at, event_type, username, summary, '{}'::jsonb AS details,
                     ai_status, ai_analysis
              FROM server_logs
-             WHERE event_type = 'client_crash' AND username = $1
+             WHERE event_type = 'client_crash' AND account_uuid = $1
              ORDER BY id DESC LIMIT $2",
         )
-        .bind(username)
+        .bind(normalize_uuid(account_uuid))
         .bind(limit)
         .fetch_all(&self.pool)
         .await?;
