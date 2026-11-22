@@ -267,4 +267,4 @@ execute as @s[advancements={blazeandcave:challenges/overwarden=true}] run functi
 
 
 # Message if trophies have been granted
-tellraw @s {"color":"green","text":"You have been granted trophies."}
+tellraw @s {"color":"green","translate":"You have been granted trophies."}

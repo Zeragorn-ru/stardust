@@ -298,4 +298,4 @@ execute as @s[advancements={blazeandcave:end/taking_the_scenic_route=true}] run 
 
 
 # Message if trophies have been granted
-tellraw @s {"color":"green","text":"You have been granted trophies."}
+tellraw @s {"color":"green","translate":"You have been granted trophies."}

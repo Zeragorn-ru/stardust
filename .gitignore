@@ -10,6 +10,8 @@ website/dist/
 **/.gradle/
 stardust-mod/build/
 stardust-mod-fabric/build/
+stardust-mod/logs/
+stardust-mod-fabric/logs/
 
 # Секреты и состояние — НИКОГДА не коммитим
 .env

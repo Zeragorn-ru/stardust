@@ -1,18 +1,18 @@
 # Function runs at the beginning of a load
 
 # # Adds/updates scoreboard objectives and settings
-scoreboard objectives add bac_advancements dummy {"text":"Advancements"}
-scoreboard objectives add bac_advfirst dummy {"text":"First Advancements"}
+scoreboard objectives add bac_advancements dummy {"translate":"Advancements"}
+scoreboard objectives add bac_advfirst dummy {"translate":"First Advancements"}
 scoreboard objectives add bac_obtained dummy
 scoreboard objectives add bac_settings dummy
 scoreboard objectives add bac_trophy_given dummy
 scoreboard objectives add bac_quit minecraft.custom:minecraft.leave_game
 
 # The following are related to teams
-scoreboard objectives add bac_advancements_team dummy {"text":"Team Advancements"}
-scoreboard objectives add bac_advfirst_team_sum dummy {"text":"Total Team Advancements"}
-scoreboard objectives add bac_advfirst_sum dummy {"text":"Team First Advancements"}
-scoreboard objectives add bac_advfirst_team dummy {"text":"First Advancements in Team"}
+scoreboard objectives add bac_advancements_team dummy {"translate":"Team Advancements"}
+scoreboard objectives add bac_advfirst_team_sum dummy {"translate":"Total Team Advancements"}
+scoreboard objectives add bac_advfirst_sum dummy {"translate":"Team First Advancements"}
+scoreboard objectives add bac_advfirst_team dummy {"translate":"First Advancements in Team"}
 
 scoreboard objectives add bac_obtained_black dummy
 scoreboard objectives add bac_obtained_dark_blue dummy

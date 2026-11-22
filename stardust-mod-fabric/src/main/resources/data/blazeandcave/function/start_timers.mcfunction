@@ -20,8 +20,8 @@ scoreboard objectives add bac_quit minecraft.custom:minecraft.leave_game
 scoreboard objectives add bac_dont_count dummy
 scoreboard players set hidden bac_dont_count 1
 
-scoreboard objectives modify bac_advancements displayname {"text":"Advancement Count"}
-scoreboard objectives modify bac_advfirst displayname {"text":"First Advancement Count"}
+scoreboard objectives modify bac_advancements displayname {"translate":"Advancement Count"}
+scoreboard objectives modify bac_advfirst displayname {"translate":"First Advancement Count"}
 
 # The following are related to teams
 scoreboard objectives add bac_advancements_team dummy
@@ -29,10 +29,10 @@ scoreboard objectives add bac_advfirst_team_sum dummy
 scoreboard objectives add bac_advfirst_sum dummy
 scoreboard objectives add bac_advfirst_team dummy
 
-scoreboard objectives modify bac_advancements_team displayname {"text":"Team Advancement Count"}
-scoreboard objectives modify bac_advfirst_team_sum displayname {"text":"Total Team Advancement Count"}
-scoreboard objectives modify bac_advfirst_sum displayname {"text":"Team First Advancement Count"}
-scoreboard objectives modify bac_advfirst_team displayname {"text":"First Advancements in Team Count"}
+scoreboard objectives modify bac_advancements_team displayname {"translate":"Team Advancement Count"}
+scoreboard objectives modify bac_advfirst_team_sum displayname {"translate":"Total Team Advancement Count"}
+scoreboard objectives modify bac_advfirst_sum displayname {"translate":"Team First Advancement Count"}
+scoreboard objectives modify bac_advfirst_team displayname {"translate":"First Advancements in Team Count"}
 
 scoreboard objectives add bac_obtained_black dummy
 scoreboard objectives add bac_obtained_dark_blue dummy
@@ -106,8 +106,8 @@ team join bac_team_white White_Team
 scoreboard objectives add bac_advancements_points dummy
 scoreboard objectives add bac_advancements_team_points dummy
 
-scoreboard objectives modify bac_advancements_points displayname {"text":"Advancement Points"}
-scoreboard objectives modify bac_advancements_team_points displayname {"text":"Team Advancement Points"}
+scoreboard objectives modify bac_advancements_points displayname {"translate":"Advancement Points"}
+scoreboard objectives modify bac_advancements_team_points displayname {"translate":"Team Advancement Points"}
 
 scoreboard objectives add bac_points dummy
 

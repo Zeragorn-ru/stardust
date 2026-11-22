@@ -127,6 +127,6 @@ execute if score coop bac_settings matches 2 if entity @s[team=bac_team_yellow] 
 execute if score coop bac_settings matches 2 if entity @s[team=bac_team_white] run advancement grant @a[team=bac_team_white] only blazeandcave:bacap/advancement_legend
 
 # Special title
-title @s title {"text":"Congratulations!","color":"light_purple","bold":true}
-title @s subtitle {"text":"You have completed ","color":"white","extra":[{"text":"Blaze","color":"gold"},{"text":"and","color":"white"},{"text":"Cave","color":"aqua"},{"text":"'s Advancements Pack!","color":"white"}]}
+title @s title {"translate":"Congratulations!","color":"light_purple","bold":true}
+title @s subtitle {"translate":"You have completed ","color":"white","extra":[{"text":"Blaze","color":"gold"},{"text":"and","color":"white"},{"text":"Cave","color":"aqua"},{"text":"'s Advancements Pack!","color":"white"}]}
 title @s times 20 200 20

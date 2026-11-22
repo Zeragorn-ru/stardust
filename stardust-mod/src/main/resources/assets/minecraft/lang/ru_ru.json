@@ -4846,7 +4846,6 @@
     "The Cataclyst": "Катаклизм",
     "When detonated, it kills every single avatar and NPC in the sector": "При взрыве, убить всех сущностей рядом",
     
-    "Железяка": "",
     "No, I said “Aaaaaand OPEN!”,": "Нет, Я сказал “Aaaaaa ОТКРОЙТЕ”",
     "not “Aaaaand close a secondary set of doors!": "Неееет! “ЗАКРОЙТЕ ЗАДНЮЮ ДВЕРЬ!”",
     
@@ -5790,7 +5789,7 @@
 
 "M.O.A.B.": "Фруктовый лёд",
 "M.O.A.B stands for Massive Ornary Air Blimp, not Mother Of All Bloons": "Может быть, вашему верному гасту также понравится это холодное угощение?",
-"Either way, it brings pain": "",
+"Either way, it brings pain": "Так или иначе, это приносит боль",
 
 "Mini Ghast": "Минигаст",
 "Only able to hover just above the ground": "Может парить только прямо над землёй",
@@ -5818,5 +5817,33 @@
 
 
 # All advancements, trophies and other text strings that get added in versions 1.19 or later will be added down here for easy locating by translators who wish to update their language file
+    "Advancements": "Достижения",
+    "First Advancements": "Первые достижения",
+    "Advancement Count": "Достижения",
+    "First Advancement Count": "Первые достижения",
+    "Team Advancement Count": "Достижения команды",
+    "Total Team Advancement Count": "Всего достижений команды",
+    "Team First Advancement Count": "Первые достижения команды",
+    "First Advancements in Team Count": "Первые достижения в команде",
+    "Advancement Points": "Очки достижений",
+    "Team Advancement Points": "Очки достижений команды",
+    "You have been granted trophies.": "Вам выданы трофеи.",
+    "You have completed ": "Вы прошли ",
+    "Black Team": "Команда «Black»",
+    "Dark Blue Team": "Команда «Dark Blue»",
+    "Dark Green Team": "Команда «Dark Green»",
+    "Dark Aqua Team": "Команда «Dark Aqua»",
+    "Dark Red Team": "Команда «Dark Red»",
+    "Dark Purple Team": "Команда «Dark Purple»",
+    "Gold Team": "Команда «Gold»",
+    "Gray Team": "Команда «Gray»",
+    "Dark Gray Team": "Команда «Dark Gray»",
+    "Blue Team": "Команда «Blue»",
+    "Green Team": "Команда «Green»",
+    "Aqua Team": "Команда «Aqua»",
+    "Red Team": "Команда «Red»",
+    "Light Purple Team": "Команда «Light Purple»",
+    "Yellow Team": "Команда «Yellow»",
+    "White Team": "Команда «White»",
 "__END OF FILE__": "__КОНЕЦ ФАЙЛА__"
 }
