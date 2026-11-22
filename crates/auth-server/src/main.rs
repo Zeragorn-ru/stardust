@@ -1716,9 +1716,12 @@ async fn crash_history(
     headers: HeaderMap,
 ) -> Result<Json<Vec<store::server_telemetry::ServerLogEntry>>, ApiError> {
     let account = current_account(&state, &headers).await?;
+    // server_logs.username хранит НИК (так пишет report_crash), а не uuid.
+    // Раньше сюда передавался account.uuid — условие никогда не совпадало,
+    // и история крашей всегда возвращалась пустой.
     let logs = state
         .store
-        .crash_history_for(&account.uuid, 50)
+        .crash_history_for(&account.username, 50)
         .await?;
     Ok(Json(logs))
 }
