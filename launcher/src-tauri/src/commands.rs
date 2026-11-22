@@ -715,6 +715,9 @@ fn persist_session(
     // только из recover_pending_session (автологин), а при ручном входе
     // очередь могла ждать своего владельца бесконечно.
     drain_pending_sessions_spawn(app, &token);
+    // Тот же вход — повод дослать отчёты о крашах, которые не ушли в прошлый
+    // раз (например, сессию отозвали сменой пароля прямо во время игры).
+    drain_pending_crashes_spawn(app);
     Ok(())
 }
 
@@ -1118,6 +1121,203 @@ async fn drain_pending_sessions(
             let _ = std::fs::rename(&tmp, &path);
         }
     }
+}
+
+// ---------- Очередь неотправленных отчётов о крашах ----------
+
+/// Лимит тела на auth-сервере — 8 МБ; оставляем запас на JSON-обёртку и
+/// остальные поля, чтобы запрос не отвергли по размеру уже при повторе.
+const PENDING_CRASH_BODY_LIMIT: usize = 7 * 1024 * 1024;
+const MAX_PENDING_CRASHES: usize = 10;
+/// Сервер принимает отчёт без ограничения по возрасту, но очередь старых
+/// записей только распухает — хватает нескольких попыток.
+const MAX_CRASH_ATTEMPTS: u32 = 5;
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PendingCrash {
+    /// Владелец отчёта: токен на диске принадлежит конкретному профилю.
+    profile_id: String,
+    #[serde(default)]
+    attempts: u32,
+    request: backend::ReportCrashRequest,
+}
+
+fn pending_crashes_path(data_dir: &std::path::Path) -> std::path::PathBuf {
+    data_dir.join("pending-crashes.json")
+}
+
+/// Размер строки в JSON-теле (без кавычек): экранирование раздувает лог
+/// с кавычками, переводами строк и не-ASCII до нескольких раз, поэтому
+/// резать по сырым байтам нельзя — сервер отвергнет тело по лимиту.
+fn json_escaped_len(text: &str) -> usize {
+    serde_json::to_string(text)
+        .map(|s| s.len().saturating_sub(2))
+        .unwrap_or(text.len())
+}
+
+/// Оставляет хвост лога (причина краша в конце) длиной не больше `max` в
+/// экранированных байтах. Сначала оценка по сырым байтам, затем уточнение
+/// делением, пока хвост реально не впишется.
+fn trim_to_json_bytes(text: String, max: usize) -> String {
+    if json_escaped_len(&text) <= max {
+        return text;
+    }
+    let marker = "[Stardust] Лог урезан: показан конец файла.\n";
+    let marker_len = json_escaped_len(marker);
+    if max <= marker_len {
+        return text.chars().take(4).collect();
+    }
+    let mut cut = max - marker_len;
+    loop {
+        let start = text
+            .char_indices()
+            .find(|(idx, _)| text.len() - *idx <= cut)
+            .map(|(idx, _)| idx)
+            .unwrap_or(0);
+        let tail = &text[start..];
+        if marker_len + json_escaped_len(tail) <= max {
+            return format!("{marker}{tail}");
+        }
+        if start == 0 {
+            return format!("{marker}{tail}");
+        }
+        // Экранирование съело запас: режем ещё вдвое и пробуем снова.
+        cut /= 2;
+    }
+}
+
+/// Урезает тяжёлые поля отчёта, чтобы он целиком уложился в лимит тела.
+/// Оставляем хвост каждого лога — в крашах причина в конце. После обрезки
+/// проверяем фактическую сериализацию: если всё равно не влезло (например,
+/// раздулись имена модов), выбрасываем необязательные логи и урезаем основной.
+fn shrink_crash_request(mut req: backend::ReportCrashRequest) -> backend::ReportCrashRequest {
+    let budget = PENDING_CRASH_BODY_LIMIT;
+    // Заранее делим бюджет с запасом на JSON-обёртку и остальные поля.
+    let log_budget = budget * 5 / 10;
+    let report_budget = budget / 20;
+    let debug_budget = budget / 20;
+    let side_budget = budget / 20;
+
+    req.log = trim_to_json_bytes(req.log, log_budget);
+    if let Some(text) = req.debug_log.take() {
+        req.debug_log = Some(trim_to_json_bytes(text, debug_budget));
+    }
+    if let Some(text) = req.launcher_log.take() {
+        req.launcher_log = Some(trim_to_json_bytes(text, side_budget));
+    }
+    if let Some(text) = req.jvm_log.take() {
+        req.jvm_log = Some(trim_to_json_bytes(text, side_budget));
+    }
+    if let Some(text) = req.crash_report.take() {
+        req.crash_report = Some(trim_to_json_bytes(text, report_budget));
+    }
+
+    let serialized_len = |req: &backend::ReportCrashRequest| {
+        serde_json::to_vec(req).map(|v| v.len()).unwrap_or(usize::MAX)
+    };
+    if serialized_len(&req) <= budget {
+        return req;
+    }
+    // Не влезло из-за остальных полей — жертвуем необязательными логами.
+    req.debug_log = None;
+    req.launcher_log = None;
+    req.jvm_log = None;
+    while serialized_len(&req) > budget && !req.log.is_empty() {
+        let next = trim_to_json_bytes(std::mem::take(&mut req.log), req.log.len() / 2);
+        req.log = next;
+    }
+    req
+}
+
+fn save_pending_crash(
+    data_dir: &std::path::Path,
+    profile_id: &str,
+    req: backend::ReportCrashRequest,
+) {
+    let path = pending_crashes_path(data_dir);
+    let mut pending: Vec<PendingCrash> = std::fs::read(&path)
+        .ok()
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default();
+    pending.push(PendingCrash {
+        profile_id: profile_id.to_string(),
+        attempts: 0,
+        request: shrink_crash_request(req),
+    });
+    // Старые записи отбрасываем: очередь — страховка от единичного сбоя,
+    // а не архив.
+    if pending.len() > MAX_PENDING_CRASHES {
+        let extra = pending.len() - MAX_PENDING_CRASHES;
+        pending.drain(..extra);
+    }
+    write_pending_crashes(&path, &pending);
+}
+
+fn write_pending_crashes(path: &std::path::Path, pending: &[PendingCrash]) {
+    let bytes = serde_json::to_vec(pending).unwrap_or_default();
+    let tmp = path.with_extension("json.tmp");
+    if std::fs::write(&tmp, &bytes).is_ok() {
+        let _ = std::fs::rename(&tmp, path);
+    }
+}
+
+/// Повторная отправка отчётов, ждавших входа. Записи чужих профилей остаются
+/// на месте: токен берётся из файла сессии и принадлежит текущему профилю.
+async fn drain_pending_crashes(
+    http: &reqwest::Client,
+    app: &tauri::AppHandle,
+    data_dir: &std::path::Path,
+) {
+    let path = pending_crashes_path(data_dir);
+    let pending: Vec<PendingCrash> = match std::fs::read(&path) {
+        Ok(b) => serde_json::from_slice(&b).unwrap_or_default(),
+        Err(_) => return,
+    };
+    if pending.is_empty() {
+        return;
+    }
+    tracing::info!("[crash] повтор отправки {} отчётов из очереди", pending.len());
+    let mut remaining = Vec::new();
+    for mut item in pending {
+        let Some(token) = load_session_token(app, &item.profile_id) else {
+            item.attempts += 1;
+            if item.attempts < MAX_CRASH_ATTEMPTS {
+                remaining.push(item);
+            }
+            continue;
+        };
+        match backend::report_crash(http, &token, &item.request).await {
+            Ok(resp) => {
+                if let Some(resp) = resp.filter(|r| r.ai_enabled) {
+                    spawn_crash_ai_poll(app, http, &token, resp.report_id);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("[crash] повтор отчёта не удался: {e}");
+                item.attempts += 1;
+                if item.attempts < MAX_CRASH_ATTEMPTS {
+                    remaining.push(item);
+                } else {
+                    tracing::warn!("[crash] отчёт отброшен: слишком много попыток");
+                }
+            }
+        }
+    }
+    if remaining.is_empty() {
+        let _ = std::fs::remove_file(&path);
+    } else {
+        write_pending_crashes(&path, &remaining);
+    }
+}
+
+/// Запускает drain в фоне — из мест, где нельзя блокировать вход.
+fn drain_pending_crashes_spawn(app: &AppHandle) {
+    let app = app.clone();
+    let http = app.state::<AppState>().http();
+    let data_dir = paths::data_dir(&app);
+    tauri::async_runtime::spawn(async move {
+        drain_pending_crashes(&http, &app, &data_dir).await;
+    });
 }
 
 // ---------- Аутентификация (auth-сервер) ----------
@@ -2837,7 +3037,15 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle, launch_id: String
                         spawn_crash_ai_poll(&app_handle, &http, &token, resp.report_id);
                     }
                     Ok(_) => {}
-                    Err(e) => tracing::error!("[crash] не удалось отправить отчет о краше: {e}"),
+                    Err(e) => {
+                        // Отчёт не дошёл (сессию отозвали сменой пароля,
+                        // сеть пропала, сервер лежит). Не теряем его: кладём
+                        // в очередь и отправим на следующем входе.
+                        tracing::warn!(
+                            "[crash] отчёт не отправлен: {e}, сохраняем в очередь"
+                        );
+                        save_pending_crash(&data_dir2, &profile_id, crash_req);
+                    }
                 }
             }
         }
@@ -3972,5 +4180,106 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
         log.push_str("[19:00:59] [Server thread/INFO]: Stopping!\n");
         assert!(minecraft_log_has_crash_marker(&log));
         assert!(!minecraft_log_shows_normal_shutdown(&log));
+    }
+    #[test]
+    fn pending_crash_roundtrips_through_disk() {
+        let dir = temp_game_dir("pending-crash");
+        let req = backend::ReportCrashRequest {
+            exit_code: Some(-1),
+            log: "boom".into(),
+            crash_report: None,
+            debug_log: None,
+            launcher_log: None,
+            mod_report: None,
+            environment: None,
+            mods: Some(vec!["fabric-api".into()]),
+            jvm_log: None,
+        };
+        save_pending_crash(&dir, "profile-1", req);
+        let raw = std::fs::read(pending_crashes_path(&dir)).unwrap();
+        let restored: Vec<PendingCrash> = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(restored.len(), 1);
+        assert_eq!(restored[0].profile_id, "profile-1");
+        assert_eq!(restored[0].request.log, "boom");
+        assert_eq!(restored[0].request.mods.as_deref(), Some(&["fabric-api".to_string()][..]));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn pending_crash_queue_is_capped() {
+        let dir = temp_game_dir("pending-crash-cap");
+        for i in 0..(MAX_PENDING_CRASHES + 3) {
+            save_pending_crash(
+                &dir,
+                "profile-1",
+                backend::ReportCrashRequest {
+                    exit_code: None,
+                    log: format!("crash {i}"),
+                    crash_report: None,
+                    debug_log: None,
+                    launcher_log: None,
+                    mod_report: None,
+                    environment: None,
+                    mods: None,
+                    jvm_log: None,
+                },
+            );
+        }
+        let raw = std::fs::read(pending_crashes_path(&dir)).unwrap();
+        let stored: Vec<PendingCrash> = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(stored.len(), MAX_PENDING_CRASHES);
+        // Держим самые свежие.
+        assert_eq!(
+            stored.last().unwrap().request.log,
+            format!("crash {}", MAX_PENDING_CRASHES + 2)
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn shrink_crash_request_fits_escaped_json() {
+        // Лог с кириллицей, кавычками и переводами строк: в JSON он
+        // раздувается в разы, и обрезка по сырым байтам не спасает.
+        let line = "[00:00:00] [Render thread/INFO]: строка с кириллицей и \"кавычками\" \\ backslash\n";
+        let req = backend::ReportCrashRequest {
+            exit_code: Some(1),
+            log: line.repeat(120_000),
+            crash_report: Some(line.repeat(120_000)),
+            debug_log: Some(line.repeat(120_000)),
+            launcher_log: Some(line.repeat(120_000)),
+            mod_report: None,
+            environment: Some(serde_json::json!({ "os": "test" })),
+            mods: Some((0..200).map(|i| format!("mod-{i}.jar")).collect()),
+            jvm_log: Some(line.repeat(120_000)),
+        };
+        assert!(serde_json::to_vec(&req).unwrap().len() > PENDING_CRASH_BODY_LIMIT);
+        let shrunk = shrink_crash_request(req);
+        let body = serde_json::to_vec(&shrunk).unwrap();
+        assert!(
+            body.len() <= PENDING_CRASH_BODY_LIMIT,
+            "сериализованный отчёт {} > лимита",
+            body.len()
+        );
+        // Хвост лога сохраняется — там причина краша.
+        assert!(shrunk.log.contains("backslash"));
+    }
+
+    #[test]
+    fn shrink_crash_request_keeps_small_report_intact() {
+        let req = backend::ReportCrashRequest {
+            exit_code: Some(1),
+            log: "boom".into(),
+            crash_report: Some("report".into()),
+            debug_log: Some("debug".into()),
+            launcher_log: None,
+            mod_report: Some("mods".into()),
+            environment: None,
+            mods: None,
+            jvm_log: None,
+        };
+        let shrunk = shrink_crash_request(req);
+        assert_eq!(shrunk.log, "boom");
+        assert_eq!(shrunk.crash_report.as_deref(), Some("report"));
+        assert_eq!(shrunk.debug_log.as_deref(), Some("debug"));
     }
 }

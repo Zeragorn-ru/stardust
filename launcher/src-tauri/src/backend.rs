@@ -797,7 +797,9 @@ pub async fn record_session(
 }
 
 // Поля — snake_case, как ждёт auth-server (ReportCrashRequest без rename_all).
-#[derive(serde::Serialize)]
+// Deserialize нужен очереди неотправленных отчётов: лежащий на диске запрос
+// переживает перезапуск лаунчера и отправляется после входа.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct ReportCrashRequest {
     pub exit_code: Option<i32>,
     pub log: String,
