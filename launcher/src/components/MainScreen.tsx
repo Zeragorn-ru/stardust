@@ -485,12 +485,12 @@ export default function MainScreen({
                   onClick={() => setHistoryOpen(true)}
                   aria-haspopup="dialog"
                 >
-                  {crashCount == null ? (
+                  {crashCount == null && !crashStale ? (
                     <span className="hero__stat">
                       <span className="hero__stat-value skeleton-text" />
                       <span className="hero__stat-label skeleton-text" />
                     </span>
-                  ) : crashCount > 0 ? (
+                  ) : crashCount != null && crashCount > 0 ? (
                     <>
                       <span className="hero__stat">
                         <span className="hero__stat-value hero__stat-value--crash">{crashCount}</span>
