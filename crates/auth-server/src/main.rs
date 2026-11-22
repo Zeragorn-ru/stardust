@@ -1580,10 +1580,10 @@ async fn report_crash(
     append_report_summary(&mut summary, "latest.log", Some(&req.log));
     append_report_summary(&mut summary, "debug.log", req.debug_log.as_deref());
     append_report_summary(&mut summary, "launcher.log", req.launcher_log.as_deref());
-    state
-        .store
-        .notify_admins_with_document(&summary, "latest.log", req.log.as_bytes())
-        .await?;
+    // Сначала журнал, затем уведомление. Запись — то, из чего игрок видит
+    // историю крашей и на что опирается AI-разбор; сорвавшаяся доставка в
+    // Telegram не должна её отменять (в отличие от регистрации, здесь
+    // уведомление — вспомогательное: отчёт всё равно виден в админке).
     let log_id = state
         .store
         .record_server_log(
@@ -1604,6 +1604,13 @@ async fn report_crash(
             }),
         )
         .await?;
+    if let Err(e) = state
+        .store
+        .notify_admins_with_document(&summary, "latest.log", req.log.as_bytes())
+        .await
+    {
+        tracing::warn!("[crash] уведомление админов о краше #{log_id}: {e}");
+    }
 
     // Немедленный AI-разбор: игрок ждёт вердикт на экране краша, поэтому не
     // полагаемся на фоновый воркер admin-server (тот раз в 5 минут и служит
@@ -1889,10 +1896,9 @@ async fn report_external_mods(
         r#"{{"inline_keyboard":[[{{"text":"🚫 Забанить на час","callback_data":"ban1h:{}"}}]]}}"#,
         account.uuid
     );
-    state
-        .store
-        .notify_admins_with_markup(&summary, Some(&reply_markup), None)
-        .await?;
+    // Журнал пишем до уведомления: отчёт о сторонних модах нужен админке и
+    // после того, как игрок запустился, — сбой доставки в Telegram его не
+    // отменяет.
     state
         .store
         .record_server_log(
@@ -1903,6 +1909,13 @@ async fn report_external_mods(
             serde_json::json!({ "mods": mods }),
         )
         .await?;
+    if let Err(e) = state
+        .store
+        .notify_admins_with_markup(&summary, Some(&reply_markup), None)
+        .await
+    {
+        tracing::warn!("[external_mods] уведомление админов: {e}");
+    }
     Ok(StatusCode::OK)
 }
 
