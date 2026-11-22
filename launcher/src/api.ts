@@ -135,7 +135,9 @@ export interface CrashHistoryEntry {
 /** История крашей игрока: свежие сверху, до 50 записей. */
 export async function crashHistory(): Promise<CrashHistoryEntry[]> {
   const invoke = await getInvoke();
-  if (!invoke) return [];
+  // В браузере (vite dev) истории нет вовсе, и пустой массив читался бы как
+  // «крашей не было» — отклоняем, чтобы UI показал недоступность, а не ложь.
+  if (!invoke) throw new Error("История крашей доступна только в приложении");
   return invoke<CrashHistoryEntry[]>("crash_history");
 }
 
