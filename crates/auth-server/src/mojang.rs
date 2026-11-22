@@ -166,12 +166,34 @@ fn is_allowed_texture_host(host: &str) -> bool {
 /// плащи с запасом, а мусор не оседает в БД навечно.
 const MAX_TEXTURE_BYTES: usize = 8 * 1024 * 1024;
 
-/// Скачивает PNG по URL текстуры Mojang.
-async fn download_png(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, MojangError> {
-    let parsed = reqwest::Url::parse(url).map_err(|e| MojangError::Network(e.to_string()))?;
-    if parsed.scheme() != "https" || !parsed.host_str().is_some_and(is_allowed_texture_host) {
-        return Err(MojangError::NoSkin);
+/// Нормализует URL текстуры из ответа Mojang к https и проверяет хост.
+///
+/// Разбор отдельно от сети — чтобы правила scheme/host покрывались тестом.
+fn normalize_texture_url(url: &str) -> Option<reqwest::Url> {
+    let mut parsed = reqwest::Url::parse(url).ok()?;
+    if !parsed.host_str().is_some_and(is_allowed_texture_host) {
+        return None;
     }
+    match parsed.scheme() {
+        "https" => Some(parsed),
+        "http" => {
+            parsed.set_scheme("https").ok()?;
+            Some(parsed)
+        }
+        _ => None,
+    }
+}
+
+/// Скачивает PNG по URL текстуры Mojang.
+///
+/// Mojang отдаёт `SKIN.url` с `http://` (проверено 2026-11-22: профиль Notch
+/// возвращает `http://textures.minecraft.net/texture/...`). Раньше здесь
+/// требовался строго `https`, и каждый импорт падал в `NoSkin` — лаунчер
+/// писал «у аккаунта нет скина», хотя скин есть. Схему нормализуем к https
+/// сами, а не принимаем http как есть: сам URL приходит из base64-JSON
+/// апстрима, и незашифрованный ответ по нему подменялся бы на пути.
+async fn download_png(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, MojangError> {
+    let parsed = normalize_texture_url(url).ok_or(MojangError::NoSkin)?;
     let bytes = client
         .get(parsed)
         .send()
@@ -216,4 +238,33 @@ async fn resolve_name(client: &reqwest::Client, name: &str) -> Result<String, Mo
         .await
         .map_err(|e| MojangError::Network(e.to_string()))?;
     Ok(parsed.id.replace('-', "").to_lowercase())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn texture_url_accepts_http_and_upgrades_to_https() {
+        // Именно так Mojang отдаёт SKIN.url на 2026-11-22 — импорт падал,
+        // потому что раньше здесь требовался строго https.
+        let url = normalize_texture_url(
+            "http://textures.minecraft.net/texture/292009a4925b58f02c77dadc3ecef07ea4c7472f64e0fdc32ce5522489362680",
+        )
+        .expect("http-URL текстуры должен приниматься");
+        assert_eq!(url.scheme(), "https");
+        assert_eq!(url.host_str(), Some("textures.minecraft.net"));
+    }
+
+    #[test]
+    fn texture_url_rejects_foreign_hosts_and_schemes() {
+        // Allowlist: чужой хост — SSRF, даже по https.
+        assert!(normalize_texture_url("https://evil.example/texture/1").is_none());
+        // Чужие схемы не трогаем.
+        assert!(normalize_texture_url("file:///etc/passwd").is_none());
+        assert!(normalize_texture_url("ftp://textures.minecraft.net/x").is_none());
+        assert!(normalize_texture_url("java script:alert(1)").is_none());
+        // Поддомены Mojang разрешены — плащи приходят с других хостов.
+        assert!(normalize_texture_url("https://textures.staging.mojang.com/x").is_some());
+    }
 }
