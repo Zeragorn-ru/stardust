@@ -2302,6 +2302,18 @@ impl russh::client::Handler for SftpHandler {
     }
 }
 
+/// Имя файла статистики Minecraft для uuid из БД.
+///
+/// `accounts.uuid` хранится без дефисов (`Uuid::simple`), а Minecraft называет
+/// `world/*/stats/<uuid>.json` каноническим uuid С дефисами. Пока путь
+/// собирался из uuid как есть, `open` всегда падал, а ошибка глушилась
+/// `continue` — фоновый цикл молча не обновлял ни одного игрока.
+fn mc_stats_file_uuid(stored_uuid: &str) -> String {
+    uuid::Uuid::try_parse(stored_uuid)
+        .map(|parsed| parsed.hyphenated().to_string())
+        .unwrap_or_else(|_| stored_uuid.to_string())
+}
+
 async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
     use russh_sftp::protocol::OpenFlags;
     use tokio::io::AsyncReadExt;
@@ -2414,7 +2426,7 @@ async fn refresh_playtime_once(state: &AppState) -> Result<(), String> {
 
     let stats_path = stats_path.trim_end_matches('/');
     for uuid in &uuids {
-        let path = format!("{stats_path}/{uuid}.json");
+        let path = format!("{stats_path}/{}.json", mc_stats_file_uuid(uuid));
         let mut file = match sftp.open_with_flags(&path, OpenFlags::READ).await {
             Ok(f) => f,
             Err(_) => continue, // файл не существует — игрок ещё не играл
@@ -2548,6 +2560,28 @@ mod tests {
         assert_eq!(
             first_signal_line(report).as_deref(),
             Some("java.lang.IllegalStateException: bad state")
+        );
+    }
+}
+
+#[cfg(test)]
+mod mc_stats_path_tests {
+    //! Путь к файлу статистики: в БД uuid без дефисов, у Minecraft — с ними.
+    use super::mc_stats_file_uuid;
+
+    #[test]
+    fn hyphenates_stored_uuid() {
+        assert_eq!(
+            mc_stats_file_uuid("2e5a60b27f2d46519770d63f9fcbb91c"),
+            "2e5a60b2-7f2d-4651-9770-d63f9fcbb91c"
+        );
+    }
+
+    #[test]
+    fn keeps_already_hyphenated_uuid() {
+        assert_eq!(
+            mc_stats_file_uuid("2e5a60b2-7f2d-4651-9770-d63f9fcbb91c"),
+            "2e5a60b2-7f2d-4651-9770-d63f9fcbb91c"
         );
     }
 }
