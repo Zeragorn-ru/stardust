@@ -1248,17 +1248,56 @@ fn pending_crashes_lock() -> &'static std::sync::Mutex<()> {
 }
 
 fn read_pending_crashes(path: &std::path::Path) -> Vec<PendingCrash> {
-    std::fs::read(path)
-        .ok()
-        .and_then(|b| serde_json::from_slice::<Vec<PendingCrash>>(&b).ok())
-        .unwrap_or_default()
+    let Ok(bytes) = std::fs::read(path) else {
+        return Vec::new();
+    };
+    match serde_json::from_slice::<Vec<PendingCrash>>(&bytes) {
+        Ok(pending) => pending,
+        Err(e) => {
+            // Не притворяемся, что очередь пуста: следующая запись затёрла бы
+            // файл целиком. Откладываем битое в сторону — отчёты в нём
+            // потеряны, но и молча терять их дальше незачем.
+            let backup = path.with_extension("json.corrupt");
+            let _ = std::fs::rename(path, &backup);
+            tracing::error!(
+                "[crash] очередь отчётов повреждена ({e}), отложена в {}",
+                backup.display()
+            );
+            Vec::new()
+        }
+    }
 }
 
 /// Заменяет файл очереди атомарно (tmp + rename).
 fn write_pending_crashes(path: &std::path::Path, pending: &[PendingCrash]) {
     let bytes = serde_json::to_vec(pending).unwrap_or_default();
     let tmp = path.with_extension("json.tmp");
-    if std::fs::write(&tmp, &bytes).is_ok() {
+    // В отчётах — логи и окружение машины: 0600, как у файла токена.
+    #[cfg(unix)]
+    let written = {
+        use std::os::unix::fs::OpenOptionsExt;
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&tmp)
+            .and_then(|mut file| {
+                use std::io::Write;
+                file.write_all(&bytes)
+            })
+            .is_ok()
+    };
+    #[cfg(not(unix))]
+    let written = std::fs::write(&tmp, &bytes).is_ok();
+    if written {
+        #[cfg(unix)]
+        {
+            // mode() действует только на создание: файл, оставшийся с 0644,
+            // не сузился бы.
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600));
+        }
         let _ = std::fs::rename(&tmp, path);
     }
 }
@@ -4449,5 +4488,31 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
         let merged = merge_pending(vec![delivered], vec![pending("fresh")]);
         assert!(merged[0].delivered);
         assert!(!merged[1].delivered);
+    }
+
+    #[test]
+    fn corrupt_queue_is_side_lined_not_silently_reused() {
+        let dir = temp_game_dir("pending-corrupt");
+        let path = pending_crashes_path(&dir);
+        std::fs::write(&path, b"{ not json").unwrap();
+        let read = read_pending_crashes(&path);
+        assert!(read.is_empty());
+        assert!(!path.exists(), "битый файл должен быть убран с пути");
+        assert!(dir.join("pending-crashes.json.corrupt").exists());
+        // Очередь продолжает работать после этого.
+        save_pending_crash(&dir, "p", crash_req("after-corrupt"));
+        assert_eq!(read_pending_crashes(&path).len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn queue_file_is_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_game_dir("pending-perms");
+        save_pending_crash(&dir, "p", crash_req("secret-log"));
+        let mode = std::fs::metadata(pending_crashes_path(&dir)).unwrap().permissions().mode();
+        assert_eq!(mode & 0o777, 0o600, "в отчётах логи и окружение машины");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
