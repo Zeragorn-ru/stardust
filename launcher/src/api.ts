@@ -35,10 +35,23 @@ import type {
 
 type InvokeFn = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>;
 
-// Достаём `invoke` лениво и кешируем: модуль Tauri есть только в окне приложения.
+// Достаём `invoke` лениво и кешируем.
+//
+// Одного успешного `import` мало: пакет `@tauri-apps/api` ставится и в
+// браузерную сборку, импортируется там без ошибок, а падает только сам
+// вызов (`window.__TAURI_INTERNALS__` нет вне окна приложения). Поэтому
+// наличие IPC проверяем явно — иначе все фолбэки для `vite dev` мертвы.
+function tauriIpcAvailable(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 let _cachedInvoke: InvokeFn | null | undefined;
 async function getInvoke(): Promise<InvokeFn | null> {
   if (_cachedInvoke !== undefined) return _cachedInvoke;
+  if (!tauriIpcAvailable()) {
+    _cachedInvoke = null;
+    return null;
+  }
   try {
     const mod = await import("@tauri-apps/api/core");
     _cachedInvoke = mod.invoke as InvokeFn;
