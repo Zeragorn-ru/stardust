@@ -482,7 +482,13 @@ export default function MainScreen({
                 <button
                   type="button"
                   className="crash-entry"
-                  onClick={() => setHistoryOpen(true)}
+                  onClick={() => {
+                    setHistoryOpen(true);
+                    // Повторяем запрос при каждом открытии: после ошибки
+                    // «нет связи» иначе остаётся навсегда, а после краша
+                    // счётчик обновляется только если игра была запущена.
+                    refreshCrashHistory();
+                  }}
                   aria-haspopup="dialog"
                 >
                   {crashCount == null && !crashStale ? (
@@ -496,14 +502,22 @@ export default function MainScreen({
                         <span className="hero__stat-value hero__stat-value--crash">{crashCount}</span>
                         <span className="hero__stat-label">записей</span>
                       </span>
-                      {lastCrashAt && (
+                      {/* Устаревшие данные не выдаём за актуальные: число
+                          показываем, но пометка «нет связи» важнее даты. */}
+                      {crashStale ? (
+                        <span className="hero__stat">
+                          <span className="hero__stat-value hero__stat-value--muted">—</span>
+                          <span className="hero__stat-label">нет связи</span>
+                        </span>
+                      ) : lastCrashAt ? (
                         <span className="hero__stat">
                           <span className="hero__stat-value crash-entry__date">{formatLastJoin(lastCrashAt)}</span>
                           <span className="hero__stat-label">последний</span>
                         </span>
-                      )}
+                      ) : null}
                     </>
                   ) : crashStale ? (
+                    // Ошибка запроса — не повод утверждать, что аварий не было.
                     <span className="hero__stat">
                       <span className="hero__stat-value hero__stat-value--muted">—</span>
                       <span className="hero__stat-label">нет связи</span>
