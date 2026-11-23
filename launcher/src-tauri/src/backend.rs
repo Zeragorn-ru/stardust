@@ -799,7 +799,7 @@ pub async fn record_session(
 // Поля — snake_case, как ждёт auth-server (ReportCrashRequest без rename_all).
 // Deserialize нужен очереди неотправленных отчётов: лежащий на диске запрос
 // переживает перезапуск лаунчера и отправляется после входа.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct ReportCrashRequest {
     pub exit_code: Option<i32>,
     pub log: String,
@@ -830,13 +830,19 @@ pub struct ReportCrashResponse {
     pub ai_enabled: bool,
 }
 
-/// Отказ отправки отчёта о краше. Разделяем постоянные и временные: очередь
-/// ретраит только временные, иначе отчёт с отвергнутым телом (400/413/403)
-/// переотправлялся бы до лимита попыток и всё равно выбрасывался.
+/// Отказ отправки отчёта о краше.
+///
+/// Повторяется всё, что зависит от времени: сеть, 5xx, 429 и 401. Протухшая
+/// сессия (401) — не «навсегда»: лаунчер держит токен с момента запуска игры,
+/// а истёк он мог ещё внутри сессии, и следующий вход даёт новый. Поэтому
+/// 401 обязан попадать в очередь, а не выбрасываться.
+///
+/// Постоянные отказы — 400/403/413: тело или права отвергнуты по существу,
+/// повтор только забьёт очередь.
 pub enum ReportCrashError {
-    /// Нет связи, таймаут, 5xx, 429 — отчёт имеет смысл повторить позже.
+    /// Нет связи, таймаут, 5xx, 429, 401 — отчёт имеет смысл повторить позже.
     Retryable(String),
-    /// Сервер отверг запрос по существу (401/403/400/413) — повтор не поможет.
+    /// Сервер отверг запрос по существу (400/403/413) — повтор не поможет.
     Permanent(String),
 }
 
@@ -869,10 +875,12 @@ pub async fn report_crash(
         Ok(body) => body.error,
         Err(_) => format!("Не удалось отправить отчет о краше ({status})"),
     };
-    // 429 и 408 — «попробуй позже»; остальные 4xx окончательны.
+    // 429/408/401 — «попробуй позже»: 401 значит протухший токен, а новый
+    // появится при следующем входе. Остальные 4xx окончательны.
     let retryable = status.is_server_error()
         || status == reqwest::StatusCode::TOO_MANY_REQUESTS
-        || status == reqwest::StatusCode::REQUEST_TIMEOUT;
+        || status == reqwest::StatusCode::REQUEST_TIMEOUT
+        || status == reqwest::StatusCode::UNAUTHORIZED;
     if retryable {
         Err(ReportCrashError::Retryable(message))
     } else {
@@ -979,6 +987,7 @@ mod report_crash_error_tests {
         status.is_server_error()
             || status == StatusCode::TOO_MANY_REQUESTS
             || status == StatusCode::REQUEST_TIMEOUT
+            || status == StatusCode::UNAUTHORIZED
     }
 
     #[test]
@@ -994,10 +1003,16 @@ mod report_crash_error_tests {
     }
 
     #[test]
+    fn stale_session_is_retryable() {
+        // Ровно сценарий из 59aba55d: пароль сменили во время игры, токен
+        // отозван — отчёт должен ждать следующего входа, а не сгорать.
+        assert!(retryable(StatusCode::UNAUTHORIZED));
+    }
+
+    #[test]
     fn rejected_bodies_are_permanent() {
         for s in [
             StatusCode::BAD_REQUEST,
-            StatusCode::UNAUTHORIZED,
             StatusCode::FORBIDDEN,
             StatusCode::PAYLOAD_TOO_LARGE,
         ] {

@@ -52,7 +52,10 @@ function pendingText(entry: CrashHistoryEntry): string {
   if (entry.aiStatus === "pending") {
     return "AI-вердикт ещё не готов — обычно это занимает несколько секунд после краша.";
   }
-  return "Автоматический разбор этого краша не выполнялся. Полный отчёт остался у администраторов.";
+  // Статуса нет, если AI был выключен при отправке. Не утверждаем, что
+  // разбора не будет никогда: включённый позже AI подхватит свежие краши
+  // фоновым воркером (до 7 дней).
+  return "AI-разбор при отправке не запускался. Полный отчёт остался у администраторов.";
 }
 
 /**
@@ -66,16 +69,25 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  // Номер текущего запроса: ответ устаревшего повтора не должен перезаписать
+  // свежий результат, а ответ после закрытия — тронуть состояние.
+  const requestSeq = useRef(0);
 
   const load = useCallback(() => {
+    const seq = ++requestSeq.current;
     setEntries(null);
     setError(null);
     crashHistory()
-      .then(setEntries)
-      .catch((reason) => setError(errorMessage(reason)));
+      .then((list) => { if (seq === requestSeq.current) setEntries(list); })
+      .catch((reason) => {
+        if (seq === requestSeq.current) setError(errorMessage(reason));
+      });
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    return () => { requestSeq.current += 1; };
+  }, [load]);
 
   // Escape закрывает; фокус держим внутри диалога.
   useEffect(() => {

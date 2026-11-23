@@ -1788,7 +1788,8 @@ async fn report_server_crash(
         clean_alert_field(&req.message),
     );
     append_report_summary(&mut summary, "stack trace", Some(&req.stack_trace));
-    state.store.notify_admins(&summary).await?;
+    // Журнал — первым: он источник для AI-разбора и админки, а сбой доставки
+    // в Telegram не должен отменять запись (тот же порядок, что в report_crash).
     state
         .store
         .record_server_log(
@@ -1805,6 +1806,9 @@ async fn report_server_crash(
             }),
         )
         .await?;
+    if let Err(e) = state.store.notify_admins(&summary).await {
+        tracing::warn!("[crash] уведомление админов о краше сервера: {e}");
+    }
     Ok(StatusCode::OK)
 }
 

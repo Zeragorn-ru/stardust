@@ -1139,6 +1139,12 @@ struct PendingCrash {
     profile_id: String,
     #[serde(default)]
     attempts: u32,
+    /// Сервер уже принял отчёт (ответ 2xx), но запись об этом могла не дойти
+    /// до файла из-за падения посреди drain. Повторять такой отчёт нельзя —
+    /// иначе в истории и в уведомлениях появляется дубль; при следующем
+    /// заходе он просто выбрасывается.
+    #[serde(default)]
+    delivered: bool,
     request: backend::ReportCrashRequest,
 }
 
@@ -1223,16 +1229,17 @@ fn shrink_crash_request(mut req: backend::ReportCrashRequest) -> backend::Report
     req.launcher_log = None;
     req.jvm_log = None;
     while serialized_len(&req) > budget && !req.log.is_empty() {
-        let next = trim_to_json_bytes(std::mem::take(&mut req.log), req.log.len() / 2);
-        req.log = next;
+        // Сначала длина, потом take: в одном выражении take обнулял строку
+        // до вычисления len/2, и лог схлопывался в первые 4 символа.
+        let next_budget = req.log.len() / 2;
+        let current = std::mem::take(&mut req.log);
+        req.log = trim_to_json_bytes(current, next_budget);
     }
     req
 }
 
 /// Очередь правят из разных задач (краш игры, drain при входе, повтор после
 /// запуска), поэтому все чтения-изменения-записи идут под одним мьютексом.
-/// Без него drain успевал прочитать файл, сходить в сеть и записать «остаток»
-/// поверх отчёта, сохранённого в это время, — свежий краш терялся.
 static PENDING_CRASHES_LOCK: std::sync::OnceLock<std::sync::Mutex<()>> =
     std::sync::OnceLock::new();
 
@@ -1243,7 +1250,7 @@ fn pending_crashes_lock() -> &'static std::sync::Mutex<()> {
 fn read_pending_crashes(path: &std::path::Path) -> Vec<PendingCrash> {
     std::fs::read(path)
         .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
+        .and_then(|b| serde_json::from_slice::<Vec<PendingCrash>>(&b).ok())
         .unwrap_or_default()
 }
 
@@ -1256,6 +1263,9 @@ fn write_pending_crashes(path: &std::path::Path, pending: &[PendingCrash]) {
     }
 }
 
+/// Файл — единственный источник правды: drain ничего не вынимает из него
+/// заранее. Иначе закрытие или падение лаунчера посреди отправки теряло бы
+/// всю очередь (вынутое живёт только в памяти).
 fn save_pending_crash(
     data_dir: &std::path::Path,
     profile_id: &str,
@@ -1267,6 +1277,7 @@ fn save_pending_crash(
     pending.push(PendingCrash {
         profile_id: profile_id.to_string(),
         attempts: 0,
+        delivered: false,
         request: shrink_crash_request(req),
     });
     // Старые записи отбрасываем: очередь — страховка от единичного сбоя,
@@ -1278,9 +1289,8 @@ fn save_pending_crash(
     write_pending_crashes(&path, &pending);
 }
 
-/// Сливает неудавшиеся записи (они старше) с теми, что сохранили, пока шла
-/// отправка. При переполнении выбрасываем СТАРЫЕ (с начала): они уже
-/// несколько раз не ушли, а свежий краш игрок ещё не видел в истории.
+/// Сливает неудавшиеся записи с появившимися за время отправки. Неудавшиеся
+/// старше, поэтому при переполнении выбрасываем их (с начала), а не свежие.
 fn merge_pending(failed: Vec<PendingCrash>, saved_while_sending: Vec<PendingCrash>) -> Vec<PendingCrash> {
     let mut merged = failed;
     merged.extend(saved_while_sending);
@@ -1291,36 +1301,78 @@ fn merge_pending(failed: Vec<PendingCrash>, saved_while_sending: Vec<PendingCras
     merged
 }
 
+/// Не даёт двум drain идти одновременно: их «остатки» перезаписывали друг
+/// друга, а последовательные повторы звали rate-limit. Атомарный флаг, а не
+/// мьютекс: страж `std::sync::Mutex` нельзя держать через `await`.
+static PENDING_CRASH_DRAINING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Захватывает single-flight и снимает флаг при выходе, в том числе при
+/// ошибке или раннем `return`.
+struct DrainSlot;
+
+impl DrainSlot {
+    fn acquire() -> Option<Self> {
+        use std::sync::atomic::Ordering;
+        PENDING_CRASH_DRAINING
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .ok()
+            .map(|_| Self)
+    }
+}
+
+impl Drop for DrainSlot {
+    fn drop(&mut self) {
+        PENDING_CRASH_DRAINING.store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
+/// Сколько отчётов шлём за один заход. Сервер лимитирует запросы на IP
+/// (5/60 с, тот же счётчик, что у логина), поэтому пачка из всей очереди
+/// сама себе выбивала 429. Мелочь не проблема — небольшая пачка, а
+/// остальное доедет на следующих входах.
+const PENDING_CRASH_BATCH: usize = 2;
+
 /// Повторная отправка отчётов, ждавших входа. Записи чужих профилей остаются
 /// на месте: токен берётся из файла сессии и принадлежит текущему профилю.
 ///
-/// Файл читается и переписывается под мьютексом, сеть — вне его: иначе
-/// блокировали бы сохранение нового краша на всё время отправки.
+/// Мьютекс держится только на время работы с файлом, сеть — вне него, чтобы
+/// не блокировать сохранение нового краша.
 async fn drain_pending_crashes(
     http: &reqwest::Client,
     app: &tauri::AppHandle,
     data_dir: &std::path::Path,
 ) {
-    let path = pending_crashes_path(data_dir);
-    let pending = {
-        let _guard = pending_crashes_lock().lock().unwrap_or_else(|e| e.into_inner());
-        let pending = read_pending_crashes(&path);
-        if pending.is_empty() {
-            return;
-        }
-        // Забираем очередь себе: пока идёт сеть, save_pending_crash допишет
-        // свежие отчёты в пустой файл, и мы их не затрём.
-        let _ = std::fs::remove_file(&path);
-        pending
+    // Уже идёт другой drain (вход и восстановление сессии могут стартовать
+    // почти одновременно) — второй заход только сожжёт лимит запросов.
+    let Some(_drain_slot) = DrainSlot::acquire() else {
+        return;
     };
-    tracing::info!("[crash] повтор отправки {} отчётов из очереди", pending.len());
+    let path = pending_crashes_path(data_dir);
+    // Берём не больше пачки. Остальное остаётся в файле и доедет позже.
+    let to_send: Vec<PendingCrash> = {
+        let _guard = pending_crashes_lock().lock().unwrap_or_else(|e| e.into_inner());
+        let all = read_pending_crashes(&path);
+        // Доставленные (сервер ответил 2xx, но файл не успели обновить)
+        // повторять нельзя — они уже в истории.
+        let mut waiting: Vec<PendingCrash> = all.into_iter().filter(|p| !p.delivered).collect();
+        let take = waiting.len().min(PENDING_CRASH_BATCH);
+        let batch = waiting.drain(..take).collect();
+        write_pending_crashes(&path, &waiting);
+        batch
+    };
+    if to_send.is_empty() {
+        return;
+    }
+    tracing::info!("[crash] повтор отправки {} отчётов из очереди", to_send.len());
     let mut remaining = Vec::new();
-    for mut item in pending {
+    for mut item in to_send {
+        // Нет токена этого профиля — либо игрок ещё не входил, либо сейчас
+        // вошёл под другим. Это не попытка отправки: ждём своего владельца,
+        // не сжигая лимит (иначе очередь вычищает чужие отчёты за пять
+        // входов подряд под другим аккаунтом).
         let Some(token) = load_session_token(app, &item.profile_id) else {
-            item.attempts += 1;
-            if item.attempts < MAX_CRASH_ATTEMPTS {
-                remaining.push(item);
-            }
+            remaining.push(item);
             continue;
         };
         match backend::report_crash(http, &token, &item.request).await {
@@ -1328,6 +1380,10 @@ async fn drain_pending_crashes(
                 if let Some(resp) = resp.filter(|r| r.ai_enabled) {
                     spawn_crash_ai_poll(app, http, &token, resp.report_id);
                 }
+                // Записываем факт доставки: если процесс упадёт до сохранения
+                // файла, следующий drain не отправит дубль.
+                item.delivered = true;
+                remaining.push(item);
             }
             Err(backend::ReportCrashError::Permanent(e)) => {
                 // Повтор не поможет: тело или права отвергнуты навсегда.
@@ -4357,6 +4413,7 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
         PendingCrash {
             profile_id: "p".into(),
             attempts: 0,
+            delivered: false,
             request: crash_req(tag),
         }
     }
@@ -4383,5 +4440,14 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
         // Старейший выброшен, свежий сохранён.
         assert_eq!(merged.first().unwrap().request.log, "old-1");
         assert_eq!(merged.last().unwrap().request.log, "fresh");
+    }
+
+    #[test]
+    fn merge_does_not_lose_delivery_marker() {
+        let mut delivered = pending("already-sent");
+        delivered.delivered = true;
+        let merged = merge_pending(vec![delivered], vec![pending("fresh")]);
+        assert!(merged[0].delivered);
+        assert!(!merged[1].delivered);
     }
 }
