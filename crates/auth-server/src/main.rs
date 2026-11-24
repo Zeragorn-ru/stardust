@@ -232,7 +232,7 @@ async fn main() {
         .route("/textures/:hash", get(texture))
         .with_state(state)
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
-        .layer(CorsLayer::permissive());
+        .layer(cors_layer());
 
     let addr = std::env::var("AUTH_BIND").unwrap_or_else(|_| "127.0.0.1:8080".into());
     let listener = tokio::net::TcpListener::bind(&addr)
@@ -341,6 +341,41 @@ fn validate_new_password(password: &str) -> Result<(), ApiError> {
         ));
     }
     Ok(())
+}
+
+/// CORS для браузерных клиентов. Раньше стоял `CorsLayer::permissive()`:
+/// любой сайт мог звать auth API из браузера пользователя и читать ответ
+/// (включая логин/регистрацию и публичные `?players=`-запросы). Теперь
+/// origins задаются явно через `CORS_ALLOWED_ORIGINS` (через запятую), как
+/// у admin-server. Пусто — cross-origin запрещён вовсе (same-origin работает
+/// без CORS-заголовков). Лаунчер и мод ходят из нативных клиентов, CORS их
+/// не касается.
+fn cors_layer() -> CorsLayer {
+    let origins = std::env::var("CORS_ALLOWED_ORIGINS")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(|o| o.trim().to_string())
+                .filter(|o| !o.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .filter(|v| !v.is_empty());
+    match origins {
+        Some(origins) => {
+            tracing::info!("CORS: разрешённые origins: {:?}", origins);
+            let origins = origins
+                .iter()
+                .filter_map(|origin| origin.parse().ok())
+                .collect::<Vec<_>>();
+            CorsLayer::new().allow_origin(origins)
+        }
+        None => {
+            tracing::warn!(
+                "CORS: CORS_ALLOWED_ORIGINS не заданы — cross-origin запросы запрещены (same-origin работает)"
+            );
+            CorsLayer::new()
+        }
+    }
 }
 
 fn rate_limited(state: &Shared, ip: std::net::IpAddr) -> Result<(), ApiError> {

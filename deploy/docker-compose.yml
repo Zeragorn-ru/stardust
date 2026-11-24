@@ -66,6 +66,9 @@ services:
       # Ключ подписи Yggdrasil лежит в volume — иначе при пересоздании
       # контейнера он сгенерируется заново и все выданные подписи протухнут.
       AUTH_KEY_PATH: /data/yggdrasil_key.pem
+      # Origins, с которых браузеру разрешено ходить в auth API. Не заданы —
+      # cross-origin запрещён (лаунчер и мод не браузерные, им он не нужен).
+      CORS_ALLOWED_ORIGINS: ${AUTH_CORS_ALLOWED_ORIGINS:-}
       RUST_LOG: ${RUST_LOG:-auth_server=info}
       LOG_DIR: /app/logs
     volumes:
