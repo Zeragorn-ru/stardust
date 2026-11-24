@@ -24,9 +24,14 @@ use sqlx::postgres::{PgPoolOptions, PgRow};
 use sqlx::{PgPool, Row};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
+mod api_token;
 mod build;
 pub mod server_telemetry;
 mod telegram;
+pub use api_token::{
+    api_token_matches, generate_api_token, hash_api_token, token_prefix, ApiAuditEntry,
+    ApiTokenOwner, ApiTokenRow, API_TOKEN_PREFIX,
+};
 pub use build::{
     BuildFileInput, BuildFileMeta, BuildFileRow, BuildHeader, BuildRecord, ModProfileInput,
     ModProfileRow, NewBuild, UpdateBuild,
@@ -2067,7 +2072,7 @@ fn news_excerpt(markdown: &str) -> String {
     out
 }
 
-fn format_timestamp(value: OffsetDateTime) -> String {
+pub(crate) fn format_timestamp(value: OffsetDateTime) -> String {
     value.format(&Rfc3339).unwrap_or_else(|_| value.to_string())
 }
 
@@ -2229,7 +2234,7 @@ fn digest_with_salt(password: &str, salt_hex: &str) -> String {
     to_hex(&hasher.finalize())
 }
 
-fn to_hex(bytes: &[u8]) -> String {
+pub(crate) fn to_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut s = String::with_capacity(bytes.len() * 2);
     for &b in bytes {

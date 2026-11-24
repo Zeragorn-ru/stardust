@@ -8,6 +8,9 @@
 //!
 //! Доступ к БД и сессиям переиспользуется из крейта `store` — те же аккаунты
 //! и токены, что и у auth-server. Админом считается аккаунт с ролью `admin`.
+//!
+//! Программный доступ (скрипты/CI/MCP) — `/api/v1` со своими API-токенами;
+//! см. `api_v1` и `docs/api-mod-upload.md`.
 
 use rand::{distributions::Alphanumeric, Rng};
 use std::path::PathBuf;
@@ -42,6 +45,7 @@ use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
+mod api_v1;
 mod backup;
 mod crash_ai;
 mod mods;
@@ -189,6 +193,7 @@ async fn main() {
     // идемпотентна: можно держать переменную постоянно, повторный запуск
     // ничего не ломает.
     bootstrap_admins(&store).await;
+    bootstrap_api_token(&store).await;
 
     let modpack_dir =
         PathBuf::from(std::env::var("MODPACK_DIR").unwrap_or_else(|_| "modpack-data".to_string()));
@@ -500,6 +505,8 @@ async fn main() {
         )
         .route("/api/deploy-mod", post(deploy_mod))
         .route("/api/deploy-mod/status", get(deploy_mod_status))
+        // --- Программный API v1 (свои API-токены, см. api_v1) ---
+        .merge(api_v1::routes())
         // --- Сезоны и релизы лаунчера ---
         .route("/api/seasons", get(list_seasons))
         .route("/api/seasons/archive", post(archive_season))
@@ -591,13 +598,83 @@ async fn bootstrap_admins(store: &Store) {
     }
 }
 
-// ───────────────────────── Ошибки ─────────────────────────
+/// Заводит первый API-токен из переменных окружения. Нужен, когда машинного
+/// доступа ещё нет, а эндпоинт создания токена требует админ-сессию:
+/// `ADMIN_API_TOKEN` — полный токен (`sd_…`, ≥ 32 символа),
+/// `ADMIN_API_TOKEN_ADMIN` — логин админа-владельца (по умолчанию первый из
+/// `ADMIN_BOOTSTRAP`). Сам токен в логи не пишется. Операция идемпотентна:
+/// повторный запуск с тем же токеном ничего не создаёт.
+async fn bootstrap_api_token(store: &Store) {
+    let token = match std::env::var("ADMIN_API_TOKEN") {
+        Ok(v) if !v.trim().is_empty() => v.trim().to_string(),
+        _ => return,
+    };
+    if !token.starts_with(store::API_TOKEN_PREFIX)
+        || token.len() < store::API_TOKEN_PREFIX.len() + 32
+    {
+        tracing::warn!(
+            "bootstrap: ADMIN_API_TOKEN должен начинаться с «{}» и быть не короче {} символов — пропускаю",
+            store::API_TOKEN_PREFIX,
+            store::API_TOKEN_PREFIX.len() + 32
+        );
+        return;
+    }
+    let owner = std::env::var("ADMIN_API_TOKEN_ADMIN")
+        .ok()
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+        .or_else(|| {
+            std::env::var("ADMIN_BOOTSTRAP").ok().and_then(|v| {
+                v.split(',')
+                    .map(str::trim)
+                    .find(|s| !s.is_empty())
+                    .map(str::to_string)
+            })
+        });
+    let Some(owner) = owner else {
+        tracing::warn!(
+            "bootstrap: ADMIN_API_TOKEN задан, но владелец не определён (нужен ADMIN_API_TOKEN_ADMIN или ADMIN_BOOTSTRAP)"
+        );
+        return;
+    };
+    let Some(account) = store.find_by_name(&owner).await else {
+        tracing::warn!(
+            username = %owner,
+            "bootstrap: владелец API-токена не найден"
+        );
+        return;
+    };
+    if !account.is_admin() {
+        tracing::warn!(
+            username = %owner,
+            "bootstrap: владелец API-токена не admin — токен не создан"
+        );
+        return;
+    }
+    match store
+        .create_api_token_with_value(&account.uuid, "bootstrap", &token)
+        .await
+    {
+        Ok(true) => tracing::info!(
+            username = %owner,
+            "bootstrap: API-токен создан из ADMIN_API_TOKEN"
+        ),
+        Ok(false) => tracing::info!("bootstrap: API-токен уже существует"),
+        Err(e) => tracing::error!("bootstrap: не удалось создать API-токен: {e}"),
+    }
+}
 
+// ───────────────────────── Ошибки ─────────────────────────
 /// Единый тип ошибки HTTP-слоя.
+#[derive(Debug)]
 struct ApiError {
     status: StatusCode,
     message: String,
-    host_key_changed: Option<HostKeyChanged>,
+    /// Стабильный машинный код для API/MCP-клиентов (`build_not_found`,
+    /// `invalid_jar`, …). Для старых эндпоинтов `None`: формат ответа
+    /// `{"error": "…"}` не меняется.
+    code: Option<String>,
+    host_key_changed: Option<Box<HostKeyChanged>>,
 }
 
 impl ApiError {
@@ -605,6 +682,18 @@ impl ApiError {
         Self {
             status,
             message: message.into(),
+            code: None,
+            host_key_changed: None,
+        }
+    }
+
+    /// Ошибка со стабильным кодом — для программных клиентов. Код не
+    /// зависит от локали и текста сообщения.
+    fn with_code(status: StatusCode, code: &str, message: impl Into<String>) -> Self {
+        Self {
+            status,
+            message: message.into(),
+            code: Some(code.to_string()),
             host_key_changed: None,
         }
     }
@@ -619,6 +708,7 @@ impl IntoResponse for ApiError {
             self.status,
             Json(ErrorBody {
                 error: self.message,
+                code: self.code,
             }),
         )
             .into_response()
@@ -628,6 +718,8 @@ impl IntoResponse for ApiError {
 #[derive(Serialize)]
 struct ErrorBody {
     error: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
 }
 
 // ───────────────────────── Аутентификация ─────────────────────────
@@ -2685,7 +2777,7 @@ struct SyncStatus {
     skipped: usize,
     deleted: usize,
     error: Option<String>,
-    host_key_changed: Option<HostKeyChanged>,
+    host_key_changed: Option<Box<HostKeyChanged>>,
     started_at: Option<String>,
     finished_at: Option<String>,
 }
@@ -2738,11 +2830,12 @@ fn sftp_password_present(password: &str) -> bool {
 /// параллельно с SFTP-тиком (auth-server refresh_playtime_once).
 async fn reset_sftp_fingerprint(state: &Shared) -> Result<(), ApiError> {
     // 1. Acquire advisory lock to prevent race with auth-server SFTP sync
-    let locked = state
-        .store
-        .acquire_sftp_lock()
-        .await
-        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("lock error: {e}")))?;
+    let locked = state.store.acquire_sftp_lock().await.map_err(|e| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("lock error: {e}"),
+        )
+    })?;
     if !locked {
         tracing::warn!("[sftp] Не удалось получить advisory lock — сброс отложен");
         return Ok(());
@@ -2759,12 +2852,21 @@ async fn reset_sftp_fingerprint(state: &Shared) -> Result<(), ApiError> {
     // 3. Для admin-server: удалить known_hosts.json
     let known_hosts_path = state.modpack_dir.join("known_hosts.json");
     if known_hosts_path.exists() {
-        std::fs::remove_file(&known_hosts_path)
-            .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("failed to remove known_hosts.json: {e}")))?;
+        std::fs::remove_file(&known_hosts_path).map_err(|e| {
+            ApiError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("failed to remove known_hosts.json: {e}"),
+            )
+        })?;
     }
 
     // 4. Для admin-server: очистить PENDING_HOST_KEYS
-    let mut pending = PENDING_HOST_KEYS.lock().map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("lock error: {e}")))?;
+    let mut pending = PENDING_HOST_KEYS.lock().map_err(|e| {
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("lock error: {e}"),
+        )
+    })?;
     pending.clear();
 
     tracing::info!("[sftp] Сброшен fingerprint хоста (для auth-server и admin-server)");
@@ -3158,7 +3260,7 @@ async fn do_sync_to_panel(
         if changed.is_some() {
             err.status = StatusCode::CONFLICT;
             err.message = "Ключ SFTP-сервера изменился".into();
-            err.host_key_changed = changed;
+            err.host_key_changed = changed.map(Box::new);
         }
         err
     })?;
@@ -5700,7 +5802,7 @@ async fn sync_stats(
             },
             e,
         );
-        err.host_key_changed = changed;
+        err.host_key_changed = changed.map(Box::new);
         err
     })?;
     Ok(Json(serde_json::json!({ "updated": updated })))

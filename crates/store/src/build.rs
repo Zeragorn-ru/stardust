@@ -399,6 +399,45 @@ impl Store {
         Ok(rows.iter().map(row_to_file).collect())
     }
 
+    /// Ищет файл сборки по содержимому (sha1). Нужен для идемпотентной
+    /// программной загрузки: повторная отправка того же файла должна вернуть
+    /// существующую запись, а не создать вторую.
+    pub async fn find_build_file_by_sha1(
+        &self,
+        build_id: i64,
+        sha1: &str,
+    ) -> Result<Option<BuildFileRow>, StoreError> {
+        let sql = format!(
+            "SELECT {FILE_COLUMNS} FROM build_files
+             WHERE build_id = $1 AND sha1 = $2
+             ORDER BY id LIMIT 1"
+        );
+        let row = sqlx::query(&sql)
+            .bind(build_id)
+            .bind(sha1)
+            .fetch_optional(self.pool())
+            .await?;
+        Ok(row.as_ref().map(row_to_file))
+    }
+
+    /// Ищет файл сборки по относительному пути.
+    pub async fn find_build_file_by_path(
+        &self,
+        build_id: i64,
+        path: &str,
+    ) -> Result<Option<BuildFileRow>, StoreError> {
+        let sql = format!(
+            "SELECT {FILE_COLUMNS} FROM build_files
+             WHERE build_id = $1 AND path = $2"
+        );
+        let row = sqlx::query(&sql)
+            .bind(build_id)
+            .bind(path)
+            .fetch_optional(self.pool())
+            .await?;
+        Ok(row.as_ref().map(row_to_file))
+    }
+
     /// Вставляет или обновляет файл сборки по (build_id, path). Возвращает
     /// `(file_id, was_existing)` — `was_existing` true, если по этому пути
     /// уже был файл и его запись перезаписана (ON CONFLICT DO UPDATE).
