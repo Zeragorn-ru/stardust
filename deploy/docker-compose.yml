@@ -130,6 +130,11 @@ services:
       # Нужно для самого первого админа: регистрация всегда создаёт user.
       # Идемпотентно — можно оставить переменную навсегда.
       ADMIN_BOOTSTRAP: ${ADMIN_BOOTSTRAP:-}
+      # Bootstrap API-токена для машинной загрузки модов (docs/api-mod-upload.md).
+      # Полный токен `sd_` + 64 hex; в БД попадает только SHA-256, в логи —
+      # никогда. Идемпотентно: совпадающий токен не дублируется при рестарте.
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
+      ADMIN_API_TOKEN_ADMIN: ${ADMIN_API_TOKEN_ADMIN:-}
       # Origins веб-админки, с которых разрешён CORS. Без этого admin-server
       # поднимается с CorsLayer::permissive() — любой сайт сможет дёргать
       # API админки из браузера (с токеном из localStorage при XSS).
