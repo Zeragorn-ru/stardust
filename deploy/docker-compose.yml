@@ -11,6 +11,10 @@
 #
 # Обновление бекенда после нового пуша образов CI:
 #   bash update.sh
+#
+# Логи каждого сервиса ограничены (10 МБ × 3 файла): без этого docker-логи
+# приложения и nginx росли бесконечно — daemon.json на сервере не задаёт
+# лимит, а stdout сервисов и есть их основной лог.
 
 services:
   auth-db:
@@ -84,6 +88,11 @@ services:
       # прямом заходе его пишет сам клиент. Если auth нужен наружу без
       # прокси — ставь AUTH_BIND_ADDR=0.0.0.0:8080 (и TRUST_PROXY=0).
       - "${AUTH_BIND_ADDR:-127.0.0.1}:${AUTH_PORT:-8080}:8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - launcher-net
 
@@ -136,6 +145,11 @@ services:
       - ./data:/backup-data:ro
       # Логи — ./logs/admin-server/.
       - ./logs/admin-server:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - launcher-net
 
@@ -159,6 +173,11 @@ services:
     volumes:
       # Логи — ./logs/telegram-bot/.
       - ./logs/telegram-bot:/app/logs
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - launcher-net
 
@@ -185,6 +204,11 @@ services:
       - admin-server
     ports:
       - "${ADMIN_WEB_PORT:-8082}:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - launcher-net
 
@@ -196,6 +220,11 @@ services:
     restart: unless-stopped
     ports:
       - "${WEBSITE_PORT:-8083}:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
       - launcher-net
 
