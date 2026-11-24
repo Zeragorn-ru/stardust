@@ -36,6 +36,9 @@ on:
       - "deploy/website.Dockerfile"
       - "deploy/website.nginx.conf"
       - "deploy/squid.conf"
+      # compose копируется на сервер в deploy-job: правка лимитов логов,
+      # портов или volumes должна доехать без правки кода.
+      - "deploy/docker-compose.yml"
       - ".github/workflows/backend.yml"
   workflow_dispatch:
     inputs:
