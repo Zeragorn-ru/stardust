@@ -70,6 +70,7 @@ export interface Settings {
   backupPrefix?: string;
   backupAccessKeySet: boolean;
   backupSecretKeySet: boolean;
+  backupPasswordSet: boolean;
   achievementCoinReward: number;
   /** Установлен ли GitHub-токен (секреты наружу не отдаём). */
   githubTokenSet?: boolean;

@@ -602,6 +602,7 @@ export const api = {
     backupPrefix?: string;
     backupAccessKey?: string;
     backupSecretKey?: string;
+    backupPassword?: string;
     achievementCoinReward?: number;
     githubToken?: string;
     crashAiEnabled?: boolean;

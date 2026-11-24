@@ -33,8 +33,9 @@ use sha1::{Digest, Sha1};
 use store::{
     ChallengeOutcome, NewBuild, Role, SeasonRow, Store, CHALLENGE_LOGIN_2FA,
     SETTING_ACHIEVEMENT_COIN_REWARD, SETTING_BACKUP_ACCESS_KEY, SETTING_BACKUP_BUCKET,
-    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PREFIX, SETTING_BACKUP_REGION,
-    SETTING_BACKUP_SECRET_KEY, SETTING_CRASH_AI_API_KEY, SETTING_CRASH_AI_ENABLED,
+    SETTING_BACKUP_ENDPOINT, SETTING_BACKUP_PASSWORD, SETTING_BACKUP_PREFIX,
+    SETTING_BACKUP_REGION, SETTING_BACKUP_SECRET_KEY, SETTING_CRASH_AI_API_KEY,
+    SETTING_CRASH_AI_ENABLED,
     SETTING_CRASH_AI_ENDPOINT, SETTING_CRASH_AI_MODEL, SETTING_GITHUB_TOKEN, SETTING_SFTP_HOST,
     SETTING_SFTP_HOST_FINGERPRINT, SETTING_SFTP_PASSWORD, SETTING_SFTP_STATS_PATH,
     SETTING_SFTP_USERNAME, SETTING_TELEGRAM_TOKEN, SETTING_TELEGRAM_USERNAME,
@@ -997,6 +998,8 @@ struct SettingsDto {
     backup_access_key_set: bool,
     #[serde(rename = "backupSecretKeySet")]
     backup_secret_key_set: bool,
+    #[serde(rename = "backupPasswordSet")]
+    backup_password_set: bool,
     #[serde(rename = "achievementCoinReward")]
     achievement_coin_reward: i64,
     /// Установлен ли GitHub-токен (сам токен наружу не отдаём — секрет).
@@ -1067,6 +1070,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         backup_prefix: get(SETTING_BACKUP_PREFIX).filter(|s| !s.trim().is_empty()),
         backup_access_key_set: get(SETTING_BACKUP_ACCESS_KEY).is_some_and(|s| !s.trim().is_empty()),
         backup_secret_key_set: get(SETTING_BACKUP_SECRET_KEY).is_some_and(|s| !s.trim().is_empty()),
+        backup_password_set: get(SETTING_BACKUP_PASSWORD).is_some_and(|s| !s.trim().is_empty()),
         achievement_coin_reward: get(SETTING_ACHIEVEMENT_COIN_REWARD)
             .and_then(|value| value.parse::<i64>().ok())
             .filter(|value| (0..=1_000_000).contains(value))
@@ -1136,6 +1140,8 @@ struct UpdateSettingsRequest {
     backup_access_key: Option<String>,
     #[serde(rename = "backupSecretKey", default)]
     backup_secret_key: Option<String>,
+    #[serde(rename = "backupPassword", default)]
+    backup_password: Option<String>,
     #[serde(rename = "achievementCoinReward", default)]
     achievement_coin_reward: Option<i64>,
     #[serde(rename = "githubToken", default)]
@@ -1313,6 +1319,7 @@ async fn update_settings(
         (req.backup_prefix, SETTING_BACKUP_PREFIX),
         (req.backup_access_key, SETTING_BACKUP_ACCESS_KEY),
         (req.backup_secret_key, SETTING_BACKUP_SECRET_KEY),
+        (req.backup_password, SETTING_BACKUP_PASSWORD),
         (req.github_token, SETTING_GITHUB_TOKEN),
         (req.crash_ai_endpoint, SETTING_CRASH_AI_ENDPOINT),
         (req.crash_ai_model, SETTING_CRASH_AI_MODEL),
@@ -1365,6 +1372,7 @@ async fn backup_config(state: &Shared) -> Result<Option<backup::Config>, ApiErro
         SETTING_BACKUP_PREFIX,
         SETTING_BACKUP_ACCESS_KEY,
         SETTING_BACKUP_SECRET_KEY,
+        SETTING_BACKUP_PASSWORD,
     ];
     let values = state
         .store
@@ -1396,6 +1404,7 @@ async fn backup_config(state: &Shared) -> Result<Option<backup::Config>, ApiErro
         prefix: get(SETTING_BACKUP_PREFIX).unwrap_or_else(|| "backups/".to_string()),
         access_key,
         secret_key,
+        password: get(SETTING_BACKUP_PASSWORD),
     }))
 }
 
@@ -1460,7 +1469,12 @@ async fn start_backup(state: Shared, manual: bool) -> Result<(), String> {
                 state.backup_source_dir
             ));
         }
-        let (archive, size) = backup::create_archive(state.backup_source_dir.clone()).await?;
+        // Архив пишется в tempfile и загружается потоком: в памяти больше
+        // нет ~1.3 ГБ (раньше это роняло VM с 1.9 ГиБ по OOM).
+        let (archive_file, size) =
+            backup::create_archive(state.backup_source_dir.clone(), config.password.clone())
+                .await?;
+        let encrypted = config.password.is_some();
         let now = OffsetDateTime::now_utc();
         let date = now
             .format(
@@ -1470,20 +1484,22 @@ async fn start_backup(state: Shared, manual: bool) -> Result<(), String> {
                 .unwrap(),
             )
             .unwrap();
+        let suffix = if encrypted { "tar.gz.age" } else { "tar.gz" };
         let prefix = config.prefix.trim_matches('/');
         let key = if prefix.is_empty() {
-            format!("data-{date}.tar.gz")
+            format!("data-{date}.{suffix}")
         } else {
-            format!("{prefix}/data-{date}.tar.gz")
+            format!("{prefix}/data-{date}.{suffix}")
         };
-        backup::upload_and_prune(&state.http, &config, archive, &key).await?;
-        Ok::<(String, u64), String>((key, size))
+        backup::upload_and_prune(&state.http, &config, archive_file.path(), &key).await?;
+        drop(archive_file); // tempfile удалится даже при ошибке ниже
+        Ok::<(String, u64, bool), String>((key, size, encrypted))
     }
     .await;
 
     let mut status = state.backup_status.lock().await;
     match result {
-        Ok((key, size)) => {
+        Ok((key, size, encrypted)) => {
             status.state = "success".to_string();
             status.last_finished_at = Some(
                 OffsetDateTime::now_utc()
@@ -1492,6 +1508,7 @@ async fn start_backup(state: Shared, manual: bool) -> Result<(), String> {
             );
             status.last_object = Some(key);
             status.last_size_bytes = Some(size);
+            status.encrypted = Some(encrypted);
             status.error = None;
         }
         Err(error) => {

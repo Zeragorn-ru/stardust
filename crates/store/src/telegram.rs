@@ -22,6 +22,10 @@ pub const SETTING_BACKUP_REGION: &str = "backup_s3_region";
 pub const SETTING_BACKUP_PREFIX: &str = "backup_s3_prefix";
 pub const SETTING_BACKUP_ACCESS_KEY: &str = "backup_s3_access_key";
 pub const SETTING_BACKUP_SECRET_KEY: &str = "backup_s3_secret_key";
+/// Ключ настройки: пароль шифрования бэкапов (секрет, наружу не отдаём).
+/// Архив шифруется age по паролю (scrypt); пустое значение — бэкап без
+/// шифрования. Восстановление: `age -d` с этим паролем.
+pub const SETTING_BACKUP_PASSWORD: &str = "backup_encryption_password";
 
 /// Ключ настройки: SFTP-хост сервера (`host` или `host:port`).
 pub const SETTING_SFTP_HOST: &str = "sftp_host";

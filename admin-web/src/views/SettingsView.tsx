@@ -75,6 +75,7 @@ export function SettingsView() {
   const [backupPrefix, setBackupPrefix] = useState("");
   const [backupAccessKey, setBackupAccessKey] = useState("");
   const [backupSecretKey, setBackupSecretKey] = useState("");
+  const [backupPassword, setBackupPassword] = useState("");
   const [savingBackup, setSavingBackup] = useState(false);
   const [runningBackup, setRunningBackup] = useState(false);
   const [achievementCoinReward, setAchievementCoinReward] = useState(10);
@@ -311,6 +312,7 @@ export function SettingsView() {
         backupPrefix: string;
         backupAccessKey?: string;
         backupSecretKey?: string;
+        backupPassword?: string;
       } = {
         backupEndpoint: backupEndpoint.trim(),
         backupBucket: backupBucket.trim(),
@@ -319,6 +321,7 @@ export function SettingsView() {
       };
       if (backupAccessKey.trim()) patch.backupAccessKey = backupAccessKey.trim();
       if (backupSecretKey.trim()) patch.backupSecretKey = backupSecretKey.trim();
+      if (backupPassword.trim()) patch.backupPassword = backupPassword.trim();
 
       const next = await api.saveSettings(patch);
       setSettings(next);
@@ -328,6 +331,7 @@ export function SettingsView() {
       setBackupPrefix(next.backupPrefix ?? "");
       setBackupAccessKey("");
       setBackupSecretKey("");
+      setBackupPassword("");
       toast.success("Настройки бекапов сохранены");
     } catch (err) {
       toast.error(
@@ -966,6 +970,9 @@ export function SettingsView() {
                     <Badge variant={settings?.backupSecretKeySet ? "secondary" : "outline"}>
                       {settings?.backupSecretKeySet ? "настроено" : "не настроено"}
                     </Badge>
+                    <Badge variant={settings?.backupPasswordSet ? "secondary" : "outline"}>
+                      {settings?.backupPasswordSet ? "бекап шифруется (age)" : "бекап без шифрования"}
+                    </Badge>
                     {backupStatusLoading ? (
                       <span className="muted">Проверка статуса…</span>
                     ) : (
@@ -1042,6 +1049,20 @@ export function SettingsView() {
                         placeholder="••••••••"
                         value={backupSecretKey}
                         onChange={(e) => setBackupSecretKey(e.target.value)}
+                      />
+                    )}
+                  </Field>
+                  <Field
+                    label={`Пароль шифрования${settings?.backupPasswordSet ? " (задан — пусто чтобы не менять)" : " (пусто — бекап без шифрования)"}`}
+                  >
+                    {(control) => (
+                      <FieldInput
+                        control={control}
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="••••••••"
+                        value={backupPassword}
+                        onChange={(e) => setBackupPassword(e.target.value)}
                       />
                     )}
                   </Field>
