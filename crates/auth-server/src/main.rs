@@ -2564,6 +2564,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn validate_new_password_enforces_both_bounds() {
+        // Короткий — отказ, минимально допустимый и обычный — ок.
+        assert!(validate_new_password("12345").is_err());
+        assert!(validate_new_password("123456").is_ok());
+        assert!(validate_new_password("нормальный пароль").is_ok());
+        // Потолок в байтах, а не символах: Argon2 хеширует байты.
+        assert!(validate_new_password(&"a".repeat(MAX_PASSWORD_BYTES)).is_ok());
+        assert!(validate_new_password(&"a".repeat(MAX_PASSWORD_BYTES + 1)).is_err());
+        assert!(validate_new_password(&"я".repeat(MAX_PASSWORD_BYTES)).is_err());
+    }
+
+    #[test]
     fn db_summary_prefers_crash_report_description() {
         let crash = "---- Minecraft Crash Report ----\n// There are four lights!\n\nTime: 2026-10-30\nDescription: Ticking entity\n\njava.lang.NullPointerException: Ticking entity\n\tat net.minecraft.world.level.Level.tick(Level.java:123)\n";
         let summary = crash_db_summary(Some(-1), None, Some(crash), Some("[INFO] Stopping!"));
