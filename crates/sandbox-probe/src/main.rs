@@ -34,6 +34,7 @@ fn main() {
     match tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("launcher.log")
+        .max_log_files(7)
         .build(&log_dir)
     {
         Ok(appender) => {

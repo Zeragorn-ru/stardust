@@ -151,6 +151,7 @@ async fn main() {
     let file_layer = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("admin-server.log")
+        .max_log_files(7)
         .build(&log_dir)
         .map(|appender| {
             let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
@@ -5465,6 +5466,14 @@ async fn set_account_password(
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Пароль должен быть не короче 6 символов",
+        ));
+    }
+    // Тот же потолок, что у auth-server: Argon2 хеширует всю строку, и
+    // мегабайтный пароль от имени админа кладёт CPU сервиса на каждом входе.
+    if password.len() > 512 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Пароль слишком длинный",
         ));
     }
     state

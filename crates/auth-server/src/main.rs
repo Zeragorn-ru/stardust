@@ -85,6 +85,7 @@ async fn main() {
     let file_layer = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("auth-server.log")
+        .max_log_files(7)
         .build(&log_dir)
         .map(|appender| {
             let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
@@ -319,6 +320,29 @@ const AUTH_RATE_WINDOW_SECS: u64 = 60;
 /// лаунчера: до четырёх текстовых полей по 900 КБ плюс JSON-экранирование.
 const MAX_BODY_BYTES: usize = 8 * 1024 * 1024; // 8 МБ
 
+/// Максимальная длина пароля. Argon2 хеширует всё, что дали: без потолка
+/// мегабайтный «пароль» из запроса ложится в CPU на каждом логине. 512 байт
+/// заведомо хватает любому реальному паролю.
+const MAX_PASSWORD_BYTES: usize = 512;
+
+/// Проверяет длину нового пароля. Минимум 6 символов, максимум — потолок
+/// хеширования; оба сообщения одинаковы на всех эндпоинтах смены пароля.
+fn validate_new_password(password: &str) -> Result<(), ApiError> {
+    if password.len() < 6 {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Пароль: минимум 6 символов",
+        ));
+    }
+    if password.len() > MAX_PASSWORD_BYTES {
+        return Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "Пароль слишком длинный",
+        ));
+    }
+    Ok(())
+}
+
 fn rate_limited(state: &Shared, ip: std::net::IpAddr) -> Result<(), ApiError> {
     if state
         .store
@@ -365,20 +389,7 @@ async fn register(
     rate_limited(&state, get_client_ip(&headers, addr))?;
     let username = creds.username.trim();
     validate_username(username)?;
-    if creds.password.len() < 6 {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Пароль: минимум 6 символов",
-        ));
-    }
-    // argon2 хеширует всё, что дали: без потолка длины мегабайтный «пароль»
-    // из запроса лёг бы в CPU на каждом логине. 512 байт заведомо хватает.
-    if creds.password.len() > 512 {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Пароль слишком длинный",
-        ));
-    }
+    validate_new_password(&creds.password)?;
     let profile = state.store.register(username, &creds.password).await?;
     let token = state.store.create_session(&profile.id).await?;
 
@@ -587,12 +598,7 @@ async fn password_reset_confirm(
 ) -> Result<StatusCode, ApiError> {
     let ip = get_client_ip(&headers, addr);
     rate_limited(&state, ip)?;
-    if req.new_password.len() < 6 {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Пароль: минимум 6 символов",
-        ));
-    }
+    validate_new_password(&req.new_password)?;
     let client_ip = ip.to_string();
     let uuid = state
         .store
@@ -761,12 +767,7 @@ async fn change_password(
     Json(req): Json<ChangePasswordRequest>,
 ) -> Result<StatusCode, ApiError> {
     let account = current_account(&state, &headers).await?;
-    if req.new_password.len() < 6 {
-        return Err(ApiError::new(
-            StatusCode::BAD_REQUEST,
-            "Пароль: минимум 6 символов",
-        ));
-    }
+    validate_new_password(&req.new_password)?;
     state
         .store
         .change_password(&account.uuid, &req.current_password, &req.new_password)

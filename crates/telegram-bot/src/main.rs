@@ -42,6 +42,7 @@ async fn main() {
     let file_layer = tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("telegram-bot.log")
+        .max_log_files(7)
         .build(&log_dir)
         .map(|appender| {
             let (non_blocking, _guard) = tracing_appender::non_blocking(appender);
