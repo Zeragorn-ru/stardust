@@ -1058,9 +1058,12 @@ async fn ensure_downloaded_java(
             );
             return Ok(java);
         }
-        mark_vendor_check(data_dir, vendor, major);
         match vendor_latest_version(vendor, http, major).await {
             Ok(latest) => {
+                // Маркер — только после ответа вендора: сбой сети не должен
+                // помечать вендора «проверенным» и на сутки глушить проверку
+                // (иначе пропустим вышедший фикс).
+                mark_vendor_check(data_dir, vendor, major);
                 let latest = version_from_artifact(&latest).unwrap_or(latest);
                 if version_less(&cached, &latest) {
                     tracing::warn!(
@@ -1270,22 +1273,34 @@ async fn refresh_vulnerable_cached_java_major(
         // вендора — `first_vendor_with_fix` его пропускает, а для Java 25
         // других кандидатов нет вовсе (остальные вендоры не умеют качать 25),
         // и фон не чинил бы её никогда.
-        let fixed = if vendor_latest_version(vendor, http, major)
+        let own_latest = vendor_latest_version(vendor, http, major)
             .await
             .ok()
-            .map(|latest| version_from_artifact(&latest).unwrap_or(latest))
-            .is_some_and(|version| !is_vulnerable_java(&version, major))
+            .map(|latest| version_from_artifact(&latest).unwrap_or(latest));
+        let fixed = if own_latest
+            .as_ref()
+            .is_some_and(|version| !is_vulnerable_java(version, major))
         {
             Some(vendor)
         } else {
             first_vendor_with_fix(vendor, http, major).await
         };
         let Some(fixed) = fixed else {
-            mark_vendor_check(data_dir, vendor, major);
-            tracing::warn!(
-                "[java] {} и остальные вендоры пока раздают уязвимую Java {major}",
-                vendor.name()
-            );
+            // Маркер ставим, только если вендор реально ответил «фикса нет»:
+            // сетевой сбой не должен помечать проверку сделанной — иначе один
+            // оффлайн-запуск пропустит вышедший фикс на сутки.
+            if own_latest.is_some() {
+                mark_vendor_check(data_dir, vendor, major);
+                tracing::warn!(
+                    "[java] {} и остальные вендоры пока раздают уязвимую Java {major}",
+                    vendor.name()
+                );
+            } else {
+                tracing::warn!(
+                    "[java] не удалось проверить версию {} (сеть?) — повторим при следующем запуске",
+                    vendor.name()
+                );
+            }
             continue;
         };
         // Отмечаем ДО скачивания: иначе сбой посреди загрузки оставит нас
