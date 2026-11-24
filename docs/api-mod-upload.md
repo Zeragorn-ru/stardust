@@ -24,6 +24,9 @@ API-токен вида `sd_` + 64 hex-символа (32 случайных б�
    (или первый логин из `ADMIN_BOOTSTRAP`). При старте сервер заводит токен
    идемпотентно; сам токен в логи не пишется. Генерировать можно так:
    `printf 'sd_'; openssl rand -hex 32`.
+   В docker-развёртывании переменные задаются в `deploy/.env`
+   (проброшены в `admin-server` в `deploy/docker-compose.yml`); после
+   правки — `docker compose up -d admin-server`.
 2. **Через админ-сессию**: `POST /api/api-tokens` (см. ниже) с
    `Authorization: Bearer <сессия админки>`.
 
