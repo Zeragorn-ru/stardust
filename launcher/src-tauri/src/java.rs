@@ -578,6 +578,80 @@ fn bundled_java_entry(data_dir: &Path, major: u32) -> Option<(JavaVendor, PathBu
         .cloned()
 }
 
+/// Все полные управляемые рантаймы в кэше: (вендор, мажор).
+///
+/// Кэш держит рантаймы разных мажоров одновременно (например, 21 для
+/// старой сборки и 25 для текущей), а игра запускается не обязательно на
+/// `JAVA_VERSION`. Поэтому проверка CVE и починка обходят каждый найденный
+/// рантайм, а не только 21.
+fn cached_managed_runtimes(data_dir: &Path) -> Vec<(JavaVendor, u32)> {
+    let mut out = Vec::new();
+    for vendor in JavaVendor::managed() {
+        let base = data_dir.join("runtime").join(vendor.id());
+        let Ok(entries) = fs::read_dir(&base) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(major) = name
+                .to_str()
+                .and_then(|s| s.strip_prefix("java-"))
+                .and_then(|s| s.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            // `.complete` — маркер полной распаковки (см. `bundled_runtime_dir`):
+            // недокачанный каталог чинить нечего, его перезапишет следующая
+            // загрузка.
+            if entry.path().join(".complete").exists() {
+                out.push((vendor, major));
+            }
+        }
+    }
+    out.sort_by_key(|(vendor, major)| (*major, vendor.id()));
+    out
+}
+
+/// Версия рантайма из кэша, если он на месте и запускается.
+fn cached_runtime_version(
+    data_dir: &Path,
+    vendor: JavaVendor,
+    major: u32,
+) -> Option<(String, u32)> {
+    let home = bundled_runtime_dir(data_dir, vendor, major)?;
+    probe_java_exe(&version_check_bin(&home)).map(|p| (p.version, p.major))
+}
+
+/// Мажоры уязвимых управляемых рантаймов в кэше (по возрастанию, без повторов).
+fn vulnerable_cached_majors(data_dir: &Path) -> Vec<u32> {
+    let mut majors: Vec<u32> = cached_managed_runtimes(data_dir)
+        .into_iter()
+        .filter(|(vendor, major)| {
+            cached_runtime_version(data_dir, *vendor, *major)
+                .is_some_and(|(version, m)| is_vulnerable_java(&version, m))
+        })
+        .map(|(_, major)| major)
+        .collect();
+    // `cached_managed_runtimes` отсортирован по мажору, поэтому повторы
+    // одного мажора у разных вендоров идут подряд.
+    majors.dedup();
+    majors
+}
+
+/// Есть ли у вендора исправный рантайм по одному из мажоров.
+///
+/// Нужно после починки, чтобы не пересаживать игрока на чужую сборку: если
+/// выбранный им вендор уже вылечен по нужным мажорам, настройки менять
+/// незачем. Проверяем именно починенные мажоры, а не любые: патченный
+/// Corretto 21 у игрока с выбранным Corretto не заменяет Temurin 25, если
+/// сборке нужна 25.
+pub fn has_patched_runtime(data_dir: &Path, vendor: JavaVendor, majors: &[u32]) -> bool {
+    majors.iter().all(|major| {
+        cached_runtime_version(data_dir, vendor, *major)
+            .is_some_and(|(version, m)| !is_vulnerable_java(&version, m))
+    })
+}
+
 /// `<home>/bin/java` → `<home>`.
 fn bundled_home_of(exe: &Path) -> PathBuf {
     exe.parent()
@@ -652,12 +726,23 @@ async fn vendor_latest_version(
                 .json()
                 .await
                 .map_err(|e| format!("Adoptium API: {e}"))?;
+            // `semver` у Adoptium — это `21.0.13+100000002.0.LTS`, а не версия
+            // сборки: номер респина в нём зашит в поле билда. Если взять его,
+            // `version_from_artifact` вернёт `21.0.13`, и Adoptium навсегда
+            // выглядит уязвимым, даже когда раздаёт `21.0.13.1`. Берём
+            // `release_name` (`jdk-21.0.13.1+2`) или `openjdk_version`.
             body.get(0)
-                .and_then(|r| r.get("version"))
-                .and_then(|v| v.get("semver"))
+                .and_then(|r| r.get("release_name"))
                 .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .or_else(|| {
+                    body.get(0)
+                        .and_then(|r| r.get("version"))
+                        .and_then(|v| v.get("openjdk_version"))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                })
                 .ok_or_else(|| "Adoptium API: не удалось прочитать версию".to_string())?
-                .to_string()
         }
         JavaVendor::Corretto | JavaVendor::Microsoft | JavaVendor::Oracle => {
             // HEAD: `latest`-ссылка редиректит на файл с версией в имени.
@@ -861,6 +946,20 @@ async fn ensure_downloaded_java(
         .map(|(path, _)| path)
 }
 
+/// Результат починки: что поставили и что не удалось (если удалось не всё).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FixedJava {
+    pub path: String,
+    /// Вендор установленной сборки — чтобы настройки указывали именно на неё.
+    pub vendor: String,
+    /// Мажоры, для которых встала исправная сборка.
+    pub patched_majors: Vec<u32>,
+    /// Непусто, если часть мажоров починить не вышло: окно покажет это
+    /// предупреждение, а не бодрое «Java обновлена».
+    pub warning: Option<String>,
+}
+
 /// Ставит исправленную сборку Java по явному требованию игрока (кнопка
 /// «Исправить» рядом с предупреждением о CVE-2026-114938).
 ///
@@ -868,6 +967,10 @@ async fn ensure_downloaded_java(
 /// когда фикса нет или ссылку уже проверяли сутки назад. Здесь игрок нажал
 /// кнопку и ждёт результат, поэтому маркер суточной проверки игнорируется, а
 /// отсутствие фикса у всех вендоров — явная ошибка, а не «ничего не произошло».
+///
+/// Чиним КАЖДЫЙ уязвимый рантайм в кэше, а не только Java 21: сборка может
+/// требовать 25 (или 17), и уязвимая сборка этого мажора торчала бы красным
+/// бейджем после успешной починки 21.
 ///
 /// Предпочтение — вендору текущего рантайма: игрок мог выбрать Corretto, и
 /// молча пересаживать его на Temurin только из-за CVE невежливо. Если у
@@ -877,45 +980,110 @@ pub async fn install_fixed_java(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
-) -> Result<(JavaVendor, PathBuf), String> {
+) -> Result<FixedJava, String> {
     let vendor = preferred.unwrap_or(JavaVendor::Temurin);
+    let mut targets = vulnerable_cached_majors(data_dir);
+    // Уязвимых рантаймов в кэше нет (например, чинили раньше, а бейдж
+    // остался от системной Java): чиним тот мажор, который нужен для
+    // запуска по умолчанию, — это единственный заведомо полезный вариант.
+    if targets.is_empty() {
+        targets.push(JAVA_VERSION);
+    }
+
     progress.begin(
         crate::progress::Stage::Java,
         "checking",
-        format!("Проверяем исправленные сборки Java {JAVA_VERSION}…"),
+        format!("Проверяем исправленные сборки Java {}…", major_list(&targets)),
     );
+
+    let mut installed: Option<(JavaVendor, PathBuf)> = None;
+    let mut patched_majors: Vec<u32> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    for major in targets {
+        match install_fixed_java_major(vendor, major, progress, http, data_dir).await {
+            Ok(path) => {
+                // Уязвимые рантаймы других вендоров этого мажора больше не
+                // нужны: без удаления бейдж CVE просто переедет на соседнюю
+                // строку списка.
+                drop_stale_vulnerable_runtimes(data_dir, major);
+                installed = Some(path);
+                patched_majors.push(major);
+            }
+            // Один непочиненный мажор не должен отменять уже установленные.
+            Err(err) => errors.push(format!("Java {major}: {err}")),
+        }
+    }
+    // Успех при частичной неудаче обманул бы игрока: окно сказало бы «Java
+    // обновлена», а бейдж на непочиненном мажоре остался бы. Поэтому неудача
+    // любого мажора попадает в `warning`, а не проглатывается.
+    if let Some((fixed, path)) = installed {
+        return Ok(FixedJava {
+            path: path.to_string_lossy().into_owned(),
+            vendor: fixed.id().to_string(),
+            patched_majors,
+            warning: (!errors.is_empty()).then(|| {
+                format!(
+                    "Не всё удалось обновить — {}. Повторите позже.",
+                    errors.join("; ")
+                )
+            }),
+        });
+    }
+    Err(errors.join(" "))
+}
+
+/// Починка одного мажора: та же логика, что была у `install_fixed_java`.
+async fn install_fixed_java_major(
+    vendor: JavaVendor,
+    major: u32,
+    progress: &Progress,
+    http: &reqwest::Client,
+    data_dir: &Path,
+) -> Result<(JavaVendor, PathBuf), String> {
     // Сначала сам выбранный вендор: `first_vendor_with_fix` его намеренно
     // пропускает (он нужен для случая «у нашего фикса нет»), а здесь игрок
     // ждёт результат именно от своей сборки, если та уже исправна.
-    let own_fixed = match vendor_latest_version(vendor, http, JAVA_VERSION).await {
-        Ok(latest) => {
-            let version = version_from_artifact(&latest).unwrap_or(latest);
-            !is_vulnerable_java(&version, JAVA_VERSION)
-        }
-        Err(err) => {
-            tracing::debug!("[java] версия {} недоступна: {err}", vendor.name());
-            false
-        }
-    };
+    //
+    // Проверяем и то, что вендор вообще умеет качать этот мажор: у Corretto
+    // закреплена ссылка только на 21, и `vendor_latest_version` вернул бы
+    // версию 21, которая «новее» порога 17 — иначе починка 17 падала бы на
+    // валидации загрузки вместо того, чтобы взять Temurin.
+    let own_fixed = validate_download_vendor(vendor, major).is_ok()
+        && match vendor_latest_version(vendor, http, major).await {
+            Ok(latest) => {
+                let version = version_from_artifact(&latest).unwrap_or(latest);
+                !is_vulnerable_java(&version, major)
+            }
+            Err(err) => {
+                tracing::debug!("[java] версия {} недоступна: {err}", vendor.name());
+                false
+            }
+        };
     let fixed = if own_fixed {
         vendor
     } else {
-        match first_vendor_with_fix(vendor, http, JAVA_VERSION).await {
+        match first_vendor_with_fix(vendor, http, major).await {
             Some(fixed) => fixed,
             None => {
                 return Err(format!(
-                    "Пока ни один поставщик не раздаёт исправленную Java {JAVA_VERSION} \
+                    "Пока ни один поставщик не раздаёт исправленную Java {major} \
                      (уязвимы сборки старше {}). Попробуйте позже.",
-                    fixed_java_label(JAVA_VERSION)
+                    fixed_java_label(major)
                 ));
             }
         }
     };
-    let path = download_java_version(fixed, progress, http, data_dir, JAVA_VERSION).await?;
-    // Уязвимые рантаймы других вендоров больше не нужны: без удаления бейдж
-    // CVE просто переедет на соседнюю строку списка установок.
-    drop_stale_vulnerable_runtimes(data_dir, JAVA_VERSION);
+    let path = download_java_version(fixed, progress, http, data_dir, major).await?;
     Ok((fixed, path))
+}
+
+/// `21` / `21 и 25` — для текста прогресса.
+fn major_list(majors: &[u32]) -> String {
+    majors
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join(" и ")
 }
 
 /// Порог фикса в человекочитаемом виде — для текста ошибки.
@@ -929,24 +1097,56 @@ fn fixed_java_label(major: u32) -> String {
 /// Фоновая проверка кэша: если хоть один управляемый рантайм уязвим —
 /// смотрим, не выпустил ли его вендор фикс, и перекачиваем.
 ///
-/// Возвращает вендора, чью сборку обновили, либо `None`, если обновлять не
-/// чего (фикса нет / сети нет / маркер не истёк). Ошибка — только если
+/// Пробегает ВСЕ мажоры в кэше, а не только `JAVA_VERSION`: сборка может
+/// требовать 25, и уязвимый рантайм 25 иначе оставался бы с бейджем
+/// навсегда — кнопка «Исправить» и фон чинили бы только 21.
+///
+/// Возвращает вендора первой обновлённой сборки, либо `None`, если обновлять
+/// нечего (фикса нет / сети нет / маркер не истёк). Ошибка — только если
 /// обновление началось и упало.
 pub async fn refresh_vulnerable_cached_java(
     progress: &Progress,
     http: &reqwest::Client,
     data_dir: &Path,
 ) -> Result<Option<JavaVendor>, String> {
-    // Исправная сборка уже лежит в кэше: игра её и возьмёт (см.
-    // `ensure_downloaded_java`), качать вторую незачем — иначе уязвимый
+    let mut majors = vulnerable_cached_majors(data_dir);
+    // Кэш пуст (чистая система): качать нечего.
+    if majors.is_empty() {
+        majors.push(JAVA_VERSION);
+    }
+
+    let mut updated = None;
+    for major in majors {
+        // Сбой на одном мажоре не должен отменять починку остальных: 21 и 25
+        // чинятся независимо, и падение сети на 25 оставляло бы 21 уязвимой.
+        match refresh_vulnerable_cached_java_major(progress, http, data_dir, major).await {
+            Ok(Some(vendor)) => {
+                updated.get_or_insert(vendor);
+            }
+            Ok(None) => {}
+            Err(err) => tracing::warn!("[java] не удалось обновить Java {major}: {err}"),
+        }
+    }
+    Ok(updated)
+}
+
+/// Починка кэша одного мажора; тело прежней `refresh_vulnerable_cached_java`.
+async fn refresh_vulnerable_cached_java_major(
+    progress: &Progress,
+    http: &reqwest::Client,
+    data_dir: &Path,
+    major: u32,
+) -> Result<Option<JavaVendor>, String> {
+    // Исправная сборка этого мажора уже лежит в кэше: игра её и возьмёт
+    // (см. `ensure_downloaded_java`), качать вторую незачем — иначе уязвимый
     // рантайм, оставшийся по соседству, тянул бы фикс заново каждый день.
-    if bundled_java_entry(data_dir, JAVA_VERSION).is_some_and(|(_, _, vulnerable)| !vulnerable) {
+    if bundled_java_entry(data_dir, major).is_some_and(|(_, _, vulnerable)| !vulnerable) {
         // Но уязвимые рантаймы рядом всё ещё торчат в списке установок
         // красным бейджем — убираем их все, раз уж есть чем заменить.
-        return Ok(drop_stale_vulnerable_runtimes(data_dir, JAVA_VERSION));
+        return Ok(drop_stale_vulnerable_runtimes(data_dir, major));
     }
     for vendor in JavaVendor::managed() {
-        let Some(java) = bundled_java_for(data_dir, vendor, JAVA_VERSION) else {
+        let Some(java) = bundled_java_for(data_dir, vendor, major) else {
             continue;
         };
         let vulnerable = probe_java_exe(&version_check_bin(&bundled_home_of(&java)))
@@ -956,31 +1156,45 @@ pub async fn refresh_vulnerable_cached_java(
         }
         // Тот же маркер, что у запуска игры: не дёргаем сеть чаще раза в
         // сутки, но и не пропускаем вышедший фикс.
-        if !should_check_vendor(data_dir, vendor, JAVA_VERSION) {
+        if !should_check_vendor(data_dir, vendor, major) {
             continue;
         }
         // Явно проверяем наличие фикса: download_fixed_java без него
-        // скачал бы ту же уязвимую сборку заново.
-        let Some(fixed) = first_vendor_with_fix(vendor, http, JAVA_VERSION).await else {
-            mark_vendor_check(data_dir, vendor, JAVA_VERSION);
+        // скачал бы ту же уязвимую сборку заново. Сначала спрашиваем САМОГО
+        // вендора — `first_vendor_with_fix` его пропускает, а для Java 25
+        // других кандидатов нет вовсе (остальные вендоры не умеют качать 25),
+        // и фон не чинил бы её никогда.
+        let fixed = if vendor_latest_version(vendor, http, major)
+            .await
+            .ok()
+            .map(|latest| version_from_artifact(&latest).unwrap_or(latest))
+            .is_some_and(|version| !is_vulnerable_java(&version, major))
+        {
+            Some(vendor)
+        } else {
+            first_vendor_with_fix(vendor, http, major).await
+        };
+        let Some(fixed) = fixed else {
+            mark_vendor_check(data_dir, vendor, major);
             tracing::warn!(
-                "[java] {} и остальные вендоры пока раздают уязвимую Java {JAVA_VERSION}",
+                "[java] {} и остальные вендоры пока раздают уязвимую Java {major}",
                 vendor.name()
             );
             continue;
         };
         // Отмечаем ДО скачивания: иначе сбой посреди загрузки оставит нас
         // в цикле «начать и упасть» на каждом следующем старте.
-        mark_vendor_check(data_dir, vendor, JAVA_VERSION);
-        match download_java_version(fixed, progress, http, data_dir, JAVA_VERSION).await {
+        mark_vendor_check(data_dir, vendor, major);
+        match download_java_version(fixed, progress, http, data_dir, major).await {
             Ok(_) => {
                 // Уязвимый рантайм больше не нужен: без удаления он остаётся
                 // в списке установок, и игрок продолжает видеть красный
                 // бейдж CVE на сборке, которую лаунчер уже не использует.
                 // Уязвимый рантайм мог остаться и у другого вендора —
                 // чистим все, иначе бейдж просто переедет на соседнюю строку.
-                drop_stale_vulnerable_runtimes(data_dir, JAVA_VERSION);
-                return Ok(Some(fixed));            }
+                drop_stale_vulnerable_runtimes(data_dir, major);
+                return Ok(Some(fixed));
+            }
             Err(err) => return Err(err),
         }
     }
@@ -2174,6 +2388,41 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    /// Уязвимый ccache может быть не только Java 21: сборка, требующая 25,
+    /// оставляла красный бейдж навсегда, потому что починка смотрела только
+    /// на `JAVA_VERSION`.
+    #[test]
+    fn vulnerable_majors_cover_every_cached_runtime() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = std::env::temp_dir().join(format!(
+            "stardust-java-majors-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        // Corretto 21 уже вылечен, Temurin 25.0.5 — уязвим и живёт в кэше
+        // рядом. Недокачанный каталог (без `.complete`) не должен попадать
+        // в цели починки.
+        for (vendor, major, version, complete) in [
+            (JavaVendor::Corretto, 21, "21.0.13.1", true),
+            (JavaVendor::Temurin, 25, "25.0.5", true),
+            (JavaVendor::Zulu, 25, "25.0.5", false),
+        ] {
+            let runtime = root.join("runtime").join(vendor.id()).join(format!("java-{major}"));
+            fs::create_dir_all(runtime.join("bin")).unwrap();
+            if complete {
+                fs::write(runtime.join(".complete"), b"ok").unwrap();
+            }
+            let exe = runtime.join("bin/java");
+            fs::write(&exe, format!("#!/bin/sh\nprintf 'openjdk version \"{version}\"\\n' >&2\n")).unwrap();
+            fs::set_permissions(&exe, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        assert_eq!(vulnerable_cached_majors(&root), vec![25]);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn version_less_handles_patch_respins() {
         assert!(version_less("21.0.13", "21.0.13.1"));
@@ -2197,6 +2446,16 @@ mod tests {
         assert_eq!(
             version_from_artifact("OpenJDK21U-jre_x64_linux_hotspot_21.0.13_9.tar.gz").as_deref(),
             Some("21.0.13")
+        );
+        // `release_name` из Adoptium API: в отличие от `semver`
+        // (`21.0.13+100000002.0.LTS`) респин здесь — компонент версии.
+        assert_eq!(
+            version_from_artifact("jdk-21.0.13.1+2").as_deref(),
+            Some("21.0.13.1")
+        );
+        assert_eq!(
+            version_from_artifact("jdk-25.0.5.1+2").as_deref(),
+            Some("25.0.5.1")
         );
         assert_eq!(version_from_artifact("latest").as_deref(), None);
     }

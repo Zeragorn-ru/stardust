@@ -124,20 +124,23 @@ function vendorFromRuntimePath(path: string): string | null {
  * /usr/lib/jvm) лаунчер перезаписать не может: нажатие качало бы сборку, а
  * предупреждение оставалось бы висеть — для этого случая предлагаем перейти
  * на Java лаунчера вместо «Исправить».
+ *
+ * Кнопка чинит ВСЕ уязвимые рантаймы в кэше лаунчера (в том числе Java 25,
+ * если её требует сборка), поэтому достаточно, чтобы уязвимой была любая
+ * managed-сборка. Возвращённый вендор — лишь предпочтение при скачивании.
  */
 function managedRepairVendor(
   installs: JavaInstallation[] | null,
   settings: Settings | null,
 ): string | null {
-  const vendor = currentManagedJavaVendor(installs, settings);
-  if (!vendor) return null;
-  // Выбор сделан вручную (custom) или системная — проверяем, что в списке
-  // есть именно уязвимая сборка этого управляемого вендора.
-  return (installs ?? []).some(
-    (install) => install.vulnerable && vendorFromRuntimePath(install.home) === vendor,
-  )
-    ? vendor
-    : null;
+  const vulnerableManaged = (installs ?? []).filter(
+    (install) => install.vulnerable && vendorFromRuntimePath(install.home) !== null,
+  );
+  if (vulnerableManaged.length === 0) return null;
+  return (
+    currentManagedJavaVendor(installs, settings) ??
+    vendorFromRuntimePath(vulnerableManaged[0].home)
+  );
 }
 
 const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
@@ -1297,7 +1300,9 @@ export default function SettingsScreen({
                       )
                         ? " На этом процессоре уязвимый путь достижим — лаунчер добавит -XX:-UseBASE64Intrinsics при запуске. Обновите сборку."
                         : " На этом процессоре уязвимый путь (AVX-512 VBMI) недостижим, но сборку всё равно стоит обновить."}{" "}
-                      Corretto и Zulu уже выпустили исправленные 21.0.13.1.
+                      {managedRepairVendor(javaInstalls, settings)
+                        ? "«Исправить» обновит все сборки Java лаунчера — включая версии, которые нужны сборке (например, 25)."
+                        : "Исправленную сборку можно взять у лаунчера."}
                     </p>
                     {managedRepairVendor(javaInstalls, settings) ? (
                       // Кнопка чинит только runtime лаунчера: системную Java

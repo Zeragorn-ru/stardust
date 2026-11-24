@@ -1967,7 +1967,7 @@ async fn install_fixed_java(
     vendor: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<String, String> {
+) -> Result<java::FixedJava, String> {
     // Тот же лок и та же проверка, что у download_java: операция удаляет
     // рантаймы (drop_stale_vulnerable_runtimes) и пишет те же каталоги.
     let _guard = state.launch_lock.lock().await;
@@ -1985,13 +1985,23 @@ async fn install_fixed_java(
     .filter(|v| !matches!(v, java::JavaVendor::Oracle));
     let data_dir = paths::data_dir(&app);
     let progress = crate::progress::Progress::for_java_download(app.clone());
-    let (actual, path) =
-        java::install_fixed_java(preferred, &progress, &state.http(), &data_dir).await?;
-    set_java_provider(&state, &app, actual);
+    let fixed = java::install_fixed_java(preferred, &progress, &state.http(), &data_dir).await?;
+    // Возвращённый вендор — тот, чью сборку скачали последней. Если игрок
+    // выбрал, скажем, Zulu, а фикс нашёлся только у Corretto, пересаживать
+    // его незачем при условии, что у Zulu теперь есть исправные рантаймы
+    // по всем починенным мажорам.
+    let keep_preferred = preferred.is_some_and(|vendor| {
+        java::has_patched_runtime(&data_dir, vendor, &fixed.patched_majors)
+    });
+    if !keep_preferred {
+        if let Some(actual) = java::JavaVendor::parse(&fixed.vendor) {
+            set_java_provider(&state, &app, actual);
+        }
+    }
     // Настройки могли быть открыты: без события список и бейдж останутся
     // показывать старую уязвимую сборку.
     let _ = app.emit(crate::progress::JAVA_RUNTIME_CHANGED_EVENT, ());
-    Ok(path.to_string_lossy().into_owned())
+    Ok(fixed)
 }
 
 #[tauri::command]

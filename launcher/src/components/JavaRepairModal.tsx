@@ -24,6 +24,9 @@ type Status = "installing" | "done" | "error";
 export default function JavaRepairModal({ vendor, onClose, onInstalled }: Props) {
   const [status, setStatus] = useState<Status>("installing");
   const [error, setError] = useState<string | null>(null);
+  // Частичный успех: исправная сборка встала, но не все уязвимые мажоры
+  // закрыты — показываем предупреждение, а не бодрое «готово».
+  const [warning, setWarning] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
   // Попытка растёт при повторе: каждая — новый запуск установки.
   const [attempt, setAttempt] = useState(0);
@@ -41,8 +44,12 @@ export default function JavaRepairModal({ vendor, onClose, onInstalled }: Props)
         if (!cancelled) setProgress(p);
       });
       try {
-        await installFixedJava(propsRef.current.vendor);
+        const result = await installFixedJava(propsRef.current.vendor);
         if (cancelled) return;
+        // Часть уязвимых мажоров могла не закрыться — тогда список всё равно
+        // перечитываем (бейджи на вылеченных сборках должны уйти), но честно
+        // показываем предупреждение, а не «Java обновлена».
+        setWarning(result.warning ?? null);
         setStatus("done");
         propsRef.current.onInstalled();
       } catch (e) {
@@ -145,10 +152,18 @@ export default function JavaRepairModal({ vendor, onClose, onInstalled }: Props)
           )}
 
           {status === "done" && (
-            <p className="java-repair__text">
-              Установлена исправленная сборка. Лаунчер теперь будет запускать игру
-              на ней — предупреждение уйдёт, как только обновится список.
-            </p>
+            <>
+              <p className="java-repair__text">
+                {warning
+                  ? "Установлена исправная сборка, но обновлены не все версии Java лаунчера."
+                  : "Установлена исправленная сборка. Лаунчер теперь будет запускать игру на ней — предупреждение уйдёт, как только обновится список."}
+              </p>
+              {warning && (
+                <p className="java-repair__text java-repair__text--error" role="alert">
+                  {warning}
+                </p>
+              )}
+            </>
           )}
 
           {status === "error" && (

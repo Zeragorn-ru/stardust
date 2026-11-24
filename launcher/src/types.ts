@@ -113,6 +113,18 @@ export interface JavaVendorInfo {
   label: string;
 }
 
+/** Результат кнопки «Исправить» у предупреждения о CVE-2026-114938. */
+export interface FixedJavaResult {
+  /** Путь установленной исправной сборки. */
+  path: string;
+  /** Вендор установленной сборки (настройки переводятся на него). */
+  vendor: string;
+  /** Мажоры Java, для которых встала исправная сборка. */
+  patchedMajors: number[];
+  /** Непусто, если часть уязвимых мажоров починить не удалось. */
+  warning?: string | null;
+}
+
 export interface MemoryLimits {
   minMb: number;
   maxMb: number;

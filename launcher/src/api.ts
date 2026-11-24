@@ -11,6 +11,7 @@ import type {
   ChallengeOutcome,
   DataDirectoryInfo,
   DataDirectoryProgress,
+  FixedJavaResult,
   JavaInstallation,
   JavaVendorInfo,
   LoginOutcome,
@@ -583,12 +584,15 @@ export async function downloadTemurinJava(): Promise<string> {
 /**
  * Поставить исправленную сборку Java по кнопке «Исправить» у предупреждения
  * о CVE-2026-114938. `vendor` — текущий managed-вендор, чтобы не пересаживать
- * игрока на чужую сборку без нужды. Возвращает путь установленной Java.
+ * игрока на чужую сборку без нужды. Обновляет ВСЕ уязвимые рантаймы в кэше;
+ * `warning` непустой, если часть мажоров починить не удалось.
  */
-export async function installFixedJava(vendor?: string | null): Promise<string> {
+export async function installFixedJava(
+  vendor?: string | null,
+): Promise<FixedJavaResult> {
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Tauri недоступен");
-  return invoke<string>("install_fixed_java", { vendor: vendor ?? null });
+  return invoke<FixedJavaResult>("install_fixed_java", { vendor: vendor ?? null });
 }
 
 /** Сведения о среде запуска (режим, папка данных, версия). */
