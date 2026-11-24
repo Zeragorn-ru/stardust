@@ -31,6 +31,7 @@ import AccountSection from "./AccountSection";
 import ConfirmDialog, { type ConfirmRequest } from "./ConfirmDialog";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
 import CrashHistoryModal from "./CrashHistoryModal";
+import JavaRepairModal from "./JavaRepairModal";
 import AdminSettingsSection from "./AdminSettingsSection";
 import ModsSection from "./ModsSection";
 
@@ -83,6 +84,36 @@ const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
 
 const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
 
+/** Managed-провайдер Java, который сейчас реально используется, либо null.
+ *
+ * Кнопка «Исправить» должна предпочитать сборку, на которой игрок и так
+ * играет: у `system`/`custom`/`auto` своего управляемого вендора нет, и
+ * исправную сборку можно ставить любую.
+ */
+function currentManagedJavaVendor(
+  installs: JavaInstallation[] | null,
+  settings: Settings | null,
+): string | null {
+  const provider = settings?.javaProvider ?? DEFAULT_JAVA_PROVIDER;
+  const managed: JavaProvider[] = ["temurin", "corretto", "microsoft", "zulu"];
+  if (managed.includes(provider)) return provider;
+  if (provider === "custom" && settings?.javaCustomPath) {
+    const path = settings.javaCustomPath.toLowerCase();
+    return (
+      managed.find((vendor) =>
+        path.includes(`runtime/${vendor}/`) || path.includes(`runtime\\${vendor}\\`),
+      ) ?? null
+    );
+  }
+  // auto/system — берём вендора уязвимой сборки из списка, если она управляемая.
+  const runtime = (installs ?? []).find(
+    (install) => install.vulnerable && install.source.includes("(лаунчер)"),
+  );
+  if (!runtime) return null;
+  const home = runtime.home.toLowerCase();
+  return managed.find((vendor) => home.includes(`runtime/${vendor}/`) || home.includes(`runtime\\${vendor}\\`)) ?? null;
+}
+
 const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
   auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
   temurin: "Использовать Eclipse Temurin 21 из managed runtime лаунчера.",
@@ -131,6 +162,8 @@ export default function SettingsScreen({
   const [downloadingVendor, setDownloadingVendor] = useState<string | null>(null);
   const [javaDownloadError, setJavaDownloadError] = useState<string | null>(null);
   const [javaProgress, setJavaProgress] = useState<Progress | null>(null);
+  // Блокирующее окно замены уязвимой Java на исправленную (кнопка «Исправить»).
+  const [javaRepairOpen, setJavaRepairOpen] = useState(false);
 
   const [logPaths, setLogPaths] = useState<LogPaths | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -1229,16 +1262,26 @@ export default function SettingsScreen({
                     x86-64 с AVX-512 VBMI и BMI2 — на остальных CPU это
                     риск на будущее, а не активная дыра. */}
                 {(javaInstalls ?? []).some((install) => install.vulnerable) && (
-                  <p className="muted java-card__msg java-card__msg--warn" role="alert">
-                    Найдена Java с незакрытой CVE-2026-114938 (переполнение в
-                    Base64-декодере, переполнение кучи → RCE).
-                    {(javaInstalls ?? []).some(
-                      (install) => install.vulnerable && install.cpuExposed,
-                    )
-                      ? " На этом процессоре уязвимый путь достижим — лаунчер добавит -XX:-UseBASE64Intrinsics при запуске. Обновите сборку."
-                      : " На этом процессоре уязвимый путь (AVX-512 VBMI) недостижим, но сборку всё равно стоит обновить."}{" "}
-                    Corretto и Zulu уже выпустили исправленные 21.0.13.1.
-                  </p>
+                  <div className="java-card__msg java-card__msg--warn java-card__warn-block" role="alert">
+                    <p className="java-card__warn-text">
+                      Найдена Java с незакрытой CVE-2026-114938 (переполнение в
+                      Base64-декодере, переполнение кучи → RCE).
+                      {(javaInstalls ?? []).some(
+                        (install) => install.vulnerable && install.cpuExposed,
+                      )
+                        ? " На этом процессоре уязвимый путь достижим — лаунчер добавит -XX:-UseBASE64Intrinsics при запуске. Обновите сборку."
+                        : " На этом процессоре уязвимый путь (AVX-512 VBMI) недостижим, но сборку всё равно стоит обновить."}{" "}
+                      Corretto и Zulu уже выпустили исправленные 21.0.13.1.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn--primary java-card__warn-action"
+                      onClick={() => setJavaRepairOpen(true)}
+                      disabled={javaDownloading}
+                    >
+                      Исправить
+                    </button>
+                  </div>
                 )}
                 {javaListError && (
                   <p className="muted java-card__msg" role="alert">Ошибка поиска: {javaListError}</p>
@@ -1354,6 +1397,14 @@ export default function SettingsScreen({
       )}
 
       {historyOpen && <CrashHistoryModal onClose={() => setHistoryOpen(false)} />}
+
+      {javaRepairOpen && (
+        <JavaRepairModal
+          vendor={currentManagedJavaVendor(javaInstalls, settings)}
+          onClose={() => setJavaRepairOpen(false)}
+          onInstalled={() => void refreshJavaList(false)}
+        />
+      )}
 
       {confirmReq && (
         <ConfirmDialog

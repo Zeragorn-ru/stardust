@@ -93,6 +93,10 @@ struct ProgressPayload {
     phase: String,
     label: String,
     fraction: Option<f64>,
+    /// Доля текущего этапа 0..1. Нужна там, где показывается прогресс
+    /// отдельной загрузки (Java в настройках): общий `fraction` у первого
+    /// этапа упирается в его вес и как процент загрузки бесполезен.
+    stage_fraction: Option<f64>,
     downloaded_bytes: Option<u64>,
     total_bytes: Option<u64>,
     speed_bytes_per_sec: Option<f64>,
@@ -288,6 +292,7 @@ impl Progress {
                 phase: "error".into(),
                 label: label.into(),
                 fraction: None,
+                stage_fraction: None,
                 downloaded_bytes: None,
                 total_bytes: None,
                 speed_bytes_per_sec: None,
@@ -307,6 +312,7 @@ impl Progress {
                 phase: inner.phase.clone(),
                 label: inner.label.clone(),
                 fraction: Some(overall),
+                stage_fraction: Some(inner.current_fraction.clamp(0.0, 1.0)),
                 downloaded_bytes: inner.downloaded_bytes,
                 total_bytes: inner.total_bytes,
                 speed_bytes_per_sec: inner.speed,

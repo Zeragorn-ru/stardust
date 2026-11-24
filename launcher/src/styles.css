@@ -4064,6 +4064,54 @@ button,
     color: var(--text);
 }
 
+/* Предупреждение о CVE с кнопкой «Исправить»: текст слева, действие справа.
+   flex-wrap — на узкой панели кнопка уезжает под текст, а не сжимает его. */
+.java-card__warn-block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.java-card__warn-text {
+    flex: 1 1 260px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.java-card__warn-action {
+    flex: 0 0 auto;
+    padding: 7px 14px;
+    font-size: 13px;
+}
+
+/* Блокирующее окно замены уязвимой Java. */
+.java-repair {
+    max-width: 520px;
+}
+
+.java-repair__body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 20px;
+}
+
+.java-repair__text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.java-repair__text--error {
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: rgba(220, 60, 60, 0.12);
+    border-left: 3px solid rgba(220, 60, 60, 0.9);
+    color: var(--text);
+}
+
 .java-list {
     display: flex;
     flex-direction: column;

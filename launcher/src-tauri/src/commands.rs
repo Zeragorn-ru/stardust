@@ -1914,10 +1914,15 @@ async fn download_java(
     // progress и блокирует кнопку «Играть» на главном экране.
     let progress = crate::progress::Progress::for_java_download(app.clone());
     let (path, actual) = java::download_java(vendor, &progress, &state.http(), &data_dir).await?;
-    // Вендор мог подмениться: если у запрошенного не было фикса
-    // CVE-2026-114938, скачали исправную сборку соседа. Настройки должны
-    // указывать на ту Java, которая реально лежит на диске.
-    let mut settings = get_settings_cached(&state, &app);
+    // Настройки должны указывать на ту Java, которая реально лежит на диске:
+    // при отсутствии фикса у запрошенного вендора скачана сборка соседа.
+    set_java_provider(&state, &app, actual);
+    Ok(path.to_string_lossy().into_owned())
+}
+
+/// Переводит настройки на управляемый runtime указанного вендора.
+fn set_java_provider(state: &State<'_, AppState>, app: &AppHandle, actual: java::JavaVendor) {
+    let mut settings = get_settings_cached(state, app);
     settings.java_provider = match actual {
         java::JavaVendor::Temurin => JavaProvider::Temurin,
         java::JavaVendor::Corretto => JavaProvider::Corretto,
@@ -1926,8 +1931,48 @@ async fn download_java(
         java::JavaVendor::Oracle => JavaProvider::Temurin,
     };
     settings.java_custom_path = None;
-    write_settings(&app, &settings)?;
+    if let Err(err) = write_settings(app, &settings) {
+        tracing::warn!("[java] не удалось сохранить провайдера Java: {err}");
+        return;
+    }
     *state.settings.lock().unwrap() = Some(settings);
+}
+
+/// Кнопка «Исправить» у предупреждения о CVE-2026-114938.
+///
+/// В отличие от фоновой проверки (раз в сутки, молча), здесь игрок ждёт
+/// результат: сетевые запросы идут всегда, а неудача возвращается ошибкой.
+/// `vendor` — текущий управляемый рантайм из настроек, чтобы не пересаживать
+/// игрока на чужую сборку без нужды.
+#[tauri::command]
+async fn install_fixed_java(
+    vendor: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    // Тот же лок и та же проверка, что у download_java: операция удаляет
+    // рантаймы (drop_stale_vulnerable_runtimes) и пишет те же каталоги.
+    let _guard = state.launch_lock.lock().await;
+    if state.game.lock().unwrap().is_some() || crate::game_guard::is_running(&paths::data_dir(&app))
+    {
+        return Err("Закройте Minecraft перед заменой Java".into());
+    }
+    let preferred = match vendor.as_deref() {
+        Some(raw) => Some(
+            java::JavaVendor::parse(raw)
+                .ok_or_else(|| format!("Неизвестный поставщик Java: {raw}"))?,
+        ),
+        None => None,
+    }
+    .filter(|v| !matches!(v, java::JavaVendor::Oracle));
+    let data_dir = paths::data_dir(&app);
+    let progress = crate::progress::Progress::for_java_download(app.clone());
+    let (actual, path) =
+        java::install_fixed_java(preferred, &progress, &state.http(), &data_dir).await?;
+    set_java_provider(&state, &app, actual);
+    // Настройки могли быть открыты: без события список и бейдж останутся
+    // показывать старую уязвимую сборку.
+    let _ = app.emit(crate::progress::JAVA_RUNTIME_CHANGED_EVENT, ());
     Ok(path.to_string_lossy().into_owned())
 }
 
@@ -4119,6 +4164,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             list_java_installations_deep,
             list_java_download_vendors,
             download_java,
+            install_fixed_java,
             download_temurin_java,
             app_info,
             get_data_directory_info,

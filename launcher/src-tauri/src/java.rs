@@ -861,6 +861,71 @@ async fn ensure_downloaded_java(
         .map(|(path, _)| path)
 }
 
+/// Ставит исправленную сборку Java по явному требованию игрока (кнопка
+/// «Исправить» рядом с предупреждением о CVE-2026-114938).
+///
+/// Отличие от [`refresh_vulnerable_cached_java`]: та работает фоном и молчит,
+/// когда фикса нет или ссылку уже проверяли сутки назад. Здесь игрок нажал
+/// кнопку и ждёт результат, поэтому маркер суточной проверки игнорируется, а
+/// отсутствие фикса у всех вендоров — явная ошибка, а не «ничего не произошло».
+///
+/// Предпочтение — вендору текущего рантайма: игрок мог выбрать Corretto, и
+/// молча пересаживать его на Temurin только из-за CVE невежливо. Если у
+/// выбранного вендора фикса нет, берём первого, у кого он есть.
+pub async fn install_fixed_java(
+    preferred: Option<JavaVendor>,
+    progress: &Progress,
+    http: &reqwest::Client,
+    data_dir: &Path,
+) -> Result<(JavaVendor, PathBuf), String> {
+    let vendor = preferred.unwrap_or(JavaVendor::Temurin);
+    progress.begin(
+        crate::progress::Stage::Java,
+        "checking",
+        format!("Проверяем исправленные сборки Java {JAVA_VERSION}…"),
+    );
+    // Сначала сам выбранный вендор: `first_vendor_with_fix` его намеренно
+    // пропускает (он нужен для случая «у нашего фикса нет»), а здесь игрок
+    // ждёт результат именно от своей сборки, если та уже исправна.
+    let own_fixed = match vendor_latest_version(vendor, http, JAVA_VERSION).await {
+        Ok(latest) => {
+            let version = version_from_artifact(&latest).unwrap_or(latest);
+            !is_vulnerable_java(&version, JAVA_VERSION)
+        }
+        Err(err) => {
+            tracing::debug!("[java] версия {} недоступна: {err}", vendor.name());
+            false
+        }
+    };
+    let fixed = if own_fixed {
+        vendor
+    } else {
+        match first_vendor_with_fix(vendor, http, JAVA_VERSION).await {
+            Some(fixed) => fixed,
+            None => {
+                return Err(format!(
+                    "Пока ни один поставщик не раздаёт исправленную Java {JAVA_VERSION} \
+                     (уязвимы сборки старше {}). Попробуйте позже.",
+                    fixed_java_label(JAVA_VERSION)
+                ));
+            }
+        }
+    };
+    let path = download_java_version(fixed, progress, http, data_dir, JAVA_VERSION).await?;
+    // Уязвимые рантаймы других вендоров больше не нужны: без удаления бейдж
+    // CVE просто переедет на соседнюю строку списка установок.
+    drop_stale_vulnerable_runtimes(data_dir, JAVA_VERSION);
+    Ok((fixed, path))
+}
+
+/// Порог фикса в человекочитаемом виде — для текста ошибки.
+fn fixed_java_label(major: u32) -> String {
+    match fixed_java_version(major) {
+        Some([a, b, c, d]) => format!("{a}.{b}.{c}.{d}"),
+        _ => major.to_string(),
+    }
+}
+
 /// Фоновая проверка кэша: если хоть один управляемый рантайм уязвим —
 /// смотрим, не выпустил ли его вендор фикс, и перекачиваем.
 ///
@@ -2008,6 +2073,16 @@ mod tests {
         }
         #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
         assert!(!exposed);
+    }
+
+    #[test]
+    fn fixed_java_label_names_the_patch_threshold() {
+        // Текст ошибки кнопки «Исправить» называет версию, начиная с которой
+        // сборка считается исправной — иначе игрок не понимает, чего ждать.
+        assert_eq!(fixed_java_label(21), "21.0.13.1");
+        assert_eq!(fixed_java_label(17), "17.0.21.1");
+        // Ветка без фикса в бюллетене: показываем только мажор.
+        assert_eq!(fixed_java_label(8), "8");
     }
 
     #[test]

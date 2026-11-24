@@ -580,6 +580,17 @@ export async function downloadTemurinJava(): Promise<string> {
   return downloadJava("temurin");
 }
 
+/**
+ * Поставить исправленную сборку Java по кнопке «Исправить» у предупреждения
+ * о CVE-2026-114938. `vendor` — текущий managed-вендор, чтобы не пересаживать
+ * игрока на чужую сборку без нужды. Возвращает путь установленной Java.
+ */
+export async function installFixedJava(vendor?: string | null): Promise<string> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Tauri недоступен");
+  return invoke<string>("install_fixed_java", { vendor: vendor ?? null });
+}
+
 /** Сведения о среде запуска (режим, папка данных, версия). */
 export async function getAppInfo(): Promise<AppInfo> {
   const invoke = await getInvoke();
