@@ -113,6 +113,18 @@ export interface JavaVendorInfo {
   label: string;
 }
 
+/** Java, которой реально запускается активная сборка. */
+export interface JavaStatus {
+  /** Мажор, который требует сборка (21, 25, …). */
+  requiredMajor: number;
+  /** Активная установка; `null` — Java ещё не найдена, её скачает запуск. */
+  active: JavaInstallation | null;
+  /** Активная Java уязвима к CVE-2026-114938. */
+  vulnerable: boolean;
+  /** Её можно починить кнопкой «Исправить» (рантайм лаунчера). */
+  repairable: boolean;
+}
+
 /** Результат кнопки «Исправить» у предупреждения о CVE-2026-114938. */
 export interface FixedJavaResult {
   /** Путь установленной исправной сборки. */
@@ -121,8 +133,6 @@ export interface FixedJavaResult {
   vendor: string;
   /** Мажоры Java, для которых встала исправная сборка. */
   patchedMajors: number[];
-  /** Непусто, если часть уязвимых мажоров починить не удалось. */
-  warning?: string | null;
 }
 
 export interface MemoryLimits {

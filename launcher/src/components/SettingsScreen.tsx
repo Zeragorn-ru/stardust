@@ -1,11 +1,12 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { AccountInfo, AppInfo, DataDirectoryInfo, DataDirectoryProgress, JavaInstallation, JavaProvider, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
+import type { AccountInfo, AppInfo, DataDirectoryInfo, DataDirectoryProgress, JavaInstallation, JavaProvider, JavaStatus, JavaVendorInfo, LogPaths, MemoryLimits, PlayerProfile, Progress, Settings, UpdateInfo, UpdateProgress } from "../types";
 import {
   checkUpdate,
   chooseDataDirectory,
   getDataDirectoryInfo,
   downloadJava,
   getAppInfo,
+  getJavaStatus,
   accountInfo,
   getLogPaths,
   getMemoryLimits,
@@ -84,27 +85,14 @@ const JAVA_PROVIDER_LABELS: Record<JavaProvider, string> = {
 
 const DEFAULT_JAVA_PROVIDER: JavaProvider = "temurin";
 
-/** Managed-провайдер Java, который сейчас реально используется, либо null.
+/**
+ * Вендор активной Java из `JavaStatus` — он и есть предпочтение для «Исправить».
  *
- * Кнопка «Исправить» должна предпочитать сборку, на которой игрок и так
- * играет: у `system`/`custom`/`auto` своего управляемого вендора нет, и
- * исправную сборку можно ставить любую.
+ * Если активная сборка системная (не в `runtime/` лаунчера), предпочитать
+ * нечего: чинить её нельзя, и кнопка предлагает перейти на Java лаунчера.
  */
-function currentManagedJavaVendor(
-  installs: JavaInstallation[] | null,
-  settings: Settings | null,
-): string | null {
-  const provider = settings?.javaProvider ?? DEFAULT_JAVA_PROVIDER;
-  const managed: JavaProvider[] = ["temurin", "corretto", "microsoft", "zulu"];
-  if (managed.includes(provider)) return provider;
-  if (provider === "custom" && settings?.javaCustomPath) {
-    return vendorFromRuntimePath(settings.javaCustomPath);
-  }
-  // auto/system — берём вендора уязвимой сборки из списка, если она управляемая.
-  const runtime = (installs ?? []).find(
-    (install) => install.vulnerable && install.source.includes("(лаунчер)"),
-  );
-  return runtime ? vendorFromRuntimePath(runtime.home) : null;
+function activeVendor(status: JavaStatus | null): string | null {
+  return status?.active ? vendorFromRuntimePath(status.active.home) : null;
 }
 
 /** Вендор по пути вида `…/runtime/<vendor>/java-21`, иначе null. */
@@ -117,41 +105,25 @@ function vendorFromRuntimePath(path: string): string | null {
   );
 }
 
-/**
- * Вендор, чью сборку реально починит кнопка «Исправить», либо null.
- *
- * Чинить можно только runtime лаунчера. Системную Java (PATH, JAVA_HOME,
- * /usr/lib/jvm) лаунчер перезаписать не может: нажатие качало бы сборку, а
- * предупреждение оставалось бы висеть — для этого случая предлагаем перейти
- * на Java лаунчера вместо «Исправить».
- *
- * Кнопка чинит ВСЕ уязвимые рантаймы в кэше лаунчера (в том числе Java 25,
- * если её требует сборка), поэтому достаточно, чтобы уязвимой была любая
- * managed-сборка. Возвращённый вендор — лишь предпочтение при скачивании.
- */
-function managedRepairVendor(
-  installs: JavaInstallation[] | null,
-  settings: Settings | null,
-): string | null {
-  const vulnerableManaged = (installs ?? []).filter(
-    (install) => install.vulnerable && vendorFromRuntimePath(install.home) !== null,
-  );
-  if (vulnerableManaged.length === 0) return null;
-  return (
-    currentManagedJavaVendor(installs, settings) ??
-    vendorFromRuntimePath(vulnerableManaged[0].home)
-  );
+/** Описание поставщика Java для мажора, который требует сборка. */
+function javaProviderDescription(provider: JavaProvider, major: number): string {
+  switch (provider) {
+    case "auto":
+      return "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.";
+    case "temurin":
+      return `Использовать Eclipse Temurin ${major} из managed runtime лаунчера.`;
+    case "corretto":
+      return `Использовать Amazon Corretto ${major} из managed runtime лаунчера.`;
+    case "microsoft":
+      return `Использовать Microsoft Build of OpenJDK ${major} из managed runtime лаунчера.`;
+    case "zulu":
+      return `Использовать Azul Zulu ${major} из managed runtime лаунчера.`;
+    case "system":
+      return "Использовать Java из PATH/JAVA_HOME. Подходит, если вы сами управляете Java.";
+    case "custom":
+      return "Указать конкретный java/java.exe или выбрать его из найденных установок.";
+  }
 }
-
-const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
-  auto: "Лаунчер сам выберет лучший вариант: Java лаунчера, системную или предложит скачать.",
-  temurin: "Использовать Eclipse Temurin 21 из managed runtime лаунчера.",
-  corretto: "Использовать Amazon Corretto 21 из managed runtime лаунчера.",
-  microsoft: "Использовать Microsoft Build of OpenJDK 21 из managed runtime лаунчера.",
-  zulu: "Использовать Azul Zulu 21 из managed runtime лаунчера.",
-  system: "Использовать Java из PATH/JAVA_HOME. Подходит, если вы сами управляете Java.",
-  custom: "Указать конкретный java/java.exe или выбрать его из найденных установок.",
-};
 
 export default function SettingsScreen({
   profile,
@@ -183,6 +155,9 @@ export default function SettingsScreen({
   const [updateProgress, setUpdateProgress] = useState<UpdateProgress | null>(null);
 
   const [javaInstalls, setJavaInstalls] = useState<JavaInstallation[] | null>(null);
+  // Java, которой реально запускается игра: предупреждение и «Исправить»
+  // относятся только к ней, а не ко всем рантаймам в кэше.
+  const [javaStatus, setJavaStatus] = useState<JavaStatus | null>(null);
   const [javaVendors, setJavaVendors] = useState<JavaVendorInfo[]>([]);
   const [javaListError, setJavaListError] = useState<string | null>(null);
   const [javaRefreshing, setJavaRefreshing] = useState(false);
@@ -283,10 +258,12 @@ export default function SettingsScreen({
     }
     setJavaListError(null);
     try {
-      const list = deep
-        ? await listJavaInstallationsDeep()
-        : await listJavaInstallations();
+      const [list, status] = await Promise.all([
+        deep ? listJavaInstallationsDeep() : listJavaInstallations(),
+        getJavaStatus(),
+      ]);
       setJavaInstalls(list);
+      setJavaStatus(status);
     } catch (e) {
       setJavaListError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -464,12 +441,17 @@ export default function SettingsScreen({
     });
     try {
       await downloadJava(vendorId);
+      // Бэкенд переводит настройки на ФАКТИЧЕСКИЙ вендор: если у
+      // запрошенного фикса CVE ещё нет, скачана сборка соседа. Подставлять
+      // сюда нажатый `vendorId` значило бы перезаписать это автобезопасным
+      // сохранением, и следующий запуск искал бы сборку, которой нет.
+      const fresh = await getSettings().catch(() => null);
       setSettings((prev) =>
         prev
           ? {
               ...prev,
-              javaProvider: vendorId as JavaProvider,
-              javaCustomPath: null,
+              javaProvider: fresh?.javaProvider ?? (vendorId as JavaProvider),
+              javaCustomPath: fresh?.javaCustomPath ?? null,
             }
           : prev,
       );
@@ -1181,8 +1163,9 @@ export default function SettingsScreen({
                   <div className="toggle-row__text">
                     <span className="toggle-row__title">Java</span>
                     <span className="muted field__desc">
-                      Minecraft 1.21 требует Java 21+. По умолчанию лаунчер использует
-                      скачанную Java Temurin; доступны также Corretto, Microsoft и Zulu.
+                      Сборка требует Java {javaStatus?.requiredMajor ?? 21}+. По умолчанию
+                      лаунчер использует скачанную Java Temurin; для Java 21 доступны
+                      также Corretto, Microsoft и Zulu.
                     </span>
                   </div>
                   <div className="java-card__head-actions">
@@ -1224,7 +1207,7 @@ export default function SettingsScreen({
                           {provider === DEFAULT_JAVA_PROVIDER && <span className="badge">по умолчанию</span>}
                         </span>
                         <span className="muted java-provider__desc">
-                          {JAVA_PROVIDER_DESCRIPTIONS[provider]}
+                          {javaProviderDescription(provider, javaStatus?.requiredMajor ?? 21)}
                         </span>
                       </button>
                     );
@@ -1250,7 +1233,9 @@ export default function SettingsScreen({
                 )}
 
                 <div className="java-card__download">
-                  <span className="toggle-row__title">Скачать Java 21 для лаунчера</span>
+                  <span className="toggle-row__title">
+                    Скачать Java {javaStatus?.requiredMajor ?? 21} для лаунчера
+                  </span>
                   <span className="muted field__desc">
                     Выберите поставщика. После скачивания он станет активным runtime лаунчера.
                     Ранее скачанные поставщики сохраняются отдельно.
@@ -1290,21 +1275,20 @@ export default function SettingsScreen({
                     (AVX-512 VBMI Base64-интринсик) исполняется только на
                     x86-64 с AVX-512 VBMI и BMI2 — на остальных CPU это
                     риск на будущее, а не активная дыра. */}
-                {(javaInstalls ?? []).some((install) => install.vulnerable) && (
+                {javaStatus?.vulnerable && (
                   <div className="java-card__msg java-card__msg--warn java-card__warn-block" role="alert">
                     <p className="java-card__warn-text">
-                      Найдена Java с незакрытой CVE-2026-114938 (переполнение в
+                      Игра запускается на Java {javaStatus.active?.major} ({javaStatus.active?.version}),
+                      в ней не закрыта CVE-2026-114938 (переполнение в
                       Base64-декодере, переполнение кучи → RCE).
-                      {(javaInstalls ?? []).some(
-                        (install) => install.vulnerable && install.cpuExposed,
-                      )
+                      {javaStatus.active?.cpuExposed
                         ? " На этом процессоре уязвимый путь достижим — лаунчер добавит -XX:-UseBASE64Intrinsics при запуске. Обновите сборку."
                         : " На этом процессоре уязвимый путь (AVX-512 VBMI) недостижим, но сборку всё равно стоит обновить."}{" "}
-                      {managedRepairVendor(javaInstalls, settings)
-                        ? "«Исправить» обновит все сборки Java лаунчера — включая версии, которые нужны сборке (например, 25)."
+                      {javaStatus.repairable
+                        ? `«Исправить» обновит именно эту Java ${javaStatus.active?.major}.`
                         : "Исправленную сборку можно взять у лаунчера."}
                     </p>
-                    {managedRepairVendor(javaInstalls, settings) ? (
+                    {javaStatus.repairable ? (
                       // Кнопка чинит только runtime лаунчера: системную Java
                       // или чужой каталог мы переписать не можем, и повторное
                       // нажатие скачивало бы сборку без видимого эффекта.
@@ -1344,7 +1328,8 @@ export default function SettingsScreen({
 
                 {javaInstalls && javaInstalls.length === 0 && (
                   <p className="muted java-card__msg">
-                    Java 21+ не найдена. Скачайте Java лаунчера или укажите путь вручную.
+                    Java {javaStatus?.requiredMajor ?? 21}+ не найдена. Скачайте Java лаунчера
+                    или укажите путь вручную.
                   </p>
                 )}
 
@@ -1451,7 +1436,7 @@ export default function SettingsScreen({
 
       {javaRepairOpen && (
         <JavaRepairModal
-          vendor={managedRepairVendor(javaInstalls, settings)}
+          vendor={activeVendor(javaStatus)}
           onClose={() => setJavaRepairOpen(false)}
           onInstalled={() => void refreshJavaList(false)}
         />

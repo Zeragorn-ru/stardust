@@ -13,6 +13,7 @@ import type {
   DataDirectoryProgress,
   FixedJavaResult,
   JavaInstallation,
+  JavaStatus,
   JavaVendorInfo,
   LoginOutcome,
   LogFolderKind,
@@ -562,30 +563,41 @@ export async function listJavaInstallationsDeep(): Promise<JavaInstallation[]> {
   return invoke<JavaInstallation[]>("list_java_installations_deep");
 }
 
-/** Поставщики Java, доступные для скачивания. */
+/** Поставщики Java, доступные для скачивания нужного сборке мажора. */
 export async function listJavaDownloadVendors(): Promise<JavaVendorInfo[]> {
   const invoke = await getInvoke();
   if (!invoke) return [];
   return invoke<JavaVendorInfo[]>("list_java_download_vendors");
 }
 
-/** Скачать Java 21 от выбранного поставщика. */
+/**
+ * Java, которой реально запускается игра: нужный мажор, активная установка и
+ * её уязвимость. Предупреждение и «Исправить» смотрят только на неё.
+ */
+export async function getJavaStatus(): Promise<JavaStatus> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return { requiredMajor: 21, active: null, vulnerable: false, repairable: false };
+  }
+  return invoke<JavaStatus>("get_java_status");
+}
+
+/** Скачать Java нужного сборке мажора от выбранного поставщика. */
 export async function downloadJava(vendor: string): Promise<string> {
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Tauri недоступен");
   return invoke<string>("download_java", { vendor });
 }
 
-/** Скачать Temurin Java 21 в папку данных лаунчера. */
+/** Скачать Temurin нужного сборке мажора в папку данных лаунчера. */
 export async function downloadTemurinJava(): Promise<string> {
   return downloadJava("temurin");
 }
 
 /**
  * Поставить исправленную сборку Java по кнопке «Исправить» у предупреждения
- * о CVE-2026-114938. `vendor` — текущий managed-вендор, чтобы не пересаживать
- * игрока на чужую сборку без нужды. Обновляет ВСЕ уязвимые рантаймы в кэше;
- * `warning` непустой, если часть мажоров починить не удалось.
+ * о CVE-2026-114938. `vendor` — вендор активной Java, чтобы не пересаживать
+ * игрока на чужую сборку без нужды. Чинится только мажор активной сборки.
  */
 export async function installFixedJava(
   vendor?: string | null,

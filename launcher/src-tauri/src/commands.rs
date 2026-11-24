@@ -1901,8 +1901,31 @@ async fn list_java_installations_deep(app: AppHandle) -> Result<Vec<JavaInstalla
 }
 
 #[tauri::command]
-fn list_java_download_vendors() -> Vec<java::JavaVendorInfo> {
-    java::list_download_vendors()
+fn list_java_download_vendors(app: AppHandle) -> Vec<java::JavaVendorInfo> {
+    // Для мажора, который нужен активной сборке: у 25 есть только Temurin,
+    // и кнопки остальных вендоров гарантированно упали бы на валидации.
+    java::list_download_vendors(java::required_major(&paths::data_dir(&app)))
+}
+
+/// Состояние Java, которой реально запускается игра: нужный мажор, активная
+/// установка и её уязвимость. Предупреждение и «Исправить» в настройках
+/// смотрят только на неё, а не на все рантаймы в кэше.
+#[tauri::command]
+async fn get_java_status(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<java::JavaStatus, String> {
+    let data_dir = paths::data_dir(&app);
+    let settings = get_settings_cached(&state, &app);
+    tauri::async_runtime::spawn_blocking(move || {
+        java::java_status(
+            &data_dir,
+            settings.java_provider,
+            settings.java_custom_path.as_deref(),
+        )
+    })
+    .await
+    .map_err(|e| format!("Проверка Java была прервана: {e}"))
 }
 
 #[tauri::command]
@@ -1984,6 +2007,19 @@ async fn install_fixed_java(
     }
     .filter(|v| !matches!(v, java::JavaVendor::Oracle));
     let data_dir = paths::data_dir(&app);
+    // Игрок мог не выбрать вендора: берём того, чья сборка реально запускает
+    // игру, а не умолчание — иначе фикс 25 поставит Temurin поверх
+    // выбранного Zulu или наоборот.
+    let preferred = preferred.or_else(|| {
+        let settings = get_settings_cached(&state, &app);
+        java::java_status(
+            &data_dir,
+            settings.java_provider,
+            settings.java_custom_path.as_deref(),
+        )
+        .active
+        .and_then(|active| java::vendor_of_runtime_path(&active.home))
+    });
     let progress = crate::progress::Progress::for_java_download(app.clone());
     let fixed = java::install_fixed_java(preferred, &progress, &state.http(), &data_dir).await?;
     // Возвращённый вендор — тот, чью сборку скачали последней. Если игрок
@@ -4191,6 +4227,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             list_java_installations,
             list_java_installations_deep,
             list_java_download_vendors,
+            get_java_status,
             download_java,
             install_fixed_java,
             download_temurin_java,
