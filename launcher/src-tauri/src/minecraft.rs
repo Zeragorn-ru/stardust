@@ -593,10 +593,21 @@ fn hide_console(command: &mut Command) {
     }
 }
 
+/// Loopback, который JVM должна открывать напрямую: на нём живёт
+/// dev-бэкенд (LAUNCHER_AUTH_URL=http://127.0.0.1:8080) и локальные
+/// обработчики инжектора. Squid loopback всё равно отклоняет — таких
+/// адресов нет в его allowlist, — так что проксировать их бессмысленно.
+///
+/// Свою инфраструктуру (*.zeragorn.xyz) сюда НЕ добавляем: часть
+/// пользователей выбрала встроенный прокси именно потому, что их сеть
+/// пускает наружу только через него.
+const JVM_NON_PROXY_HOSTS: &str = "localhost|127.*|[::1]";
+
 /// Настройки для исходящих HTTP-запросов инжектора через URL.openConnection().
 /// Не маршрутизируют весь игровой трафик; Java SOCKS не гарантирует DNS-поведение
 /// socks5h клиента Rust. Для встроенных прокси исключаем loopback; системный
 /// ProxySelector также зависит от исключений, настроенных в ОС.
+/// Формат Java: разделитель `|`, `*` — любой префикс хоста.
 fn jvm_proxy_args(proxy_type: &crate::commands::ProxyType) -> Vec<String> {
     use crate::commands::ProxyType;
     let mut args = vec![
@@ -604,8 +615,8 @@ fn jvm_proxy_args(proxy_type: &crate::commands::ProxyType) -> Vec<String> {
             "-Djava.net.useSystemProxies={}",
             matches!(proxy_type, ProxyType::System)
         ),
-        "-Dhttp.nonProxyHosts=localhost|127.*|[::1]".into(),
-        "-DsocksNonProxyHosts=localhost|127.*|[::1]".into(),
+        format!("-Dhttp.nonProxyHosts={JVM_NON_PROXY_HOSTS}"),
+        format!("-DsocksNonProxyHosts={JVM_NON_PROXY_HOSTS}"),
     ];
     match proxy_type {
         ProxyType::Builtin => {
@@ -2982,12 +2993,13 @@ mod tests {
     #[test]
     fn jvm_proxy_args_cover_all_modes_and_preserve_injector_loopback() {
         use crate::commands::ProxyType;
-        for (mode, system, hosts) in [
-            (ProxyType::System, true, vec![]),
-            (ProxyType::None, false, vec![]),
+        for (mode, system, non_proxy, hosts) in [
+            (ProxyType::System, true, JVM_NON_PROXY_HOSTS, vec![]),
+            (ProxyType::None, false, JVM_NON_PROXY_HOSTS, vec![]),
             (
                 ProxyType::Builtin,
                 false,
+                JVM_NON_PROXY_HOSTS,
                 vec![
                     "-Dhttp.proxyHost=assets.zeragorn.xyz",
                     "-Dhttp.proxyPort=3128",
@@ -2998,6 +3010,7 @@ mod tests {
             (
                 ProxyType::BuiltinSocks,
                 false,
+                JVM_NON_PROXY_HOSTS,
                 vec![
                     "-DsocksProxyHost=assets.zeragorn.xyz",
                     "-DsocksProxyPort=1080",
@@ -3007,8 +3020,8 @@ mod tests {
         ] {
             let mut expected = vec![
                 format!("-Djava.net.useSystemProxies={system}"),
-                "-Dhttp.nonProxyHosts=localhost|127.*|[::1]".into(),
-                "-DsocksNonProxyHosts=localhost|127.*|[::1]".into(),
+                format!("-Dhttp.nonProxyHosts={non_proxy}"),
+                format!("-DsocksNonProxyHosts={non_proxy}"),
             ];
             expected.extend(hosts.into_iter().map(str::to_string));
             assert_eq!(jvm_proxy_args(&mode), expected, "{mode:?}");

@@ -374,6 +374,22 @@ enum ChallengeOutcome {
     Expired,
 }
 
+/// Хосты, которые не должны идти через встроенный прокси.
+///
+/// Только loopback: dev-бэкенд (`LAUNCHER_AUTH_URL=http://127.0.0.1:8080`)
+/// и любые локальные сервисы. Squid такие адреса всё равно отклоняет — их
+/// нет в allowlist, — поэтому проксирование loopback заведомо не могло
+/// сработать и лишь превращало рабочий dev-запрос в 403.
+///
+/// Свою инфраструктуру (auth/admin/assets) сюда НЕ добавляем: часть
+/// пользователей выбрала встроенный прокси именно потому, что их сеть
+/// пускает наружу только через него. Прямой обход прокси у них отрезал бы
+/// вход и скины.
+///
+/// Формат reqwest/hyper-util: запись без ведущей точки матчит и сам домен,
+/// и все поддомены.
+pub(crate) const BUILTIN_NO_PROXY: &str = "localhost,127.0.0.0/8,::1";
+
 pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
@@ -382,16 +398,18 @@ pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
         .tcp_nodelay(true)
         .pool_max_idle_per_host(8);
 
+    let no_proxy = reqwest::NoProxy::from_string(BUILTIN_NO_PROXY);
+
     match proxy_type {
         ProxyType::System => {}
         ProxyType::Builtin => {
             if let Ok(p) = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128") {
-                builder = builder.proxy(p);
+                builder = builder.proxy(p.no_proxy(no_proxy.clone()));
             }
         }
         ProxyType::BuiltinSocks => {
             if let Ok(p) = reqwest::Proxy::all("socks5h://assets.zeragorn.xyz:1080") {
-                builder = builder.proxy(p);
+                builder = builder.proxy(p.no_proxy(no_proxy.clone()));
             }
         }
         ProxyType::None => {
