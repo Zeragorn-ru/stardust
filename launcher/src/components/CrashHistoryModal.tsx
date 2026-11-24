@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { crashHistory, type CrashHistoryEntry } from "../api";
+import CrashVerdictBody, { SEVERITY_LABELS } from "./CrashVerdictBody";
 import McText from "./McText";
-
-const SEVERITY_LABELS: Record<string, string> = {
-  low: "низкая",
-  medium: "средняя",
-  high: "высокая",
-  critical: "критическая",
-};
 
 /** «29.10 01:24» — дата и время краша по-русски, без года для текущего. */
 function formatRecordedAt(iso: string): string {
@@ -192,12 +186,25 @@ export default function CrashHistoryModal({ onClose }: { onClose: () => void }) 
                   </button>
                   {open && (
                     <div className="crash-history__details">
-                      {analysis?.summary && analysis.summary !== entry.summary && (
-                        <p className="crash-history__raw"><span>Отчёт:</span> <McText text={entry.summary} /></p>
+                      {analysis && !analysis.error && (
+                        <CrashVerdictBody
+                          summary={analysis.summary}
+                          cause={analysis.cause}
+                          suggestion={analysis.suggestion}
+                          rawReport={entry.summary}
+                        />
                       )}
-                      {analysis?.cause && <p><span>Причина:</span> <McText text={analysis.cause} /></p>}
-                      {analysis?.suggestion && <p><span>Что сделать:</span> <McText text={analysis.suggestion} /></p>}
-                      {analysis?.error && <p><span>Ошибка разбора:</span> {analysis.error}</p>}
+                      {analysis?.error && (
+                        <>
+                          <p className="muted">
+                            AI не смог разобрать этот краш. Полный отчёт остался у администраторов.
+                          </p>
+                          <details className="crash-verdict__more">
+                            <summary>Технические подробности</summary>
+                            <p>{analysis.error}</p>
+                          </details>
+                        </>
+                      )}
                       {!analysis && (
                         <p className="muted">{pendingText(entry)}</p>
                       )}

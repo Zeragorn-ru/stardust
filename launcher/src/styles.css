@@ -2239,14 +2239,39 @@ button,
     color: var(--text);
     font-weight: 500;
 }
-.crash-verdict__line {
+/* Действия — главный блок вердикта: нумерованный список, причина и лог
+   убраны под спойлеры, чтобы не конкурировать с «что сделать». */
+.crash-verdict__steps {
+    display: grid;
+    gap: 6px;
+}
+.crash-verdict__label {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-weight: 600;
+}
+.crash-verdict__steps ol {
     margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 4px;
+    color: var(--text);
+    line-height: 1.5;
+}
+.crash-verdict__steps li { overflow-wrap: anywhere; }
+.crash-verdict__more {
     color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
     overflow-wrap: anywhere;
 }
-.crash-verdict__line > span {
+.crash-verdict__more > summary {
     color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
 }
+.crash-verdict__more > p { margin: 6px 0 0; }
+.crash-verdict__more code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .crash-verdict__actions {
     display: flex;
     justify-content: flex-end;
@@ -2387,7 +2412,6 @@ button,
 .crash-history__details p { margin: 0; }
 .crash-history__details p:first-child { color: var(--text); font-weight: 500; }
 .crash-history__details span { color: var(--text-dim); }
-.crash-history__raw { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 
 /* Ошибка запуска не вытесняет основное действие и не показывает технический текст. */
 .play-error {

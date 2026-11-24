@@ -8,6 +8,7 @@ import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
 import CrashHistoryModal from "./CrashHistoryModal";
+import CrashVerdictBody, { SEVERITY_LABELS } from "./CrashVerdictBody";
 import MinecraftNickname from "./MinecraftNickname";
 import McText from "./McText";
 
@@ -819,13 +820,6 @@ function formatLastJoin(iso: string): string {
   return `${day}.${mon}${yearPart} ${time}`;
 }
 
-const SEVERITY_LABELS: Record<string, string> = {
-  low: "низкая",
-  medium: "средняя",
-  high: "высокая",
-  critical: "критическая",
-};
-
 /**
  * Всплывашка AI-разбора краша: центрированное стекло поверх экрана, когда
  * сервер закончил анализ последнего падения игры. Не прижата к низу (там
@@ -884,16 +878,24 @@ function CrashVerdictToast({
             ×
           </button>
         </div>
-        {verdict.summary && <p className="crash-verdict__summary"><McText text={verdict.summary} /></p>}
-        {verdict.cause && (
-          <p className="crash-verdict__line">
-            <span>Причина:</span> <McText text={verdict.cause} />
-          </p>
-        )}
-        {verdict.suggestion && (
-          <p className="crash-verdict__line">
-            <span>Что сделать:</span> <McText text={verdict.suggestion} />
-          </p>
+        {failed ? (
+          <>
+            <p className="crash-verdict__summary">
+              Этот отчёт не удалось разобрать автоматически. Он остался у администраторов.
+            </p>
+            {verdict.summary && (
+              <details className="crash-verdict__more">
+                <summary>Технические подробности</summary>
+                <p>{verdict.summary}</p>
+              </details>
+            )}
+          </>
+        ) : (
+          <CrashVerdictBody
+            summary={verdict.summary}
+            cause={verdict.cause}
+            suggestion={verdict.suggestion}
+          />
         )}
         <div className="crash-verdict__actions">
           <button type="button" className="btn btn--ghost" onClick={onOpenHistory}>

@@ -40,14 +40,17 @@ pub struct CrashInput {
 }
 
 /// Вердикт анализа — хранится в `server_logs.ai_analysis`.
+///
+/// Тексты заведомо короткие (см. [`MAX_SUMMARY_CHARS`] и т.п.) и написаны
+/// для обычного игрока: без стеков, кодов ошибок и английского жаргона.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Verdict {
-    /// Короткое резюме (1–2 предложения) — что произошло.
+    /// Одно короткое предложение — что случилось.
     pub summary: String,
-    /// Вероятная причина (мод, драйвер, память, конфиг и т.п.).
+    /// Причина простыми словами, без технических подробностей.
     pub cause: String,
-    /// Что сделать игроку/админу.
+    /// 1–3 действия игрока, каждое с новой строки (`\n`), без маркеров.
     pub suggestion: String,
     /// `low` / `medium` / `high` / `critical`.
     pub severity: String,
@@ -56,6 +59,27 @@ pub struct Verdict {
     /// Когда проанализировано (RFC 3339).
     pub analyzed_at: String,
 }
+
+impl Verdict {
+    /// Действия из `suggestion` по строкам. Пустые строки отбрасываются —
+    /// потребителям (Telegram, UI) не нужно самим разбирать маркеры.
+    pub fn actions(&self) -> Vec<&str> {
+        self.suggestion
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .collect()
+    }
+}
+
+/// Жёсткие лимиты длины вердикта. Промпт просит короче — эти значения
+/// страхуют от модели, которая просьбу проигнорировала, и не дают UI
+/// превратиться в простыню. Действия — не длиннее строки и не больше
+/// [`MAX_ACTIONS`] штук.
+pub const MAX_SUMMARY_CHARS: usize = 180;
+pub const MAX_CAUSE_CHARS: usize = 140;
+pub const MAX_ACTION_CHARS: usize = 120;
+pub const MAX_ACTIONS: usize = 3;
 
 /// Ошибка анализа (хранится в `ai_analysis.error` при `ai_status = failed`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,7 +234,9 @@ pub fn parse_verdict(content: &str, model: &str) -> Result<Verdict, String> {
 
     let raw: RawVerdict =
         serde_json::from_str(json).map_err(|e| format!("ответ модели — не JSON-вердикт: {e}"))?;
-    if raw.summary.trim().is_empty() && raw.cause.trim().is_empty() {
+    let summary = one_line(&raw.summary);
+    let cause = one_line(&raw.cause);
+    if summary.is_empty() && cause.is_empty() {
         return Err("вердикт модели пуст".to_string());
     }
     let severity = match raw.severity.trim().to_ascii_lowercase().as_str() {
@@ -218,45 +244,124 @@ pub fn parse_verdict(content: &str, model: &str) -> Result<Verdict, String> {
         _ => "medium".to_string(),
     };
     Ok(Verdict {
-        summary: raw.summary.trim().to_string(),
-        cause: raw.cause.trim().to_string(),
-        suggestion: raw.suggestion.trim().to_string(),
+        // Модель может проигнорировать лимиты из промпта — обрезаем здесь,
+        // чтобы хранилище и UI не зависели от её дисциплины.
+        summary: truncate_words(&summary, MAX_SUMMARY_CHARS),
+        cause: truncate_words(&cause, MAX_CAUSE_CHARS),
+        suggestion: normalize_actions(&raw.suggestion),
         severity,
         model: model.to_string(),
         analyzed_at: now_rfc3339(),
     })
 }
 
+/// Схлопывает переводы строк и повторные пробелы: summary и cause — одна
+/// строка, без переноса из ответа модели.
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Обрезает текст до `limit` символов по границе слова и добавляет «…».
+fn truncate_words(text: &str, limit: usize) -> String {
+    if text.chars().count() <= limit {
+        return text.to_string();
+    }
+    let mut cut: String = text.chars().take(limit).collect();
+    // Если лимит пришёлся ровно на границу слова (следующий символ — пробел),
+    // ничего не теряем. Иначе отступаем к последнему пробелу, чтобы не рвать
+    // слово, но не ниже половины лимита — иначе обрезка станет слишком короткой.
+    let next_is_space = text.chars().nth(limit).is_none_or(char::is_whitespace);
+    if !next_is_space {
+        // `rfind` возвращает байтовый индекс, а лимит — в символах: порог
+        // сравниваем в символах, иначе кириллица (2 байта на букву) обрезалась
+        // бы почти вдвое раньше.
+        if let Some(pos) = cut
+            .char_indices()
+            .rev()
+            .find(|(_, c)| c.is_whitespace())
+            .map(|(pos, _)| pos)
+            .filter(|pos| cut[..*pos].chars().count() > limit / 2)
+        {
+            cut.truncate(pos);
+        }
+    }
+    format!("{}…", cut.trim_end())
+}
+
+/// Снимает с действия маркер списка («- », «• », «1. », «1) »).
+fn strip_bullet(line: &str) -> String {
+    let trimmed = line.trim();
+    if let Some(rest) = trimmed
+        .strip_prefix("- ")
+        .or_else(|| trimmed.strip_prefix("* "))
+        .or_else(|| trimmed.strip_prefix("• "))
+        .or_else(|| trimmed.strip_prefix("– "))
+    {
+        return rest.trim().to_string();
+    }
+    let digits = trimmed.chars().take_while(char::is_ascii_digit).count();
+    if digits > 0 {
+        let rest = &trimmed[digits..];
+        if let Some(rest) = rest.strip_prefix(". ").or_else(|| rest.strip_prefix(") ")) {
+            return rest.trim().to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+/// Приводит `suggestion` к списку действий: по действию на строку, без
+/// маркеров, не больше [`MAX_ACTIONS`] штук и [`MAX_ACTION_CHARS`] символов
+/// каждое. Одна длинная строка через «; » тоже режется на действия.
+fn normalize_actions(text: &str) -> String {
+    let mut actions: Vec<String> = text
+        .lines()
+        .map(strip_bullet)
+        .filter(|line| !line.is_empty())
+        .collect();
+    if actions.len() == 1 && actions[0].chars().count() > MAX_ACTION_CHARS {
+        let split: Vec<String> = actions[0]
+            .split("; ")
+            .map(strip_bullet)
+            .filter(|part| !part.is_empty())
+            .collect();
+        if split.len() > 1 {
+            actions = split;
+        }
+    }
+    actions
+        .into_iter()
+        .take(MAX_ACTIONS)
+        .map(|action| truncate_words(&action, MAX_ACTION_CHARS))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 const SYSTEM_PROMPT: &str = "Ты — диагност крашей Minecraft (загрузчики NeoForge/Fabric, версии 1.21.x и 26.x). \
-Твоя задача — по crash-report, логам и окружению назвать конкретную причину и дать игроку \
-понятные шаги решения. \
+Ответ читает обычный игрок, а не программист: пиши по-русски, коротко и без технического жаргона. \
 \
-Методика: (1) сначала найди корневое исключение — секцию «Description:» crash-отчёта, \
-последний «Caused by:» в стеке, FATAL/ERROR-строки в логах; (2) определи виновника по стеку: \
-пакет мода (не net.minecraft / не загрузчик) — виноват мод, сверь его имя и версию со списком \
-в «Окружении»; (3) учитывай контекст: версия Minecraft/загрузчика/Java, ОС и архитектура, \
-выделенная память против доступной, конфликтующие моды. \
+Методика (внутренняя, в ответ её не переноси): найди корневое исключение — «Description:» \
+crash-отчёта, последний «Caused by:», FATAL/ERROR в логах; определи виновника по стеку мода \
+(пакет вне net.minecraft и загрузчика) и сверь с «Окружением»; учти версии Java/Minecraft/загрузчика, \
+ОС, выделенную и доступную память. Частые причины: мало памяти; ошибка в моде или конфликт модов; \
+старый или неподходящий драйвер видеокарты; повреждённая Java; нет интернета. \
+Не выдумывай моды, которых нет в списке «Окружения». Если данных не хватает — так и скажи и предложи, \
+что приложить к отчёту. \
 \
-Частые классы причин: OutOfMemoryError / маленький -Xmx; Exit Code 1 при старте — ошибка \
-конфигурации или мода; Exit Code -1073741819 (0xC0000005) / -1073740791 (0xC0000409) / -6 \
-(SIGABRT) — нативный краш (драйвер GPU, античит, повреждённая JVM); hs_err_pid-лог — нативный \
-краш JVM: смотри siginfo, проблемную библиотеку в секциях stack/dynamic libraries; \
-«Mod loading errors» — несовместимость мода с версией игры/загрузчика; \
-Rendering / OpenGL / GLFW ошибки — драйвер видеокарты или несовместимый шейдер-пак; \
-PixelFormat / LWJGL — проблема видеодрайвера; watchdog/timeout на сервере — зависание тика. \
-Для Minecraft 26.x: игра не обфусцирована, имена классов в стеке «человеческие»; Fabric-моды \
-26.x собраны под Java 25. \
+Поля (все на русском): \
+summary — ОДНО короткое предложение (до 160 символов): что случилось, без кодов ошибок, имён классов \
+и стеков. Пример: «Игра не запустилась: не хватило памяти для сборки». \
+cause — одна фраза (до 120 символов), причина простыми словами. Называй мод его обычным именем \
+(«мод Create»), а не пакетом. Упоминай конкретное (имя мода, «мало памяти», «старая Java»), \
+но без кодов выхода, исключений и путей к файлам. \
+suggestion — от 1 до 3 действий, каждое с новой строки, без нумерации и маркеров, до 100 символов. \
+Каждое действие — конкретное и выполнимое в лаунчере: «Поставь Java 21.0.13.1 в Настройках → Java», \
+«Выключи мод X в разделе Сборка», «Проверь подключение к интернету», «Выдели больше памяти в \
+Настройках». Самое важное — первой строкой. Не пересказывай логи и не давай общих советов \
+(«переустанови игру») без причины. \
+severity — low / medium / high / critical. \
 \
-Качество ответа: summary — 1-2 предложения простыми словами, что случилось (игрок не \
-программист); cause — конкретика: имя мода/класса/драйвера, код выхода, нехватка чего — без \
-воды и без «вероятно, проблема в моде» когда в стеке есть точное имя; suggestion — пошаговые \
-действия игрока (что обновить/удалить/увеличить/переустановить), самое важное первым шагом. \
-Не выдумывай моды, которых нет в списке «Окружения». Если данных недостаточно для точного \
-диагноза — честно скажи об этом в cause и предложи в suggestion собрать недостающее. \
-\
-Ответь СТРОГО одним JSON-объектом без markdown-ограждений и без текста вокруг: \
-{\"summary\": \"...\", \"cause\": \"...\", \"suggestion\": \"...\", \"severity\": \"low|medium|high|critical\"}. \
-Отвечай на русском. \
+Ответь СТРОГО одним JSON-объектом без markdown и без текста вокруг: \
+{\"summary\": \"...\", \"cause\": \"...\", \"suggestion\": \"строка 1\\nстрока 2\", \"severity\": \"low|medium|high|critical\"}. \
 severity: critical — сервер не запускается или падает постоянно; high — игра не запускается \
 у игрока или крашится каждый раз в одном месте; medium — разовый краш, игра в целом работает; \
 low — краш без влияния на процесс (например, при выходе из игры).";
@@ -297,7 +402,11 @@ pub fn build_prompt(crash: &CrashInput) -> String {
     if let Some(mods) = crash.details.get("mods").and_then(|v| v.as_array()) {
         let names: Vec<&str> = mods.iter().filter_map(|m| m.as_str()).collect();
         if !names.is_empty() {
-            out.push_str(&format!("===== Моды ({}) =====\n{}\n\n", names.len(), names.join("\n")));
+            out.push_str(&format!(
+                "===== Моды ({}) =====\n{}\n\n",
+                names.len(),
+                names.join("\n")
+            ));
         }
     }
 
@@ -314,10 +423,7 @@ pub fn build_prompt(crash: &CrashInput) -> String {
     for (key, title) in files {
         if let Some(text) = crash.details.get(*key).and_then(|v| v.as_str()) {
             if !text.trim().is_empty() {
-                out.push_str(&format!(
-                    "===== {title} =====\n{}\n\n",
-                    truncate_log(text)
-                ));
+                out.push_str(&format!("===== {title} =====\n{}\n\n", truncate_log(text)));
             }
         }
     }
@@ -361,15 +467,28 @@ pub fn admin_notification(id: i64, username: Option<&str>, verdict: &Verdict) ->
         .map(|u| format!("игрока «{u}»"))
         .unwrap_or_else(|| "dedicated-сервера".to_string());
     let severity = match verdict.severity.as_str() {
-        "critical" => "🔴 critical",
-        "high" => "🟠 high",
-        "low" => "🟢 low",
-        _ => "🟡 medium",
+        "critical" => "🔴 критично",
+        "high" => "🟠 серьёзно",
+        "low" => "🟢 мелочь",
+        _ => "🟡 средне",
     };
-    format!(
-        "🤖 AI-разбор краша {who} (журнал #{id})\n{severity}\n\n{}\n\nПричина: {}\nРешение: {}",
-        verdict.summary, verdict.cause, verdict.suggestion
-    )
+    // Действия уже по строке на шаг (см. `normalize_actions`) — нумеруем, чтобы
+    // в Telegram список читался как шаги, а не как слипшаяся строка.
+    let actions = verdict
+        .actions()
+        .iter()
+        .enumerate()
+        .map(|(i, action)| format!("{}. {action}", i + 1))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut text = format!(
+        "🤖 AI-разбор краша {who} (журнал #{id})\n{severity}\n\n{}\n\nПричина: {}",
+        verdict.summary, verdict.cause
+    );
+    if !actions.is_empty() {
+        text.push_str(&format!("\n\nЧто сделать:\n{actions}"));
+    }
+    text
 }
 
 #[cfg(test)]
@@ -389,21 +508,111 @@ mod tests {
     #[test]
     fn parse_verdict_strips_markdown_fence() {
         let content = "```json\n{\"summary\":\"s\",\"cause\":\"c\",\"suggestion\":\"x\",\"severity\":\"low\"}\n```";
-        assert_eq!(parse_verdict(content, "m").expect("verdict").severity, "low");
+        assert_eq!(
+            parse_verdict(content, "m").expect("verdict").severity,
+            "low"
+        );
     }
 
     #[test]
     fn parse_verdict_normalizes_unknown_severity() {
         let content = r#"{"summary":"s","cause":"c","suggestion":"x","severity":"ОЧЕНЬ ПЛОХО"}"#;
-        assert_eq!(parse_verdict(content, "m").expect("verdict").severity, "medium");
+        assert_eq!(
+            parse_verdict(content, "m").expect("verdict").severity,
+            "medium"
+        );
     }
 
     #[test]
     fn parse_verdict_rejects_empty_and_garbage() {
-        assert!(
-            parse_verdict(r#"{"summary":"","cause":"","suggestion":"","severity":""}"#, "m").is_err()
-        );
+        assert!(parse_verdict(
+            r#"{"summary":"","cause":"","suggestion":"","severity":""}"#,
+            "m"
+        )
+        .is_err());
         assert!(parse_verdict("извините, я не могу", "m").is_err());
+    }
+
+    #[test]
+    fn parse_verdict_collapses_multiline_summary_and_cause() {
+        let content = r#"{"summary":"Игра\nне  запустилась","cause":"Мало\tпамяти","suggestion":"s","severity":"high"}"#;
+        let verdict = parse_verdict(content, "m").expect("verdict");
+        assert_eq!(verdict.summary, "Игра не запустилась");
+        assert_eq!(verdict.cause, "Мало памяти");
+    }
+
+    #[test]
+    fn parse_verdict_truncates_long_fields_by_word() {
+        let long_summary = "слово ".repeat(200);
+        let long_cause = "причина ".repeat(100);
+        let content = format!(
+            r#"{{"summary":"{long_summary}","cause":"{long_cause}","suggestion":"s","severity":"low"}}"#
+        );
+        let verdict = parse_verdict(&content, "m").expect("verdict");
+        assert!(verdict.summary.chars().count() <= MAX_SUMMARY_CHARS + 1);
+        assert!(verdict.summary.ends_with('…'));
+        assert!(!verdict.summary.ends_with(' '));
+        // Слово не разрезано: хвост перед многоточием — целое «слово».
+        assert!(verdict.summary.trim_end_matches('…').ends_with("слово"));
+        assert!(verdict.cause.chars().count() <= MAX_CAUSE_CHARS + 1);
+    }
+
+    #[test]
+    fn parse_verdict_strips_action_bullets_and_limits_count() {
+        let content = r#"{"summary":"s","cause":"c","suggestion":"- Поставь Java 21\n2) Выключи мод X\n• Проверь интернет\nчетвёртое действие","severity":"high"}"#;
+        let verdict = parse_verdict(content, "m").expect("verdict");
+        assert_eq!(
+            verdict.actions(),
+            vec!["Поставь Java 21", "Выключи мод X", "Проверь интернет"]
+        );
+        assert_eq!(verdict.suggestion.lines().count(), MAX_ACTIONS);
+    }
+
+    #[test]
+    fn parse_verdict_splits_single_long_suggestion() {
+        let content = serde_json::json!({
+            "summary": "s",
+            "cause": "c",
+            "suggestion": "Поставь Java 21 в Настройках и перезапусти лаунчер, затем попробуй снова; \
+                           выключи мод X в разделе Сборка и запусти игру; \
+                           проверь подключение к интернету и перезапусти лаунчер",
+            "severity": "medium",
+        })
+        .to_string();
+        let verdict = parse_verdict(&content, "m").expect("verdict");
+        assert_eq!(verdict.actions().len(), 3);
+        assert!(verdict.actions()[1].starts_with("выключи мод X"));
+    }
+
+    #[test]
+    fn parse_verdict_truncates_long_action() {
+        let action = "действие ".repeat(50);
+        let content = serde_json::json!({
+            "summary": "s",
+            "cause": "c",
+            "suggestion": action,
+            "severity": "low",
+        })
+        .to_string();
+        let verdict = parse_verdict(&content, "m").expect("verdict");
+        assert!(verdict.suggestion.chars().count() <= MAX_ACTION_CHARS + 1);
+        assert!(verdict.suggestion.ends_with('…'));
+    }
+
+    #[test]
+    fn truncate_words_respects_limit_and_short_text() {
+        assert_eq!(truncate_words("коротко", 10), "коротко");
+        let text = "один два три четыре пять";
+        let cut = truncate_words(text, 12);
+        assert_eq!(cut, "один два три…");
+    }
+
+    #[test]
+    fn truncate_words_counts_cyrillic_chars_not_bytes() {
+        // 2 байта на букву: байтовый порог отрезал бы уже одно слово.
+        let text = "поставь джаву и перезапусти лаунчер";
+        let cut = truncate_words(text, 16);
+        assert_eq!(cut, "поставь джаву и…");
     }
 
     #[test]
@@ -434,8 +643,9 @@ mod tests {
         let text = admin_notification(7, Some("Steve"), &verdict);
         assert!(text.contains("Steve"));
         assert!(text.contains("#7"));
-        assert!(text.contains("critical"));
-        assert!(text.contains("Удалить мод"));
+        assert!(text.contains("критично"));
+        assert!(text.contains("1. Удалить мод"));
+        assert!(text.contains("Что сделать"));
         let server_text = admin_notification(8, None, &verdict);
         assert!(server_text.contains("dedicated-сервера"));
     }

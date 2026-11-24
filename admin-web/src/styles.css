@@ -117,6 +117,9 @@
 .crash-ai__grid > div { display: grid; gap: 2px; }
 .crash-ai__grid dt { color: var(--muted); font-size: var(--fs-sm); }
 .crash-ai__grid dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crash-ai__steps { display: grid; gap: var(--space-1, 4px); }
+.crash-ai__steps strong { font-size: var(--fs-sm); }
+.crash-ai__steps ol { margin: 0; padding-left: var(--space-5, 20px); display: grid; gap: 2px; overflow-wrap: anywhere; }
 .crash-ai__sev { justify-self: start; padding: 2px var(--space-3); border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: 600; color: var(--on-color); background: var(--muted); }
 .crash-ai__sev--critical { background: var(--danger); }
 /* --warn светлый (#ffd166) — текст тёмный для контраста. */

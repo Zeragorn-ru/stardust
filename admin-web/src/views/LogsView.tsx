@@ -315,6 +315,18 @@ const SEVERITY_LABELS: Record<string, string> = {
 };
 
 /**
+ * Действия из `suggestion`: сервер кладёт по шагу на строку, старые вердикты
+ * могли прийти одной строкой через «; ». Снимаем маркеры списка — нумерацию
+ * рисует <ol>.
+ */
+function splitAiActions(suggestion: string | null | undefined): string[] {
+  return (suggestion ?? "")
+    .split(/\n|;\s*/)
+    .map((line) => line.replace(/^\s*(?:[-*•–]|\d+[.)])\s+/, "").trim())
+    .filter(Boolean);
+}
+
+/**
  * AI-разбор краша: показывает вердикт (done), ошибку (failed), спиннер
  * (pending) или кнопку запуска. `onAnalyzed` перезагружает запись после
  * ручного анализа, чтобы подтянуть свежий вердикт с бэкенда.
@@ -358,22 +370,37 @@ function CrashAiSection({ log, onAnalyzed }: { log: ServerLogEntry; onAnalyzed: 
         </div>
       )}
 
-      {verdict && !verdict.error && (
-        <div className="crash-ai">
-          <span className={`crash-ai__sev crash-ai__sev--${verdict.severity ?? "medium"}`}>
-            {SEVERITY_LABELS[verdict.severity ?? ""] ?? "средняя"}
-          </span>
-          <p className="crash-ai__summary">{verdict.summary}</p>
-          <dl className="crash-ai__grid">
-            <div><dt>Причина</dt><dd>{verdict.cause || "—"}</dd></div>
-            <div><dt>Что сделать</dt><dd>{verdict.suggestion || "—"}</dd></div>
-          </dl>
-          <small className="muted">
-            {verdict.model ? `Модель: ${verdict.model}` : "AI"}
-            {verdict.analyzedAt ? ` · ${formatTelemetryTime(verdict.analyzedAt)}` : ""}
-          </small>
-        </div>
-      )}
+      {verdict && !verdict.error && (() => {
+        // «Что сделать» идёт первым — с него админ начинает разбор; причина
+        // и модель ниже. Тексты уже ограничены сервером, но старые записи
+        // могут быть длинными — dl с pre-wrap их не растягивает.
+        const actions = splitAiActions(verdict.suggestion);
+        return (
+          <div className="crash-ai">
+            <span className={`crash-ai__sev crash-ai__sev--${verdict.severity ?? "medium"}`}>
+              {SEVERITY_LABELS[verdict.severity ?? ""] ?? "средняя"}
+            </span>
+            <p className="crash-ai__summary">{verdict.summary}</p>
+            {actions.length > 0 && (
+              <div className="crash-ai__steps">
+                <strong>Что сделать</strong>
+                <ol>
+                  {actions.map((action, index) => (
+                    <li key={index}>{action}</li>
+                  ))}
+                </ol>
+              </div>
+            )}
+            <dl className="crash-ai__grid">
+              <div><dt>Причина</dt><dd>{verdict.cause || "—"}</dd></div>
+            </dl>
+            <small className="muted">
+              {verdict.model ? `Модель: ${verdict.model}` : "AI"}
+              {verdict.analyzedAt ? ` · ${formatTelemetryTime(verdict.analyzedAt)}` : ""}
+            </small>
+          </div>
+        );
+      })()}
 
       {!verdict && (
         <p className="muted">
