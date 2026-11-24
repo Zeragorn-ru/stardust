@@ -4,6 +4,7 @@
 mod backend;
 mod cancel;
 mod commands;
+mod fsutil;
 mod game_guard;
 mod java;
 #[cfg(target_os = "macos")]
@@ -50,6 +51,10 @@ pub fn run() {
     match tracing_appender::rolling::RollingFileAppender::builder()
         .rotation(tracing_appender::rolling::Rotation::DAILY)
         .filename_prefix("launcher.log")
+        // Без потолка лаунчер копил бы логи бесконечно: у игрока с частыми
+        // запусками каталог рядом с бинарём растёт молча. Недели хватает,
+        // чтобы разобрать вчерашний краш.
+        .max_log_files(7)
         .build(&log_dir)
     {
         Ok(file_appender) => {

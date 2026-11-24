@@ -205,7 +205,7 @@ fn write_selected_profile(path: &Path, key: &str) {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Err(e) = std::fs::write(path, key) {
+    if let Err(e) = crate::fsutil::write_atomic(path, key.as_bytes()) {
         tracing::warn!("Не удалось сохранить выбранный профиль модов: {e}");
     }
 }
@@ -979,7 +979,9 @@ fn read_state(game_dir: &Path) -> ManagedState {
 fn write_state(game_dir: &Path, state: &ManagedState) {
     match serde_json::to_string_pretty(state) {
         Ok(json) => {
-            if let Err(e) = std::fs::write(state_path(game_dir), json) {
+            // Атомарно: обрезанный managed-files.json заставил бы лаунчер
+            // считать чужими все файлы сборки и перекачать модпак целиком.
+            if let Err(e) = crate::fsutil::write_atomic(&state_path(game_dir), json.as_bytes()) {
                 tracing::warn!("Не удалось сохранить managed state: {e}");
             }
         }
@@ -1001,7 +1003,9 @@ fn write_choices(path: &Path, choices: &BTreeMap<String, bool>) {
             if let Some(parent) = path.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
-            if let Err(e) = std::fs::write(path, json) {
+            // Атомарно: обрезанный файл выборов читается как пустой, и все
+            // опциональные моды разом откатываются к enabled_by_default.
+            if let Err(e) = crate::fsutil::write_atomic(path, json.as_bytes()) {
                 tracing::warn!("Не удалось сохранить выбор модов: {e}");
             }
         }

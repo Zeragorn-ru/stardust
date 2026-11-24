@@ -214,6 +214,34 @@ fn is_release_ready(release: &GhRelease) -> bool {
 /// (те же проверки готовности ассетов), а при выключенном — пропускаем,
 /// как и раньше: стабильные клиенты не должны получать вручную
 /// опубликованные pre-release, включая подписной тест-канал Tauri updater.
+/// Артефакт именно нашего апдейтера, а не чужой файл в общем temp.
+///
+/// Раньше под шаблон попадало что угодно: любой `setup*.exe`, `.dmg`,
+/// `.AppImage` или `.sha256` старше недели удалялся из %TEMP%/tmp, хотя к
+/// лаунчеру отношения не имел (например, установщик другой программы,
+/// оставленный её апдейтером). Наши ассеты всегда начинаются с `StarDust`
+/// (см. `.github/actions/launcher-collect-bundles`) или это `bootstrap.exe`
+/// из NSIS-пакета; сайдкары наследуют то же имя.
+fn is_update_artifact(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    if !(lower.starts_with("stardust") || lower == "bootstrap.exe" || lower.starts_with("bootstrap.exe.")) {
+        return false;
+    }
+    // Свои каталоги распаковки .app и наши файлы; посторонние расширения
+    // под нашим префиксом — всё равно наши (например .sig для Tauri).
+    lower.ends_with(".exe")
+        || lower.ends_with(".msi")
+        || lower.ends_with(".dmg")
+        || lower.ends_with(".app.zip")
+        || lower.ends_with(".appimage")
+        || lower.ends_with(".deb")
+        || lower.ends_with(".rpm")
+        || lower.ends_with(".sha256")
+        || lower.ends_with(".sig")
+        // Распакованный StarDust.app (каталог).
+        || lower == "stardust.app"
+}
+
 /// Удаляет из temp осиротевшие артефакты прошлых обновлений. Скачанные
 /// установщики переживают перезагрузки (Windows чистит %TEMP% редко) и
 /// копятся; свежие файлы трогаем — они могут быть кэшем незавершённой
@@ -226,15 +254,7 @@ fn cleanup_stale_update_artifacts() {
     for entry in temp.flatten() {
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
-        // Паттерны артефактов апдейтера: setup-бинари, .app.zip, .dmg,
-        // bootstrap, .sha256-сайдкары и распакованные каталоги.
-        let looks_ours = name.starts_with("stardust")
-            || (name.starts_with("setup") && name.ends_with(".exe"))
-            || name.ends_with(".app.zip")
-            || name.ends_with(".dmg")
-            || name.ends_with(".AppImage")
-            || name.ends_with(".sha256");
-        if !looks_ours {
+        if !is_update_artifact(name) {
             continue;
         }
         let Ok(meta) = entry.metadata() else { continue };
@@ -1552,6 +1572,39 @@ mod tests {
     #[test]
     fn sanitize_filename_rejects_dotdot() {
         assert!(sanitize_filename("..").is_err());
+    }
+
+    /// Очистка temp трогает только наши артефакты: чужие setup/dmg/AppImage
+    /// в общем каталоге остаются на месте.
+    #[test]
+    fn update_artifacts_are_ours_only() {
+        for ours in [
+            "StarDust_1.0.19_x64-setup.exe",
+            "StarDust_1.0.19_x64_en-US.msi",
+            "StarDust_1.0.19_universal.dmg",
+            "StarDust.app.zip",
+            "StarDust_1.0.19_amd64.AppImage",
+            "StarDust_1.0.19_amd64.deb",
+            "StarDust-1.0.19-1.x86_64.rpm",
+            "StarDust_1.0.19_universal.dmg.sha256",
+            "StarDust_1.0.19_x64-setup.exe.sig",
+            "StarDust.app",
+            "bootstrap.exe",
+            "bootstrap.exe.sha256",
+        ] {
+            assert!(is_update_artifact(ours), "должен считаться нашим: {ours}");
+        }
+        for foreign in [
+            "setup.exe",
+            "setup-other-app.exe",
+            "installer.dmg",
+            "Other.AppImage",
+            "checksums.sha256",
+            "notes.txt",
+            "stardust-notes.txt",
+        ] {
+            assert!(!is_update_artifact(foreign), "чужой файл: {foreign}");
+        }
     }
 
     #[test]

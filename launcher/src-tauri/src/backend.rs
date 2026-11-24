@@ -101,11 +101,12 @@ pub async fn fetch_manifest(
         Ok(resp) if resp.status().is_success() => {
             match resp.json::<protocol::Manifest>().await {
                 Ok(manifest) => {
-                    // Сохраняем в кеш (best-effort).
-                    let _ = std::fs::write(
-                        &cache_path,
-                        serde_json::to_vec(&manifest).unwrap_or_default(),
-                    );
+                    // Сохраняем в кеш (best-effort). Атомарно: обрезанный
+                    // cached-manifest.json иначе станет фоллбэком при сбое сети
+                    // и синхронизация пойдёт по пустому манифесту.
+                    if let Ok(bytes) = serde_json::to_vec(&manifest) {
+                        let _ = crate::fsutil::write_atomic(&cache_path, &bytes);
+                    }
                     tracing::debug!("[manifest] скачан и закеширован");
                     Ok(Some(manifest))
                 }

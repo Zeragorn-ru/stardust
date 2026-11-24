@@ -55,7 +55,7 @@ fn write_instance_meta(instance: &Path, manifest: &protocol::Manifest) {
         name: manifest.name.clone(),
     };
     if let Ok(json) = serde_json::to_string_pretty(&meta) {
-        let _ = std::fs::write(instance.join("instance.json"), json);
+        let _ = crate::fsutil::write_atomic(&instance.join("instance.json"), json.as_bytes());
     }
 }
 
@@ -347,7 +347,9 @@ pub fn set_data_dir(app: &AppHandle, dir: &Path) -> Result<(), String> {
     let clean = strip_extended_prefix(dir.to_path_buf());
     let json = serde_json::to_string_pretty(&DataDirectoryLocation { path: clean })
         .map_err(|e| e.to_string())?;
-    std::fs::write(location_file(app), json)
+    // Атомарно: обрезанный файл расположения — это потерянный путь к папке
+    // данных и предложение выбрать её заново при следующем запуске.
+    crate::fsutil::write_atomic(&location_file(app), json.as_bytes())
         .map_err(|e| format!("не удалось сохранить расположение папки данных: {e}"))
 }
 
