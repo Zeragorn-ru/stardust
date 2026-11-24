@@ -98,20 +98,46 @@ function currentManagedJavaVendor(
   const managed: JavaProvider[] = ["temurin", "corretto", "microsoft", "zulu"];
   if (managed.includes(provider)) return provider;
   if (provider === "custom" && settings?.javaCustomPath) {
-    const path = settings.javaCustomPath.toLowerCase();
-    return (
-      managed.find((vendor) =>
-        path.includes(`runtime/${vendor}/`) || path.includes(`runtime\\${vendor}\\`),
-      ) ?? null
-    );
+    return vendorFromRuntimePath(settings.javaCustomPath);
   }
   // auto/system — берём вендора уязвимой сборки из списка, если она управляемая.
   const runtime = (installs ?? []).find(
     (install) => install.vulnerable && install.source.includes("(лаунчер)"),
   );
-  if (!runtime) return null;
-  const home = runtime.home.toLowerCase();
-  return managed.find((vendor) => home.includes(`runtime/${vendor}/`) || home.includes(`runtime\\${vendor}\\`)) ?? null;
+  return runtime ? vendorFromRuntimePath(runtime.home) : null;
+}
+
+/** Вендор по пути вида `…/runtime/<vendor>/java-21`, иначе null. */
+function vendorFromRuntimePath(path: string): string | null {
+  const normalized = path.toLowerCase().replace(/\\/g, "/");
+  return (
+    ["temurin", "corretto", "microsoft", "zulu"].find((vendor) =>
+      normalized.includes(`/runtime/${vendor}/`),
+    ) ?? null
+  );
+}
+
+/**
+ * Вендор, чью сборку реально починит кнопка «Исправить», либо null.
+ *
+ * Чинить можно только runtime лаунчера. Системную Java (PATH, JAVA_HOME,
+ * /usr/lib/jvm) лаунчер перезаписать не может: нажатие качало бы сборку, а
+ * предупреждение оставалось бы висеть — для этого случая предлагаем перейти
+ * на Java лаунчера вместо «Исправить».
+ */
+function managedRepairVendor(
+  installs: JavaInstallation[] | null,
+  settings: Settings | null,
+): string | null {
+  const vendor = currentManagedJavaVendor(installs, settings);
+  if (!vendor) return null;
+  // Выбор сделан вручную (custom) или системная — проверяем, что в списке
+  // есть именно уязвимая сборка этого управляемого вендора.
+  return (installs ?? []).some(
+    (install) => install.vulnerable && vendorFromRuntimePath(install.home) === vendor,
+  )
+    ? vendor
+    : null;
 }
 
 const JAVA_PROVIDER_DESCRIPTIONS: Record<JavaProvider, string> = {
@@ -1273,14 +1299,34 @@ export default function SettingsScreen({
                         : " На этом процессоре уязвимый путь (AVX-512 VBMI) недостижим, но сборку всё равно стоит обновить."}{" "}
                       Corretto и Zulu уже выпустили исправленные 21.0.13.1.
                     </p>
-                    <button
-                      type="button"
-                      className="btn btn--primary java-card__warn-action"
-                      onClick={() => setJavaRepairOpen(true)}
-                      disabled={javaDownloading}
-                    >
-                      Исправить
-                    </button>
+                    {managedRepairVendor(javaInstalls, settings) ? (
+                      // Кнопка чинит только runtime лаунчера: системную Java
+                      // или чужой каталог мы переписать не можем, и повторное
+                      // нажатие скачивало бы сборку без видимого эффекта.
+                      <button
+                        type="button"
+                        className="btn btn--primary java-card__warn-action"
+                        onClick={() => setJavaRepairOpen(true)}
+                        disabled={javaDownloading}
+                      >
+                        Исправить
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn--ghost java-card__warn-action"
+                        onClick={() => {
+                          // Переключаемся на Java лаунчера: уязвимая системная
+                          // сборка уходит из выбора, и следующий запуск идёт
+                          // на ней. Скачивание запускает обычный флоу вендора.
+                          selectJavaProvider("temurin");
+                          void handleDownloadJava("temurin");
+                        }}
+                        disabled={javaDownloading}
+                      >
+                        Перейти на Java лаунчера
+                      </button>
+                    )}
                   </div>
                 )}
                 {javaListError && (
@@ -1400,7 +1446,7 @@ export default function SettingsScreen({
 
       {javaRepairOpen && (
         <JavaRepairModal
-          vendor={currentManagedJavaVendor(javaInstalls, settings)}
+          vendor={managedRepairVendor(javaInstalls, settings)}
           onClose={() => setJavaRepairOpen(false)}
           onInstalled={() => void refreshJavaList(false)}
         />
