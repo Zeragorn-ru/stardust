@@ -22,11 +22,12 @@ use crate::{backend, paths};
 /// записать произвольный файл.
 const ALLOWED_FILE_HOSTS: [&str; 1] = ["cdn.modrinth.com"];
 
-/// Клиент для прокси Modrinth на admin-server. Ходим так же, как и в
-/// остальной бэкенд лаунчера — со встроенным прокси Stardust (домен
-/// admin-server'а есть в его allowlist).
+/// Клиент для прокси Modrinth на admin-server. Ходим напрямую: admin-server
+/// доступен из РФ без прокси, а через встроенный squid-прокси сейчас не
+/// проходит вообще ничего — DPI режет CONNECT к нашему порту 3128 (проверено
+/// 25.11.2026: 400-инъекция до того, как запрос дойдёт до squid).
 fn shaders_client() -> reqwest::Client {
-    crate::commands::create_http_client(&crate::commands::ProxyType::Builtin)
+    crate::commands::create_http_client(&crate::commands::ProxyType::None)
 }
 
 #[derive(Debug, Clone, Serialize)]

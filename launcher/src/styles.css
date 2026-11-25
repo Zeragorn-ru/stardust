@@ -4741,6 +4741,9 @@ button.info-card__path--link:hover:not(:disabled) {
     position: fixed;
     inset: 0;
     z-index: 40;
+    /* Непрозрачный фон: экран закрывает главный целиком, сквозь прозрачный
+       слой просвечивали карточки главного экрана. */
+    background: var(--bg-deep);
 }
 
 /* Тело: как у настроек, но на всю ширину — ModsSection и краши

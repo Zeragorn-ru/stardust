@@ -493,23 +493,15 @@ export default function MainScreen({
                     <span className="hero__stat-label skeleton-text" />
                   </span>
                 ) : (
-                  (() => {
-                    // Точная логика ModsSection: включённые — все моды с
-                    // enabled=true; знаменатель — доступные (не залоченные
-                    // в другом пресете) моды.
-                    const enabledCount = mods.filter((m) => m.enabled).length;
-                    const accessibleCount = mods.filter((m) => !m.locked).length;
-                    return (
-                      <span className="hero__stat">
-                        <span className="hero__stat-value">
-                          {enabledCount} из {accessibleCount}
-                        </span>
-                        <span className="hero__stat-label">
-                          {pluralRu(enabledCount, "мод", "мода", "модов")} включено
-                        </span>
-                      </span>
-                    );
-                  })()
+                  <span className="hero__stat">
+                    {/* Общее число модов, работающих на клиенте: список
+                        включает и опциональные, и обязательные с профилями,
+                        а enabled у каждого — его фактическое состояние. */}
+                    <span className="hero__stat-value">{mods.length}</span>
+                    <span className="hero__stat-label">
+                      {pluralRu(mods.length, "мод", "мода", "модов")} в сборке
+                    </span>
+                  </span>
                 )}
                 <span className="crash-entry__hint">Моды и шейдеры →</span>
               </button>
