@@ -125,20 +125,50 @@ export default function SkinModal({ onClose, embedded = false }: Props) {
 
   const canClose = !saving;
 
+  // Кнопки действия. В обычной модалке живут в футере, во встроенном
+  // (вкладка «Кастомизация») — строкой справа в контролах, как у ника:
+  // модальный футер на полноэкранном слое выглядит чужеродно.
+  const actions = (
+    <div className="skin-modal__actions">
+      <button
+        className="btn btn--ghost"
+        onClick={canClose ? onClose : undefined}
+        disabled={!canClose}
+      >
+        Отмена
+      </button>
+      <button
+        className="btn btn--primary"
+        onClick={handleSave}
+        disabled={saving}
+      >
+        {saving
+          ? tab === "file"
+            ? "Сохранение…"
+            : "Импорт…"
+          : tab === "file"
+            ? "Сохранить"
+            : "Импортировать"}
+      </button>
+    </div>
+  );
+
   const body = (
     <>
-        <div className="skin-modal__body">
-          <div className="skin-modal__preview">
-            <SkinViewer3D
-              dataUrl={previewSkin}
-              model={previewModel}
-              capeUrl={previewCape}
-              width={220}
-              height={300}
-              interactive
-            />
-            <p className="muted skin-modal__hint">Покрутите модель мышью</p>
-          </div>
+      {/* Во встроенном режиме у settings__body уже есть свои отступы —
+          двойной паддинг сдвигал контент внутрь и сжимал модель. */}
+      <div className={"skin-modal__body" + (embedded ? " skin-modal__body--embedded" : "")}>
+        <div className="skin-modal__preview">
+          <SkinViewer3D
+            dataUrl={previewSkin}
+            model={previewModel}
+            capeUrl={previewCape}
+            width={embedded ? 260 : 220}
+            height={embedded ? 340 : 300}
+            interactive
+          />
+          <p className="muted skin-modal__hint">Покрутите модель мышью</p>
+        </div>
 
           <div className="skin-modal__controls">
             <div className="skin-tabs" role="tablist">
@@ -249,29 +279,11 @@ export default function SkinModal({ onClose, embedded = false }: Props) {
             )}
 
             {error && <div className="alert alert--error">{error}</div>}
+            {embedded && actions}
           </div>
         </div>
 
-        {/* Во встроенном режиме (вкладка «Кастомизация») фон-градиент футера
-            выглядит как тёмная полоса на полноэкранном слое — убираем его. */}
-        <footer className={"modal__footer" + (embedded ? " modal__footer--embedded" : "")}>
-          <button className="btn btn--ghost" onClick={canClose ? onClose : undefined} disabled={!canClose}>
-            Отмена
-          </button>
-          <button
-            className="btn btn--primary"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving
-              ? tab === "file"
-                ? "Сохранение…"
-                : "Импорт…"
-              : tab === "file"
-                ? "Сохранить"
-                : "Импортировать"}
-          </button>
-        </footer>
+        {!embedded && <footer className="modal__footer">{actions}</footer>}
     </>
   );
 

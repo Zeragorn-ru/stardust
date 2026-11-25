@@ -3403,12 +3403,6 @@ button,
     background: linear-gradient(0deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0));
 }
 
-/* Встроенный футер (вкладка «Кастомизация»): без фонового градиента —
-   на полноэкранном слое он выглядит как тёмная тень внизу. */
-.modal__footer--embedded {
-    background: none;
-}
-
 /* Диалог подтверждения (замена window.confirm на macOS/WKWebView). */
 
 .confirm-modal {
@@ -3752,6 +3746,21 @@ button,
 .skin-modal__note {
     font-size: 12px;
     line-height: 1.5;
+}
+
+/* Во встроенном режиме (вкладка «Кастомизация») у settings__body уже есть
+   свои отступы — двойной паддинг сдвигал контент внутрь и сжимал модель. */
+.skin-modal__body--embedded {
+    padding: 0;
+}
+
+/* Кнопки действия во встроенном режиме — строкой справа в контролах,
+   как nick-actions: модальный футер на полноэкранном слое выглядит чужеродно. */
+.skin-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 4px;
 }
 
 /* Сегментированный переключатель (модель скина) */
