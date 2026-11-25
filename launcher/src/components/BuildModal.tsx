@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ShaderSearchHit, ShaderVersion } from "../types";
 import { downloadShader, listShaderVersions, searchShaders } from "../api";
-import { formatCompact } from "../format";
+import { formatBytes } from "../format";
+import Aurora from "./Aurora";
 import ModsSection from "./ModsSection";
 import { CrashHistoryPanel } from "./CrashHistoryModal";
 
@@ -15,20 +16,19 @@ const TABS: { id: BuildTab; label: string }[] = [
 
 interface Props {
   initialTab?: BuildTab;
-  closing?: boolean;
   onClose: () => void;
 }
 
 /**
- * Модалка «Сборка» с главного экрана: моды (переехали из настроек),
+ * Экран «Сборка» с главного экрана: моды (переехали из настроек),
  * история крашей и скачивание шейдерпаков с Modrinth.
- * Escape и клик по фону закрывают только когда ничего не грузится.
+ * Полноэкранный слой в стилистике настроек (.settings): шапка сверху,
+ * навигация по вкладкам — боковая. Escape закрывает, когда ничего не грузится.
  */
-export default function BuildModal({ initialTab = "mods", closing, onClose }: Props) {
+export default function BuildModal({ initialTab = "mods", onClose }: Props) {
   const [tab, setTab] = useState<BuildTab>(initialTab);
   // Что-то грузится во вкладке шейдеров — блокируем случайное закрытие.
   const [shadersBusy, setShadersBusy] = useState(false);
-  const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -44,48 +44,43 @@ export default function BuildModal({ initialTab = "mods", closing, onClose }: Pr
 
   return (
     <div
-      className={"modal-overlay" + (closing ? " modal-overlay--closing" : "")}
-      onClick={(e) => {
-        if (shadersBusy) return;
-        // Выделение, протащенное из диалога, не закрывает модалку.
-        if (e.target === e.currentTarget) onClose();
-      }}
+      className="settings build-screen"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Сборка"
     >
-      <div
-        ref={dialogRef}
-        className={"modal build-modal" + (closing ? " modal--closing" : "")}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Сборка"
-      >
-        <header className="modal__header customize-modal__header">
-          <h2>Сборка</h2>
-          <div className="customize-tabs" role="tablist" style={{ "--tabs-n": TABS.length } as React.CSSProperties}>
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                className={"customize-tab" + (tab === t.id ? " is-active" : "")}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-            <span
-              className="customize-tabs__ink"
-              aria-hidden="true"
-              style={{ "--tabs-i": TABS.findIndex((t) => t.id === tab) } as React.CSSProperties}
-            />
-          </div>
-          <button type="button" className="btn btn--icon" onClick={onClose} aria-label="Закрыть">
-            ✕
-          </button>
-        </header>
+      <Aurora />
+      <header className="settings__header" data-tauri-drag-region="deep">
+        <button
+          type="button"
+          className="btn btn--ghost"
+          onClick={onClose}
+          disabled={shadersBusy}
+        >
+          ← Назад
+        </button>
+        <h2>Сборка</h2>
+      </header>
 
-        <div className="build-modal__body">
+      <div className="settings__layout">
+        <nav className="settings__nav" aria-label="Разделы сборки">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={
+                "settings__nav-item" +
+                (tab === t.id ? " settings__nav-item--active" : "")
+              }
+              aria-current={tab === t.id ? "true" : undefined}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="settings__body build-screen__body">
           {tab === "mods" && <ModsSection />}
           {tab === "crashes" && <CrashHistoryPanel />}
           {tab === "shaders" && <ShadersPanel onBusyChange={setShadersBusy} />}
@@ -249,9 +244,7 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
                     <span className="shader-row__title">{hit.title}</span>
                     <span className="muted shader-row__desc">{hit.description}</span>
                   </span>
-                  <span className="muted shader-row__meta">
-                    ↓ {formatCompact(hit.downloads)}
-                  </span>
+
                   <span className="shader-row__chevron" aria-hidden>{expanded ? "▾" : "▸"}</span>
                 </button>
 
@@ -281,6 +274,8 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
                             <span className="muted shader-version__gc">
                               {version.gameVersions.slice(0, 3).join(", ")}
                               {version.gameVersions.length > 3 ? " и др." : ""}
+                              {" · "}
+                              {formatBytes(file.size)}
                             </span>
                           </span>
                           <button

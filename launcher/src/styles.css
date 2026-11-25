@@ -4741,9 +4741,22 @@ button.info-card__path--link:hover:not(:disabled) {
     position: fixed;
     inset: 0;
     z-index: 40;
-    /* Непрозрачный фон: экран закрывает главный целиком, сквозь прозрачный
-       слой просвечивали карточки главного экрана. */
+    /* Непрозрачный фон + своя Aurora: экран закрывает главный целиком,
+       выглядит как настройки (те живут внутри .app поверх общей Aurora). */
     background: var(--bg-deep);
+}
+
+/* Шапка и раскладка — над собственной Aurora экрана (z-index 0). */
+.build-screen > .settings__header,
+.build-screen > .settings__layout {
+    position: relative;
+    z-index: 1;
+}
+
+/* На macOS нативная полоса заголовка занимает верхние 38px — начинаем
+   под ней, как .app__content (см. .app--macos .app__content). */
+.app--macos .build-screen {
+    top: 38px;
 }
 
 /* Тело: как у настроек, но на всю ширину — ModsSection и краши
@@ -4808,6 +4821,9 @@ button.info-card__path--link:hover:not(:disabled) {
     border-radius: var(--radius-sm);
     background: var(--glass);
     overflow: hidden;
+    /* Внутри flex-колонки списка без этого пункты сжимались до тонких
+       полос вместо скролла (flex-shrink по умолчанию 1). */
+    flex-shrink: 0;
 }
 
 /* Строка шейдерпака: иконка, название, описание, загрузки, шеврон. */
