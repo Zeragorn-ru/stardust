@@ -28,6 +28,7 @@ import {
   saveSettings,
 } from "../api";
 import { useMotion } from "../motion";
+import { applyAccent, rememberAccent } from "../accent";
 import AccountSection from "./AccountSection";
 import ConfirmDialog, { type ConfirmRequest } from "./ConfirmDialog";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
@@ -303,7 +304,8 @@ export default function SettingsScreen({
         (initialSettings.javaProvider ?? DEFAULT_JAVA_PROVIDER) ||
       (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? "") ||
       settings.skipBuildCheck !== initialSettings.skipBuildCheck ||
-      settings.autoUpdate !== initialSettings.autoUpdate);
+      settings.autoUpdate !== initialSettings.autoUpdate ||
+      (settings.accent ?? "violet") !== (initialSettings.accent ?? "violet"));
 
   useEffect(() => {
     if (!settings || !initialSettings || !isDirty) return;
@@ -321,6 +323,14 @@ export default function SettingsScreen({
     }, 450);
     return () => window.clearTimeout(id);
   }, [settings, initialSettings, isDirty]);
+
+  // Акцент применяется сразу (живой предпросмотр) и запоминается в localStorage,
+  // чтобы следующий запуск стартовал без вспышки золотым.
+  useEffect(() => {
+    if (!settings) return;
+    const accent = applyAccent(settings.accent);
+    rememberAccent(accent);
+  }, [settings?.accent]);
 
   // Кнопка «← Назад» должна проходить ту же проверку, что и Escape:
   // иначе уход мышкой молча отбрасывает несохранённые изменения.
@@ -973,6 +983,24 @@ export default function SettingsScreen({
                 <span>{DL_MAX}</span>
               </div>
             </div>}
+
+            {section === "interface" && settings && (
+              <div className="field stagger-item">
+                <span>Акцент</span>
+                <div className="segmented" role="radiogroup" aria-label="Акцентный цвет">
+                  {([["violet", "Фиолетовый"], ["gold", "Золотой"]] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={"segmented__opt" + ((settings.accent ?? "violet") === value ? " is-active" : "")}
+                      onClick={() => setSettings({ ...settings, accent: value })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {section === "interface" && <div className="toggle-row stagger-item">
               <div className="toggle-row__text">

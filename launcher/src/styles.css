@@ -34,12 +34,13 @@
     --muted: #8a90ab;
     --text-dim: #6a7090;
 
-    /* Акцент: золотой */
-    --accent: #FFE7A3;
-    --accent-2: #FFD66B;
-    --accent-grad: linear-gradient(135deg, #FFE7A3 0%, #FFD66B 100%);
-    --gold: #FFE7A3;
-    --gold-hover: #FFD66B;
+    /* Акцент: фиолетово-лавандовый */
+    --accent: #C9B8FF;
+    --accent-2: #A78BFA;
+    --accent-grad: linear-gradient(135deg, #C9B8FF 0%, #A78BFA 100%);
+    --accent-rgb: 201, 184, 255;
+    --gold: #C9B8FF;
+    --gold-hover: #A78BFA;
 
     /* Опасность: коралл */
     --danger: #ff7a8a;
@@ -76,7 +77,7 @@
     --lavender: #c7b3ff;
 
     /* Текст на золоте (тёмный для контраста) */
-    --text-on-gold: #1a1812;
+    --text-on-gold: #191226;
 
     /* Скругления */
     --radius: 16px;
@@ -86,7 +87,7 @@
     --shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.7);
     --glow:
         0 0 0 1px var(--glass-border-strong),
-        0 10px 40px -12px rgba(255, 231, 163, 0.35);
+        0 10px 40px -12px rgba(var(--accent-rgb), 0.35);
 
     /* Длительности анимаций; в режиме экономии обнуляются (см. ниже) */
     --t-fast: 0.16s;
@@ -97,6 +98,17 @@
     /* Let the OS WebView use its native font rasterizer (ClearType/subpixel AA). */
     text-rendering: auto;
     -webkit-font-smoothing: auto;
+}
+
+/* Золотой акцент — опция в настройках (data-accent на <html>) */
+:root[data-accent="gold"] {
+    --accent: #FFE7A3;
+    --accent-2: #FFD66B;
+    --accent-grad: linear-gradient(135deg, #FFE7A3 0%, #FFD66B 100%);
+    --accent-rgb: 255, 231, 163;
+    --gold: #FFE7A3;
+    --gold-hover: #FFD66B;
+    --text-on-gold: #1a1812;
 }
 
 /* Режим экономии: быстрые переходы вместо полного отключения анимаций.
@@ -177,7 +189,7 @@ button,
 *::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(
         180deg,
-        rgba(255, 231, 163, 0.65),
+        rgba(var(--accent-rgb), 0.65),
         rgba(182, 169, 255, 0.65)
     );
     background-clip: padding-box;
@@ -398,7 +410,7 @@ button,
 .aurora__nebula--left {
     background: radial-gradient(
         ellipse 55% 40% at 12% 78%,
-        rgba(255, 231, 163, 0.16) 0%,
+        rgba(var(--accent-rgb), 0.16) 0%,
         transparent 70%
     );
 }
@@ -429,7 +441,7 @@ button,
 .news-post h2 { margin: 12px 0; font-size: 22px; line-height: 1.2; letter-spacing: -.02em; }
 .news-post__topline { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .news-post__topline time, .news-post__meta { display: flex; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
-.news-post__pin { padding: 3px 7px; border-radius: 999px; background: rgba(255, 231, 163, .12); color: var(--gold); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.news-post__pin { padding: 3px 7px; border-radius: 999px; background: rgba(var(--accent-rgb), .12); color: var(--gold); font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .news-post__content { color: rgba(238, 240, 246, .9); font-size: 14px; line-height: 1.65; }
 .news-post__content p + p { margin-top: 10px; }
 .news-post__content h3, .news-post__content h4, .news-post__content h5 { margin: 18px 0 8px; font-size: 15px; }
@@ -810,7 +822,7 @@ button,
     border-color: var(--glass-border-strong);
     box-shadow:
         var(--shadow),
-        0 18px 50px -22px rgba(255, 231, 163, 0.55);
+        0 18px 50px -22px rgba(var(--accent-rgb), 0.55);
 }
 
 /* ============ Кнопки ============ */
@@ -1076,7 +1088,7 @@ button,
 .field input[type="text"]:focus,
 .field input[type="password"]:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(255, 231, 163,0.18);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.18);
 }
 
 /* Ползунки: native-вид на macOS почти нечитаем (белый трек на светлом
@@ -1116,8 +1128,8 @@ button,
     background: var(--accent-grad);
     border: 3px solid #0a0c16;
     box-shadow:
-        0 0 0 1px rgba(255, 231, 163, 0.55),
-        0 2px 10px rgba(255, 231, 163, 0.45),
+        0 0 0 1px rgba(var(--accent-rgb), 0.55),
+        0 2px 10px rgba(var(--accent-rgb), 0.45),
         0 2px 6px rgba(0, 0, 0, 0.4);
     cursor: grab;
     transition: transform var(--t-fast), box-shadow var(--t-fast);
@@ -1126,8 +1138,8 @@ button,
 .field input[type="range"]::-webkit-slider-thumb:hover {
     transform: scale(1.12);
     box-shadow:
-        0 0 0 1px rgba(255, 231, 163, 0.7),
-        0 2px 14px rgba(255, 231, 163, 0.6),
+        0 0 0 1px rgba(var(--accent-rgb), 0.7),
+        0 2px 14px rgba(var(--accent-rgb), 0.6),
         0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
@@ -1143,8 +1155,8 @@ button,
     background: var(--gold);
     border: 3px solid #0a0c16;
     box-shadow:
-        0 0 0 1px rgba(255, 231, 163, 0.55),
-        0 2px 10px rgba(255, 231, 163, 0.45);
+        0 0 0 1px rgba(var(--accent-rgb), 0.55),
+        0 2px 10px rgba(var(--accent-rgb), 0.45);
     cursor: grab;
 }
 
@@ -1587,12 +1599,12 @@ button,
     place-items: center;
     font-weight: 800;
     font-size: 18px;
-    box-shadow: 0 6px 20px -6px rgba(255, 231, 163,0.6);
+    box-shadow: 0 6px 20px -6px rgba(var(--accent-rgb),0.6);
     transition: box-shadow var(--t-mid);
 }
 
 .account--link:hover .account__avatar {
-    box-shadow: 0 8px 26px -6px rgba(255, 231, 163,0.8);
+    box-shadow: 0 8px 26px -6px rgba(var(--accent-rgb),0.8);
 }
 
 .account__avatar--skin {
@@ -1663,7 +1675,7 @@ button,
     border-radius: 50%;
     background: radial-gradient(
         ellipse at center,
-        rgba(255, 231, 163,0.5) 0%,
+        rgba(var(--accent-rgb),0.5) 0%,
         transparent 70%
     );
     filter: blur(8px);
@@ -1723,8 +1735,8 @@ button,
     background: rgba(255, 255, 255, 0.13);
     color: var(--text);
     box-shadow:
-        0 10px 26px -12px rgba(255, 231, 163,0.6),
-        0 0 0 1px rgba(255, 231, 163,0.35) inset;
+        0 10px 26px -12px rgba(var(--accent-rgb),0.6),
+        0 0 0 1px rgba(var(--accent-rgb),0.35) inset;
 }
 .hero__skin-btn:active:not(:disabled) {
     transform: scale(0.96);
@@ -1833,8 +1845,8 @@ button,
 }
 
 .hero__news-banner:hover {
-    border-color: rgba(255, 231, 163,.48);
-    background: rgba(255, 231, 163,.1);
+    border-color: rgba(var(--accent-rgb),.48);
+    background: rgba(var(--accent-rgb),.1);
 }
 
 .hero__news-banner:active {
@@ -1866,7 +1878,7 @@ button,
 .hero__news-banner-copy span:last-child { color: var(--muted); font-size: 13px; }
 
 .hero__news-banner-action { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--glass-border); border-radius: 9px; color: var(--text); font-size: 18px; line-height: 1; transition: background var(--t-fast), border-color var(--t-fast); }
-.hero__news-banner:hover .hero__news-banner-action { border-color: rgba(255, 231, 163,.48); background: rgba(255, 231, 163,.16); }
+.hero__news-banner:hover .hero__news-banner-action { border-color: rgba(var(--accent-rgb),.48); background: rgba(var(--accent-rgb),.16); }
 
 .hero__news-dot {
     position: absolute;
@@ -2092,7 +2104,7 @@ button,
     border-radius: 11px;
     background:
         radial-gradient(circle at 30% 20%, rgba(115, 215, 255, 0.28), transparent 48%),
-        linear-gradient(135deg, rgba(255, 231, 163,0.28), rgba(74, 222, 128, 0.16));
+        linear-gradient(135deg, rgba(var(--accent-rgb),0.28), rgba(74, 222, 128, 0.16));
     color: #fff;
     font-size: 18px;
     font-weight: 900;
@@ -2644,7 +2656,7 @@ button,
 }
 
 .settings__nav-item--active {
-    background: rgba(255, 231, 163,0.16);
+    background: rgba(var(--accent-rgb),0.16);
     color: var(--text);
 }
 
@@ -2848,10 +2860,10 @@ button,
 @keyframes newPresetPulse {
     0%,
     100% {
-        box-shadow: 0 0 0 0 rgba(255, 231, 163,0.5);
+        box-shadow: 0 0 0 0 rgba(var(--accent-rgb),0.5);
     }
     50% {
-        box-shadow: 0 0 0 6px rgba(255, 231, 163,0);
+        box-shadow: 0 0 0 6px rgba(var(--accent-rgb),0);
     }
 }
 
@@ -3060,7 +3072,7 @@ button,
 
 .input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(255, 231, 163,0.18);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.18);
 }
 
 .account-form .btn {
@@ -3192,7 +3204,7 @@ button,
 
 .switch--on {
     background: var(--accent-grad);
-    box-shadow: 0 2px 10px -2px rgba(255, 231, 163,0.5);
+    box-shadow: 0 2px 10px -2px rgba(var(--accent-rgb),0.5);
 }
 
 .switch__knob {
@@ -3288,7 +3300,7 @@ button,
 .tabs__tab.is-active {
     background: var(--accent-grad);
     color: var(--text-on-gold);
-    box-shadow: 0 6px 18px -8px rgba(255, 231, 163,0.7);
+    box-shadow: 0 6px 18px -8px rgba(var(--accent-rgb),0.7);
 }
 
 /* ============ Модальные окна ============ */
@@ -3323,7 +3335,7 @@ button,
     width: 100%;
     max-width: 560px;
     background:
-        radial-gradient(130% 90% at 50% -30%, rgba(255, 231, 163, 0.18) 0%, rgba(255, 231, 163, 0) 55%),
+        radial-gradient(130% 90% at 50% -30%, rgba(var(--accent-rgb), 0.18) 0%, rgba(var(--accent-rgb), 0) 55%),
         linear-gradient(180deg, var(--surface-hover) 0%, var(--surface) 45%, var(--bg-elevated) 100%);
     border: 1px solid rgba(255, 255, 255, 0.10);
     border-radius: var(--radius);
@@ -3332,7 +3344,7 @@ button,
         0 2px 6px rgba(0, 0, 0, 0.35),
         0 18px 44px -10px rgba(0, 0, 0, 0.65),
         0 36px 90px -24px rgba(0, 0, 0, 0.8),
-        0 0 44px -14px rgba(255, 231, 163,0.35);
+        0 0 44px -14px rgba(var(--accent-rgb),0.35);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -3851,7 +3863,7 @@ button,
     width: calc(50% - 6px);
     border-radius: 8px;
     background: var(--accent-grad);
-    box-shadow: 0 6px 18px -8px rgba(255, 231, 163,0.8);
+    box-shadow: 0 6px 18px -8px rgba(var(--accent-rgb),0.8);
     transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .skin-tabs__ink.is-right {
@@ -3877,13 +3889,13 @@ button,
 
 /* Мягкая кнопка с постоянным фоном (выбор файла) */
 .btn--soft {
-    background: rgba(255, 231, 163,0.14);
-    border: 1px solid rgba(255, 231, 163,0.32);
+    background: rgba(var(--accent-rgb),0.14);
+    border: 1px solid rgba(var(--accent-rgb),0.32);
     color: var(--text);
 }
 .btn--soft:hover:not(:disabled) {
-    background: rgba(255, 231, 163,0.22);
-    box-shadow: 0 0 0 3px rgba(255, 231, 163,0.16);
+    background: rgba(var(--accent-rgb),0.22);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.16);
 }
 .btn--soft:active:not(:disabled) {
     transform: scale(0.96);
@@ -3922,9 +3934,9 @@ button,
     gap: 18px;
     padding: 18px;
     background:
-        linear-gradient(135deg, rgba(255, 231, 163, 0.1), rgba(182, 169, 255, 0.04)),
+        linear-gradient(135deg, rgba(var(--accent-rgb), 0.1), rgba(182, 169, 255, 0.04)),
         rgba(0, 0, 0, 0.22);
-    border: 1px solid rgba(255, 231, 163, 0.2);
+    border: 1px solid rgba(var(--accent-rgb), 0.2);
     border-radius: var(--radius);
     box-shadow: 0 8px 32px -12px rgba(0, 0, 0, 0.3);
 }
@@ -4010,9 +4022,9 @@ button,
 }
 
 .java-provider:hover {
-    border-color: rgba(255, 231, 163,0.45);
-    background: rgba(255, 231, 163,0.08);
-    box-shadow: 0 4px 16px -6px rgba(255, 231, 163,0.25);
+    border-color: rgba(var(--accent-rgb),0.45);
+    background: rgba(var(--accent-rgb),0.08);
+    box-shadow: 0 4px 16px -6px rgba(var(--accent-rgb),0.25);
 }
 
 .java-provider:active {
@@ -4021,10 +4033,10 @@ button,
 
 .java-provider--selected {
     border-color: var(--accent);
-    background: rgba(255, 231, 163,0.16);
+    background: rgba(var(--accent-rgb),0.16);
     box-shadow:
-        0 0 0 1px rgba(255, 231, 163,0.16) inset,
-        0 4px 16px -6px rgba(255, 231, 163,0.3);
+        0 0 0 1px rgba(var(--accent-rgb),0.16) inset,
+        0 4px 16px -6px rgba(var(--accent-rgb),0.3);
 }
 
 .java-provider__title {
@@ -4189,9 +4201,9 @@ button,
 }
 
 .java-list__item:hover {
-    border-color: rgba(255, 231, 163,0.45);
-    background: rgba(255, 231, 163,0.08);
-    box-shadow: 0 4px 16px -6px rgba(255, 231, 163,0.2);
+    border-color: rgba(var(--accent-rgb),0.45);
+    background: rgba(var(--accent-rgb),0.08);
+    box-shadow: 0 4px 16px -6px rgba(var(--accent-rgb),0.2);
 }
 
 .java-list__item:active {
@@ -4200,7 +4212,7 @@ button,
 
 .java-list__item--selected {
     border-color: var(--accent);
-    background: rgba(255, 231, 163,0.14);
+    background: rgba(var(--accent-rgb),0.14);
 }
 
 .java-list__title {
@@ -4715,7 +4727,7 @@ button.info-card__path--link:hover:not(:disabled) {
     );
     border-radius: 8px;
     background: var(--accent-grad);
-    box-shadow: 0 6px 18px -8px rgba(255, 231, 163,0.8);
+    box-shadow: 0 6px 18px -8px rgba(var(--accent-rgb),0.8);
     transform: translateX(calc(var(--tabs-i, 0) * (100% + 4px)));
     transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -5205,7 +5217,7 @@ button.info-card__path--link:hover:not(:disabled) {
 
 .nick-option-btn.selected {
     border-color: var(--accent);
-    background: rgba(255, 231, 163,0.15);
+    background: rgba(var(--accent-rgb),0.15);
 }
 
 .nick-option-btn .minecraft-nick {
@@ -5298,7 +5310,7 @@ select:hover {
 
 select:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(255, 231, 163,0.18);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.18);
 }
 
 select option {

@@ -36,6 +36,15 @@ pub enum ProxyType {
     None,
 }
 
+/// Акцентный цвет интерфейса.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Accent {
+    #[default]
+    Violet,
+    Gold,
+}
+
 /// Настройки лаунчера, сохраняемые между запусками.
 ///
 /// Папку игры намеренно не храним: каталог принадлежит лаунчеру и
@@ -70,6 +79,9 @@ pub struct Settings {
     /// Бета-канал обновлений: устанавливать pre-release версии лаунчера.
     #[serde(rename = "betaUpdates", default)]
     pub beta_updates: bool,
+    /// Акцентный цвет интерфейса.
+    #[serde(rename = "accent", default)]
+    pub accent: Accent,
     /// Отладка: показывать кнопку отладочного окна анимаций в админ-настройках.
     #[serde(rename = "debugEnabled", default)]
     pub debug_enabled: bool,
@@ -163,6 +175,7 @@ impl Default for Settings {
             skip_build_check: false,
             auto_update: true,
             beta_updates: false,
+            accent: Accent::default(),
             debug_enabled: false,
         }
     }

@@ -161,6 +161,8 @@ export interface Settings {
   betaUpdates: boolean;
   /** Показывать вкладку «Отладка» администратору. */
   debugEnabled: boolean;
+  /** Акцентный цвет интерфейса. */
+  accent?: "violet" | "gold";
 }
 
 /** Режим запуска лаунчера. */

@@ -4,7 +4,11 @@ import App from "./App";
 import DebugAnimations from "./components/DebugAnimations";
 import { MotionProvider } from "./motion";
 import { SkinProvider } from "./skin";
+import { applyAccent, storedAccent } from "./accent";
 import "./styles.css";
+
+// Акцент применяется до первого рендера, чтобы не было вспышки чужим цветом.
+applyAccent(storedAccent());
 
 // Лаунчер — это приложение, а не веб-страница: контекстное меню ПКМ
 // (с пунктами «Назад», «Перезагрузить», «Сохранить как…») здесь лишнее
