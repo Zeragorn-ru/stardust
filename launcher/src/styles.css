@@ -2383,7 +2383,10 @@ button,
     font-size: 13px;
     line-height: 1.5;
     color: var(--text);
-    overflow-wrap: anywhere;
+    /* break-word, а не anywhere: -webkit-line-clamp в WebKit считает геометрию
+       бокса по min-content, который anywhere меняет, — последняя строка
+       обрезается пополам (наблюдалось на «Кotlin-адаптер»). */
+    overflow-wrap: break-word;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
