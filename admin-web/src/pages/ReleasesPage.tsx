@@ -12,12 +12,11 @@ import {
   PageHeader,
   Panel,
   ProgressBar,
-  Select,
   Table,
 } from "../ui/components";
 import { useToast } from "../ui/feedback";
 import { formatDateTime } from "../format";
-import { IconRefresh } from "../ui/icons";
+import { IconChevronDown, IconRefresh } from "../ui/icons";
 
 const LEG_LABELS: Record<string, string> = {
   windows: "Windows",
@@ -114,20 +113,65 @@ export function ReleasesPage() {
                 tag: channel.tag ? <span className="mono">{channel.tag}</span> : <span className="faint">не настроен</span>,
                 updated: channel.updatedAt ? formatDateTime(channel.updatedAt) : "—",
                 switch: (
-                  <span className="row" style={{ justifyContent: "flex-end" }}>
-                    <Select
-                      aria-label={`Тег для канала ${channel.channel}`}
-                      value=""
-                      onChange={(e) => e.target.value && void setLatestTag(e.target.value, channel.channel)}
-                      style={{ width: "180px" }}
-                    >
-                      <option value="">Выбрать тег…</option>
-                      {candidates.slice(0, 10).map((r) => (
-                        <option key={r.tag} value={r.tag}>
-                          {r.tag}
-                        </option>
-                      ))}
-                    </Select>
+                  <span className="row" style={{ justifyContent: "flex-end", gap: "var(--s2)" }}>
+                    {/* Топ-3 кандидата как кнопки, остальные в меню */}
+                    {candidates.slice(0, 3).map((r) => (
+                      <Button
+                        key={r.tag}
+                        size="sm"
+                        variant={channel.tag === r.tag ? "primary" : "ghost"}
+                        busy={busyTag === r.tag + channel.channel}
+                        onClick={() => void setLatestTag(r.tag, channel.channel)}
+                      >
+                        {r.tag}
+                      </Button>
+                    ))}
+                    {candidates.length > 3 && (
+                      <div style={{ position: "relative", display: "inline-block" }}>
+                        <details>
+                          <summary style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                            <span className="text-sm">Ещё</span>
+                            <IconChevronDown size={12} />
+                          </summary>
+                          <div style={{
+                            position: "absolute",
+                            top: "100%",
+                            right: 0,
+                            marginTop: 4,
+                            background: "var(--surface)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius)",
+                            boxShadow: "var(--shadow-pop)",
+                            zIndex: 10,
+                            minWidth: "120px",
+                          }}>
+                            {candidates.slice(3).map((r) => (
+                              <button
+                                key={r.tag}
+                                type="button"
+                                onClick={() => void setLatestTag(r.tag, channel.channel)}
+                                style={{
+                                  display: "block",
+                                  width: "100%",
+                                  textAlign: "left",
+                                  padding: "var(--s2) var(--s3)",
+                                  border: "none",
+                                  background: "transparent",
+                                  color: "inherit",
+                                  fontSize: "inherit",
+                                  cursor: "pointer",
+                                  borderBottom: "1px solid var(--border)",
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = "var(--hover)"}
+                                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                              >
+                                {r.tag}
+                              </button>
+                            ))}
+                          </div>
+                        </details>
+                      </div>
+                    )}
                   </span>
                 ),
               },

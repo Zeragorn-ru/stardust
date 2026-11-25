@@ -5,7 +5,7 @@
 import { useCallback, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
-import type { BuildHeader, CreateBuildInput } from "../types";
+import type { CreateBuildInput } from "../types";
 import { useAsyncData } from "../ui/useAsyncData";
 import {
   Button,
@@ -15,7 +15,6 @@ import {
   Field,
   Form,
   FormActions,
-  IconButton,
   Input,
   Modal,
   PageHeader,
@@ -24,9 +23,9 @@ import {
   Select,
   Table,
 } from "../ui/components";
-import { useToast, useConfirm } from "../ui/feedback";
+import { useToast } from "../ui/feedback";
 import { BuildDetail } from "./builds/BuildDetail";
-import { IconPencil, IconPlus, IconRefresh, IconTrash } from "../ui/icons";
+import { IconPlus } from "../ui/icons";
 
 export function BuildsPage() {
   const { id, action } = useParams();
@@ -42,59 +41,10 @@ export function BuildsPage() {
 }
 
 function BuildsList() {
-  const toast = useToast();
-  const confirm = useConfirm();
   const navigate = useNavigate();
   const fetcher = useCallback(() => api.listBuilds(), []);
   const { data: builds, loading, error, reload } = useAsyncData(fetcher);
   const [creating, setCreating] = useState(false);
-  const [busyId, setBusyId] = useState<number | null>(null);
-
-  async function activate(build: BuildHeader) {
-    setBusyId(build.id);
-    try {
-      await api.activateBuild(build.id);
-      toast.success(`Сборка «${build.name}» активирована`);
-      reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось активировать");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function remove(build: BuildHeader) {
-    const ok = await confirm({
-      title: `Удалить сборку «${build.name}»?`,
-      body: "Файлы в контент-хранилище останутся, но сборка и её метаданные будут удалены безвозвратно.",
-      confirmText: "Удалить",
-      danger: true,
-    });
-    if (!ok) return;
-    setBusyId(build.id);
-    try {
-      await api.deleteBuild(build.id);
-      toast.success("Сборка удалена");
-      reload();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось удалить");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function clone(build: BuildHeader) {
-    setBusyId(build.id);
-    try {
-      const created = await api.cloneBuild(build.id);
-      toast.success("Сборка скопирована");
-      navigate(`/builds/${created.id}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось скопировать");
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   return (
     <div className="page-stack">
@@ -116,7 +66,6 @@ function BuildsList() {
               { key: "loader", label: "Загрузчик" },
               { key: "mc", label: "Minecraft" },
               { key: "status", label: "Статус" },
-              { key: "actions", label: "", width: "120px", align: "right" },
             ]}
             empty={
               <EmptyState
@@ -131,61 +80,31 @@ function BuildsList() {
             }
             rows={(builds ?? []).map((build) => ({
               key: String(build.id),
+              clickable: true,
+              onClick: () => navigate(`/builds/${build.id}`),
               cells: {
-                name: (
-                  <button
-                    type="button"
-                    className="linklike"
-                    onClick={() => navigate(`/builds/${build.id}`)}
-                  >
-                    <EllipsisCell text={build.name} />
-                  </button>
-                ),
+                name: <EllipsisCell text={build.name} />,
                 version: <span className="mono">{build.version}</span>,
                 loader: build.loaderKind,
                 mc: <span className="mono">{build.mcVersion}</span>,
                 status: build.isActive ? <Chip tone="accent">активная</Chip> : <Chip>неактивная</Chip>,
-                actions: (
-                  <span className="row" style={{ justifyContent: "flex-end" }}>
-                    {!build.isActive && (
-                      <Button
-                        size="sm"
-                        busy={busyId === build.id}
-                        onClick={() => activate(build)}
-                      >
-                        Активировать
-                      </Button>
-                    )}
-                    <IconButton
-                      label="Копировать"
-                      size="sm"
-                      busy={busyId === build.id}
-                      onClick={() => clone(build)}
-                    >
-                      <IconRefresh size={14} />
-                    </IconButton>
-                    <IconButton
-                      label="Редактировать"
-                      size="sm"
-                      onClick={() => navigate(`/builds/${build.id}`)}
-                    >
-                      <IconPencil size={14} />
-                    </IconButton>
-                    <IconButton
-                      label="Удалить"
-                      size="sm"
-                      busy={busyId === build.id}
-                      onClick={() => remove(build)}
-                    >
-                      <IconTrash size={14} />
-                    </IconButton>
-                  </span>
-                ),
               },
             }))}
           />
         </Panel>
       </PageState>
+
+      {/* Быстрые действия: клон, удаление */}
+      {builds && builds.length > 0 && (
+        <Panel
+          title="Действия сборок"
+          description="Используйте таблицу выше, чтобы выбрать сборку"
+        >
+          <p className="muted" style={{ fontSize: "var(--fs-sm)" }}>
+            Нажмите на строку сборки в таблице, чтобы открыть её детали. Там вы сможете загружать файлы, управлять профилями, устанавливать моды и выполнять операции с сборкой.
+          </p>
+        </Panel>
+      )}
 
       {creating && (
         <BuildForm

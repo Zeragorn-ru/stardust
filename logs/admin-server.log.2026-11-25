@@ -1,0 +1,9 @@
+[2m2026-11-25T11:22:05.297596Z[0m [32m INFO[0m [2madmin_server[0m[2m:[0m хранилище: PostgreSQL
+[2m2026-11-25T11:22:05.300129Z[0m [33m WARN[0m [2madmin_server[0m[2m:[0m CORS: CORS_ALLOWED_ORIGINS не заданы — cross-origin запросы запрещены (same-origin работает)
+[2m2026-11-25T11:22:05.302825Z[0m [33m WARN[0m [2madmin_server[0m[2m:[0m [stats] синхронизация: sftpHost не задан
+[2m2026-11-25T11:22:05.303845Z[0m [32m INFO[0m [2madmin_server[0m[2m:[0m admin-server слушает на http://127.0.0.1:8081
+[2m2026-11-25T11:37:05.337878Z[0m [33m WARN[0m [2madmin_server[0m[2m:[0m [stats] синхронизация: sftpHost не задан
+[2m2026-11-25T11:52:05.356124Z[0m [33m WARN[0m [2madmin_server[0m[2m:[0m [stats] синхронизация: sftpHost не задан
+[2m2026-11-25T12:07:05.406002Z[0m [33m WARN[0m [2madmin_server[0m[2m:[0m [stats] синхронизация: sftpHost не задан
+[2m2026-11-25T12:22:05.435753Z[0m [33m WARN[0m [2madmin_server[0m[2m:[0m [stats] синхронизация: sftpHost не задан
+[2m2026-11-25T12:37:05.452843Z[0m [33m WARN[0m [2madmin_server[0m[2m:[0m [stats] синхронизация: sftpHost не задан

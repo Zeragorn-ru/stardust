@@ -276,7 +276,7 @@ export function Panel({
 
 interface TableProps {
   columns: { key: string; label: ReactNode; width?: string; align?: "left" | "right" | "center" }[];
-  rows: { key: string; cells: Record<string, ReactNode>; className?: string }[];
+  rows: { key: string; cells: Record<string, ReactNode>; className?: string; clickable?: boolean; onClick?: () => void }[];
   /** Текст/узел при нуле строк (обычно EmptyState). */
   empty?: ReactNode;
 }
@@ -301,7 +301,11 @@ export function Table({ columns, rows, empty }: TableProps) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.key} className={row.className}>
+            <tr
+              key={row.key}
+              className={`${row.className ?? ""}${row.clickable ? " clickable" : ""}`}
+              onClick={row.onClick}
+            >
               {columns.map((col) => (
                 <td
                   key={col.key}
