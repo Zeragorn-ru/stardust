@@ -252,7 +252,9 @@ export default function SkinModal({ onClose, embedded = false }: Props) {
           </div>
         </div>
 
-        <footer className="modal__footer">
+        {/* Во встроенном режиме (вкладка «Кастомизация») фон-градиент футера
+            выглядит как тёмная полоса на полноэкранном слое — убираем его. */}
+        <footer className={"modal__footer" + (embedded ? " modal__footer--embedded" : "")}>
           <button className="btn btn--ghost" onClick={canClose ? onClose : undefined} disabled={!canClose}>
             Отмена
           </button>

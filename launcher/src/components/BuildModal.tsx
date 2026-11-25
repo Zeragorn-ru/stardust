@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { DownloadedShader, ShaderSearchHit, ShaderVersion } from "../types";
+import type { DownloadedPack, PackSearchHit, PackVersion } from "../types";
 import {
+  deleteResourcepack,
   deleteShader,
+  downloadResourcepack,
   downloadShader,
+  listDownloadedResourcepacks,
   listDownloadedShaders,
+  listResourcepackVersions,
   listShaderVersions,
+  searchResourcepacks,
   searchShaders,
 } from "../api";
 import { formatBytes } from "../format";
@@ -12,13 +17,17 @@ import Aurora from "./Aurora";
 import ModsSection from "./ModsSection";
 import { CrashHistoryPanel } from "./CrashHistoryModal";
 
-export type BuildTab = "mods" | "crashes" | "shaders";
+export type BuildTab = "mods" | "crashes" | "shaders" | "resourcepacks";
 
 const TABS: { id: BuildTab; label: string }[] = [
   { id: "mods", label: "Моды" },
   { id: "crashes", label: "Краши" },
   { id: "shaders", label: "Шейдеры" },
+  { id: "resourcepacks", label: "Ресурспаки" },
 ];
+
+/** Какой пак показываем на вкладке: определяет API-команды и тексты. */
+type PackKind = "shader" | "resourcepack";
 
 interface Props {
   initialTab?: BuildTab;
@@ -27,26 +36,27 @@ interface Props {
 
 /**
  * Экран «Сборка» с главного экрана: моды (переехали из настроек),
- * история крашей и скачивание шейдерпаков с Modrinth.
+ * история крашей и скачивание шейдерпаков/ресурс-паков с Modrinth.
  * Полноэкранный слой в стилистике настроек (.settings): шапка сверху,
  * навигация по вкладкам — боковая. Escape закрывает, когда ничего не грузится.
  */
 export default function BuildModal({ initialTab = "mods", onClose }: Props) {
   const [tab, setTab] = useState<BuildTab>(initialTab);
-  // Что-то грузится во вкладке шейдеров — блокируем случайное закрытие.
-  const [shadersBusy, setShadersBusy] = useState(false);
+  // Что-то грузится во вкладке шейдеров/ресурс-паков — блокируем случайное
+  // закрытие.
+  const [packsBusy, setPacksBusy] = useState(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      if (shadersBusy) return;
+      if (packsBusy) return;
       onCloseRef.current();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [shadersBusy]);
+  }, [packsBusy]);
 
   return (
     <div
@@ -61,7 +71,7 @@ export default function BuildModal({ initialTab = "mods", onClose }: Props) {
           type="button"
           className="btn btn--ghost"
           onClick={onClose}
-          disabled={shadersBusy}
+          disabled={packsBusy}
         >
           ← Назад
         </button>
@@ -89,7 +99,12 @@ export default function BuildModal({ initialTab = "mods", onClose }: Props) {
         <div className="settings__body build-screen__body">
           {tab === "mods" && <ModsSection />}
           {tab === "crashes" && <CrashHistoryPanel />}
-          {tab === "shaders" && <ShadersPanel onBusyChange={setShadersBusy} />}
+          {tab === "shaders" && (
+            <PacksPanel kind="shader" onBusyChange={setPacksBusy} />
+          )}
+          {tab === "resourcepacks" && (
+            <PacksPanel kind="resourcepack" onBusyChange={setPacksBusy} />
+          )}
         </div>
       </div>
     </div>
@@ -99,13 +114,54 @@ export default function BuildModal({ initialTab = "mods", onClose }: Props) {
 /** Состояние скачивания одного файла: ключ — url файла. */
 type DownloadState = "idle" | "loading" | "done" | "error";
 
+/** Тексты и команды одного вида паков: шейдерпаки или ресурспаки. */
+function packKindSpec(kind: PackKind) {
+  if (kind === "shader") {
+    return {
+      noun: "шейдерпак",
+      nounPlural: "шейдерпаки",
+      nounAccusative: "шейдерпак",
+      folder: "shaderpacks",
+      note: "Шейдерпак появился в папке shaderpacks — выбери его в настройках игры (OptiFine/Iris).",
+      searchPlaceholder: "Поиск шейдерпаков на Modrinth…",
+      downloadNew: "Скачать новый шейдерпак",
+      search: searchShaders,
+      listVersions: listShaderVersions,
+      download: downloadShader,
+      listDownloaded: listDownloadedShaders,
+      remove: deleteShader,
+    };
+  }
+  return {
+    noun: "ресурспак",
+    nounPlural: "ресурспаки",
+    nounAccusative: "ресурспак",
+    folder: "resourcepacks",
+    note: "Ресурспак появился в папке resourcepacks — выбери его в настройках игры (Наборы ресурсов).",
+    searchPlaceholder: "Поиск ресурспаков на Modrinth…",
+    downloadNew: "Скачать новый ресурспак",
+    search: searchResourcepacks,
+    listVersions: listResourcepackVersions,
+    download: downloadResourcepack,
+    listDownloaded: listDownloadedResourcepacks,
+    remove: deleteResourcepack,
+  };
+}
+
 /**
- * Вкладка «Шейдеры». Если в папке shaderpacks уже что-то лежит — показываем
- * список скачанных шейдерпаков с удалением; поиск/скачивание с Modrinth
- * доступен оттуда по кнопке. Пока шейдерпаков нет — сразу поиск, как раньше.
+ * Вкладка «Шейдеры»/«Ресурспаки». Если в папке паков уже что-то лежит —
+ * показываем список скачанных паков с удалением; поиск/скачивание с Modrinth
+ * доступен оттуда по кнопке. Пока паков нет — сразу поиск.
  */
-function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) {
-  const [downloaded, setDownloaded] = useState<DownloadedShader[] | null>(null);
+function PacksPanel({
+  kind,
+  onBusyChange,
+}: {
+  kind: PackKind;
+  onBusyChange: (busy: boolean) => void;
+}) {
+  const spec = packKindSpec(kind);
+  const [downloaded, setDownloaded] = useState<DownloadedPack[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mode, setMode] = useState<"list" | "search">("list");
   const [filter, setFilter] = useState("");
@@ -115,7 +171,7 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
 
   const refresh = useCallback(async () => {
     try {
-      const list = await listDownloadedShaders();
+      const list = await spec.listDownloaded();
       setDownloaded(list);
       setLoadError(null);
       return list;
@@ -123,7 +179,9 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
       setLoadError(reason instanceof Error ? reason.message : String(reason));
       return null;
     }
-  }, []);
+    // spec — константный объект вида пака, в зависимости не берём.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
 
   useEffect(() => {
     void refresh();
@@ -138,7 +196,7 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
     setDeleting(filename);
     setDeleteError(null);
     try {
-      await deleteShader(filename);
+      await spec.remove(filename);
       const list = await refresh();
       // Удалили последний — возвращаемся к прежнему виду (сразу поиск).
       if (list !== null && list.length === 0) {
@@ -183,7 +241,7 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
   if (downloaded.length === 0) {
     return (
       <div className="shaders-panel">
-        <ShaderSearch onBusyChange={onBusyChange} onDownloaded={handleDownloaded} />
+        <PackSearch kind={kind} onBusyChange={onBusyChange} onDownloaded={handleDownloaded} />
       </div>
     );
   }
@@ -195,8 +253,7 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
     <div className="shaders-panel">
       {note && (
         <p className="shaders-panel__note" role="status">
-          Шейдерпак появился в папке shaderpacks — выбери его в настройках игры
-          (OptiFine/Iris).
+          {spec.note}
         </p>
       )}
       {loadError && (
@@ -225,27 +282,31 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
               className="btn btn--ghost shaders-panel__new"
               onClick={() => setMode("search")}
             >
-              Скачать новый шейдерпак
+              {spec.downloadNew}
             </button>
           </div>
 
           <ul className="shaders-list">
-            {visible.map((shader) => (
-              <li key={shader.filename} className="shaders-list__item shader-local">
-                <span className="shader-local__icon" aria-hidden="true">
-                  {shader.filename.trim().slice(0, 1).toUpperCase() || "?"}
+            {visible.map((pack) => (
+              <li key={pack.filename} className="shaders-list__item shader-local">
+                <span className="shader-local__icon shader-local__icon--img" aria-hidden="true">
+                  {pack.iconBase64 ? (
+                    <img src={`data:image/png;base64,${pack.iconBase64}`} alt="" />
+                  ) : (
+                    pack.filename.trim().slice(0, 1).toUpperCase() || "?"
+                  )}
                 </span>
                 <span className="shader-local__text">
-                  <span className="shader-local__name">{shader.filename}</span>
-                  <span className="muted shader-local__size">{formatBytes(shader.size)}</span>
+                  <span className="shader-local__name">{pack.filename}</span>
+                  <span className="muted shader-local__size">{formatBytes(pack.size)}</span>
                 </span>
                 <button
                   type="button"
                   className="btn btn--ghost shader-local__delete"
                   disabled={deleting !== null}
-                  onClick={() => void remove(shader.filename)}
+                  onClick={() => void remove(pack.filename)}
                 >
-                  {deleting === shader.filename ? <span className="spinner" /> : "Удалить"}
+                  {deleting === pack.filename ? <span className="spinner" /> : "Удалить"}
                 </button>
               </li>
             ))}
@@ -257,8 +318,9 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
           </ul>
         </>
       ) : (
-        <ShaderSearch
+        <PackSearch
           key="search"
+          kind={kind}
           onBusyChange={onBusyChange}
           onDownloaded={handleDownloaded}
           onBack={() => {
@@ -272,26 +334,30 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
 }
 
 /**
- * Поиск и скачивание шейдерпаков с Modrinth. Пустой запрос — топ по
- * загрузкам. Файл кладётся бэкендом в папку shaderpacks активной сборки.
- * Когда скачанные шейдерпаки есть, показываем кнопку возврата к их списку.
+ * Поиск и скачивание паков с Modrinth. Пустой запрос — топ по загрузкам.
+ * Файл кладётся бэкендом в папку паков активной сборки, иконка проекта
+ * сохраняется рядом с архивом. Когда скачанные паки есть, показываем
+ * кнопку возврата к их списку.
  */
-function ShaderSearch({
+function PackSearch({
+  kind,
   onBusyChange,
   onDownloaded,
   onBack,
 }: {
+  kind: PackKind;
   onBusyChange: (busy: boolean) => void;
   onDownloaded: () => void;
   onBack?: () => void;
 }) {
+  const spec = packKindSpec(kind);
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<ShaderSearchHit[] | null>(null);
+  const [results, setResults] = useState<PackSearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  // Раскрытый шейдерпак и его версии.
+  // Раскрытый пак и его версии.
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [versions, setVersions] = useState<ShaderVersion[] | null>(null);
+  const [versions, setVersions] = useState<PackVersion[] | null>(null);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [versionsError, setVersionsError] = useState<string | null>(null);
   // Скачивание: url → состояние; после успеха файл помечаем навсегда.
@@ -317,7 +383,7 @@ function ShaderSearch({
       const seq = ++searchSeqRef.current;
       setSearching(true);
       setSearchError(null);
-      searchShaders(q || undefined)
+      spec.search(q || undefined)
         .then((list) => {
           if (seq !== searchSeqRef.current) return;
           setResults(list);
@@ -334,9 +400,11 @@ function ShaderSearch({
         });
     }, 400);
     return () => window.clearTimeout(timer);
+    // spec — константный объект вида пака, в зависимости не берём.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
-  async function toggleVersions(hit: ShaderSearchHit) {
+  async function toggleVersions(hit: PackSearchHit) {
     if (expandedId === hit.projectId) {
       setExpandedId(null);
       setVersions(null);
@@ -348,7 +416,7 @@ function ShaderSearch({
     setVersionsError(null);
     setVersionsLoading(true);
     try {
-      const list = await listShaderVersions(hit.projectId);
+      const list = await spec.listVersions(hit.projectId);
       setVersions(list);
     } catch (reason) {
       setVersionsError(reason instanceof Error ? reason.message : String(reason));
@@ -357,22 +425,26 @@ function ShaderSearch({
     }
   }
 
-  const download = useCallback(async (url: string, filename: string) => {
-    setDownloads((prev) => ({ ...prev, [url]: "loading" }));
-    setDownloadError(null);
-    try {
-      await downloadShader(url, filename);
-      setDownloads((prev) => ({ ...prev, [url]: "done" }));
-      setDownloadedNote(true);
-      onDownloaded();
-    } catch (reason) {
-      setDownloads((prev) => ({ ...prev, [url]: "error" }));
-      setDownloadError(reason instanceof Error ? reason.message : String(reason));
-    }
-  }, [onDownloaded]);
+  const download = useCallback(
+    async (url: string, filename: string, iconUrl: string | null) => {
+      setDownloads((prev) => ({ ...prev, [url]: "loading" }));
+      setDownloadError(null);
+      try {
+        await spec.download(url, filename, iconUrl);
+        setDownloads((prev) => ({ ...prev, [url]: "done" }));
+        setDownloadedNote(true);
+        onDownloaded();
+      } catch (reason) {
+        setDownloads((prev) => ({ ...prev, [url]: "error" }));
+        setDownloadError(reason instanceof Error ? reason.message : String(reason));
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onDownloaded, kind],
+  );
 
   /** Основной файл версии: primary, иначе единственный. */
-  function pickFile(version: ShaderVersion) {
+  function pickFile(version: PackVersion) {
     return version.files.find((f) => f.primary) ?? version.files[0] ?? null;
   }
 
@@ -388,15 +460,14 @@ function ShaderSearch({
       <input
         type="text"
         className="input shaders-panel__search"
-        placeholder="Поиск шейдерпаков на Modrinth…"
+        placeholder={spec.searchPlaceholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
 
       {downloadedNote && (
         <p className="shaders-panel__note" role="status">
-          Шейдерпак появился в папке shaderpacks — выбери его в настройках игры
-          (OptiFine/Iris).
+          {spec.note}
         </p>
       )}
       {searchError && (
@@ -408,7 +479,7 @@ function ShaderSearch({
 
       {results === null && !searchError && (
         <p className="muted shaders-panel__state">
-          <span className="spinner" /> {searching ? "Ищем шейдерпаки…" : "Загрузка…"}
+          <span className="spinner" /> {searching ? `Ищем ${spec.nounPlural}…` : "Загрузка…"}
         </p>
       )}
 
@@ -480,7 +551,7 @@ function ShaderSearch({
                             type="button"
                             className="btn btn--ghost shader-version__btn"
                             disabled={state === "loading" || state === "done" || busy}
-                            onClick={() => void download(file.url, file.filename)}
+                            onClick={() => void download(file.url, file.filename, hit.iconUrl)}
                           >
                             {state === "loading"
                               ? <span className="spinner" />

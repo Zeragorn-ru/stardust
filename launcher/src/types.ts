@@ -368,8 +368,8 @@ export interface LogTail {
   exists: boolean;
 }
 
-/** Шейдерпак в результатах поиска Modrinth (вкладка «Шейдеры»). */
-export interface ShaderSearchHit {
+/** Пак (шейдерпак/ресурспак) в результатах поиска Modrinth. */
+export interface PackSearchHit {
   projectId: string;
   slug: string;
   title: string;
@@ -379,28 +379,30 @@ export interface ShaderSearchHit {
   follows: number;
 }
 
-/** Скачанный шейдерпак в папке shaderpacks. */
-export interface DownloadedShader {
+/** Скачанный пак (в папке shaderpacks или resourcepacks). */
+export interface DownloadedPack {
   filename: string;
   size: number;
+  /** Иконка пака (base64 PNG), если сохранена рядом с архивом. */
+  iconBase64?: string | null;
 }
 
-/** Файл версии шейдерпака (обычно один, primary — основной JAR). */
-export interface ShaderFile {
+/** Файл версии пака (обычно один, primary — основной JAR). */
+export interface PackFile {
   url: string;
   filename: string;
   size: number;
   primary: boolean;
 }
 
-/** Версия шейдерпака Modrinth со списком файлов. */
-export interface ShaderVersion {
+/** Версия пака Modrinth со списком файлов. */
+export interface PackVersion {
   id: string;
   versionNumber: string;
   name: string;
   gameVersions: string[];
   loaders: string[];
-  files: ShaderFile[];
+  files: PackFile[];
 }
 
 export type LogFolderKind = "launcherLogs" | "minecraftLogs" | "crashReports";

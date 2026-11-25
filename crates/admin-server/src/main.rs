@@ -548,6 +548,20 @@ async fn main() {
             "/public/shaders/download",
             get(shaders_public::shaders_download),
         )
+        // Тот же прокси для ресурс-паков: project_type=resourcepack на
+        // стороне Modrinth, хост-allowlist для файлов общий.
+        .route(
+            "/public/resourcepacks/search",
+            get(shaders_public::resourcepacks_search),
+        )
+        .route(
+            "/public/resourcepacks/versions",
+            get(shaders_public::resourcepacks_versions),
+        )
+        .route(
+            "/public/resourcepacks/download",
+            get(shaders_public::resourcepacks_download),
+        )
         .route(
             "/authlib-injector/latest.json",
             get(authlib_injector_metadata),

@@ -1889,6 +1889,9 @@ button,
     position: absolute;
     top: 10px;
     right: 10px;
+    /* Поверх любых стеклянных слоёв карточки: без этого часть кнопки
+       перекрывается и кликается только её нижняя половина. */
+    z-index: 2;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -1897,8 +1900,8 @@ button,
 .hero__icon-btn {
     display: grid;
     place-items: center;
-    width: 42px;
-    height: 42px;
+    width: 28px;
+    height: 28px;
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
@@ -3398,6 +3401,12 @@ button,
     padding: 14px 20px 16px;
     border-top: 1px solid var(--glass-border);
     background: linear-gradient(0deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0));
+}
+
+/* Встроенный футер (вкладка «Кастомизация»): без фонового градиента —
+   на полноэкранном слое он выглядит как тёмная тень внизу. */
+.modal__footer--embedded {
+    background: none;
 }
 
 /* Диалог подтверждения (замена window.confirm на macOS/WKWebView). */
@@ -4946,8 +4955,8 @@ button.info-card__path--link:hover:not(:disabled) {
 
 .shader-local__icon {
     flex: 0 0 auto;
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     display: grid;
     place-items: center;
     border-radius: 10px;
@@ -4956,6 +4965,14 @@ button.info-card__path--link:hover:not(:disabled) {
     font-size: 15px;
     font-weight: 800;
     color: var(--muted);
+    overflow: hidden;
+}
+
+/* Сохранённая иконка пака (<имя>.icon.png) вместо буквы-плейсхолдера. */
+.shader-local__icon--img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .shader-local__text {
@@ -5019,11 +5036,10 @@ button.info-card__path--link:hover:not(:disabled) {
     display: block;
 }
 
-/* Кнопки на карточках главного экрана: сама кнопка 42px, иконка в полтора
-   раза крупнее базовой. */
+/* Кнопки на карточках главного экрана. */
 .hero__icon-btn .svg-icon svg {
-    width: 24px;
-    height: 24px;
+    width: 16px;
+    height: 16px;
 }
 
 .customize-wip {

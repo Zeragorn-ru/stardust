@@ -27,10 +27,10 @@ import type {
   PlayerProfile,
   PlayerStats,
   Progress,
-  DownloadedShader,
+  DownloadedPack,
   Settings,
-  ShaderSearchHit,
-  ShaderVersion,
+  PackSearchHit,
+  PackVersion,
   Skin,
   SkinModel,
   TelegramLinkResponse,
@@ -787,38 +787,83 @@ export async function selectModProfile(profileKey: string): Promise<number> {
 }
 
 /** Поиск шейдерпаков на Modrinth; пустой запрос — топ по загрузкам. */
-export async function searchShaders(query?: string): Promise<ShaderSearchHit[]> {
+export async function searchShaders(query?: string): Promise<PackSearchHit[]> {
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Поиск шейдеров доступен только в приложении");
-  return invoke<ShaderSearchHit[]>("search_shaders", { query: query ?? null });
+  return invoke<PackSearchHit[]>("search_shaders", { query: query ?? null });
 }
 
 /** Версии шейдерпака Modrinth по его projectId. */
-export async function listShaderVersions(projectId: string): Promise<ShaderVersion[]> {
+export async function listShaderVersions(projectId: string): Promise<PackVersion[]> {
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Шейдеры доступны только в приложении");
-  return invoke<ShaderVersion[]>("list_shader_versions", { projectId });
+  return invoke<PackVersion[]>("list_shader_versions", { projectId });
 }
 
-/** Скачать шейдерпак в папку shaderpacks; возвращает путь к файлу. */
-export async function downloadShader(url: string, filename: string): Promise<string> {
+/** Скачать шейдерпак в папку shaderpacks; иконка проекта сохраняется
+ *  рядом как `<filename>.icon.png`. Возвращает путь к файлу. */
+export async function downloadShader(
+  url: string,
+  filename: string,
+  iconUrl?: string | null,
+): Promise<string> {
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Скачивание шейдеров доступно только в приложении");
-  return invoke<string>("download_shader", { url, filename });
+  return invoke<string>("download_shader", { url, filename, iconUrl: iconUrl ?? null });
 }
 
 /** Список скачанных шейдерпаков (файлы в папке shaderpacks). */
-export async function listDownloadedShaders(): Promise<DownloadedShader[]> {
+export async function listDownloadedShaders(): Promise<DownloadedPack[]> {
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Шейдеры доступны только в приложении");
-  return invoke<DownloadedShader[]>("list_downloaded_shaders");
+  return invoke<DownloadedPack[]>("list_downloaded_shaders");
 }
 
-/** Удалить скачанный шейдерпак по имени файла. */
+/** Удалить скачанный шейдерпак по имени файла (и его иконку). */
 export async function deleteShader(filename: string): Promise<void> {
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Шейдеры доступны только в приложении");
   return invoke<void>("delete_shader", { filename });
+}
+
+/** Поиск ресурспаков на Modrinth; пустой запрос — топ по загрузкам. */
+export async function searchResourcepacks(query?: string): Promise<PackSearchHit[]> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Поиск ресурспаков доступен только в приложении");
+  return invoke<PackSearchHit[]>("search_resourcepacks", { query: query ?? null });
+}
+
+/** Версии ресурспака Modrinth по его projectId. */
+export async function listResourcepackVersions(projectId: string): Promise<PackVersion[]> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Ресурспаки доступны только в приложении");
+  return invoke<PackVersion[]>("list_resourcepack_versions", { projectId });
+}
+
+/** Скачать ресурспак в папку resourcepacks; иконка проекта сохраняется
+ *  рядом как `<filename>.icon.png`. Возвращает путь к файлу. */
+export async function downloadResourcepack(
+  url: string,
+  filename: string,
+  iconUrl?: string | null,
+): Promise<string> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Скачивание ресурспаков доступно только в приложении");
+  return invoke<string>("download_resourcepack", { url, filename, iconUrl: iconUrl ?? null });
+}
+
+/** Список скачанных ресурспаков (файлы в папке resourcepacks). */
+export async function listDownloadedResourcepacks(): Promise<DownloadedPack[]> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Ресурспаки доступны только в приложении");
+  return invoke<DownloadedPack[]>("list_downloaded_resourcepacks");
+}
+
+/** Удалить скачанный ресурспак по имени файла (и его иконку). */
+export async function deleteResourcepack(filename: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Ресурспаки доступны только в приложении");
+  return invoke<void>("delete_resourcepack", { filename });
 }
 
 /**
