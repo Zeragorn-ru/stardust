@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import Aurora from "./Aurora";
 import SkinModal from "./SkinModal";
 import NickCustomizer from "./NickCustomizer";
 
@@ -12,7 +13,7 @@ interface Props {
   closing?: boolean;
 }
 
-export default function CustomizeModal({ playerName, onClose, onNickSaved, closing }: Props) {
+export default function CustomizeModal({ playerName, onClose, onNickSaved }: Props) {
   const [tab, setTab] = useState<Tab>("skin");
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -26,64 +27,47 @@ export default function CustomizeModal({ playerName, onClose, onNickSaved, closi
   }, []);
 
   return (
-    <div
-      className={"modal-overlay" + (closing ? " modal-overlay--closing" : "")}
-      onClick={(e) => {
-        // Выделение, протащенное из диалога, не закрывает модалку.
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className={"modal customize-modal" + (closing ? " modal--closing" : "")}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-      >
-        <header className="modal__header customize-modal__header">
-          <h2>Кастомизация</h2>
-          <div className="customize-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "skin"}
-              className={"customize-tab" + (tab === "skin" ? " is-active" : "")}
-              onClick={() => setTab("skin")}
-            >
-              Скин
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "nick"}
-              className={"customize-tab" + (tab === "nick" ? " is-active" : "")}
-              onClick={() => setTab("nick")}
-            >
-              Ник
-            </button>
-            <span
-              className={"customize-tabs__ink" + (tab === "nick" ? " is-right" : "")}
-              aria-hidden="true"
-            />
-          </div>
+    <div className="settings build-screen customize-screen" role="dialog" aria-modal="true" aria-label="Кастомизация">
+      <Aurora />
+      <header className="settings__header" data-tauri-drag-region="deep">
+        <button type="button" className="btn btn--ghost" onClick={onClose}>
+          ← Назад
+        </button>
+        <h2>Кастомизация</h2>
+        <div className="customize-tabs" role="tablist">
           <button
             type="button"
-            className="btn btn--icon"
-            onClick={onClose}
-            aria-label="Закрыть"
+            role="tab"
+            aria-selected={tab === "skin"}
+            className={"customize-tab" + (tab === "skin" ? " is-active" : "")}
+            onClick={() => setTab("skin")}
           >
-            ✕
+            Скин
           </button>
-        </header>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "nick"}
+            className={"customize-tab" + (tab === "nick" ? " is-active" : "")}
+            onClick={() => setTab("nick")}
+          >
+            Ник
+          </button>
+          <span
+            className={"customize-tabs__ink" + (tab === "nick" ? " is-right" : "")}
+            aria-hidden="true"
+          />
+        </div>
+      </header>
 
-        {tab === "skin" ? (
-          <div className="customize-modal__body">
+      <div className="settings__layout">
+        <div className="settings__body customize-screen__body">
+          {tab === "skin" ? (
             <SkinModal embedded onClose={onClose} />
-          </div>
-        ) : (
-          <div className="customize-modal__body">
+          ) : (
             <NickCustomizer playerName={playerName} onSaved={onNickSaved} />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

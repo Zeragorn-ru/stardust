@@ -1883,17 +1883,27 @@ button,
     .hero__news-banner { gap: 12px; }
 }
 
-.server-map-button {
+/* Столбик квадратных икон-кнопок справа сверху карточки («Сервер»,
+   «Сборка»): карта, игроки онлайн, шестерёнка сборки. */
+.hero__card-actions {
     position: absolute;
-    top: 12px;
-    right: 14px;
-    padding: 5px 9px;
-    border: 1px solid rgba(92, 184, 168, 0.24);
-    border-radius: 10px;
-    background: rgba(92, 184, 168, 0.08);
+    top: 10px;
+    right: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.hero__icon-btn {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
     color: var(--text);
-    font-size: 12px;
-    font-weight: 800;
     cursor: pointer;
     transition:
         background var(--t-fast),
@@ -1901,13 +1911,13 @@ button,
         transform var(--t-fast);
 }
 
-.server-map-button:hover {
-    border-color: rgba(92, 184, 168, 0.5);
-    background: rgba(92, 184, 168, 0.16);
+.hero__icon-btn:hover {
+    border-color: rgba(255, 159, 67, 0.4);
+    background: rgba(255, 255, 255, 0.12);
 }
 
-.server-map-button:active {
-    transform: scale(0.96);
+.hero__icon-btn:active {
+    transform: scale(0.94);
 }
 
 .hero__stats-title {
@@ -1936,31 +1946,6 @@ button,
     min-width: 0;
 }
 
-.server-players-button {
-    min-width: 0;
-    padding: 5px 9px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text);
-    font-size: 12px;
-    font-weight: 800;
-    cursor: pointer;
-    transition:
-        background var(--t-fast),
-        border-color var(--t-fast),
-        transform var(--t-fast);
-}
-
-.server-players-button:hover {
-    border-color: rgba(74, 222, 128, 0.35);
-    background: rgba(74, 222, 128, 0.1);
-}
-
-.server-players-button:active {
-    transform: scale(0.96);
-}
-
 .hero__stat-value {
     font-size: 20px;
     font-weight: 800;
@@ -1985,11 +1970,9 @@ button,
 .hero__stat-value--muted  { opacity: 0.4; }
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
 
-/* Блок «Сборка»: вход в экран сборки (моды/краши/шейдеры) прямо с
-   главного экрана. Вся карточка — кнопка, ховер — как у строки крашей.
-   Селектор с двумя классами: .crash-entry (идёт ниже по файлу) сбрасывает
-   фон/рамку/паддинги, а карточке сборки нужен фон как у соседних
-   блоков .hero__stats. */
+/* Блок «Сборка» на главном экране: сама карточка — не кнопка, кликабельна
+   только шестерёнка справа сверху (.hero__icon-btn). Фон/рамка — как у
+   соседних блоков .hero__stats, ховер всей карточки не нужен. */
 .hero__stats.hero__stats--build {
     padding: 14px 20px;
     background: var(--glass);
@@ -1997,11 +1980,14 @@ button,
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     text-align: left;
-    transition: border-color var(--t-fast), background var(--t-fast);
 }
-.hero__stats--build:hover {
-    border-color: rgba(255, 159, 67, 0.4);
-    background: rgba(255, 159, 67, 0.06);
+
+/* Подпись «Опциональных: N из M» — мельче и приглушённее основного значения. */
+.hero__stat-build-sub {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.02em;
 }
 .crash-entry {
     display: flex;
@@ -4607,32 +4593,19 @@ button.info-card__path--link:hover:not(:disabled) {
     );
 }
 
-.customize-modal {
-    width: 620px;
-    max-width: 96vw;
-    max-height: calc(100vh - 32px);
-    overflow: hidden;
-    /* Тень — из базовой .modal: свой override тянул окно назад к
-       «плоскому» виду, ради которого базовый стиль и переделывался. */
+/* Кастомизация — полноэкранный слой по паттерну .build-screen
+   (fixed, top: 38px, своя Aurora, шапка .settings__header). */
+.customize-screen .settings__header h2 {
+    margin-right: auto;
 }
 
-/* Фиксируем высоту контентной зоны, чтобы смена вкладок не меняла размер */
-.customize-modal__body {
-    min-height: 370px;
-    max-height: min(560px, calc(100vh - 130px));
-    overflow: auto;
+/* Контент по центру: на широких окнах скин-редактор и ник не растягиваются. */
+.customize-screen__body {
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
-}
-
-.customize-modal__header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-
-.customize-modal__header h2 {
-    margin-right: auto;
 }
 
 .customize-tabs {
@@ -4753,9 +4726,10 @@ button.info-card__path--link:hover:not(:disabled) {
     z-index: 1;
 }
 
-/* На macOS нативная полоса заголовка занимает верхние 38px — начинаем
-   под ней, как .app__content (см. .app--macos .app__content). */
-.app--macos .build-screen {
+/* Полоса заголовка занимает верхние 38px на ВСЕХ платформах (macOS —
+   нативная, Windows/Linux — кастомный .titlebar), а .build-screen —
+   position:fixed от вьюпорта. Начинаем под ней, как .app__content. */
+.build-screen {
     top: 38px;
 }
 
@@ -4959,6 +4933,82 @@ button.info-card__path--link:hover:not(:disabled) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Строка скачанного шейдерпака в списке вкладки «Шейдеры». */
+.shader-local {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+}
+
+.shader-local__icon {
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--muted);
+}
+
+.shader-local__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.shader-local__name {
+    font-weight: 700;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shader-local__size {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.shader-local__delete {
+    flex: 0 0 auto;
+    min-width: 88px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Тулбар списка/поиска: фильтр + кнопка режима. */
+.shaders-panel__toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.shaders-panel__toolbar .shaders-panel__search {
+    flex: 1;
+    min-width: 0;
+}
+
+.shaders-panel__new {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+.svg-icon {
+    width: 16px;
+    height: 16px;
+    display: block;
+    pointer-events: none;
 }
 
 .customize-wip {

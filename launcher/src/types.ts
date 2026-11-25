@@ -379,6 +379,12 @@ export interface ShaderSearchHit {
   follows: number;
 }
 
+/** Скачанный шейдерпак в папке shaderpacks. */
+export interface DownloadedShader {
+  filename: string;
+  size: number;
+}
+
 /** Файл версии шейдерпака (обычно один, primary — основной JAR). */
 export interface ShaderFile {
   url: string;

@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ShaderSearchHit, ShaderVersion } from "../types";
-import { downloadShader, listShaderVersions, searchShaders } from "../api";
+import type { DownloadedShader, ShaderSearchHit, ShaderVersion } from "../types";
+import {
+  deleteShader,
+  downloadShader,
+  listDownloadedShaders,
+  listShaderVersions,
+  searchShaders,
+} from "../api";
 import { formatBytes } from "../format";
 import Aurora from "./Aurora";
 import ModsSection from "./ModsSection";
@@ -94,10 +100,180 @@ export default function BuildModal({ initialTab = "mods", onClose }: Props) {
 type DownloadState = "idle" | "loading" | "done" | "error";
 
 /**
- * Поиск и скачивание шейдерпаков с Modrinth. Пустой запрос — топ по
- * загрузкам. Файл кладётся бэкендом в папку shaderpacks активной сборки.
+ * Вкладка «Шейдеры». Если в папке shaderpacks уже что-то лежит — показываем
+ * список скачанных шейдерпаков с удалением; поиск/скачивание с Modrinth
+ * доступен оттуда по кнопке. Пока шейдерпаков нет — сразу поиск, как раньше.
  */
 function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void }) {
+  const [downloaded, setDownloaded] = useState<DownloadedShader[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"list" | "search">("list");
+  const [filter, setFilter] = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [note, setNote] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const list = await listDownloadedShaders();
+      setDownloaded(list);
+      setLoadError(null);
+      return list;
+    } catch (reason) {
+      setLoadError(reason instanceof Error ? reason.message : String(reason));
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const busy = deleting !== null;
+  useEffect(() => {
+    onBusyChange(busy);
+  }, [busy, onBusyChange]);
+
+  async function remove(filename: string) {
+    setDeleting(filename);
+    setDeleteError(null);
+    try {
+      await deleteShader(filename);
+      const list = await refresh();
+      // Удалили последний — возвращаемся к прежнему виду (сразу поиск).
+      if (list !== null && list.length === 0) {
+        setMode("search");
+        setFilter("");
+      }
+    } catch (reason) {
+      setDeleteError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      setDeleting(null);
+    }
+  }
+
+  /** После успешного скачивания возвращаемся к списку скачанных. */
+  const handleDownloaded = useCallback(async () => {
+    setNote(true);
+    const list = await refresh();
+    if (list !== null && list.length > 0) setMode("list");
+  }, [refresh]);
+
+  if (downloaded === null) {
+    return (
+      <div className="shaders-panel">
+        <p className="muted shaders-panel__state">
+          <span className="spinner" /> Загрузка…
+        </p>
+      </div>
+    );
+  }
+
+  if (downloaded.length === 0) {
+    return (
+      <div className="shaders-panel">
+        <ShaderSearch onBusyChange={onBusyChange} onDownloaded={handleDownloaded} />
+      </div>
+    );
+  }
+
+  const needle = filter.trim().toLowerCase();
+  const visible = downloaded.filter((s) => s.filename.toLowerCase().includes(needle));
+
+  return (
+    <div className="shaders-panel">
+      {note && (
+        <p className="shaders-panel__note" role="status">
+          Шейдерпак появился в папке shaderpacks — выбери его в настройках игры
+          (OptiFine/Iris).
+        </p>
+      )}
+      {loadError && (
+        <p className="muted shaders-panel__error" role="alert">
+          Не удалось обновить список: {loadError}
+        </p>
+      )}
+      {deleteError && (
+        <p className="muted shaders-panel__error" role="alert">
+          Ошибка удаления: {deleteError}
+        </p>
+      )}
+
+      {mode === "list" ? (
+        <>
+          <div className="shaders-panel__toolbar">
+            <input
+              type="text"
+              className="input shaders-panel__search"
+              placeholder="Фильтр по имени…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn btn--ghost shaders-panel__new"
+              onClick={() => setMode("search")}
+            >
+              Скачать новый шейдерпак
+            </button>
+          </div>
+
+          <ul className="shaders-list">
+            {visible.map((shader) => (
+              <li key={shader.filename} className="shaders-list__item shader-local">
+                <span className="shader-local__icon" aria-hidden="true">
+                  {shader.filename.trim().slice(0, 1).toUpperCase() || "?"}
+                </span>
+                <span className="shader-local__text">
+                  <span className="shader-local__name">{shader.filename}</span>
+                  <span className="muted shader-local__size">{formatBytes(shader.size)}</span>
+                </span>
+                <button
+                  type="button"
+                  className="btn btn--ghost shader-local__delete"
+                  disabled={deleting !== null}
+                  onClick={() => void remove(shader.filename)}
+                >
+                  {deleting === shader.filename ? <span className="spinner" /> : "Удалить"}
+                </button>
+              </li>
+            ))}
+            {visible.length === 0 && (
+              <li className="muted shaders-panel__state">
+                {filter.trim() ? `По фильтру «${filter.trim()}» ничего нет.` : "Список пуст."}
+              </li>
+            )}
+          </ul>
+        </>
+      ) : (
+        <ShaderSearch
+          key="search"
+          onBusyChange={onBusyChange}
+          onDownloaded={handleDownloaded}
+          onBack={() => {
+            setMode("list");
+            setNote(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Поиск и скачивание шейдерпаков с Modrinth. Пустой запрос — топ по
+ * загрузкам. Файл кладётся бэкендом в папку shaderpacks активной сборки.
+ * Когда скачанные шейдерпаки есть, показываем кнопку возврата к их списку.
+ */
+function ShaderSearch({
+  onBusyChange,
+  onDownloaded,
+  onBack,
+}: {
+  onBusyChange: (busy: boolean) => void;
+  onDownloaded: () => void;
+  onBack?: () => void;
+}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<ShaderSearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -118,6 +294,9 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
     searching || versionsLoading || Object.values(downloads).includes("loading");
   useEffect(() => {
     onBusyChange(busy);
+    // При уходе с поиска (кнопка «← К скачанным») снимаем блокировку,
+    // даже если какая-то загрузка ещё не завершилась.
+    return () => onBusyChange(false);
   }, [busy, onBusyChange]);
 
   // Debounce поиска: 400 мс после последнего нажатия.
@@ -174,11 +353,12 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
       await downloadShader(url, filename);
       setDownloads((prev) => ({ ...prev, [url]: "done" }));
       setDownloadedNote(true);
+      onDownloaded();
     } catch (reason) {
       setDownloads((prev) => ({ ...prev, [url]: "error" }));
       setDownloadError(reason instanceof Error ? reason.message : String(reason));
     }
-  }, []);
+  }, [onDownloaded]);
 
   /** Основной файл версии: primary, иначе единственный. */
   function pickFile(version: ShaderVersion) {
@@ -186,7 +366,14 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
   }
 
   return (
-    <div className="shaders-panel">
+    <>
+      {onBack && (
+        <div className="shaders-panel__toolbar">
+          <button type="button" className="btn btn--ghost" onClick={onBack}>
+            ← К скачанным
+          </button>
+        </div>
+      )}
       <input
         type="text"
         className="input shaders-panel__search"
@@ -300,6 +487,6 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
           })}
         </ul>
       )}
-    </div>
+    </>
   );
 }
