@@ -15,6 +15,7 @@ mod minecraft;
 mod modpack;
 mod paths;
 mod progress;
+mod shaders;
 mod sha256;
 mod update;
 

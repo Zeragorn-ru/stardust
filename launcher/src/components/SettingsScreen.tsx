@@ -34,9 +34,8 @@ import LogViewerModal, { type LogTab } from "./LogViewerModal";
 import CrashHistoryModal from "./CrashHistoryModal";
 import JavaRepairModal from "./JavaRepairModal";
 import AdminSettingsSection from "./AdminSettingsSection";
-import ModsSection from "./ModsSection";
 
-type Section = "game" | "interface" | "account" | "mods" | "admin" | "logs" | "about";
+type Section = "game" | "interface" | "account" | "admin" | "logs" | "about";
 
 interface Props {
   profile: PlayerProfile | null;
@@ -570,16 +569,6 @@ export default function SettingsScreen({
           >
             Аккаунт
           </button>
-          <button
-            type="button"
-            className={
-              "settings__nav-item" +
-              (section === "mods" ? " settings__nav-item--active" : "")
-            }
-            onClick={() => setSection("mods")}
-          >
-            Сборка
-          </button>
           {account?.isAdmin && (
             <button
               type="button"
@@ -621,10 +610,6 @@ export default function SettingsScreen({
               onProfileChange={onProfileChange}
               onAccountDeleted={onAccountDeleted}
             />
-          </div>
-        ) : section === "mods" ? (
-          <div className="settings__body stagger" key="mods">
-            <ModsSection />
           </div>
         ) : section === "admin" && account?.isAdmin && settings ? (
           <AdminSettingsSection settings={settings} onChange={setSettings} />

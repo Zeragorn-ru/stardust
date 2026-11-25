@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, onStatsUpdated, openExternal, playGame, markNewsSeen, crashHistory, type CrashAiVerdict } from "../api";
-import { formatBytes } from "../format";
+import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, listOptionalMods, onStatsUpdated, openExternal, playGame, markNewsSeen, type CrashAiVerdict } from "../api";
+import { formatBytes, pluralRu } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
 import CustomizeModal from "./CustomizeModal";
-import CrashHistoryModal from "./CrashHistoryModal";
+import BuildModal, { type BuildTab } from "./BuildModal";
 import CrashVerdictBody, { SEVERITY_LABELS } from "./CrashVerdictBody";
 import MinecraftNickname from "./MinecraftNickname";
 import McText from "./McText";
@@ -119,14 +119,12 @@ export default function MainScreen({
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
   const [news, setNews] = useState<import("../types").NewsHighlight | null>(null);
   const [newsUnread, setNewsUnread] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  // Число записей в истории крашей и последняя запись: лёгкий запрос, чтобы
-  // показать на главном экране, были ли падения (null — ещё грузим/нет связи).
-  const [crashCount, setCrashCount] = useState<number | null>(null);
-  const [lastCrashAt, setLastCrashAt] = useState<string | null>(null);
-  // Последнее обновление сорвалось: на экране могут быть устаревшие данные,
-  // и «Чисто» после упавшей игры читалось бы как «всё хорошо».
-  const [crashStale, setCrashStale] = useState(false);
+  // Модалка «Сборка»: табы моды/краши/шейдеры.
+  const [buildOpen, setBuildOpen] = useState(false);
+  const [buildTab, setBuildTab] = useState<BuildTab>("mods");
+  const buildModal = useDelayedUnmount(buildOpen);
+  // Число модов в активной сборке — для карточки на главном экране.
+  const [modCount, setModCount] = useState<number | null>(null);
 
   const playLockRef = useRef(false);
 
@@ -153,19 +151,7 @@ export default function MainScreen({
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-  const refreshCrashHistory = useCallback(() => {
-    crashHistory()
-      .then((entries) => {
-        setCrashCount(entries.length);
-        setLastCrashAt(entries[0]?.recordedAt ?? null);
-        setCrashStale(false);
-      })
-      // Ошибку не превращаем в «крашей не было»: помечаем данные устаревшими,
-      // чтобы карточка не утверждала, что аварий нет, по несвежему ответу.
-      .catch(() => setCrashStale(true));
-  }, []);
-
-  // Загружаем статистику и настройки при монтировании.
+  // Загружаем статистику, настройки и число модов сборки при монтировании.
   useEffect(() => {
     getStats().then(setStats).catch(() => undefined);
     getSettings().then(setSettings).catch(() => undefined);
@@ -174,8 +160,10 @@ export default function MainScreen({
       const seen = profile.newsSeenAt || localStorage.getItem("launcher.news.seen");
       setNewsUnread(Boolean(highlight.latestUpdatedAt && seen !== highlight.latestUpdatedAt));
     }).catch(() => undefined);
-    refreshCrashHistory();
-  }, [refreshCrashHistory]);
+    listOptionalMods()
+      .then((mods) => setModCount(mods.length))
+      .catch(() => setModCount(null));
+  }, []);
 
   useEffect(() => {
     if (news?.latestUpdatedAt) {
@@ -208,10 +196,8 @@ export default function MainScreen({
     if (wasRunning && !running) {
       playLockRef.current = false;
       getStats().then(setStats).catch(() => undefined);
-      // Если игра только что упала, история могла пополниться — обновляем счётчик.
-      refreshCrashHistory();
     }
-  }, [running, refreshCrashHistory]);
+  }, [running]);
 
   // Слушаем фокус окна Tauri — скрываем модель при сворачивании.
   useEffect(() => {
@@ -478,60 +464,31 @@ export default function MainScreen({
                   </div>
                 )}
               </div>
-              <div className="hero__stats hero__stats--crashes">
-                <div className="hero__stats-title">Краши</div>
-                <button
-                  type="button"
-                  className="crash-entry"
-                  onClick={() => {
-                    setHistoryOpen(true);
-                    // Повторяем запрос при каждом открытии: после ошибки
-                    // «нет связи» иначе остаётся навсегда, а после краша
-                    // счётчик обновляется только если игра была запущена.
-                    refreshCrashHistory();
-                  }}
-                  aria-haspopup="dialog"
-                >
-                  {crashCount == null && !crashStale ? (
-                    <span className="hero__stat">
-                      <span className="hero__stat-value skeleton-text" />
-                      <span className="hero__stat-label skeleton-text" />
+              <button
+                type="button"
+                className="hero__stats hero__stats--build crash-entry"
+                onClick={() => {
+                  setBuildTab("mods");
+                  setBuildOpen(true);
+                }}
+                aria-haspopup="dialog"
+              >
+                <span className="hero__stats-title">Сборка</span>
+                {modCount == null ? (
+                  <span className="hero__stat">
+                    <span className="hero__stat-value skeleton-text" />
+                    <span className="hero__stat-label skeleton-text" />
+                  </span>
+                ) : (
+                  <span className="hero__stat">
+                    <span className="hero__stat-value">
+                      {modCount} {pluralRu(modCount, "мод", "мода", "модов")}
                     </span>
-                  ) : crashCount != null && crashCount > 0 ? (
-                    <>
-                      <span className="hero__stat">
-                        <span className="hero__stat-value hero__stat-value--crash">{crashCount}</span>
-                        <span className="hero__stat-label">записей</span>
-                      </span>
-                      {/* Устаревшие данные не выдаём за актуальные: число
-                          показываем, но пометка «нет связи» важнее даты. */}
-                      {crashStale ? (
-                        <span className="hero__stat">
-                          <span className="hero__stat-value hero__stat-value--muted">—</span>
-                          <span className="hero__stat-label">нет связи</span>
-                        </span>
-                      ) : lastCrashAt ? (
-                        <span className="hero__stat">
-                          <span className="hero__stat-value crash-entry__date">{formatLastJoin(lastCrashAt)}</span>
-                          <span className="hero__stat-label">последний</span>
-                        </span>
-                      ) : null}
-                    </>
-                  ) : crashStale ? (
-                    // Ошибка запроса — не повод утверждать, что аварий не было.
-                    <span className="hero__stat">
-                      <span className="hero__stat-value hero__stat-value--muted">—</span>
-                      <span className="hero__stat-label">нет связи</span>
-                    </span>
-                  ) : (
-                    <span className="hero__stat">
-                      <span className="hero__stat-value hero__stat-value--online">Чисто</span>
-                      <span className="hero__stat-label">аварий не было</span>
-                    </span>
-                  )}
-                  <span className="crash-entry__hint">Открыть историю →</span>
-                </button>
-              </div>
+                    <span className="hero__stat-label">в сборке</span>
+                  </span>
+                )}
+                <span className="crash-entry__hint">Моды и шейдеры →</span>
+              </button>
             </div>
           <button
             className="btn btn--play stagger-item"
@@ -596,16 +553,25 @@ export default function MainScreen({
         </div>
       </section>
 
-      {/* Пока открыта история, тост прячем: иначе Escape закрыл бы оба
+      {/* Пока открыта сборка, тост прячем: иначе Escape закрыл бы оба
           окна разом, а вердикт никуда не денется — он в состоянии App. */}
-      {crashVerdict && !historyOpen && (
+      {crashVerdict && !buildOpen && (
         <CrashVerdictToast
           verdict={crashVerdict}
           onDismiss={onDismissCrashVerdict}
-          onOpenHistory={() => setHistoryOpen(true)}
+          onOpenHistory={() => {
+            setBuildTab("crashes");
+            setBuildOpen(true);
+          }}
         />
       )}
-      {historyOpen && <CrashHistoryModal onClose={() => setHistoryOpen(false)} />}
+      {buildModal.shouldRender && (
+        <BuildModal
+          initialTab={buildTab}
+          closing={!buildModal.visible}
+          onClose={() => setBuildOpen(false)}
+        />
+      )}
 
       {playersOpen && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setPlayersOpen(false); }}>

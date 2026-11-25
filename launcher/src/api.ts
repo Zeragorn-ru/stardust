@@ -28,6 +28,8 @@ import type {
   PlayerStats,
   Progress,
   Settings,
+  ShaderSearchHit,
+  ShaderVersion,
   Skin,
   SkinModel,
   TelegramLinkResponse,
@@ -772,6 +774,27 @@ export async function selectModProfile(profileKey: string): Promise<number> {
     return 0;
   }
   return invoke<number>("select_mod_profile", { profileKey });
+}
+
+/** Поиск шейдерпаков на Modrinth; пустой запрос — топ по загрузкам. */
+export async function searchShaders(query?: string): Promise<ShaderSearchHit[]> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Поиск шейдеров доступен только в приложении");
+  return invoke<ShaderSearchHit[]>("search_shaders", { query: query ?? null });
+}
+
+/** Версии шейдерпака Modrinth по его projectId. */
+export async function listShaderVersions(projectId: string): Promise<ShaderVersion[]> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Шейдеры доступны только в приложении");
+  return invoke<ShaderVersion[]>("list_shader_versions", { projectId });
+}
+
+/** Скачать шейдерпак в папку shaderpacks; возвращает путь к файлу. */
+export async function downloadShader(url: string, filename: string): Promise<string> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Скачивание шейдеров доступно только в приложении");
+  return invoke<string>("download_shader", { url, filename });
 }
 
 /**

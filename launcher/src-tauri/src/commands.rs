@@ -390,6 +390,11 @@ enum ChallengeOutcome {
 /// и все поддомены.
 pub(crate) const BUILTIN_NO_PROXY: &str = "localhost,127.0.0.0/8,::1";
 
+/// Адрес встроенного HTTP-прокси Stardust (squid). Используется и в
+/// настройках прокси лаунчера, и в модулях, которые ходят через прокси
+/// независимо от выбора пользователя (shaders.rs — Modrinth заблокирован в РФ).
+pub(crate) const BUILTIN_PROXY_URL: &str = "http://assets.zeragorn.xyz:3128";
+
 pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
     let mut builder = reqwest::Client::builder()
         .user_agent(concat!("launcher/", env!("CARGO_PKG_VERSION")))
@@ -403,7 +408,7 @@ pub(crate) fn create_http_client(proxy_type: &ProxyType) -> reqwest::Client {
     match proxy_type {
         ProxyType::System => {}
         ProxyType::Builtin => {
-            if let Ok(p) = reqwest::Proxy::all("http://assets.zeragorn.xyz:3128") {
+            if let Ok(p) = reqwest::Proxy::all(BUILTIN_PROXY_URL) {
                 builder = builder.proxy(p.no_proxy(no_proxy.clone()));
             }
         }
@@ -4231,6 +4236,9 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             download_java,
             install_fixed_java,
             download_temurin_java,
+            crate::shaders::search_shaders,
+            crate::shaders::list_shader_versions,
+            crate::shaders::download_shader,
             app_info,
             get_data_directory_info,
             choose_data_directory,

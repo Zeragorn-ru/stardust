@@ -1790,19 +1790,18 @@ button,
 }
 
 .hero__info-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
-    flex-wrap: wrap;
 }
 
-/* Минимум на блок: три колонки помещаются в окно 1000px (минимальная
-   ширина), а если места меньше — блоки честно переносятся, а не сжимаются
-   в нечитаемую полосу. */
-.hero__info-row > .hero__stats { min-width: 165px; }
+/* На узких окнах три колонки не читаются — переносим в одну. */
+@media (max-width: 860px) {
+    .hero__info-row { grid-template-columns: 1fr; }
+}
 
 .hero__stats {
     position: relative;
-    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -1986,9 +1985,16 @@ button,
 .hero__stat-value--muted  { opacity: 0.4; }
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
 
-/* Блок «Краши»: вход в историю крашей прямо с главного экрана — раньше он
-   жил только в настройках, и игрок после падения не находил разбор. */
-.hero__stats--crashes { flex: 0 0 auto; min-width: 190px; }
+/* Блок «Сборка»: вход в модалку сборки (моды/краши/шейдеры) прямо с
+   главного экрана. Вся карточка — кнопка, ховер — как у строки крашей. */
+.hero__stats--build {
+    text-align: left;
+    transition: border-color var(--t-fast), background var(--t-fast);
+}
+.hero__stats--build:hover {
+    border-color: rgba(255, 159, 67, 0.4);
+    background: rgba(255, 159, 67, 0.06);
+}
 .crash-entry {
     display: flex;
     flex-direction: column;
@@ -2002,8 +2008,6 @@ button,
     text-align: left;
     cursor: pointer;
 }
-.crash-entry__date { font-size: 15px; font-variant-numeric: tabular-nums; }
-.hero__stat-value--crash { color: var(--gold); }
 .crash-entry__hint {
     font-size: 11px;
     font-weight: 700;
@@ -2286,8 +2290,17 @@ button,
     display: flex;
     flex-direction: column;
 }
+/* Панель живёт и в модалке, и во вкладке «Краши» модалки сборки:
+   скролл отдаём списку, панель тянется на всю высоту контейнера. */
+.crash-history__panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 0 20px 18px;
+}
 .crash-history__count {
-    margin: 2px 0 0;
+    margin: 10px 0 0;
     font-size: 12px;
 }
 .crash-history__state {
@@ -2304,7 +2317,7 @@ button,
 .crash-history__list {
     list-style: none;
     margin: 0;
-    padding: 14px 20px 18px;
+    padding: 14px 0 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -4708,6 +4721,216 @@ button.info-card__path--link:hover:not(:disabled) {
 }
 .customize-tabs__ink.is-right {
     --tabs-i: 1;
+}
+
+/* ============ Модалка «Сборка» (моды / краши / шейдеры) ============ */
+
+.build-modal {
+    width: min(680px, 100%);
+    max-height: min(80vh, 760px);
+}
+
+/* Тело: скроллится целиком, табы остаются в шапке. */
+.build-modal__body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ModsSection и краши скроллятся собственными списками — даём телу
+   прокрутку только когда контент не имеет своего (обёртка column + auto). */
+.build-modal__body > .mods-section {
+    overflow-y: auto;
+    padding: 0 20px 18px;
+}
+
+/* --- Вкладка «Шейдеры»: поиск и скачивание с Modrinth --- */
+
+.shaders-panel {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 20px 18px;
+}
+
+.shaders-panel__search {
+    flex: 0 0 auto;
+}
+
+.shaders-panel__note {
+    margin: 0;
+    padding: 10px 14px;
+    border: 1px solid rgba(74, 222, 128, 0.28);
+    border-radius: var(--radius-sm);
+    background: rgba(74, 222, 128, 0.08);
+    color: var(--emerald);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.shaders-panel__error,
+.shaders-panel__state {
+    margin: 0;
+    padding: 4px 2px;
+    font-size: 13px;
+}
+
+.shaders-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.shaders-list__item {
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    background: var(--glass);
+    overflow: hidden;
+}
+
+/* Строка шейдерпака: иконка, название, описание, загрузки, шеврон. */
+.shader-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--t-fast);
+}
+
+.shader-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.shader-row__icon {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--muted);
+    overflow: hidden;
+}
+
+.shader-row__icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.shader-row__text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.shader-row__title {
+    font-weight: 700;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shader-row__desc {
+    font-size: 12px;
+    line-height: 1.4;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.shader-row__meta {
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.shader-row__chevron {
+    flex: 0 0 auto;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+/* Версии раскрытого шейдерпака. */
+.shader-versions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 14px 12px;
+    border-top: 1px solid var(--glass-border);
+}
+
+.shader-versions__state {
+    margin: 0;
+    padding: 8px 0;
+    font-size: 13px;
+}
+
+.shader-version {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.shader-version__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.shader-version__num {
+    font-weight: 700;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shader-version__gc {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.shader-version__btn {
+    flex: 0 0 auto;
+    min-width: 96px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .customize-wip {
