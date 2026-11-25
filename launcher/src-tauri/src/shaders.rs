@@ -41,11 +41,12 @@ pub enum PackKind {
 }
 
 impl PackKind {
-    /// Префикс публичного прокси admin-server'а.
+    /// Сегмент публичного прокси admin-server'а: подставляется в
+    /// `{base}/public/{segment}/...` (сами префиксы /public/ там уже есть).
     fn proxy_base(self) -> &'static str {
         match self {
-            PackKind::Shader => "/public/shaders",
-            PackKind::ResourcePack => "/public/resourcepacks",
+            PackKind::Shader => "shaders",
+            PackKind::ResourcePack => "resourcepacks",
         }
     }
 
@@ -220,11 +221,13 @@ async fn list_downloaded_packs(
         .map_err(|e| format!("Не удалось прочитать папку {}: {e}", kind.dir_name()))?
     {
         let name = entry.file_name().to_string_lossy().into_owned();
-        // Каталоги, временные файлы (*.download-*) и файлы-иконки
-        // (*.icon.png) в списке не показываем.
+        // В списке не показываем: каталоги, временные файлы (*.download-*),
+        // файлы-иконки (*.icon.png) и текстовые файлы настроек Iris
+        // (`<пак>.zip.txt` — их создаёт сама игра рядом с архивом).
         if !valid_pack_filename(&name)
             || name.ends_with(".download-")
             || name.ends_with(ICON_SUFFIX)
+            || name.to_lowercase().ends_with(".txt")
         {
             continue;
         }
