@@ -9,6 +9,8 @@
 /* ── Сайдбар ──*/
 
 .sidebar {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   width: var(--sidebar-w);
@@ -16,6 +18,7 @@
   background: var(--surface);
   border-right: 1px solid var(--border);
   min-height: 0;
+  transition: width 0.18s ease;
 }
 
 .brand {
@@ -41,40 +44,48 @@
   small { font-size: var(--fs-xs); color: var(--text-faint); }
 }
 
-.sidebar-toggle {
+/* Кнопка сворачивания: круглая, на границе сайдбара и контента.
+   В развёрнутом виде шеврон смотрит влево («свернуть»), в свёрнутом —
+   вправо («развернуть»).*/
+.sidebar-collapse {
+  position: absolute;
+  top: 19px;
+  right: -11px;
+  z-index: 3;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 3px;
-  width: 24px;
-  height: 24px;
-  flex: none;
-  padding: 4px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
   color: var(--text-dim);
   cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
 
-  span {
-    display: block;
-    height: 2px;
-    border-radius: 1px;
-    background: currentColor;
-  }
-
-  &:hover { background: var(--hover); color: var(--text); }
+  svg { transition: transform 0.18s ease; transform: rotate(180deg); }
+  &:hover { color: var(--accent); border-color: var(--accent); }
 }
 
-/* Свёрнутое состояние: только иконки*/
+/* Свёрнутое состояние: только иконки, названия — в нативных тултипах*/
 .app-collapsed {
   .sidebar { width: var(--sidebar-w-collapsed); }
-  .brand-copy, .nav-label, .nav-group, .who-name { display: none; }
+  .sidebar-collapse svg { transform: rotate(0deg); }
+  .brand-copy, .nav-label, .who-name { display: none; }
   .brand { justify-content: center; padding: 0; }
-  .brand img { margin-right: 0; }
   .nav-item { justify-content: center; padding: 0; }
-  .sidebar-toggle span:first-child { transform: rotate(90deg) translateX(2px); }
   .who { justify-content: center; }
+  /* Названия групп заменяются тонкими разделителями*/
+  .nav-group {
+    height: 1px;
+    padding: 0;
+    margin: var(--s2) 12px;
+    background: var(--border);
+    color: transparent;
+    overflow: hidden;
+  }
 }
 
 .nav {
@@ -121,6 +132,18 @@
 .nav-active {
   background: var(--accent-soft);
   color: var(--accent);
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 7px;
+    bottom: 7px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
 
   &:hover { background: var(--accent-soft); color: var(--accent); }
 }

@@ -10,7 +10,7 @@ import { FeedbackProvider } from "../ui/feedback";
 import { ContextMenuProvider, IconButton } from "../ui/components";
 import { McText } from "../ui/McText";
 import { NAV, NAV_GROUPS, navItem, subrouteTitle } from "../ui/nav";
-import { IconClose, IconLogout, IconMenu } from "../ui/icons";
+import { IconChevronRight, IconClose, IconLogout, IconMenu } from "../ui/icons";
 import { Login } from "../pages/Login";
 
 const OverviewPage = lazy(() => import("../pages/OverviewPage"));
@@ -106,11 +106,16 @@ function Shell() {
       )}
 
       <aside className="sidebar">
-        <SidebarBody
-          username={username}
-          onLogout={logout}
-          onToggle={toggleSidebar}
-        />
+        <SidebarBody username={username} onLogout={logout} />
+        <button
+          type="button"
+          className="sidebar-collapse"
+          aria-label={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          title={collapsed ? "Развернуть меню" : "Свернуть меню"}
+          onClick={toggleSidebar}
+        >
+          <IconChevronRight size={14} />
+        </button>
       </aside>
 
       <div className="workspace">
@@ -165,12 +170,10 @@ function Shell() {
 function SidebarBody({
   username,
   onLogout,
-  onToggle,
   onCloseDrawer,
 }: {
   username: string | null;
   onLogout: () => void;
-  onToggle?: () => void;
   onCloseDrawer?: () => void;
 }) {
   return (
@@ -185,17 +188,6 @@ function SidebarBody({
           <IconButton label="Закрыть меню" size="sm" onClick={onCloseDrawer}>
             <IconClose size={15} />
           </IconButton>
-        )}
-        {onToggle && (
-          <button
-            type="button"
-            className="sidebar-toggle"
-            aria-label="Свернуть меню"
-            onClick={onToggle}
-          >
-            <span />
-            <span />
-          </button>
         )}
       </div>
       <nav className="nav">
@@ -227,7 +219,7 @@ function SidebarBody({
             <McText className="who-name ellipsis" text={username} />
           </div>
         )}
-        <button type="button" className="nav-item" onClick={onLogout}>
+        <button type="button" className="nav-item" title="Выйти" onClick={onLogout}>
           <IconLogout size={16} />
           <span className="nav-label">Выйти</span>
         </button>
