@@ -61,16 +61,18 @@ jobs:
   # macos-latest. Раннер офлайн → сборка автоматически уезжает на GitHub.
   pick-runner:
     runs-on: ubuntu-22.04
-    # Чтение списка self-hosted раннеров требует administration.
-    permissions:
-      administration: read
     outputs:
       macos: ${{ steps.pick.outputs.macos }}
     steps:
       - name: "Свой раннер macOS или GitHub-hosted?"
         id: pick
+        # GITHUB_TOKEN не умеет читать список self-hosted раннеров (нет
+        # administration, и даже перечислять его в permissions нельзя — файл
+        # становится невалидным). Пробуем RELEASE_TOKEN; если и он не может
+        # (403) — молча считаем, что своего раннера нет, и идём на
+        # macos-latest: фоллбэк встроен в саму проверку.
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           if gh api "repos/${{ github.repository }}/actions/runners?per_page=100" \
             --jq '.runners[] | select(.status == "online") | .labels[].name' \
