@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { BanInfo, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
+import type { BanInfo, OptionalMod, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
 import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, listOptionalMods, onStatsUpdated, openExternal, playGame, markNewsSeen, type CrashAiVerdict } from "../api";
 import { formatBytes, pluralRu } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
@@ -119,12 +119,12 @@ export default function MainScreen({
   const [ban, setBan] = useState<BanInfo | null>(profile.ban ?? null);
   const [news, setNews] = useState<import("../types").NewsHighlight | null>(null);
   const [newsUnread, setNewsUnread] = useState(false);
-  // Модалка «Сборка»: табы моды/краши/шейдеры.
+  // Экран «Сборка»: вкладки моды/краши/шейдеры (открывается с карточки).
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildTab, setBuildTab] = useState<BuildTab>("mods");
-  const buildModal = useDelayedUnmount(buildOpen);
-  // Число модов в активной сборке — для карточки на главном экране.
-  const [modCount, setModCount] = useState<number | null>(null);
+  // Список модов сборки: на карточке показываем число ВКЛЮЧЁННЫХ —
+  // та же логика, что у счётчика «включено N из M» в ModsSection.
+  const [mods, setMods] = useState<OptionalMod[] | null>(null);
 
   const playLockRef = useRef(false);
 
@@ -161,9 +161,22 @@ export default function MainScreen({
       setNewsUnread(Boolean(highlight.latestUpdatedAt && seen !== highlight.latestUpdatedAt));
     }).catch(() => undefined);
     listOptionalMods()
-      .then((mods) => setModCount(mods.length))
-      .catch(() => setModCount(null));
+      .then(setMods)
+      .catch(() => setMods(null));
   }, []);
+
+  // После закрытия сборки перечитываем моды: тумблеры внутри могли
+  // поменять включённость — карточка должна показать актуальное число.
+  const wasBuildOpenRef = useRef(false);
+  useEffect(() => {
+    if (buildOpen) {
+      wasBuildOpenRef.current = true;
+      return;
+    }
+    if (!wasBuildOpenRef.current) return;
+    wasBuildOpenRef.current = false;
+    listOptionalMods().then(setMods).catch(() => undefined);
+  }, [buildOpen]);
 
   useEffect(() => {
     if (news?.latestUpdatedAt) {
@@ -474,18 +487,29 @@ export default function MainScreen({
                 aria-haspopup="dialog"
               >
                 <span className="hero__stats-title">Сборка</span>
-                {modCount == null ? (
+                {mods == null ? (
                   <span className="hero__stat">
                     <span className="hero__stat-value skeleton-text" />
                     <span className="hero__stat-label skeleton-text" />
                   </span>
                 ) : (
-                  <span className="hero__stat">
-                    <span className="hero__stat-value">
-                      {modCount} {pluralRu(modCount, "мод", "мода", "модов")}
-                    </span>
-                    <span className="hero__stat-label">в сборке</span>
-                  </span>
+                  (() => {
+                    // Точная логика ModsSection: включённые — все моды с
+                    // enabled=true; знаменатель — доступные (не залоченные
+                    // в другом пресете) моды.
+                    const enabledCount = mods.filter((m) => m.enabled).length;
+                    const accessibleCount = mods.filter((m) => !m.locked).length;
+                    return (
+                      <span className="hero__stat">
+                        <span className="hero__stat-value">
+                          {enabledCount} из {accessibleCount}
+                        </span>
+                        <span className="hero__stat-label">
+                          {pluralRu(enabledCount, "мод", "мода", "модов")} включено
+                        </span>
+                      </span>
+                    );
+                  })()
                 )}
                 <span className="crash-entry__hint">Моды и шейдеры →</span>
               </button>
@@ -565,10 +589,9 @@ export default function MainScreen({
           }}
         />
       )}
-      {buildModal.shouldRender && (
+      {buildOpen && (
         <BuildModal
           initialTab={buildTab}
-          closing={!buildModal.visible}
           onClose={() => setBuildOpen(false)}
         />
       )}

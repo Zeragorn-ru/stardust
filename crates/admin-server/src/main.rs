@@ -50,6 +50,7 @@ mod api_v1;
 mod backup;
 mod crash_ai;
 mod mods;
+mod shaders_public;
 
 /// Максимальный размер тела запроса на загрузку файла (один мод/конфиг).
 /// Задаётся только на multipart-маршруте загрузки, не глобально.
@@ -532,6 +533,21 @@ async fn main() {
             get(public_season_leaderboards),
         )
         .route("/manifest", get(manifest))
+        // --- Публичный прокси Modrinth для вкладки «Шейдеры» лаунчера
+        // (shaders_public.rs): Modrinth заблокирован в РФ, DPI режет и
+        // запросы через сторонний прокси — ходим в него с сервера. ---
+        .route(
+            "/public/shaders/search",
+            get(shaders_public::shaders_search),
+        )
+        .route(
+            "/public/shaders/versions",
+            get(shaders_public::shaders_versions),
+        )
+        .route(
+            "/public/shaders/download",
+            get(shaders_public::shaders_download),
+        )
         .route(
             "/authlib-injector/latest.json",
             get(authlib_injector_metadata),
