@@ -55,9 +55,31 @@ jobs:
             gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1
           fi
 
+  # Маршрутизация macOS-джобы. Сборка под macOS возможна только на macOS
+  # (Xcode/codesign), поэтому выбор — между нашим self-hosted раннером
+  # (ноутбук, guard.sh включает его по питанию/заряду) и GitHub-hosted
+  # macos-latest. Раннер офлайн → сборка автоматически уезжает на GitHub.
+  pick-runner:
+    runs-on: ubuntu-22.04
+    outputs:
+      macos: ${{ steps.pick.outputs.macos }}
+    steps:
+      - name: "Свой раннер macOS или GitHub-hosted?"
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/actions/runners?per_page=100" \
+            --jq '.runners[] | select(.status == "online") | .labels[].name' \
+            | grep -qx "stardust-macos"; then
+            echo "macos=stardust-macos" >> "$GITHUB_OUTPUT"
+          else
+            echo "macos=macos-latest" >> "$GITHUB_OUTPUT"
+          fi
+
   release:
-    needs: create-release
-    if: ${{ always() && (!startsWith(github.ref, 'refs/tags/') || needs.create-release.result == 'success') }}
+    needs: [create-release, pick-runner]
+    if: ${{ always() && needs.pick-runner.result == 'success' && (!startsWith(github.ref, 'refs/tags/') || needs.create-release.result == 'success') }}
     permissions:
       contents: write
     strategy:
@@ -76,7 +98,10 @@ jobs:
             platform: macos
             runner: macos-latest
             tauri-args: "--target universal-apple-darwin"
-    runs-on: ${{ matrix.runner }}
+    # macOS: свой раннер (stardust-macos), если онлайн, иначе macos-latest.
+    # Параметр platform для тулчейна остаётся macos-latest в обоих случаях —
+    # от него зависят universal-таргет x86_64 и ключи кеша.
+    runs-on: ${{ matrix.id == 'macos' && needs.pick-runner.outputs.macos || matrix.runner }}
     # Tauri updater signing keys are stored in this protected environment for
     # every platform, not only macOS.
     environment: launcher-release
