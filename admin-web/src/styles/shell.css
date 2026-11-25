@@ -1,4 +1,4 @@
-// Стили оболочки: сайдбар, топбар, контент, адаптив (drawer < 960px).
+/* Стили оболочки: сайдбар, топбар, контент, адаптив (drawer < 960px).*/
 
 .app {
   display: flex;
@@ -6,7 +6,7 @@
   min-width: 0;
 }
 
-// ── Сайдбар ──
+/* ── Сайдбар ──*/
 
 .sidebar {
   display: flex;
@@ -66,7 +66,7 @@
   &:hover { background: var(--hover); color: var(--text); }
 }
 
-// Свёрнутое состояние: только иконки
+/* Свёрнутое состояние: только иконки*/
 .app-collapsed {
   .sidebar { width: var(--sidebar-w-collapsed); }
   .brand-copy, .nav-label, .nav-group, .who-name { display: none; }
@@ -158,7 +158,7 @@
 
 .who-name { font-size: var(--fs-sm); }
 
-// ── Workspace ──
+/* ── Workspace ──*/
 
 .workspace {
   flex: 1;
@@ -203,7 +203,7 @@
   padding: var(--s5) var(--s6) var(--s8);
 }
 
-// ── Drawer (узкие экраны) ──
+/* ── Drawer (узкие экраны) ──*/
 
 .drawer-backdrop {
   position: fixed;

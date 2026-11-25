@@ -1,4 +1,4 @@
-// База: сброс, типографика, скроллбары, фокус, утилиты.
+/* База: сброс, типографика, скроллбары, фокус, утилиты.*/
 
 * {
   box-sizing: border-box;
@@ -44,7 +44,7 @@ code {
   font-size: 0.92em;
 }
 
-// Фокус только с клавиатуры — строгая золотая рамка на тёмном фоне.
+/* Фокус только с клавиатуры — строгая золотая рамка на тёмном фоне.*/
 :focus { outline: none; }
 :focus-visible {
   outline: none;
@@ -65,7 +65,7 @@ code {
   }
 }
 
-// ── Скроллбары ──
+/* ── Скроллбары ──*/
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -77,7 +77,7 @@ code {
 ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: content-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-// ── Утилиты ──
+/* ── Утилиты ──*/
 .muted { color: var(--text-dim); }
 .faint { color: var(--text-faint); }
 .mono { font-family: var(--mono); font-size: 0.94em; }
@@ -111,7 +111,7 @@ code {
   to { transform: rotate(360deg); }
 }
 
-// Экран загрузки/ошибки уровня раздела
+/* Экран загрузки/ошибки уровня раздела*/
 .page-state {
   display: flex;
   flex-direction: column;

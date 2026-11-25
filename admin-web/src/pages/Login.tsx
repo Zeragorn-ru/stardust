@@ -104,6 +104,9 @@ export function Login({ onLoggedIn }: { onLoggedIn: (username: string) => void }
         if (res.status === "two_factor_required" && res.challenge) {
           setChallenge(res.challenge);
         } else {
+          // Токен обычного входа надо сохранить сами: api.login() его только
+          // возвращает (в отличие от login2fa, который пишет в localStorage).
+          if (res.token) setToken(res.token);
           onLoggedIn(res.username ?? username.trim());
         }
       }

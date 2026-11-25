@@ -1,6 +1,6 @@
-// Единая библиотека стилей примитивов. Экраны используют только эти классы.
+/* Единая библиотека стилей примитивов. Экраны используют только эти классы.*/
 
-// ───────────────────────── Layout helpers ─────────────────────────
+/* ───────────────────────── Layout helpers ─────────────────────────*/
 
 .page-stack {
   display: flex;
@@ -57,7 +57,7 @@
   &:last-child { border-bottom: none; }
 }
 
-// ───────────────────────── Buttons ─────────────────────────
+/* ───────────────────────── Buttons ─────────────────────────*/
 
 .btn {
   display: inline-flex;
@@ -138,7 +138,7 @@
 
 .iconbtn-sm { width: var(--ctl-h-sm); height: var(--ctl-h-sm); }
 
-// ───────────────────────── Inputs ─────────────────────────
+/* ───────────────────────── Inputs ─────────────────────────*/
 
 .input,
 .textarea,
@@ -212,12 +212,12 @@
     font: inherit;
     outline: none;
     &::placeholder { color: var(--text-faint); }
-    // Убираем нативную кнопку очистки (свою рисуем сами)
+/* Убираем нативную кнопку очистки (свою рисуем сами)*/
     &::-webkit-search-cancel-button { display: none; }
   }
 }
 
-// ───────────────────────── Switch / Checkbox ─────────────────────────
+/* ───────────────────────── Switch / Checkbox ─────────────────────────*/
 
 .switch {
   display: inline-flex;
@@ -282,7 +282,7 @@
   &:has(input:disabled) { cursor: not-allowed; opacity: 0.55; }
 }
 
-// ───────────────────────── Field / Form ─────────────────────────
+/* ───────────────────────── Field / Form ─────────────────────────*/
 
 .field {
   display: flex;
@@ -327,7 +327,7 @@
   .form { grid-template-columns: minmax(0, 1fr); }
 }
 
-// ───────────────────────── Panel ─────────────────────────
+/* ───────────────────────── Panel ─────────────────────────*/
 
 .panel {
   background: var(--surface);
@@ -363,7 +363,7 @@
 .panel-body { padding: var(--s5); }
 .panel-flush .panel-body { padding: 0; }
 
-// ───────────────────────── Table ─────────────────────────
+/* ───────────────────────── Table ─────────────────────────*/
 
 .table-wrap {
   overflow-x: auto;
@@ -409,7 +409,7 @@
   }
 }
 
-// ───────────────────────── Tabs ─────────────────────────
+/* ───────────────────────── Tabs ─────────────────────────*/
 
 .tabs {
   display: flex;
@@ -440,7 +440,7 @@
   border-bottom-color: var(--accent);
 }
 
-// ───────────────────────── Modal ─────────────────────────
+/* ───────────────────────── Modal ─────────────────────────*/
 
 .modal-backdrop {
   position: fixed;
@@ -495,7 +495,7 @@
   flex: none;
 }
 
-// ───────────────────────── Chips ─────────────────────────
+/* ───────────────────────── Chips ─────────────────────────*/
 
 .chip {
   display: inline-flex;
@@ -524,7 +524,7 @@
 .text-info { color: var(--info); }
 .text-accent { color: var(--accent); }
 
-// ───────────────────────── StatTile ─────────────────────────
+/* ───────────────────────── StatTile ─────────────────────────*/
 
 .stat-tile {
   display: flex;
@@ -553,7 +553,7 @@
 
 .stat-detail { font-size: var(--fs-xs); color: var(--text-dim); }
 
-// ───────────────────────── Empty / Error / Stale ─────────────────────────
+/* ───────────────────────── Empty / Error / Stale ─────────────────────────*/
 
 .empty-state {
   display: flex;
@@ -587,7 +587,7 @@
   border-bottom: 1px solid var(--border);
 }
 
-// ───────────────────────── Toolbar / PageHeader ─────────────────────────
+/* ───────────────────────── Toolbar / PageHeader ─────────────────────────*/
 
 .toolbar {
   display: flex;
@@ -612,7 +612,7 @@
   gap: var(--s2);
 }
 
-// ───────────────────────── Progress ─────────────────────────
+/* ───────────────────────── Progress ─────────────────────────*/
 
 .progress {
   height: 6px;
@@ -633,7 +633,7 @@
 .progress-err span { background: var(--err); }
 .progress-info span { background: var(--info); }
 
-// ───────────────────────── Toasts ─────────────────────────
+/* ───────────────────────── Toasts ─────────────────────────*/
 
 .toast-stack {
   position: fixed;
@@ -679,7 +679,7 @@
   &:hover { color: var(--text); }
 }
 
-// ───────────────────────── Context menu ─────────────────────────
+/* ───────────────────────── Context menu ─────────────────────────*/
 
 .context-menu {
   position: fixed;
@@ -712,7 +712,7 @@
 
 .context-menu-danger { color: var(--err); &:hover { background: var(--err-soft); } }
 
-// ───────────────────────── Login ─────────────────────────
+/* ───────────────────────── Login ─────────────────────────*/
 
 .login-wrap {
   min-height: 100%;
