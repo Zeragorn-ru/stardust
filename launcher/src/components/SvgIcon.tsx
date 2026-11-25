@@ -1,18 +1,26 @@
-import mapIconUrl from "../assets/icons/map.svg";
-import membersIconUrl from "../assets/icons/members.svg";
-import settingsIconUrl from "../assets/icons/settings.svg";
+import mapIconRaw from "../assets/icons/map.svg?raw";
+import membersIconRaw from "../assets/icons/members.svg?raw";
+import settingsIconRaw from "../assets/icons/settings.svg?raw";
 
 /**
- * Квадратные иконки-кнопки на карточках главного экрана (карта, список
- * игроков, шестерёнка сборки). SVG-файлы в src/assets/icons нормализованы
- * под currentColor: цвет наследуется от кнопки.
+ * Иконки-кнопки на карточках главного экрана (карта, игроки, шестерёнка).
+ * SVG вставляются инлайн (`?raw`), а не через <img>: у img своя изоляция
+ * и currentColor из кнопки внутрь не протекает — иконки красились бы
+ * зашитым в файл цветом. Инлайн-SVG красится от CSS: цвет задаёт кнопка.
  */
 export function SvgIcon({ src, alt }: { src: string; alt: string }) {
-  return <img src={src} alt={alt} className="svg-icon" draggable={false} />;
+  return (
+    <span
+      className="svg-icon"
+      role="img"
+      aria-label={alt}
+      dangerouslySetInnerHTML={{ __html: src }}
+    />
+  );
 }
 
 export const ICONS = {
-  map: mapIconUrl,
-  members: membersIconUrl,
-  settings: settingsIconUrl,
+  map: mapIconRaw,
+  members: membersIconRaw,
+  settings: settingsIconRaw,
 };

@@ -3736,6 +3736,16 @@ async fn list_optional_mods(
     .await
 }
 
+/// Общее число модов активной сборки (включая обязательные и профильные) —
+/// для карточки «Сборка» на главном экране.
+#[tauri::command]
+async fn total_mod_count(
+    state: State<'_, AppState>,
+    app: AppHandle,
+) -> Result<u64, String> {
+    crate::modpack::count_all_mods(&state.http(), &paths::data_dir(&app)).await
+}
+
 /// Включить/выключить опциональный мод. Сохраняет выбор и, если файл уже
 /// скачан, мгновенно переименовывает его (± `.dis`). Моды вне выбранного
 /// профиля переключать нельзя — сначала нужно выбрать их профиль.
@@ -4239,6 +4249,8 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             crate::shaders::search_shaders,
             crate::shaders::list_shader_versions,
             crate::shaders::download_shader,
+            crate::shaders::list_downloaded_shaders,
+            crate::shaders::delete_shader,
             app_info,
             get_data_directory_info,
             choose_data_directory,
@@ -4269,6 +4281,7 @@ pub fn init(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
             get_news,
             mark_news_seen,
             list_optional_mods,
+            total_mod_count,
             set_mod_enabled,
             list_mod_profiles,
             select_mod_profile,

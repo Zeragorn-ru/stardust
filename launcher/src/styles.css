@@ -1903,7 +1903,8 @@ button,
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.05);
-    color: var(--text);
+    /* Явно белый цвет иконок: SVG красится через currentColor. */
+    color: #fff;
     cursor: pointer;
     transition:
         background var(--t-fast),
@@ -5004,11 +5005,18 @@ button.info-card__path--link:hover:not(:disabled) {
     white-space: nowrap;
 }
 
+/* Иконка — инлайн-SVG (SvgIcon.tsx), красится через currentColor от кнопки.
+   pointer-events: none, чтобы клик по самой иконке не «съедался» и целиком
+   приходил на кнопку (включая её обводку). */
 .svg-icon {
+    display: inline-flex;
+    pointer-events: none;
+}
+
+.svg-icon svg {
     width: 16px;
     height: 16px;
     display: block;
-    pointer-events: none;
 }
 
 .customize-wip {

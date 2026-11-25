@@ -118,6 +118,82 @@ pub async fn list_shader_versions(
     parse_versions(&versions)
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadedShader {
+    pub filename: String,
+    pub size: u64,
+}
+
+/// Каталог шейдерпаков активной сборки (создаётся при скачивании).
+fn shaderpacks_dir(app: &AppHandle) -> PathBuf {
+    paths::cached_game_dir(&paths::data_dir(app)).join("shaderpacks")
+}
+
+/// Валидирует имя файла шейдерпака: только имя, без путей и скрытых файлов.
+fn valid_shader_filename(name: &str) -> bool {
+    !name.is_empty()
+        && !name.starts_with('.')
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !name.contains("..")
+}
+
+/// Список скачанных шейдерпаков (файлы в `<игра>/shaderpacks/`).
+#[tauri::command]
+pub async fn list_downloaded_shaders(app: AppHandle) -> Result<Vec<DownloadedShader>, String> {
+    let dir = shaderpacks_dir(&app);
+    let mut out = Vec::new();
+    // Папки может ещё не существовать (ни один шейдерпак не скачан) — это
+    // не ошибка, а просто пустой список. Иначе вкладка «Шейдеры» навсегда
+    // залипала бы на «Загрузка…».
+    let mut entries = match tokio::fs::read_dir(&dir).await {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(out),
+        Err(e) => return Err(format!("Не удалось прочитать папку шейдерпаков: {e}")),
+    };
+    while let Some(entry) = entries
+        .next_entry()
+        .await
+        .map_err(|e| format!("Не удалось прочитать папку шейдерпаков: {e}"))?
+    {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        // Каталоги и временные файлы (*.download-*) не показываем.
+        if !valid_shader_filename(&name) || name.ends_with(".download-") {
+            continue;
+        }
+        let Ok(meta) = entry.metadata().await else {
+            continue;
+        };
+        if !meta.is_file() {
+            continue;
+        }
+        out.push(DownloadedShader {
+            filename: name,
+            size: meta.len(),
+        });
+    }
+    out.sort_by_key(|a| a.filename.to_lowercase());
+    Ok(out)
+}
+
+/// Удаляет скачанный шейдерпак по имени файла.
+#[tauri::command]
+pub async fn delete_shader(app: AppHandle, filename: String) -> Result<(), String> {
+    let name = filename.trim();
+    if !valid_shader_filename(name) {
+        return Err("Некорректное имя файла шейдерпака".to_string());
+    }
+    let path = shaderpacks_dir(&app).join(name);
+    // Double-check, что ушли не выше каталога шейдерпаков.
+    if path.parent() != Some(shaderpacks_dir(&app).as_path()) {
+        return Err("Некорректное имя файла шейдерпака".to_string());
+    }
+    tokio::fs::remove_file(&path)
+        .await
+        .map_err(|e| format!("Не удалось удалить шейдерпак: {e}"))
+}
+
 /// Скачивает файл шейдерпака в `<игра>/shaderpacks/<filename>`.
 ///
 /// Файл проксирует admin-server (`/public/shaders/download`): напрямую

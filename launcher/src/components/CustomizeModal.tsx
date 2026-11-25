@@ -34,33 +34,36 @@ export default function CustomizeModal({ playerName, onClose, onNickSaved }: Pro
           ← Назад
         </button>
         <h2>Кастомизация</h2>
-        <div className="customize-tabs" role="tablist">
+      </header>
+
+      <div className="settings__layout">
+        {/* Подвкладки слева — та же боковая навигация, что в настройках
+            и на экране сборки. */}
+        <nav className="settings__nav" aria-label="Разделы кастомизации">
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === "skin"}
-            className={"customize-tab" + (tab === "skin" ? " is-active" : "")}
+            className={
+              "settings__nav-item" +
+              (tab === "skin" ? " settings__nav-item--active" : "")
+            }
+            aria-current={tab === "skin" ? "true" : undefined}
             onClick={() => setTab("skin")}
           >
             Скин
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={tab === "nick"}
-            className={"customize-tab" + (tab === "nick" ? " is-active" : "")}
+            className={
+              "settings__nav-item" +
+              (tab === "nick" ? " settings__nav-item--active" : "")
+            }
+            aria-current={tab === "nick" ? "true" : undefined}
             onClick={() => setTab("nick")}
           >
             Ник
           </button>
-          <span
-            className={"customize-tabs__ink" + (tab === "nick" ? " is-right" : "")}
-            aria-hidden="true"
-          />
-        </div>
-      </header>
+        </nav>
 
-      <div className="settings__layout">
         <div className="settings__body customize-screen__body">
           {tab === "skin" ? (
             <SkinModal embedded onClose={onClose} />

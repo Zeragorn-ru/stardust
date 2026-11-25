@@ -743,6 +743,15 @@ export async function listOptionalMods(): Promise<OptionalMod[]> {
   return invoke<OptionalMod[]>("list_optional_mods");
 }
 
+/** Общее число модов активной сборки (все kind == Mod из манифеста). */
+export async function totalModCount(): Promise<number | null> {
+  const invoke = await getInvoke();
+  if (!invoke) {
+    return null;
+  }
+  return invoke<number>("total_mod_count");
+}
+
 /** Включить/выключить опциональный мод по его modId. */
 export async function setModEnabled(
   modId: string,

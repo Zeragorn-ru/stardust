@@ -160,11 +160,22 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
   }, [refresh]);
 
   if (downloaded === null) {
+    // Не только «Загрузка…»: если список прочитать не удалось, надо показать
+    // ошибку и дать повторить, иначе вкладка залипает на спиннере навсегда.
     return (
       <div className="shaders-panel">
-        <p className="muted shaders-panel__state">
-          <span className="spinner" /> Загрузка…
-        </p>
+        {loadError ? (
+          <p className="shaders-panel__state">
+            {loadError}{" "}
+            <button type="button" className="btn btn--ghost" onClick={() => void refresh()}>
+              Повторить
+            </button>
+          </p>
+        ) : (
+          <p className="muted shaders-panel__state">
+            <span className="spinner" /> Загрузка…
+          </p>
+        )}
       </div>
     );
   }

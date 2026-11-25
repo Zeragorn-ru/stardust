@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BanInfo, OptionalMod, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
-import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, listOptionalMods, onStatsUpdated, openExternal, playGame, markNewsSeen, type CrashAiVerdict } from "../api";
+import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, listOptionalMods, onStatsUpdated, openExternal, playGame, markNewsSeen, totalModCount, type CrashAiVerdict } from "../api";
 import { formatBytes } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
 import { useSkin } from "../skin";
@@ -123,9 +123,11 @@ export default function MainScreen({
   // Экран «Сборка»: вкладки моды/краши/шейдеры (открывается с карточки).
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildTab, setBuildTab] = useState<BuildTab>("mods");
-  // Список модов сборки: на карточке показываем число ВКЛЮЧЁННЫХ —
-  // та же логика, что у счётчика «включено N из M» в ModsSection.
+  // Список модов сборки: на карточке «Опциональных: X из Y» — из него.
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
+  // Общее число модов сборки (все kind == Mod из манифеста, включая
+  // обязательные): listOptionalMods отдаёт только тумблеры/профили.
+  const [totalMods, setTotalMods] = useState<number | null>(null);
 
   const playLockRef = useRef(false);
 
@@ -164,6 +166,9 @@ export default function MainScreen({
     listOptionalMods()
       .then(setMods)
       .catch(() => setMods(null));
+    totalModCount()
+      .then(setTotalMods)
+      .catch(() => setTotalMods(null));
   }, []);
 
   // После закрытия сборки перечитываем моды: тумблеры внутри могли
@@ -177,6 +182,7 @@ export default function MainScreen({
     if (!wasBuildOpenRef.current) return;
     wasBuildOpenRef.current = false;
     listOptionalMods().then(setMods).catch(() => undefined);
+    totalModCount().then(setTotalMods).catch(() => undefined);
   }, [buildOpen]);
 
   useEffect(() => {
@@ -498,25 +504,27 @@ export default function MainScreen({
                   </button>
                 </div>
                 <span className="hero__stats-title">Сборка</span>
-                {mods == null ? (
+                {totalMods == null ? (
                   <span className="hero__stat">
                     <span className="hero__stat-value skeleton-text" />
                     <span className="hero__stat-label skeleton-text" />
                   </span>
                 ) : (
                   <>
-                    {/* Общее число модов, работающих на клиенте: список
-                        включает и опциональные, и обязательные с профилями,
-                        а enabled у каждого — его фактическое состояние. */}
+                    {/* Общее число модов сборки: total_mod_count считает ВСЕ
+                        клиентские файлы kind == Mod из манифеста (включая
+                        обязательные), mods здесь — только тумблеры/профили. */}
                     <span className="hero__stat">
-                      <span className="hero__stat-value">Всего модов: {mods.length}</span>
+                      <span className="hero__stat-value">Всего модов: {totalMods}</span>
                     </span>
-                    <span className="hero__stat">
-                      <span className="hero__stat-build-sub">
-                        Опциональных: {mods.filter((m) => m.enabled).length} из{" "}
-                        {mods.filter((m) => m.optional).length}
+                    {mods != null && (
+                      <span className="hero__stat">
+                        <span className="hero__stat-build-sub">
+                          Опциональных: {mods.filter((m) => m.enabled).length} из{" "}
+                          {mods.filter((m) => m.optional).length}
+                        </span>
                       </span>
-                    </span>
+                    )}
                   </>
                 )}
               </div>

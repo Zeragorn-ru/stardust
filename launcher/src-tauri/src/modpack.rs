@@ -532,6 +532,19 @@ pub async fn sync(
     Ok(())
 }
 
+/// Общее число модов активной сборки — все клиентские файлы с kind == Mod,
+/// независимо от опциональности и профилей. Именно столько jar'ов реально
+/// работает на клиенте; для карточки «Сборка» на главном экране.
+pub async fn count_all_mods(http: &reqwest::Client, data_dir: &Path) -> Result<u64, String> {
+    let Some(manifest) = crate::backend::fetch_manifest(http, data_dir).await? else {
+        return Ok(0);
+    };
+    Ok(manifest
+        .client_files()
+        .filter(|entry| entry.kind == protocol::FileKind::Mod)
+        .count() as u64)
+}
+
 /// Список клиентских модов активной сборки для экрана «Сборка»: опциональные
 /// (с тумблером) и неопциональные с тегами профилей (управляются профилем).
 /// Если активной сборки нет — пустой список.
