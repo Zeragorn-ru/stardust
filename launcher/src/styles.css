@@ -1985,9 +1985,17 @@ button,
 .hero__stat-value--muted  { opacity: 0.4; }
 .hero__stat-unit { font-size: 12px; font-weight: 600; opacity: 0.6; }
 
-/* Блок «Сборка»: вход в модалку сборки (моды/краши/шейдеры) прямо с
-   главного экрана. Вся карточка — кнопка, ховер — как у строки крашей. */
-.hero__stats--build {
+/* Блок «Сборка»: вход в экран сборки (моды/краши/шейдеры) прямо с
+   главного экрана. Вся карточка — кнопка, ховер — как у строки крашей.
+   Селектор с двумя классами: .crash-entry (идёт ниже по файлу) сбрасывает
+   фон/рамку/паддинги, а карточке сборки нужен фон как у соседних
+   блоков .hero__stats. */
+.hero__stats.hero__stats--build {
+    padding: 14px 20px;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
     text-align: left;
     transition: border-color var(--t-fast), background var(--t-fast);
 }
@@ -4723,27 +4731,31 @@ button.info-card__path--link:hover:not(:disabled) {
     --tabs-i: 1;
 }
 
-/* ============ Модалка «Сборка» (моды / краши / шейдеры) ============ */
+/* ============ Экран «Сборка» (моды / краши / шейдеры) ============ */
 
-.build-modal {
-    width: min(680px, 100%);
-    max-height: min(80vh, 760px);
+/* Полноэкранный слой в стилистике настроек: рендерится поверх экранов,
+   фон прозрачный — Aurora приложения видна за ним. Шапка — общая
+   .settings__header (drag-регион как у настроек), навигация — боковая
+   .settings__nav. */
+.build-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    /* Непрозрачный фон: экран закрывает главный целиком, сквозь прозрачный
+       слой просвечивали карточки главного экрана. */
+    background: var(--bg-deep);
 }
 
-/* Тело: скроллится целиком, табы остаются в шапке. */
-.build-modal__body {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+/* Тело: как у настроек, но на всю ширину — ModsSection и краши
+   скроллятся телом, у шейдеров свой внутренний скролл. */
+.build-screen .settings__body {
+    max-width: none;
+    padding: 20px 24px;
+    gap: 0;
 }
 
-/* ModsSection и краши скроллятся собственными списками — даём телу
-   прокрутку только когда контент не имеет своего (обёртка column + auto). */
-.build-modal__body > .mods-section {
-    overflow-y: auto;
-    padding: 0 20px 18px;
+.build-screen .settings__body > .mods-section {
+    padding-bottom: 18px;
 }
 
 /* --- Вкладка «Шейдеры»: поиск и скачивание с Modrinth --- */
