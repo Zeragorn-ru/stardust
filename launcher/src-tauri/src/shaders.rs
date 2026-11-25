@@ -12,7 +12,7 @@
 use std::path::PathBuf;
 
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::{backend, paths};
 
@@ -22,12 +22,13 @@ use crate::{backend, paths};
 /// записать произвольный файл.
 const ALLOWED_FILE_HOSTS: [&str; 1] = ["cdn.modrinth.com"];
 
-/// Клиент для прокси Modrinth на admin-server. Ходим напрямую: admin-server
-/// доступен из РФ без прокси, а через встроенный squid-прокси сейчас не
-/// проходит вообще ничего — DPI режет CONNECT к нашему порту 3128 (проверено
-/// 25.11.2026: 400-инъекция до того, как запрос дойдёт до squid).
-fn shaders_client() -> reqwest::Client {
-    crate::commands::create_http_client(&crate::commands::ProxyType::None)
+/// Клиент для запросов к прокси Modrinth на admin-server: общий HTTP-клиент
+/// лаунчера, построенный по прокси, выбранному пользователем в настройках
+/// (`AppState.http` пересобирается при каждом сохранении настроек).
+/// Сам admin-server доступен из РФ напрямую, поэтому «Без прокси» тоже
+/// работает — Modrinth лифтит уже сервер.
+fn shaders_client(app: &AppHandle) -> reqwest::Client {
+    app.state::<crate::commands::AppState>().http()
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -64,8 +65,11 @@ pub struct ShaderFile {
 
 /// Поиск шейдерпаков: только project_type:shader, сортировка по загрузкам.
 #[tauri::command]
-pub async fn search_shaders(query: Option<String>) -> Result<Vec<ShaderSearchHit>, String> {
-    let client = shaders_client();
+pub async fn search_shaders(
+    app: AppHandle,
+    query: Option<String>,
+) -> Result<Vec<ShaderSearchHit>, String> {
+    let client = shaders_client(&app);
     let mut url = reqwest::Url::parse(&format!("{}/public/shaders/search", backend::admin_base_url()))
         .map_err(|e| format!("Некорректный адрес admin-server: {e}"))?;
     if let Some(q) = query.as_deref().map(str::trim).filter(|q| !q.is_empty()) {
@@ -88,12 +92,15 @@ pub async fn search_shaders(query: Option<String>) -> Result<Vec<ShaderSearchHit
 /// подставляется в URL, поэтому проверяем его формат: Modrinth ID —
 /// 8 символов base62 или slug; всё остальное отбрасываем.
 #[tauri::command]
-pub async fn list_shader_versions(project_id: String) -> Result<Vec<ShaderVersion>, String> {
+pub async fn list_shader_versions(
+    app: AppHandle,
+    project_id: String,
+) -> Result<Vec<ShaderVersion>, String> {
     let id = project_id.trim();
     if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
         return Err("Некорректный идентификатор шейдерпака".to_string());
     }
-    let client = shaders_client();
+    let client = shaders_client(&app);
     let versions: serde_json::Value = client
         .get(format!(
             "{}/public/shaders/versions",
@@ -149,7 +156,7 @@ pub async fn download_shader(
     let dest: PathBuf = dir.join(name);
 
     let progress = crate::progress::Progress::for_java_download(app.clone());
-    let client = shaders_client();
+    let client = shaders_client(&app);
     // Файл качаем с нашего сервера, оригинальный URL — query-параметром.
     let proxied = reqwest::Url::parse(&format!(
         "{}/public/shaders/download",
