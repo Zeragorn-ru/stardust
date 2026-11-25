@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BanInfo, OptionalMod, PlayerProfile, PlayerStats, Progress, Settings } from "../types";
 import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, listOptionalMods, onStatsUpdated, openExternal, playGame, markNewsSeen, type CrashAiVerdict } from "../api";
-import { formatBytes, pluralRu } from "../format";
+import { formatBytes } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
@@ -11,6 +11,7 @@ import BuildModal, { type BuildTab } from "./BuildModal";
 import CrashVerdictBody, { SEVERITY_LABELS } from "./CrashVerdictBody";
 import MinecraftNickname from "./MinecraftNickname";
 import McText from "./McText";
+import { SvgIcon, ICONS } from "./SvgIcon";
 
 // Сохраняем ID между переходами на экран настроек и обратно.
 let activeLaunchId: string | null = null;
@@ -426,14 +427,27 @@ export default function MainScreen({
                 )}
               </div>
               <div className="hero__stats">
+                <div className="hero__card-actions">
+                  <button
+                    type="button"
+                    className="hero__icon-btn"
+                    onClick={() => void openExternal("https://map.stardust-mc.xyz")}
+                    aria-label="Открыть карту"
+                  >
+                    <SvgIcon src={ICONS.map} alt="" />
+                  </button>
+                  <button
+                    type="button"
+                    className="hero__icon-btn"
+                    aria-haspopup="dialog"
+                    aria-expanded={playersOpen}
+                    aria-label="Игроки онлайн"
+                    onClick={() => setPlayersOpen((open) => !open)}
+                  >
+                    <SvgIcon src={ICONS.members} alt="" />
+                  </button>
+                </div>
                 <div className="hero__stats-title">Сервер</div>
-                <button
-                  type="button"
-                  className="server-map-button"
-                  onClick={() => void openExternal("https://map.stardust-mc.xyz")}
-                >
-                  Открыть карту
-                </button>
                 {serverOnline === null ? (
                   <div className="hero__stat">
                     <span className="hero__stat-value hero__stat-value--muted">—</span>
@@ -457,15 +471,6 @@ export default function MainScreen({
                           {serverPlayers != null ? serverPlayers : "—"}
                           {serverMax != null ? <span className="hero__stat-max">/{serverMax}</span> : null}
                         </span>
-                        <button
-                          type="button"
-                          className="server-players-button"
-                          aria-haspopup="dialog"
-                          aria-expanded={playersOpen}
-                          onClick={() => setPlayersOpen((open) => !open)}
-                        >
-                          Список
-                        </button>
                       </div>
                       <span className="hero__stat-label">игроков</span>
                     </div>
@@ -477,15 +482,21 @@ export default function MainScreen({
                   </div>
                 )}
               </div>
-              <button
-                type="button"
-                className="hero__stats hero__stats--build crash-entry"
-                onClick={() => {
-                  setBuildTab("mods");
-                  setBuildOpen(true);
-                }}
-                aria-haspopup="dialog"
-              >
+              <div className="hero__stats hero__stats--build">
+                <div className="hero__card-actions">
+                  <button
+                    type="button"
+                    className="hero__icon-btn"
+                    onClick={() => {
+                      setBuildTab("mods");
+                      setBuildOpen(true);
+                    }}
+                    aria-haspopup="dialog"
+                    aria-label="Редактировать сборку"
+                  >
+                    <SvgIcon src={ICONS.settings} alt="" />
+                  </button>
+                </div>
                 <span className="hero__stats-title">Сборка</span>
                 {mods == null ? (
                   <span className="hero__stat">
@@ -493,18 +504,22 @@ export default function MainScreen({
                     <span className="hero__stat-label skeleton-text" />
                   </span>
                 ) : (
-                  <span className="hero__stat">
+                  <>
                     {/* Общее число модов, работающих на клиенте: список
                         включает и опциональные, и обязательные с профилями,
                         а enabled у каждого — его фактическое состояние. */}
-                    <span className="hero__stat-value">{mods.length}</span>
-                    <span className="hero__stat-label">
-                      {pluralRu(mods.length, "мод", "мода", "модов")} в сборке
+                    <span className="hero__stat">
+                      <span className="hero__stat-value">Всего модов: {mods.length}</span>
                     </span>
-                  </span>
+                    <span className="hero__stat">
+                      <span className="hero__stat-build-sub">
+                        Опциональных: {mods.filter((m) => m.enabled).length} из{" "}
+                        {mods.filter((m) => m.optional).length}
+                      </span>
+                    </span>
+                  </>
                 )}
-                <span className="crash-entry__hint">Моды и шейдеры →</span>
-              </button>
+              </div>
             </div>
           <button
             className="btn btn--play stagger-item"

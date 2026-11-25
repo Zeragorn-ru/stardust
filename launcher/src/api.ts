@@ -27,6 +27,7 @@ import type {
   PlayerProfile,
   PlayerStats,
   Progress,
+  DownloadedShader,
   Settings,
   ShaderSearchHit,
   ShaderVersion,
@@ -795,6 +796,20 @@ export async function downloadShader(url: string, filename: string): Promise<str
   const invoke = await getInvoke();
   if (!invoke) throw new Error("Скачивание шейдеров доступно только в приложении");
   return invoke<string>("download_shader", { url, filename });
+}
+
+/** Список скачанных шейдерпаков (файлы в папке shaderpacks). */
+export async function listDownloadedShaders(): Promise<DownloadedShader[]> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Шейдеры доступны только в приложении");
+  return invoke<DownloadedShader[]>("list_downloaded_shaders");
+}
+
+/** Удалить скачанный шейдерпак по имени файла. */
+export async function deleteShader(filename: string): Promise<void> {
+  const invoke = await getInvoke();
+  if (!invoke) throw new Error("Шейдеры доступны только в приложении");
+  return invoke<void>("delete_shader", { filename });
 }
 
 /**
