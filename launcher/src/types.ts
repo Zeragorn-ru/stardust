@@ -162,7 +162,11 @@ export interface Settings {
   /** Показывать вкладку «Отладка» администратору. */
   debugEnabled: boolean;
   /** Акцентный цвет интерфейса. */
-  accent?: "violet" | "gold";
+  accent?: "violet" | "gold" | "custom";
+  /** Hex кастомного акцента (#RRGGBB), если accent = custom. */
+  customAccent?: string | null;
+  /** Тема оформления: классическая или AMOLED. */
+  theme?: "classic" | "amoled";
 }
 
 /** Режим запуска лаунчера. */

@@ -28,7 +28,7 @@ import {
   saveSettings,
 } from "../api";
 import { useMotion } from "../motion";
-import { applyAccent, rememberAccent } from "../accent";
+import { applyAppearance, rememberAppearance } from "../accent";
 import AccountSection from "./AccountSection";
 import ConfirmDialog, { type ConfirmRequest } from "./ConfirmDialog";
 import LogViewerModal, { type LogTab } from "./LogViewerModal";
@@ -305,7 +305,9 @@ export default function SettingsScreen({
       (settings.javaCustomPath ?? "") !== (initialSettings.javaCustomPath ?? "") ||
       settings.skipBuildCheck !== initialSettings.skipBuildCheck ||
       settings.autoUpdate !== initialSettings.autoUpdate ||
-      (settings.accent ?? "violet") !== (initialSettings.accent ?? "violet"));
+      (settings.accent ?? "violet") !== (initialSettings.accent ?? "violet") ||
+      (settings.customAccent ?? "") !== (initialSettings.customAccent ?? "") ||
+      (settings.theme ?? "classic") !== (initialSettings.theme ?? "classic"));
 
   useEffect(() => {
     if (!settings || !initialSettings || !isDirty) return;
@@ -324,13 +326,18 @@ export default function SettingsScreen({
     return () => window.clearTimeout(id);
   }, [settings, initialSettings, isDirty]);
 
-  // Акцент применяется сразу (живой предпросмотр) и запоминается в localStorage,
-  // чтобы следующий запуск стартовал без вспышки золотым.
+  // Тема и акцент применяются сразу (живой предпросмотр) и запоминаются
+  // в localStorage, чтобы следующий запуск стартовал без вспышки чужими цветами.
   useEffect(() => {
     if (!settings) return;
-    const accent = applyAccent(settings.accent);
-    rememberAccent(accent);
-  }, [settings?.accent]);
+    const view = {
+      theme: settings.theme,
+      accent: settings.accent,
+      customAccent: settings.customAccent,
+    };
+    applyAppearance(view);
+    rememberAppearance(view);
+  }, [settings?.accent, settings?.customAccent, settings?.theme]);
 
   // Кнопка «← Назад» должна проходить ту же проверку, что и Escape:
   // иначе уход мышкой молча отбрасывает несохранённые изменения.
@@ -986,18 +993,61 @@ export default function SettingsScreen({
 
             {section === "interface" && settings && (
               <div className="field stagger-item">
-                <span>Акцент</span>
-                <div className="segmented" role="radiogroup" aria-label="Акцентный цвет">
-                  {([["violet", "Фиолетовый"], ["gold", "Золотой"]] as const).map(([value, label]) => (
+                <span>Тема</span>
+                <div className="segmented" role="radiogroup" aria-label="Тема оформления">
+                  {([["classic", "Классическая"], ["amoled", "AMOLED"]] as const).map(([value, label]) => (
                     <button
                       key={value}
                       type="button"
-                      className={"segmented__opt" + ((settings.accent ?? "violet") === value ? " is-active" : "")}
-                      onClick={() => setSettings({ ...settings, accent: value })}
+                      className={"segmented__opt" + ((settings.theme ?? "classic") === value ? " is-active" : "")}
+                      onClick={() => setSettings({ ...settings, theme: value })}
                     >
                       {label}
                     </button>
                   ))}
+                </div>
+                <span className="muted field__desc">
+                  AMOLED — строгий монохром: однотонные серые фоны и чистый чёрный.
+                </span>
+              </div>
+            )}
+
+            {section === "interface" && settings && (
+              <div className="field stagger-item">
+                <span>Акцент</span>
+                <div className="segmented" role="radiogroup" aria-label="Акцентный цвет">
+                  {([["violet", "Фиолетовый"], ["gold", "Золотой"], ["custom", "Свой"]] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={"segmented__opt" + ((settings.accent ?? "violet") === value ? " is-active" : "")}
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          accent: value,
+                          // Подставляем hex сразу, чтобы живой предпросмотр на
+                          // «Свой» сработал даже при первом включении.
+                          customAccent:
+                            value === "custom"
+                              ? (settings.customAccent ?? "#7c5cff")
+                              : settings.customAccent,
+                        })
+                      }
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  {(settings.accent ?? "violet") === "custom" && (
+                    <input
+                      type="color"
+                      aria-label="Цвет акцента"
+                      className="accent-color-input"
+                      value={settings.customAccent ?? "#7c5cff"}
+                      onChange={(e) =>
+                        setSettings({ ...settings, customAccent: e.target.value })
+                      }
+                    />
+                  )}
                 </div>
               </div>
             )}

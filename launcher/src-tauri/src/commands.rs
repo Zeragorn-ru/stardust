@@ -43,6 +43,28 @@ pub enum Accent {
     #[default]
     Violet,
     Gold,
+    /// Произвольный цвет из настроек; hex лежит в `custom_accent`.
+    Custom,
+}
+
+/// Тема оформления: классическая («луновая палитра») и AMOLED
+/// (монохромные серые фоны, чистый чёрный на OLED).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Theme {
+    #[default]
+    Classic,
+    Amoled,
+}
+
+/// Кастомный акцент: только #RRGGBB. Всё остальное — None.
+fn normalize_custom_accent(hex: &str) -> Option<String> {
+    let raw = hex.trim().strip_prefix('#').unwrap_or(hex.trim());
+    if raw.len() == 6 && raw.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(format!("#{}", raw.to_ascii_lowercase()))
+    } else {
+        None
+    }
 }
 
 /// Настройки лаунчера, сохраняемые между запусками.
@@ -82,6 +104,12 @@ pub struct Settings {
     /// Акцентный цвет интерфейса.
     #[serde(rename = "accent", default)]
     pub accent: Accent,
+    /// Hex кастомного акцента (#RRGGBB), если accent = custom.
+    #[serde(rename = "customAccent", default)]
+    pub custom_accent: Option<String>,
+    /// Тема оформления.
+    #[serde(rename = "theme", default)]
+    pub theme: Theme,
     /// Отладка: показывать кнопку отладочного окна анимаций в админ-настройках.
     #[serde(rename = "debugEnabled", default)]
     pub debug_enabled: bool,
@@ -150,12 +178,19 @@ fn normalize_memory_mb(memory_mb: u32) -> u32 {
 
 fn normalize_settings(settings: &mut Settings) -> bool {
     let memory_mb = normalize_memory_mb(settings.memory_mb);
-    if settings.memory_mb == memory_mb {
-        false
-    } else {
+    let memory_changed = settings.memory_mb != memory_mb;
+    if memory_changed {
         settings.memory_mb = memory_mb;
-        true
     }
+    // Кастомный акцент валиден только при accent = custom и только в hex.
+    let custom = if settings.accent == Accent::Custom {
+        settings.custom_accent.as_deref().and_then(normalize_custom_accent)
+    } else {
+        None
+    };
+    let accent_changed = settings.custom_accent != custom;
+    settings.custom_accent = custom;
+    memory_changed || accent_changed
 }
 
 fn normalized_settings(mut settings: Settings) -> Settings {
@@ -176,6 +211,8 @@ impl Default for Settings {
             auto_update: true,
             beta_updates: false,
             accent: Accent::default(),
+            custom_accent: None,
+            theme: Theme::default(),
             debug_enabled: false,
         }
     }

@@ -111,6 +111,53 @@
     --text-on-gold: #1a1812;
 }
 
+/* AMOLED-тема: строгий монохром — однотонные серые фоны вместо синевы,
+   чистый чёрный на OLED. Акцент (все 3 варианта) остаётся единственным
+   цветным пятном, аурора гасится в градации серого. */
+:root[data-theme="amoled"] {
+    --bg: #0c0c0c;
+    --bg-deep: #000000;
+    --bg-elevated: #121212;
+    --surface: #161616;
+    --surface-hover: #1c1c1c;
+    --surface-active: #242424;
+    --glass: rgba(18, 18, 18, 0.6);
+    --glass-strong: rgba(24, 24, 24, 0.78);
+    --glass-border: rgba(120, 120, 120, 0.35);
+    --glass-border-strong: rgba(150, 150, 150, 0.5);
+
+    --text: #e8e8e8;
+    --muted: #8f8f8f;
+    --text-dim: #6b6b6b;
+
+    --aurora-top: #101010;
+    --shadow: 0 20px 60px -20px rgba(0, 0, 0, 0.9);
+}
+
+/* Аурора в AMOLED — серая и приглушённая, а не цветная. */
+:root[data-theme="amoled"] .aurora {
+    filter: grayscale(1) brightness(0.55);
+}
+
+/* Нативный <input type="color"> внутри сегментированного переключателя:
+   компактный кружок с текущим кастомным цветом. */
+.accent-color-input {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--glass-border-strong);
+    border-radius: 999px;
+    background: none;
+    cursor: pointer;
+}
+.accent-color-input::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+.accent-color-input::-webkit-color-swatch {
+    border: none;
+    border-radius: 999px;
+}
+
 /* Режим экономии: быстрые переходы вместо полного отключения анимаций.
    Экраны и элементы появляются мгновенно (0.1s), но не «дергаются». */
 :root[data-motion="off"] {
