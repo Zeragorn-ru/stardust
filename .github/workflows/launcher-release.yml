@@ -56,27 +56,42 @@ jobs:
           fi
 
   # Маршрутизация macOS-джобы. Сборка под macOS возможна только на macOS
-  # (Xcode/codesign), поэтому выбор — между нашим self-hosted раннером
-  # (ноутбук, guard.sh включает его по питанию/заряду) и GitHub-hosted
-  # macos-latest. Раннер офлайн → сборка автоматически уезжает на GitHub.
+  # (Xcode/codesign), поэтому выбор — между GitHub-hosted macos-latest
+  # (основной) и self-hosted раннером falcon-8 (ноутбук, guard.sh включает
+  # его по питанию/заряду). Локальный раннер — фоллбэк: если через минуту
+  # видно, что GitHub-hosted не подхватывает джобу (очередь из зависших
+  # релизов), а ноутбук свободен — собираем на нём.
   pick-runner:
     runs-on: ubuntu-22.04
     outputs:
       macos: ${{ steps.pick.outputs.macos }}
     steps:
-      - name: "Свой раннер macOS или GitHub-hosted?"
+      - name: "GitHub-hosted основной, локальный — при заторе"
         id: pick
         # GITHUB_TOKEN не умеет читать список self-hosted раннеров (нет
         # administration, и даже перечислять его в permissions нельзя — файл
         # становится невалидным). Пробуем RELEASE_TOKEN; если и он не может
-        # (403) — молча считаем, что своего раннера нет, и идём на
-        # macos-latest: фоллбэк встроен в саму проверку.
+        # (403) — считаем, что своего раннера нет.
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          CURRENT_RUN: ${{ github.run_id }}
         run: |
-          if gh api "repos/${{ github.repository }}/actions/runners?per_page=100" \
-            --jq '.runners[] | select(.status == "online") | .labels[].name' \
-            | grep -qx "stardust-macos"; then
+          local_free() {
+            gh api "repos/${{ github.repository }}/actions/runners?per_page=100" \
+              --jq '.runners[] | select(.status == "online" and .busy == false) | .labels[].name' \
+              | grep -qx "stardust-macos"
+          }
+          # Основной путь — GitHub-hosted. Затором считаем наличие других
+          # запущенных запусков этого workflow (их macOS-ноги занимают
+          # hosted-мощности или, как раньше, держат наш локальный раннер).
+          congested() {
+            gh api "repos/${{ github.repository }}/actions/runs?status=in_progress&per_page=100" \
+              --jq '[.workflow_runs[] | select(.name == "launcher-release" and .id != env.CURRENT_RUN)] | length' \
+              | grep -qv '^0$'
+          }
+          sleep 60
+          if congested && local_free; then
+            echo "затор на GitHub-hosted, локальный раннер свободен — собираем на нём"
             echo "macos=stardust-macos" >> "$GITHUB_OUTPUT"
           else
             echo "macos=macos-latest" >> "$GITHUB_OUTPUT"
@@ -133,7 +148,10 @@ jobs:
         with:
           platform: ${{ matrix.runner }}
           cache-key-suffix: release
-          save-cache: ${{ startsWith(github.ref, 'refs/tags/') }}
+          # Кеш сохраняем только на GitHub-hosted: на self-hosted пост-шаг
+          # actions/cache висит на заливке гигабайтов через аплинк ноутбука
+          # (v1.0.35: 30+ минут в «Post Toolchain & caches»).
+          save-cache: ${{ runner.environment == 'github-hosted' && startsWith(github.ref, 'refs/tags/') }}
 
       - name: "③ npm ci"
         uses: ./.github/actions/launcher-install-deps
