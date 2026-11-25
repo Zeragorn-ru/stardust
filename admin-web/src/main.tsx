@@ -1,27 +1,23 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { DesktopApp } from "./desktop/DesktopApp";
-import { redirectIfWrongView } from "./app/viewMode";
+import { App } from "./shell/App";
 import { reloadOnStaleChunk } from "./app/staleChunks";
-import "./styles.css";
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/primitives.css";
+import "./styles/shell.css";
+import "./styles/features.css";
 
-// Деплой сменил чанки под открытой вкладкой — тихо перезагружаемся
-// вместо красного экрана «error loading dynamically imported module».
+// Деплой сменил чанки под открытой вкладкой — тихо перезагружаемся.
 reloadOnStaleChunk();
 
-// Телефон на десктопном URL — уводим на /m. Если редиректим, рендерить не нужно.
-//
-// Data-роутер (а не BrowserRouter) нужен для useBlocker: dirty-guard
-// маршрутов-редакторов (/news/:id, /guides/:id) перехватывает SPA-навигацию
-// и жёсткую перезагрузку, чтобы черновик не исчезал молча. Само дерево
-// маршрутов живёт в DesktopApp (Routes) — здесь только корневая обёртка.
-const router = createBrowserRouter([{ path: "*", element: <DesktopApp /> }]);
+// Data-роутер нужен для useBlocker: dirty-guard маршрутов-редакторов
+// перехватывает уход с несохранённым черновиком.
+const router = createBrowserRouter([{ path: "*", element: <App /> }]);
 
-if (!redirectIfWrongView("desktop")) {
-  ReactDOM.createRoot(document.getElementById("root")!).render(
-    <React.StrictMode>
-      <RouterProvider router={router} />
-    </React.StrictMode>,
-  );
-}
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <RouterProvider router={router} />
+  </React.StrictMode>,
+);

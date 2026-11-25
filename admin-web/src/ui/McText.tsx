@@ -12,10 +12,10 @@
 // Символы без глифа McEmoji сам рисует текстовым фолбэком.
 
 import type { ReactNode } from "react";
-import McEmoji from "../emoji/McEmoji";
-import { MC_EMOJI } from "../emoji/index";
-import { STANDARD_TO_MC } from "../emoji/standardEmojiMap";
-import { normalizeMinecraftText } from "../minecraftText";
+import McEmoji from "./emoji/McEmoji";
+import { MC_EMOJI } from "./emoji/index";
+import { STANDARD_TO_MC } from "./emoji/standardEmojiMap";
+import { normalizeMinecraftText } from "./minecraftText";
 
 /** Экранирует символ как последовательность \u{...} — безопасно для RegExp. */
 function escapeForRegex(char: string): string {

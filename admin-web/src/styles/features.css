@@ -1,0 +1,198 @@
+// Фиче-блоки экранов: классы, специфичные для отдельных страниц.
+// Общие примитивы живут в primitives.css; здесь только композиции.
+
+// ── Детали сборки ──
+
+.build-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+
+.files-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  padding: var(--s3) var(--s4);
+  border-bottom: 1px solid var(--border);
+}
+
+.flags-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.row-muted td { opacity: 0.55; }
+
+.checks-output {
+  margin: 0;
+  padding: var(--s3);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.sync-status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.linklike {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+
+  &:hover { color: var(--accent); text-decoration: none; }
+}
+
+// ── Каталог модов ──
+
+.mod-list { display: flex; flex-direction: column; }
+
+.mod-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s2);
+  border-bottom: 1px solid var(--border);
+  min-width: 0;
+
+  &:last-child { border-bottom: none; }
+  &:hover { background: var(--raised); }
+}
+
+.mod-icon {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--raised);
+}
+
+.mod-icon-empty {
+  display: inline-block;
+  border: 1px dashed var(--border-strong);
+}
+
+// ── Карточка игрока ──
+
+.kv-grid { display: flex; flex-direction: column; }
+
+.kv-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  min-height: var(--row-h);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-sm);
+
+  &:last-child { border-bottom: none; }
+}
+
+.danger-zone {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--s4);
+
+  h3 { margin-bottom: var(--s3); color: var(--err); }
+}
+
+.chip-toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  &:disabled { cursor: not-allowed; opacity: 0.5; }
+}
+
+.gradient-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: none;
+}
+
+// ── Контент: редакторы новостей/гайдов ──
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .editor-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.markdown-preview {
+  padding: var(--s4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 60vh;
+  overflow: auto;
+  font-size: var(--fs-md);
+  line-height: 1.6;
+
+  h1, h2, h3 { margin: var(--s4) 0 var(--s2); }
+  h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
+  p { margin: var(--s2) 0; }
+  ul, ol { padding-left: var(--s5); margin: var(--s2) 0; }
+  code {
+    background: var(--raised);
+    border-radius: var(--radius-sm);
+    padding: 1px 5px;
+  }
+  pre {
+    background: var(--raised);
+    border-radius: var(--radius);
+    padding: var(--s3);
+    overflow-x: auto;
+  }
+  blockquote {
+    margin: var(--s2) 0;
+    padding: 0 var(--s4);
+    border-left: 3px solid var(--border-strong);
+    color: var(--text-dim);
+  }
+  img { max-width: 100%; }
+  a { color: var(--info); }
+}
+
+// ── Логи ──
+
+.log-details {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s2) var(--s4);
+  font-size: var(--fs-sm);
+
+  dt { color: var(--text-faint); }
+  dd { margin: 0; min-width: 0; word-break: break-word; }
+}

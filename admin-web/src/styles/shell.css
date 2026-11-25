@@ -1,0 +1,232 @@
+// Стили оболочки: сайдбар, топбар, контент, адаптив (drawer < 960px).
+
+.app {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+}
+
+// ── Сайдбар ──
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-w);
+  flex: none;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  min-height: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  height: var(--topbar-h);
+  padding: 0 var(--s3);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+
+  img { width: 30px; height: 30px; flex: none; }
+}
+
+.brand-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+
+  strong { font-size: var(--fs-md); }
+  small { font-size: var(--fs-xs); color: var(--text-faint); }
+}
+
+.sidebar-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  padding: 4px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+
+  span {
+    display: block;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+
+  &:hover { background: var(--hover); color: var(--text); }
+}
+
+// Свёрнутое состояние: только иконки
+.app-collapsed {
+  .sidebar { width: var(--sidebar-w-collapsed); }
+  .brand-copy, .nav-label, .nav-group, .who-name { display: none; }
+  .brand { justify-content: center; padding: 0; }
+  .brand img { margin-right: 0; }
+  .nav-item { justify-content: center; padding: 0; }
+  .sidebar-toggle span:first-child { transform: rotate(90deg) translateX(2px); }
+  .who { justify-content: center; }
+}
+
+.nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s3) var(--s2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.nav-group {
+  display: block;
+  padding: 0 var(--s3) var(--s1);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  height: 36px;
+  padding: 0 var(--s3);
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+
+  svg { flex: none; }
+  &:hover { background: var(--hover); color: var(--text); text-decoration: none; }
+}
+
+.nav-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+
+  &:hover { background: var(--accent-soft); color: var(--accent); }
+}
+
+.sidebar-foot {
+  flex: none;
+  padding: var(--s2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  min-width: 0;
+}
+
+.who-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--radius);
+  background: var(--active);
+  color: var(--accent);
+  font-size: var(--fs-sm);
+  font-weight: 650;
+}
+
+.who-name { font-size: var(--fs-sm); }
+
+// ── Workspace ──
+
+.workspace {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  height: var(--topbar-h);
+  padding: 0 var(--s6);
+  flex: none;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar-menu { display: none; }
+
+.topbar-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+
+  strong { font-size: var(--fs-md); }
+  small {
+    font-size: var(--fs-xs);
+    color: var(--text-faint);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5) var(--s6) var(--s8);
+}
+
+// ── Drawer (узкие экраны) ──
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(6, 8, 16, 0.72);
+}
+
+.drawer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  box-shadow: var(--shadow-pop);
+}
+
+@media (max-width: 960px) {
+  .sidebar { display: none; }
+  .topbar-menu { display: inline-flex; }
+  .topbar { padding: 0 var(--s4); }
+  .content { padding: var(--s4); }
+}
+
+@media (max-width: 720px) {
+  .topbar-copy small { display: none; }
+}

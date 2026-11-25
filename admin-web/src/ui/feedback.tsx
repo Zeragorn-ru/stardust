@@ -1,8 +1,6 @@
-// Тосты (всплывающие уведомления) и модальное подтверждение.
-//
-// Заменяют браузерные alert()/confirm() и разрозненные inline-ошибки:
-// единая точка для коротких сообщений об успехе/ошибке и для опасных
-// действий вроде удаления. Оборачивает приложение одним провайдером.
+// Тосты и модальное подтверждение — единая точка обратной связи.
+// Логика портирована из проверенной версии (дедуп ошибок polling-циклов,
+// безопасный фокус в опасных подтверждениях), презентация — новая.
 
 import {
   createContext,
@@ -16,7 +14,8 @@ import {
 } from "react";
 import { useBodyScrollLock } from "./useBodyScrollLock";
 import { useDialogFocus } from "./useDialogFocus";
-import { IconCheck, IconAlert, IconInfo, IconClose } from "./icons";
+import { Button } from "./components";
+import { IconAlert, IconCheck, IconClose, IconInfo } from "./icons";
 
 // ───────────────────────── Типы и контексты ─────────────────────────
 
@@ -68,10 +67,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const nextId = useRef(1);
-  // Дедуп одинаковых ошибок подряд: фоновый опрос может падать каждые
-  // 30 секунд, и каждая итерация раньше порождала новый toast — экран
-  // заливало одинаковыми плашками. Повтор показываем не раньше, чем
-  // предыдущий исчез И показывался другой тост между ними.
+  // Дедуп одинаковых ошибок подряд: фоновый опрос не должен заливать
+  // экран одинаковыми плашками.
   const lastError = useRef<{ text: string; id: number } | null>(null);
 
   const dismiss = useCallback((id: number) => {
@@ -83,12 +80,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const push = useCallback(
     (kind: ToastKind, text: string) => {
       const id = nextId.current++;
-      // Подавляем только ошибки: они повторяются из polling-циклов;
-      // успеха/инфо подряд одинаковых не бывает.
       if (kind === "error" && lastError.current?.text === text) return;
       if (kind === "error") lastError.current = { text, id };
       setToasts((list) => [...list, { id, kind, text }]);
-      // Ошибки висят дольше, чтобы успеть прочитать.
       const ttl = kind === "error" ? 6000 : 3500;
       window.setTimeout(() => dismiss(id), ttl);
     },
@@ -131,24 +125,24 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             >
               <span className="toast-icon" aria-hidden="true">
                 {t.kind === "success" ? (
-                  <IconCheck size={18} />
+                  <IconCheck size={16} />
                 ) : t.kind === "error" ? (
-                  <IconAlert size={18} />
+                  <IconAlert size={16} />
                 ) : (
-                  <IconInfo size={18} />
+                  <IconInfo size={16} />
                 )}
               </span>
               <span className="toast-text">{t.text}</span>
               <button
                 type="button"
-                className="toast-close icon-only"
+                className="toast-close"
                 aria-label="Закрыть"
                 onClick={(e) => {
                   e.stopPropagation();
                   dismiss(t.id);
                 }}
               >
-                <IconClose size={14} />
+                <IconClose size={13} />
               </button>
             </div>
           ))}
@@ -172,27 +166,17 @@ function ConfirmDialog({
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
   useBodyScrollLock();
   useDialogFocus(dialogRef, () => onClose(false));
-  // Безопасные подтверждения: фокус — на кнопке подтверждения, чтобы Enter
-  // сразу подтверждал действие. Опасные: фокус остаётся на «Отмене» (её
-  // фокусирует useDialogFocus как первый фокусимый элемент) — случайный
-  // Enter тогда лишь закрывает диалог. Эффект объявлен после useDialogFocus,
-  // поэтому выполняется после его установки фокуса и переводит его надёжно.
+  // Безопасные подтверждения: фокус сразу на кнопке подтверждения (Enter —
+  // подтверждает). Опасные: фокус на «Отмене», случайный Enter безопасен.
   useEffect(() => {
     if (!state.danger) confirmBtnRef.current?.focus();
   }, [state.danger]);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        // Поглощаем: нижний confirm — верхний слой, Escape не должен
-        // пробиваться в родительский диалог и зацикливать его dirty-guard.
         e.stopPropagation();
         onClose(false);
       }
-      // Enter подтверждает только безопасные действия. Для опасных (удаление,
-      // снятие прав) фокус стоит на «Отмене» и Enter игнорируем — нужно
-      // явное подтверждение кликом. Для безопасных фокус стоит на кнопке
-      // подтверждения: она обрабатывает Enter нативно — глобальный Enter
-      // не должен дублировать её действие.
       if (
         e.key === "Enter" &&
         !state.danger &&
@@ -209,27 +193,28 @@ function ConfirmDialog({
     <div className="modal-backdrop" onClick={() => onClose(false)}>
       <div
         ref={dialogRef}
-        className="modal"
+        className="modal modal-md"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-dialog-title"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 id="confirm-dialog-title">{state.title}</h3>
-        {state.body && <p className="muted">{state.body}</p>}
-        <div className="modal-actions">
-          <button onClick={() => onClose(false)}>
+        <div className="modal-body modal-body-confirm">
+          <h3 id="confirm-dialog-title">{state.title}</h3>
+          {state.body && <p className="muted">{state.body}</p>}
+        </div>
+        <footer className="modal-foot">
+          <Button variant="ghost" onClick={() => onClose(false)}>
             Отмена
-          </button>
-          <button
-            ref={confirmBtnRef}
-            className={state.danger ? "danger-solid" : "primary"}
+          </Button>
+          <Button
+            variant={state.danger ? "danger" : "primary"}
             onClick={() => onClose(true)}
           >
             {state.confirmText ?? "Подтвердить"}
-          </button>
-        </div>
+          </Button>
+        </footer>
       </div>
     </div>
   );
