@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ShaderSearchHit, ShaderVersion } from "../types";
 import { downloadShader, listShaderVersions, searchShaders } from "../api";
-import { formatCompact } from "../format";
+import { formatBytes } from "../format";
+import Aurora from "./Aurora";
 import ModsSection from "./ModsSection";
 import { CrashHistoryPanel } from "./CrashHistoryModal";
 
@@ -48,6 +49,7 @@ export default function BuildModal({ initialTab = "mods", onClose }: Props) {
       aria-modal="true"
       aria-label="Сборка"
     >
+      <Aurora />
       <header className="settings__header" data-tauri-drag-region="deep">
         <button
           type="button"
@@ -242,9 +244,7 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
                     <span className="shader-row__title">{hit.title}</span>
                     <span className="muted shader-row__desc">{hit.description}</span>
                   </span>
-                  <span className="muted shader-row__meta">
-                    ↓ {formatCompact(hit.downloads)}
-                  </span>
+
                   <span className="shader-row__chevron" aria-hidden>{expanded ? "▾" : "▸"}</span>
                 </button>
 
@@ -274,6 +274,8 @@ function ShadersPanel({ onBusyChange }: { onBusyChange: (busy: boolean) => void 
                             <span className="muted shader-version__gc">
                               {version.gameVersions.slice(0, 3).join(", ")}
                               {version.gameVersions.length > 3 ? " и др." : ""}
+                              {" · "}
+                              {formatBytes(file.size)}
                             </span>
                           </span>
                           <button
