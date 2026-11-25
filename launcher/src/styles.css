@@ -1897,8 +1897,8 @@ button,
 .hero__icon-btn {
     display: grid;
     place-items: center;
-    width: 28px;
-    height: 28px;
+    width: 42px;
+    height: 42px;
     padding: 0;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
@@ -5017,6 +5017,13 @@ button.info-card__path--link:hover:not(:disabled) {
     width: 16px;
     height: 16px;
     display: block;
+}
+
+/* Кнопки на карточках главного экрана: сама кнопка 42px, иконка в полтора
+   раза крупнее базовой. */
+.hero__icon-btn .svg-icon svg {
+    width: 24px;
+    height: 24px;
 }
 
 .customize-wip {
