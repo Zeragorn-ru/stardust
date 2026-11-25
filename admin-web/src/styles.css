@@ -5668,53 +5668,6 @@ input[type="radio"] {
     gap: var(--space-2);
 }
 
-/* Пилюля-переключатель канала: состояние «раздаёт», не кнопка-действие. */
-.latest-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    min-height: 28px;
-    padding: 0 var(--space-3);
-    border-radius: var(--radius-pill);
-    border: 1px solid var(--border-strong);
-    background: transparent;
-    color: var(--muted);
-    font-size: var(--fs-sm);
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    transition: border-color 0.12s, color 0.12s, background 0.12s;
-}
-
-.latest-btn:hover:not(:disabled) {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-
-.latest-btn[data-channel="stable"]:hover:not(:disabled) {
-    border-color: var(--ok);
-    color: var(--ok);
-}
-
-.latest-btn.is-current[data-channel="beta"] {
-    background: var(--accent-soft);
-    border-color: rgba(255, 231, 163, 0.45);
-    color: var(--accent);
-    cursor: default;
-}
-
-.latest-btn.is-current[data-channel="stable"] {
-    background: var(--ok-soft);
-    border-color: rgba(95, 240, 167, 0.45);
-    color: var(--ok);
-    cursor: default;
-}
-
-.latest-btn.is-locked {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
-
 /* Инлайн-глиф Mojangles наследует цвет текста или бейджа. */
 .mc-emoji {
     display: inline-block;

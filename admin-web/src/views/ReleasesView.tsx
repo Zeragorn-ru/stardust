@@ -327,37 +327,8 @@ export function ReleasesView() {
     }, POLL_INTERVAL_MS);
   }
 
-  // Клик по пилюле канала в строке релиза: направить канал на этот тег.
-  async function retargetChannel(channel: string, tag: string, currentTag: string | null) {
-    // Откат: список релизов отсортирован от новых к старым, так что тег
-    // ниже текущего в списке — более старый. Отличаем от продвижения вперёд.
-    const currentIndex = releases.findIndex((r) => r.tag === currentTag);
-    const targetIndex = releases.findIndex((r) => r.tag === tag);
-    const isRollback =
-      currentTag != null &&
-      targetIndex >= 0 &&
-      (currentIndex < 0 || targetIndex > currentIndex);
-    const ok = await confirm({
-      title: `Направить канал launcher-${channel} на ${tag}?`,
-      body: isRollback
-        ? `Выбранный релиз старее текущего (${currentTag}): клиенты, ещё не обновившиеся, откатятся на ${tag}; уже обновившиеся останутся на своей версии.`
-        : `Все клиенты ${channel}-канала получат ${tag} при следующем запуске.`,
-      confirmText: "Направить канал",
-      danger: isRollback,
-    });
-    if (!ok) return;
-
-    setRetargeting({ channel, tag });
-    setSetLatestStatus(null);
-    try {
-      await api.setLatest(tag, channel);
-      startSetLatestPoll();
-    } catch (err) {
-      setRetargeting(null);
-      toast.error(err instanceof ApiError ? err.message : "Не удалось запустить перестановку latest");
-    }
-  }
-
+  // Ручную перестановку latest убрали: каналы переводятся автоматически
+  // (beta — на каждый новый тег, stable — шагом «В стабильный релиз»).
   const githubTokenMissing = settings != null && !settings.githubTokenSet;
 
   // Занятость канала: идёт перевод в стабильный или перестановка latest —
@@ -460,43 +431,6 @@ export function ReleasesView() {
     );
   }
 
-  function renderLatestPill(release: LauncherRelease, kind: "beta" | "stable") {
-    const channel = kind === "beta" ? betaChannel : stableChannel;
-    const isCurrent = channel?.tag === release.tag;
-    // Stable-пилюля у pre-release заблокирована: сначала перевод в стабильный.
-    const locked = kind === "stable" && release.prerelease;
-    const busy = channelBusy && !isCurrent;
-    const cls =
-      "latest-btn" +
-      (isCurrent ? " is-current" : "") +
-      (busy || locked ? " is-locked" : "");
-    const title = locked
-      ? "Сначала переведите релиз в стабильный"
-      : isCurrent
-        ? `Канал launcher-${kind} раздаёт этот релиз`
-        : `Направить канал launcher-${kind} на ${release.tag}`;
-    return (
-      <button
-        key={kind}
-        type="button"
-        className={cls}
-        data-channel={kind}
-        aria-pressed={isCurrent}
-        disabled={isCurrent || locked || busy}
-        title={title}
-        onClick={() => {
-          if (!isCurrent && !locked && !busy) {
-            void retargetChannel(kind, release.tag, channel?.tag ?? null);
-          }
-        }}
-      >
-        {kind}
-        {isCurrent && <IconCheck size={12} />}
-        {busy && <IconSync size={12} className="spin" />}
-      </button>
-    );
-  }
-
   return (
     <div className="view releases-view">
       <header className="view-head page-head">
@@ -565,7 +499,8 @@ export function ReleasesView() {
           pendingRuns.map(renderBuildRun)
         )}
 
-        {/* Релизы: вышедшие теги с переводом в стабильный и пилюлями каналов. */}
+        {/* Релизы: вышедшие теги с переводом в стабильный. Каналы видны
+            в плитах сверху; beta переводится на новый тег автоматически. */}
         <div className="rel-zone-head">
           <span>Релизы</span>
           <span className="rel-zone-count">{releases.length > 0 ? pluralVersions(releases.length) : ""}</span>
@@ -618,8 +553,6 @@ export function ReleasesView() {
                       {promotingTag === r.tag ? "Переводим…" : "В стабильный релиз"}
                     </Button>
                   )}
-                  {renderLatestPill(r, "beta")}
-                  {renderLatestPill(r, "stable")}
                 </div>
               </div>
             ))}

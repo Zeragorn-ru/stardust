@@ -2313,19 +2313,13 @@
     padding: 0 var(--space-3);
 }
 
-/* Действия релиза: кнопка перевода на всю ширину, пилюли 44px пополам. */
+/* Действия релиза: кнопка перевода на всю ширину. */
 .m-screen-seasons .rel-actions {
     justify-content: flex-start;
 }
 
 .m-screen-seasons .rel-actions .sd-button {
     flex-basis: 100%;
-}
-
-.m-screen-seasons .latest-btn {
-    flex: 1 1 calc(50% - 4px);
-    min-height: var(--touch-h);
-    justify-content: center;
 }
 
 /* Предупреждение о токене переносится на узком экране. */
