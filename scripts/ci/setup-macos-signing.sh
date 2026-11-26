@@ -28,7 +28,11 @@ security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
 # Self-signed сертификаты (без Apple-корня) не валидны, пока им явно не доверять.
 # Доверяем корневому сертификату импортированного p12 — работает и для Developer ID.
-openssl pkcs12 -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -nokeys -clcerts -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null
+# OpenSSL 3 читает legacy-форматы p12 (RC2/3DES) только с -legacy — пробуем оба варианта.
+openssl pkcs12 -legacy -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -nokeys -clcerts \
+  -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null \
+  || openssl pkcs12 -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -nokeys -clcerts \
+       -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null
 security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem" 2>/dev/null \
   || security add-trusted-cert -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem"
 
