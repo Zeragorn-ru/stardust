@@ -60,6 +60,8 @@ out="${dmg}.injected"
 rm -f "$out"
 
 hdiutil create -volname "$volname" -srcfolder "$staging" -ov -format UDZO "$out"
+# hdiutil для UDZO сам добавляет .dmg к имени вывода.
+if [ -f "${out}.dmg" ]; then out="${out}.dmg"; fi
 mv "$out" "$dmg"
 
 echo "==> Injected Установка.webloc (volume: $volname)"

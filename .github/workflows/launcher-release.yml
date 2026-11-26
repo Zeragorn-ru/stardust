@@ -68,34 +68,13 @@ jobs:
     steps:
       - name: "GitHub-hosted основной, локальный — при заторе"
         id: pick
-        # GITHUB_TOKEN не умеет читать список self-hosted раннеров (нет
-        # administration, и даже перечислять его в permissions нельзя — файл
-        # становится невалидным). Пробуем RELEASE_TOKEN; если и он не может
-        # (403) — считаем, что своего раннера нет.
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-          CURRENT_RUN: ${{ github.run_id }}
         run: |
-          local_free() {
-            gh api "repos/${{ github.repository }}/actions/runners?per_page=100" \
-              --jq '.runners[] | select(.status == "online" and .busy == false) | .labels[].name' \
-              | grep -qx "stardust-macos"
-          }
-          # Основной путь — GitHub-hosted. Затором считаем наличие других
-          # запущенных запусков этого workflow (их macOS-ноги занимают
-          # hosted-мощности или, как раньше, держат наш локальный раннер).
-          congested() {
-            gh api "repos/${{ github.repository }}/actions/runs?status=in_progress&per_page=100" \
-              --jq '[.workflow_runs[] | select(.name == "launcher-release" and .id != env.CURRENT_RUN)] | length' \
-              | grep -qv '^0$'
-          }
+          # Всегда GitHub-hosted. Локальный фоллбэк (self-hosted falcon-8) отключён:
+          # шаг подписи на нём дёргает нативные keychain-окна на машине владельца
+          # (пароль/подтверждение на каждый релиз). Вернуть можно выбором
+          # "macos=stardust-macos" при заторе, если когда-нибудь понадобится.
           sleep 60
-          if congested && local_free; then
-            echo "затор на GitHub-hosted, локальный раннер свободен — собираем на нём"
-            echo "macos=stardust-macos" >> "$GITHUB_OUTPUT"
-          else
-            echo "macos=macos-latest" >> "$GITHUB_OUTPUT"
-          fi
+          echo "macos=macos-latest" >> "$GITHUB_OUTPUT"
 
   release:
     needs: [create-release, pick-runner]
