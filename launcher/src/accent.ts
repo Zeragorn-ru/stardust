@@ -42,13 +42,38 @@ export function hexToRgb(hex: string): string {
   )}`;
 }
 
-/** Относительная яркость (0..1) — чтобы выбрать цвет текста на акценте. */
+/** Линейная относительная яркость (WCAG, 0..1) — чтобы выбрать цвет текста на акценте. */
 function luminance(hex: string): number {
   const raw = normalizeCustomHex(hex).replace(/^#/, "");
   if (!raw) return 1;
-  const ch = (i: number) => parseInt(raw.slice(i, i + 2), 16) / 255;
-  // Приближение достаточно: у нас монохромный текст, а не WCAG-аудит.
-  return 0.2126 * ch(0) + 0.7152 * ch(1) + 0.0722 * ch(2);
+  const lin = (i: number) => {
+    const c = parseInt(raw.slice(i, i + 2), 16) / 255;
+    // Дельта-E по глазу нелинейна: линеаризуем компонент перед взвешиванием.
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  // Компоненты идут через байт: индексы 0, 2, 4, а не подряд.
+  return 0.2126 * lin(0) + 0.7152 * lin(2) + 0.0722 * lin(4);
+}
+
+const hexPair = (hex: string): [number, number, number] => {
+  const raw = normalizeCustomHex(hex).replace(/^#/, "") || "7c5cff";
+  return [0, 2, 4].map((i) => parseInt(raw.slice(i, i + 2), 16)) as [number, number, number];
+};
+
+const rgbToHex = (r: number, g: number, b: number): string =>
+  "#" + [r, g, b].map((c) => Math.round(Math.max(0, Math.min(255, c))).toString(16).padStart(2, "0")).join("");
+
+/**
+ * Цвет текста на акценте. Порог по линейной яркости: ярко-зелёный/оранжевый/
+ * золотой дают тёмный текст, тёмно-фиолетовый/синий — светлый. Вместо чистых
+ * чёрного и белого — оттененные варианты: тёмный сохраняет тон акцента,
+ * светлый лишь слегка подкрашен им.
+ */
+function textOnAccent(hex: string): string {
+  const [r, g, b] = hexPair(hex);
+  return luminance(hex) > 0.4
+    ? rgbToHex(r * 0.15, g * 0.15, b * 0.15)
+    : rgbToHex(255 * 0.88 + r * 0.12, 255 * 0.88 + g * 0.12, 255 * 0.88 + b * 0.12);
 }
 
 /**
@@ -68,13 +93,23 @@ export function applyAccent(name: AccentName, customHex?: string): void {
     style.setProperty("--accent-2", hex);
     style.setProperty("--accent-grad", `linear-gradient(135deg, ${hex} 0%, ${hex} 100%)`);
     style.setProperty("--accent-rgb", hexToRgb(hex));
-    // Тёмный текст на светлом акценте, почти белый — на тёмном.
-    style.setProperty("--text-on-gold", luminance(hex) > 0.35 ? "#191226" : "#f4f2fa");
+    // Текст на акценте — оттененный, не чисто чёрный/белый.
+    style.setProperty("--text-on-gold", textOnAccent(hex));
+    // Ползунки и прочие элементы красятся через --gold/--gold-hover —
+    // при custom их CSS не переопределяет, ставим инлайном.
+    style.setProperty("--gold", hex);
+    style.setProperty("--gold-hover", hex);
   } else {
     root.dataset.accent = name === "gold" ? "gold" : "violet";
-    ["--accent", "--accent-2", "--accent-grad", "--accent-rgb", "--text-on-gold"].forEach((v) =>
-      style.removeProperty(v),
-    );
+    [
+      "--accent",
+      "--accent-2",
+      "--accent-grad",
+      "--accent-rgb",
+      "--text-on-gold",
+      "--gold",
+      "--gold-hover",
+    ].forEach((v) => style.removeProperty(v));
   }
 }
 
