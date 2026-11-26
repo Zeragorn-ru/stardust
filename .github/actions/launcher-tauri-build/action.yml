@@ -61,12 +61,9 @@ runs:
         APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
         APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
         KEYCHAIN_PASSWORD: ${{ env.KEYCHAIN_PASSWORD }}
-        APPLE_ID: ${{ env.APPLE_ID }}
-        APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
-        APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
-        APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
-        APPLE_API_KEY: ${{ env.APPLE_API_KEY }}
-        APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+        # Нотаризационные APPLE_ID/APPLE_PASSWORD/APPLE_API_* НЕ маппим: даже
+        # пустая строка для bundler означает «нотаризуем» → падение. Вернуть при
+        # появлении Apple Developer-аккаунта (см. launcher-release.yml ⑧).
       with:
         projectPath: launcher
         tagName: ${{ inputs.release-tag }}
