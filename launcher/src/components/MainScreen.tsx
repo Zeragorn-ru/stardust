@@ -3,6 +3,7 @@ import type { BanInfo, OptionalMod, PlayerProfile, PlayerStats, Progress, Settin
 import { accountInfo, abortBuild, currentProfile, getNewsHighlight, getSettings, getStats, getPlayerSkin, listOptionalMods, onStatsUpdated, openExternal, playGame, markNewsSeen, totalModCount, type CrashAiVerdict } from "../api";
 import { formatBytes } from "../format";
 import { useDelayedUnmount } from "../useDelayedUnmount";
+import { hasUnviewedNew } from "../whatsNew";
 import { useSkin } from "../skin";
 import FaceAvatar from "./FaceAvatar";
 import SkinViewer3D from "./SkinViewer3D";
@@ -104,10 +105,19 @@ export default function MainScreen({
   onProfileChange,
 }: Props) {
   const { skin } = useSkin();
+  // Кружок «новое» на кнопке «Кастомизация»: гаснет, когда просмотрены
+  // все новинки (открыты все вкладки из списка whatsNew).
+  const [customNew, setCustomNew] = useState(hasUnviewedNew());
   const [skinOpen, setSkinOpen] = useState(false);
   // Exit-анимация кастомизации: DOM удерживается на время закрытия,
   // классы --closing (см. модальный блок styles.css) успевают отыграть.
   const customizeModal = useDelayedUnmount(skinOpen);
+
+  // Перечитываем отметки просмотра при открытии/закрытии модалки:
+  // вкладки внутри могли закрыть свои кружки.
+  useEffect(() => {
+    setCustomNew(hasUnviewedNew());
+  }, [skinOpen]);
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [serverOnline, setServerOnline] = useState<boolean | null>(null);
@@ -373,6 +383,7 @@ export default function MainScreen({
             onClick={() => setSkinOpen(true)}
           >
             Кастомизация
+            {customNew && <span className="hero__skin-new-dot" aria-label="Есть новинки в кастомизации" />}
           </button>
         </div>
           <div className="hero__launch-card stagger stagger-item">
@@ -667,6 +678,11 @@ export default function MainScreen({
           playerName={profile.name}
           closing={!customizeModal.visible}
           onClose={() => setSkinOpen(false)}
+          onNewTabViewed={() => {
+            // Вкладка с новинками открыта — пересчитываем кружок кнопки:
+            // если это была последняя, гаснет сразу, не дожидаясь закрытия.
+            setCustomNew(hasUnviewedNew());
+          }}
           onNickSaved={() => {
             // Бейдж/градиент мог смениться — подтягиваем свежий профиль,
             // чтобы ник на главном экране сразу отразил выбор.

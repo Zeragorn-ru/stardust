@@ -1721,6 +1721,7 @@ button,
 }
 
 .hero__skin-btn {
+    position: relative;
     font-size: 13px;
     background: rgba(255, 255, 255, 0.07);
     border: 1px solid var(--glass-border);
@@ -1885,6 +1886,30 @@ button,
     position: absolute;
     top: 12px;
     right: 14px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+}
+
+/* Кружки «новое» у кастомизации — тот же визуал, что у новостей
+   (hero__news-dot): янтарная точка с мягким свечением. */
+.hero__skin-new-dot {
+    position: absolute;
+    top: -5px;
+    right: -6px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.8);
+}
+
+.settings__nav-new-dot {
+    position: absolute;
+    top: 12px;
+    right: 10px;
     width: 8px;
     height: 8px;
     border-radius: 50%;
