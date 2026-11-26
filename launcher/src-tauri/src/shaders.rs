@@ -30,7 +30,23 @@ const ALLOWED_FILE_HOSTS: [&str; 1] = ["cdn.modrinth.com"];
 
 /// Суффикс файла-иконки рядом с архивом пака: `Sphunculus.zip.icon.png`.
 /// list_* отфильтровывает такие файлы, delete удаляет их вместе с паком.
-const ICON_SUFFIX: &str = ".icon.png";
+pub const ICON_SUFFIX: &str = ".icon.png";
+
+/// Вспомогательный файл каталога паков (иконка, настройки Iris, временный
+/// недокачанный) — не сам пак. Очистка и отчёт о сторонних паках их пропускают.
+pub fn is_pack_aux_file(name: &str) -> bool {
+    name.ends_with(ICON_SUFFIX)
+        || name.to_lowercase().ends_with(".txt")
+        || name.ends_with(".download-")
+}
+
+/// Реестр паков, скачанных через лаунчер: `<data_dir>/launcher-packs.json`.
+/// По нему работает «очистка сторонних файлов» (режим из админки,
+/// `ExternalModPolicy.purge_external`): всё, чего нет в реестре, считается
+/// подкинутым вручную и удаляется при запуске игры. При первом чтении
+/// отсутствующий реестр засеивается паками с иконкой-маркером — они были
+/// скачаны через лаунчер до введения реестра.
+const REGISTRY_FILE: &str = "launcher-packs.json";
 
 /// Какой пак качаем: шейдерпак или ресурспак. От вида зависят только
 /// project_type на Modrinth, путь прокси на admin-server и каталог.
@@ -186,6 +202,97 @@ fn packs_dir(app: &AppHandle, kind: PackKind) -> PathBuf {
     kind.dir(app)
 }
 
+// --- Реестр лаунчерных паков ---
+
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackRegistry {
+    #[serde(default)]
+    pub shaders: Vec<String>,
+    #[serde(default)]
+    pub resourcepacks: Vec<String>,
+}
+
+impl PackRegistry {
+    fn names_mut(&mut self, kind: PackKind) -> &mut Vec<String> {
+        match kind {
+            PackKind::Shader => &mut self.shaders,
+            PackKind::ResourcePack => &mut self.resourcepacks,
+        }
+    }
+
+    /// Имена паков данного вида (для очистки при запуске игры).
+    pub fn names(&self, kind: PackKind) -> &[String] {
+        match kind {
+            PackKind::Shader => &self.shaders,
+            PackKind::ResourcePack => &self.resourcepacks,
+        }
+    }
+}
+
+fn registry_path(app: &AppHandle) -> PathBuf {
+    paths::data_dir(app).join(REGISTRY_FILE)
+}
+
+/// Читает реестр; заодно миграция: отсутствующий файл засеивается паками
+/// с иконкой-маркером (иконку создаёт только наш download) — так паки,
+/// скачанные через лаунчер до введения реестра, не считаются сторонними.
+/// Ошибки чтения/записи не роняют вызывающий флоу: реестр — best effort,
+/// худший случай — пак придётся скачать заново.
+pub async fn load_pack_registry(app: &AppHandle) -> PackRegistry {
+    let path = registry_path(app);
+    if let Ok(bytes) = tokio::fs::read(&path).await {
+        if let Ok(registry) = serde_json::from_slice::<PackRegistry>(&bytes) {
+            return registry;
+        }
+    }
+    let mut registry = PackRegistry::default();
+    for kind in [PackKind::Shader, PackKind::ResourcePack] {
+        let dir = packs_dir(app, kind);
+        let Ok(mut entries) = tokio::fs::read_dir(&dir).await else {
+            continue;
+        };
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if dir.join(format!("{name}{ICON_SUFFIX}")).exists() && valid_pack_filename(&name) {
+                registry.names_mut(kind).push(name);
+            }
+        }
+        registry.names_mut(kind).sort();
+    }
+    save_pack_registry(app, &registry).await;
+    registry
+}
+
+pub async fn save_pack_registry(app: &AppHandle, registry: &PackRegistry) {
+    let path = registry_path(app);
+    if let Ok(bytes) = serde_json::to_vec_pretty(registry) {
+        let _ = tokio::fs::write(&path, bytes).await;
+    }
+}
+
+/// Регистрирует пак после успешного скачивания (дедуп по имени).
+async fn register_pack(app: &AppHandle, kind: PackKind, name: &str) {
+    let mut registry = load_pack_registry(app).await;
+    let names = registry.names_mut(kind);
+    if !names.iter().any(|n| n == name) {
+        names.push(name.to_string());
+        names.sort();
+        save_pack_registry(app, &registry).await;
+    }
+}
+
+/// Убирает пак из реестра при удалении.
+async fn unregister_pack(app: &AppHandle, kind: PackKind, name: &str) {
+    let mut registry = load_pack_registry(app).await;
+    let names = registry.names_mut(kind);
+    let before = names.len();
+    names.retain(|n| n != name);
+    if names.len() != before {
+        save_pack_registry(app, &registry).await;
+    }
+}
+
 /// Валидирует имя файла пака: только имя, без путей и скрытых файлов.
 fn valid_pack_filename(name: &str) -> bool {
     !name.is_empty()
@@ -279,6 +386,7 @@ async fn delete_pack(app: AppHandle, kind: PackKind, filename: String) -> Result
     if icon_path.exists() {
         let _ = tokio::fs::remove_file(&icon_path).await;
     }
+    unregister_pack(&app, kind, name).await;
     Ok(())
 }
 
@@ -375,6 +483,9 @@ async fn download_pack(
             }
         }
     }
+    // Пак скачан нами — фиксируем в реестре, чтобы очистка сторонних файлов
+    // его не тронула.
+    register_pack(&app, kind, name).await;
     Ok(dest.to_string_lossy().into_owned())
 }
 

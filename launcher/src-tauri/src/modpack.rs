@@ -39,7 +39,9 @@ use crate::progress::Progress;
 /// Имя файла-реестра управляемых лаунчером файлов (лежит в game-dir).
 const STATE_FILE: &str = "managed-files.json";
 /// Суффикс, которым помечается выключенный мод (Minecraft его не грузит).
-const DISABLED_SUFFIX: &str = ".dis";
+/// Суффикс выключенного optional-мода: `mods/sodium.jar.dis`. Публичный —
+/// очистка сторонних модов (minecraft.rs) отличает по нему управляемые файлы.
+pub(crate) const DISABLED_SUFFIX: &str = ".dis";
 
 /// Реестр файлов, установленных лаунчером из сборки.
 /// Ключ — путь относительно game-dir (с суффиксом `.dis`, если мод выключен),

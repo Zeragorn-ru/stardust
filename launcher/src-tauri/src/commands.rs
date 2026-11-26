@@ -3151,7 +3151,7 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle, launch_id: String
         }
     }
 
-    let (mut child, external_mods, launched_game_dir, launched_manifest) = minecraft::launch(
+    let (mut child, external, launched_game_dir, launched_manifest) = minecraft::launch(
         app.clone(),
         &state.http(),
         minecraft::LaunchOptions {
@@ -3168,14 +3168,19 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle, launch_id: String
     )
     .await?;
 
-    if !external_mods.is_empty() {
+    if !external.mods.is_empty() || !external.packs.is_empty() {
         let report_http = state.http().clone();
         let report_token = token.clone();
         tokio::spawn(async move {
-            if let Err(error) =
-                backend::report_external_mods(&report_http, &report_token, &external_mods).await
+            if let Err(error) = backend::report_external_mods(
+                &report_http,
+                &report_token,
+                &external.mods,
+                &external.packs,
+            )
+            .await
             {
-                tracing::warn!("[security] не удалось отправить отчёт о сторонних модах: {error}");
+                tracing::warn!("[security] не удалось отправить отчёт о сторонних файлах: {error}");
             }
         });
     }

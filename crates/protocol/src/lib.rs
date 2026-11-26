@@ -250,6 +250,11 @@ pub struct ModProfile {
 pub struct ExternalModPolicy {
     pub allowlist: Vec<ExternalModAllowlistEntry>,
     pub block_rules: Vec<ExternalModBlockRule>,
+    /// Режим «непослушных игроков»: лаунчер при запуске удаляет из `mods/`
+    /// всё, чего нет в манифесте, и из `resourcepacks/` всё, что не
+    /// скачивалось через лаунчер (см. реестр лаунчерных паков).
+    #[serde(default)]
+    pub purge_external: bool,
 }
 
 /// Разрешённый сторонний мод.

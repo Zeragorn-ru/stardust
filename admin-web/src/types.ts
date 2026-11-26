@@ -84,6 +84,8 @@ export interface Settings {
   crashAiApiKeySet?: boolean;
   /** Установлен ли ключ CurseForge (для поиска модов оттуда). */
   curseforgeApiKeySet?: boolean;
+  /** Режим «непослушных игроков»: лаунчер удаляет чужие моды и ресурспаки. */
+  purgeExternal?: boolean;
 }
 
 // ───── Сезоны и релизы лаунчера ─────

@@ -35,6 +35,12 @@ const MODRINTH_API: &str = "https://api.modrinth.com/v2";
 /// без белого списка эндпоинт качал бы произвольные адреса.
 const ALLOWED_FILE_HOSTS: [&str; 1] = ["cdn.modrinth.com"];
 
+/// Категории Modrinth, которые не показываем в каталоге и не отдаём версии.
+/// «Читёрской» категории на Modrinth нет; cursed — куда авторы кладут
+/// X-ray и прочий сомнительный контент. Проверяется на сервере: клиенту
+/// такие паки не видны вовсе (в search отфильтрованы, у versions — отказ).
+const BANNED_CATEGORIES: [&str; 1] = ["cursed"];
+
 #[derive(Deserialize)]
 pub(crate) struct PacksSearchQuery {
     query: Option<String>,
@@ -51,8 +57,20 @@ pub(crate) struct PacksDownloadQuery {
     url: String,
 }
 
+/// Проект помечен запрещённой категорией?
+fn has_banned_category(categories: &serde_json::Value) -> bool {
+    categories
+        .as_array()
+        .is_some_and(|list| {
+            list.iter()
+                .filter_map(|value| value.as_str())
+                .any(|category| BANNED_CATEGORIES.contains(&category))
+        })
+}
+
 /// Поиск паков (шейдерпаки/ресурспаки): как в лаунчере — топ по загрузкам,
-/// project_type задаёт категорию Modrinth.
+/// project_type задаёт категорию Modrinth. Хиты с запрещёнными категориями
+/// вырезаются из ответа.
 async fn packs_search(
     state: &Shared,
     query: Option<String>,
@@ -72,11 +90,19 @@ async fn packs_search(
             pairs.append_pair("query", query);
         }
     }
-    proxy_json(state, url.as_str()).await
+    let mut body = fetch_json(state, url.as_str()).await?;
+    if let Some(hits) = body
+        .get_mut("hits")
+        .and_then(|hits| hits.as_array_mut())
+    {
+        hits.retain(|hit| !has_banned_category(hit.get("categories").unwrap_or(&serde_json::Value::Null)));
+    }
+    Ok(Json(body).into_response())
 }
 
 /// Версии пака. Идентификатор подставляется в URL, поэтому формат
 /// проверяем: Modrinth ID — base62/slug, всё остальное отбрасываем.
+/// У версий категории нет — сверяемся с категориями самого проекта.
 async fn packs_versions(
     state: &Shared,
     project_id: &str,
@@ -86,6 +112,13 @@ async fn packs_versions(
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "Некорректный идентификатор пака",
+        ));
+    }
+    let project = fetch_json(state, &format!("{MODRINTH_API}/project/{id}")).await?;
+    if has_banned_category(project.get("categories").unwrap_or(&serde_json::Value::Null)) {
+        return Err(ApiError::new(
+            StatusCode::FORBIDDEN,
+            "Этот пак недоступен в лаунчере",
         ));
     }
     proxy_json(state, &format!("{MODRINTH_API}/project/{id}/version")).await
@@ -179,8 +212,8 @@ pub(crate) async fn resourcepacks_download(
     packs_download(&state, &q.url).await
 }
 
-/// GET до Modrinth с прокидыванием JSON-тела как есть.
-async fn proxy_json(state: &Shared, url: &str) -> Result<Response, ApiError> {
+/// GET до Modrinth, тело разбирается как JSON (для фильтрации).
+async fn fetch_json(state: &Shared, url: &str) -> Result<serde_json::Value, ApiError> {
     let resp = state
         .http
         .get(url)
@@ -193,15 +226,20 @@ async fn proxy_json(state: &Shared, url: &str) -> Result<Response, ApiError> {
         .json()
         .await
         .map_err(|e| ApiError::new(StatusCode::BAD_GATEWAY, format!("Modrinth: {e}")))?;
-    // Ошибки upstream (404 проекта и т.п.) пробрасываем тем же кодом.
     if status.is_success() {
-        Ok(Json(body).into_response())
+        Ok(body)
     } else {
         Err(ApiError::new(
             StatusCode::BAD_GATEWAY,
             format!("Modrinth ответил {status}"),
         ))
     }
+}
+
+/// GET до Modrinth с прокидыванием JSON-тела как есть.
+async fn proxy_json(state: &Shared, url: &str) -> Result<Response, ApiError> {
+    let body = fetch_json(state, url).await?;
+    Ok(Json(body).into_response())
 }
 
 fn upstream(e: reqwest::Error) -> ApiError {

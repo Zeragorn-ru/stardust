@@ -142,21 +142,33 @@ pub struct ExternalModReport {
     pub sha256: String,
 }
 
+/// Сторонний ресурспак для отчёта серверу (в уведомление админам).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalPackReport {
+    pub filename: String,
+    pub sha256: String,
+}
+
 pub async fn report_external_mods(
     client: &reqwest::Client,
     token: &str,
     mods: &[ExternalModReport],
+    packs: &[ExternalPackReport],
 ) -> Result<(), String> {
+    if mods.is_empty() && packs.is_empty() {
+        return Ok(());
+    }
     client
         .post(format!("{}/api/report-external-mods", base_url()))
         .bearer_auth(token)
-        .json(&serde_json::json!({ "mods": mods }))
+        .json(&serde_json::json!({ "mods": mods, "packs": packs }))
         .send()
         .await
         .map_err(network_error)?
         .error_for_status()
         .map(|_| ())
-        .map_err(|e| format!("Не удалось отправить отчёт о сторонних модах ({e})"))
+        .map_err(|e| format!("Не удалось отправить отчёт о сторонних файлах ({e})"))
 }
 
 fn read_cached_manifest(cache_path: &std::path::Path) -> Option<protocol::Manifest> {

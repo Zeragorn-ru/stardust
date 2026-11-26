@@ -38,6 +38,10 @@ export function ExternalModsView({ mobile = false }: { mobile?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Режим «непослушных игроков»: лаунчер удаляет чужие моды и ресурспаки
+  // перед запуском. Оптимистично переключаем и откатываем при ошибке.
+  const [purgeExternal, setPurgeExternal] = useState(false);
+  const [purgeSaving, setPurgeSaving] = useState(false);
 
   // Поля формы allow: хеш + подпись (modId/jarName), по которой запись
   // опознают в списке и в отчётах лаунчера.
@@ -52,12 +56,14 @@ export function ExternalModsView({ mobile = false }: { mobile?: boolean }) {
     setLoading(true);
     setError(null);
     try {
-      const [allowlistResponse, rulesResponse] = await Promise.all([
+      const [allowlistResponse, rulesResponse, settings] = await Promise.all([
         api.listExternalModAllowlist(),
         api.listExternalModBlockRules(),
+        api.getSettings(),
       ]);
       setAllowlist(allowlistResponse.entries);
       setRules(rulesResponse.rules);
+      setPurgeExternal(Boolean(settings.purgeExternal));
     } catch (reason) {
       // Ошибку загрузки показываем панелью с кнопкой «Повторить» (как в
       // журнале), а не только тостом: без списков экран бесполезен.
@@ -162,6 +168,32 @@ export function ExternalModsView({ mobile = false }: { mobile?: boolean }) {
     }
   }
 
+  async function togglePurgeExternal(enabled: boolean) {
+    // Включение — опасное действие (у игроков удалятся «лишние» файлы):
+    // просим подтверждение. Выключение — просто выключаем.
+    if (enabled) {
+      const ok = await confirm({
+        title: "Включить удаление сторонних файлов?",
+        body: "При запуске игры лаунчер удалит у всех игроков моды вне сборки и ресурспаки, установленные не через лаунчер. Файлы не восстанавливаются.",
+        confirmText: "Включить",
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    setPurgeSaving(true);
+    const previous = purgeExternal;
+    setPurgeExternal(enabled);
+    try {
+      await api.saveSettings({ purgeExternal: enabled });
+      toast.success(enabled ? "Режим включён" : "Режим выключен");
+    } catch (reason) {
+      setPurgeExternal(previous);
+      toast.error(reason instanceof ApiError ? reason.message : "Не удалось сохранить настройку");
+    } finally {
+      setPurgeSaving(false);
+    }
+  }
+
   const hashError = allowHash.trim() !== "" && !SHA_RE.test(allowHash.trim())
     ? "Хеш — 64 hex-символа (a–f, 0–9)"
     : null;
@@ -179,6 +211,33 @@ export function ExternalModsView({ mobile = false }: { mobile?: boolean }) {
       <section className="panel panel-flat external-mods-warning">
         <strong>Правила применяются до запуска игры</strong>
         <span className="muted">Совпавшие JAR-файлы будут удалены из папки mods. Блокировка по хешу имеет приоритет над разрешением.</span>
+      </section>
+
+      {/* Режим «непослушных игроков»: грубая очистка поверх точечных правил.
+          Лейбл чекбокса — как у прочих форм настроек админки. */}
+      <section className="panel panel-flat">
+        <div className="section-head">
+          <div>
+            <span className="eyebrow">Очистка сторонних файлов</span>
+            <h2>Режим «непослушных игроков»</h2>
+          </div>
+        </div>
+        <label className="external-mods-toggle">
+          <input
+            type="checkbox"
+            checked={purgeExternal}
+            disabled={purgeSaving || loading}
+            onChange={(event) => void togglePurgeExternal(event.target.checked)}
+          />
+          <span>
+            <strong>Удалять всё чужое при запуске</strong>
+            <small className="muted">
+              Лаунчер удалит из папки mods всё, чего нет в сборке, а из ресурс­паков — всё, что
+              установлено не через лаунчер. Уведомления о сторонних файлах приходят админам
+              независимо от этого переключателя.
+            </small>
+          </span>
+        </label>
       </section>
 
       <section className="panel panel-flat">

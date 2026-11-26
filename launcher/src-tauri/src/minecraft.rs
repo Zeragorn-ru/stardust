@@ -70,7 +70,7 @@ pub async fn launch(
 ) -> Result<
     (
         Child,
-        Vec<crate::backend::ExternalModReport>,
+        ExternalScan,
         PathBuf,
         Option<protocol::Manifest>,
     ),
@@ -277,6 +277,23 @@ pub async fn launch(
                 removed_blocked.join(", ")
             );
         }
+
+        // Режим «непослушных игроков» (флаг из админки): чужие моды и
+        // ресурспаки сносятся до запуска JVM — играть с ними нельзя.
+        let purge_external = manifest
+            .as_ref()
+            .and_then(|value| value.external_mod_policy.as_ref())
+            .is_some_and(|policy| policy.purge_external);
+        let registry = crate::shaders::load_pack_registry(&app).await;
+        if purge_external {
+            let purged = purge_external_files(&game_dir, manifest.as_ref(), &registry)?;
+            if !purged.is_empty() {
+                tracing::warn!(
+                    "[mods] режим очистки: удалены сторонние файлы: {}",
+                    purged.join(", ")
+                );
+            }
+        }
     }
 
     let classpath = build_modloader_classpath(&root, &version, &loader);
@@ -381,8 +398,158 @@ pub async fn launch(
         .spawn()
         .map_err(|e| format!("Не удалось запустить Java/Minecraft: {e}"))?;
 
-    let external_mods = scan_external_mods(&game_dir, manifest.as_ref());
-    Ok((child, external_mods, game_dir, manifest))
+    let registry = crate::shaders::load_pack_registry(&app).await;
+    let external = ExternalScan {
+        mods: scan_external_mods(&game_dir, manifest.as_ref()),
+        packs: scan_external_packs(&game_dir, &registry),
+    };
+    Ok((child, external, game_dir, manifest))
+}
+
+/// Сторонние файлы, найденные при запуске: моды уходят в отчёт
+/// `report-external-mods`, ресурспаки — в его же уведомление админам.
+#[derive(Debug, Default)]
+pub struct ExternalScan {
+    pub mods: Vec<crate::backend::ExternalModReport>,
+    pub packs: Vec<crate::backend::ExternalPackReport>,
+}
+
+/// Режим «непослушных игроков»: удаляет из `mods/` всё, чего нет в манифесте
+/// (включая выключенные `.dis`-варианты), а из `resourcepacks/` — всё, что
+/// не скачано через лаунчер (нет в реестре `launcher-packs.json`). Возвращает
+/// имена удалённых файлов для лога.
+fn purge_external_files(
+    game_dir: &Path,
+    manifest: Option<&protocol::Manifest>,
+    registry: &crate::shaders::PackRegistry,
+) -> Result<Vec<String>, String> {
+    let managed_mods: std::collections::HashSet<String> = manifest
+        .into_iter()
+        .flat_map(protocol::Manifest::client_files)
+        .filter(|entry| entry.kind == protocol::FileKind::Mod && entry.path.starts_with("mods/"))
+        .filter_map(|entry| Path::new(&entry.path).file_name())
+        .map(|name| name.to_string_lossy().to_ascii_lowercase())
+        .collect();
+
+    // --- mods/: чужие .jar и .jar.dis ---
+    let Ok(entries) = fs::read_dir(game_dir.join("mods")) else {
+        return Ok(Vec::new());
+    };
+    let mut removed = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        // Выключенный управляемый мод — тот же файл с суффиксом `.dis`.
+        let base_name = name
+            .strip_suffix(crate::modpack::DISABLED_SUFFIX)
+            .unwrap_or(&name);
+        if managed_mods.contains(&base_name.to_ascii_lowercase()) {
+            continue;
+        }
+        let looks_like_mod = Path::new(base_name)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("jar"));
+        if !looks_like_mod {
+            continue;
+        }
+        fs::remove_file(&path).map_err(|error| {
+            format!("Не удалось удалить сторонний мод {name}: {error}")
+        })?;
+        removed.push(name);
+    }
+
+    // --- resourcepacks/: всё, чего нет в реестре лаунчерных паков ---
+    let dir = game_dir.join("resourcepacks");
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Ok(removed);
+    };
+    let registered: std::collections::HashSet<String> = registry
+        .names(crate::shaders::PackKind::ResourcePack)
+        .iter()
+        .map(|name| name.to_ascii_lowercase())
+        .collect();
+    let mut removed_packs: Vec<String> = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if crate::shaders::is_pack_aux_file(&name) {
+            continue;
+        }
+        if registered.contains(&name.to_ascii_lowercase()) {
+            continue;
+        }
+        fs::remove_file(&path)
+            .map_err(|error| format!("Не удалось удалить сторонний ресурспак {name}: {error}"))?;
+        removed.push(format!("resourcepacks/{name}"));
+        removed_packs.push(name);
+    }
+    // Соседние иконки/настройки Iris удалённых паков тоже не нужны.
+    for name in &removed_packs {
+        for suffix in [crate::shaders::ICON_SUFFIX, ".txt"] {
+            let extra = dir.join(format!("{name}{suffix}"));
+            if extra.is_file() {
+                let _ = fs::remove_file(&extra);
+            }
+        }
+    }
+
+    Ok(removed)
+}
+
+/// Сторонние ресурспаки для отчёта серверу: файлы каталога, отсутствующие
+/// в реестре лаунчерных. Вызывается после purge, так что с включённым
+/// режимом очистки список почти всегда пуст — отчёт нужен, чтобы админ
+/// видел попытки.
+fn scan_external_packs(
+    game_dir: &Path,
+    registry: &crate::shaders::PackRegistry,
+) -> Vec<crate::backend::ExternalPackReport> {
+    let dir = game_dir.join("resourcepacks");
+    let Ok(entries) = fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let registered: std::collections::HashSet<String> = registry
+        .names(crate::shaders::PackKind::ResourcePack)
+        .iter()
+        .map(|name| name.to_ascii_lowercase())
+        .collect();
+    let mut reports = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let filename = path
+            .file_name()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if crate::shaders::is_pack_aux_file(&filename)
+            || registered.contains(&filename.to_ascii_lowercase())
+        {
+            continue;
+        }
+        let Ok(sha256) = crate::sha256::compute_sha256_file(&path) else {
+            continue;
+        };
+        reports.push(crate::backend::ExternalPackReport { filename, sha256 });
+        if reports.len() >= 32 {
+            break;
+        }
+    }
+    reports.sort_by(|a, b| a.filename.cmp(&b.filename));
+    reports
 }
 
 fn resolve_minecraft_version(

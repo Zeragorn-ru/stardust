@@ -4962,6 +4962,29 @@ input[type="radio"] {
     gap: var(--space-2);
 }
 
+/* Режим «непослушных игроков»: чекбокс + двухстрочный лейбл. */
+.external-mods-toggle {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.external-mods-toggle input {
+    margin-top: 3px;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.external-mods-toggle span {
+    display: grid;
+    gap: var(--space-1);
+}
+
+.external-mods-toggle small {
+    line-height: 1.5;
+}
+
 /* Пустые списки/ошибка загрузки внешних модов: приглашение + пояснение. */
 .external-mod-empty {
     display: grid;

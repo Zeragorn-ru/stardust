@@ -1851,6 +1851,10 @@ async fn report_server_crash(
 #[derive(Debug, Deserialize)]
 struct ExternalModReportRequest {
     mods: Vec<ExternalModEntry>,
+    /// Сторонние ресурспаки (поле появилось позже — старые клиенты его
+    /// не присылают).
+    #[serde(default)]
+    packs: Vec<ExternalPackEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -1860,6 +1864,13 @@ struct ExternalModEntry {
     mod_id: Option<String>,
     name: Option<String>,
     version: Option<String>,
+    sha256: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExternalPackEntry {
+    filename: String,
     sha256: String,
 }
 
@@ -1873,7 +1884,7 @@ async fn report_external_mods(
     // требует лимита, иначе замусоривается очередь доставки.
     rate_limited(&state, get_client_ip(&headers, addr))?;
     let account = current_account(&state, &headers).await?;
-    if req.mods.is_empty() {
+    if req.mods.is_empty() && req.packs.is_empty() {
         return Ok(StatusCode::OK);
     }
 
@@ -1918,7 +1929,7 @@ async fn report_external_mods(
             ));
         }
     }
-    if unapproved.is_empty() {
+    if !mods.is_empty() && unapproved.is_empty() {
         state
             .store
             .record_server_log(
@@ -1929,32 +1940,63 @@ async fn report_external_mods(
                 serde_json::json!({ "mods": mods }),
             )
             .await?;
-        return Ok(StatusCode::OK);
+    } else if !mods.is_empty() {
+        summary = summary.chars().take(3900).collect();
+        let reply_markup = format!(
+            r#"{{"inline_keyboard":[[{{"text":"🚫 Забанить на час","callback_data":"ban1h:{}"}}]]}}"#,
+            account.uuid
+        );
+        // Журнал пишем до уведомления: отчёт о сторонних модах нужен админке и
+        // после того, как игрок запустился, — сбой доставки в Telegram его не
+        // отменяет.
+        state
+            .store
+            .record_server_log(
+                "external_mods",
+                Some(&account.username),
+                Some(&account.uuid),
+                "Запуск Minecraft со сторонними модами",
+                serde_json::json!({ "mods": mods }),
+            )
+            .await?;
+        if let Err(e) = state
+            .store
+            .notify_admins_with_markup(&summary, Some(&reply_markup), None)
+            .await
+        {
+            tracing::warn!("[external_mods] уведомление админов: {e}");
+        }
     }
-    summary = summary.chars().take(3900).collect();
-    let reply_markup = format!(
-        r#"{{"inline_keyboard":[[{{"text":"🚫 Забанить на час","callback_data":"ban1h:{}"}}]]}}"#,
-        account.uuid
-    );
-    // Журнал пишем до уведомления: отчёт о сторонних модах нужен админке и
-    // после того, как игрок запустился, — сбой доставки в Telegram его не
-    // отменяет.
-    state
-        .store
-        .record_server_log(
-            "external_mods",
-            Some(&account.username),
-            Some(&account.uuid),
-            "Запуск Minecraft со сторонними модами",
-            serde_json::json!({ "mods": mods }),
-        )
-        .await?;
-    if let Err(e) = state
-        .store
-        .notify_admins_with_markup(&summary, Some(&reply_markup), None)
-        .await
-    {
-        tracing::warn!("[external_mods] уведомление админов: {e}");
+
+    // Сторонние ресурспаки: отдельная запись журнала и уведомление админам
+    // (без кнопки бана — пак сам по себе не повод).
+    let packs = req.packs;
+    if !packs.is_empty() {
+        let mut pack_summary = format!(
+            "📦 Обнаружены сторонние ресурспаки при запуске Minecraft\nИгрок: «{}»\n\n",
+            clean_alert_field(&account.username),
+        );
+        for entry in packs.iter().take(32) {
+            pack_summary.push_str(&format!(
+                "• {}\n  sha256: {}\n",
+                clean_alert_field(&entry.filename),
+                clean_alert_field(&entry.sha256),
+            ));
+        }
+        pack_summary = pack_summary.chars().take(3900).collect();
+        state
+            .store
+            .record_server_log(
+                "external_resourcepacks",
+                Some(&account.username),
+                Some(&account.uuid),
+                "Запуск Minecraft со сторонними ресурспаками",
+                serde_json::json!({ "packs": packs }),
+            )
+            .await?;
+        if let Err(e) = state.store.notify_admins(&pack_summary).await {
+            tracing::warn!("[external_resourcepacks] уведомление админов: {e}");
+        }
     }
     Ok(StatusCode::OK)
 }

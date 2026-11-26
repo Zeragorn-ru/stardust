@@ -10,6 +10,10 @@ use protocol::{ExternalModAllowlistEntry, ExternalModBlockRule, ExternalModPolic
 
 pub const SETTING_SERVER_TELEMETRY_TOKEN: &str = "server_telemetry_token";
 
+/// Ключ настройки «режим непослушных игроков» (см. `Store::external_mod_policy`).
+/// Значение "1" — включено. Пишется из админки (admin-server).
+pub const SETTING_EXTERNAL_PURGE: &str = "external_purge";
+
 const MAX_TELEMETRY_24H_ROWS: i64 = 100_000;
 
 fn telemetry_limit_query(table: &str, columns: &str) -> String {
@@ -230,9 +234,14 @@ impl Store {
     }
 
     pub async fn external_mod_policy(&self) -> Result<ExternalModPolicy, StoreError> {
+        let purge_external = self
+            .get_setting(SETTING_EXTERNAL_PURGE)
+            .await?
+            .is_some_and(|value| value.trim() == "1");
         Ok(ExternalModPolicy {
             allowlist: self.list_external_mod_allowlist().await?,
             block_rules: self.list_external_mod_block_rules().await?,
+            purge_external,
         })
     }
 

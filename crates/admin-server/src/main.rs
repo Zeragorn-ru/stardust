@@ -1050,6 +1050,10 @@ struct SettingsDto {
     /// Установлен ли ключ CurseForge (нужен для поиска модов оттуда).
     #[serde(rename = "curseforgeApiKeySet")]
     curseforge_api_key_set: bool,
+    /// Режим «непослушных игроков»: лаунчер при запуске удаляет чужие
+    /// моды и ресурспаки (см. ExternalModPolicy.purge_external).
+    #[serde(rename = "purgeExternal")]
+    purge_external: bool,
 }
 
 async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
@@ -1074,6 +1078,7 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
         SETTING_CRASH_AI_MODEL,
         SETTING_CRASH_AI_API_KEY,
         store::SETTING_CURSEFORGE_API_KEY,
+        store::server_telemetry::SETTING_EXTERNAL_PURGE,
     ];
     let map = state
         .store
@@ -1118,6 +1123,9 @@ async fn load_settings_dto(state: &Shared) -> Result<SettingsDto, ApiError> {
             .unwrap_or(false),
         curseforge_api_key_set: get(store::SETTING_CURSEFORGE_API_KEY)
             .map(|k| !k.trim().is_empty())
+            .unwrap_or(false),
+        purge_external: get(store::server_telemetry::SETTING_EXTERNAL_PURGE)
+            .map(|v| v.trim() == "1")
             .unwrap_or(false),
     })
 }
@@ -1186,6 +1194,8 @@ struct UpdateSettingsRequest {
     crash_ai_api_key: Option<String>,
     #[serde(rename = "curseforgeApiKey", default)]
     curseforge_api_key: Option<String>,
+    #[serde(rename = "purgeExternal", default)]
+    purge_external: Option<bool>,
 }
 
 /// Сохраняет настройки. Сейчас — токен Telegram-бота: пишем его в таблицу
@@ -1337,6 +1347,24 @@ async fn update_settings(
             state
                 .store
                 .delete_setting(SETTING_CRASH_AI_ENABLED)
+                .await
+                .map_err(internal)?;
+        }
+    }
+
+    // Режим «непослушных игроков»: `false` удаляем ключ, `true` пишем «1»
+    // (external_mod_policy в store читает ровно это значение).
+    if let Some(enabled) = req.purge_external {
+        if enabled {
+            state
+                .store
+                .set_setting(store::server_telemetry::SETTING_EXTERNAL_PURGE, "1")
+                .await
+                .map_err(internal)?;
+        } else {
+            state
+                .store
+                .delete_setting(store::server_telemetry::SETTING_EXTERNAL_PURGE)
                 .await
                 .map_err(internal)?;
         }

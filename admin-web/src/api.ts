@@ -610,6 +610,7 @@ export const api = {
     crashAiModel?: string;
     crashAiApiKey?: string;
     curseforgeApiKey?: string;
+    purgeExternal?: boolean;
   }): Promise<Settings> {
     return request("PUT", "/api/settings", patch);
   },
