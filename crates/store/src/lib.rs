@@ -1515,22 +1515,24 @@ impl Store {
     /// нового lifetime повторена в обоих присваиваниях.
     /// Абсолютная синхронизация времени игры из stats-файла SFTP.
     ///
-    /// X приходят монотонно, пока жив мир. Если X меньше текущего live
-    /// (`lifetime - baseline`) — мир сменился (новый сезон = новый мир) и
-    /// stats-файлы пошли с нуля: baseline сдвигается на `lifetime - X`,
-    /// live = X, lifetime остаётся рекордом. Без этого live застревал бы
-    /// на 0 до тех пор, пока новое время не догонит старый рекорд.
+    /// Модель эпох: пока X из stats-файла меньше lifetime (рекорд), идёт
+    /// текущая эпоха (мир нового сезона) — baseline держится на
+    /// `lifetime - X`, live = X. Как только X дотягивается до lifetime,
+    /// рекорд начинает расти и live = X - baseline живёт обычной жизнью.
+    /// Это покрывает и новый сезон (X мал, baseline после архивации =
+    /// lifetime, live раньше застревал на нуле до догона рекорда), и
+    /// старый мир (X = lifetime — ветка тождественна прежнему поведению).
     pub async fn set_playtime_absolute(&self, uuid: &str, seconds: i64) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
              SET lifetime_playtime_seconds = GREATEST(lifetime_playtime_seconds, $2),
                  baseline_playtime_seconds = CASE
-                     WHEN $2 < lifetime_playtime_seconds - baseline_playtime_seconds
+                     WHEN $2 < lifetime_playtime_seconds
                      THEN lifetime_playtime_seconds - $2
                      ELSE baseline_playtime_seconds
                  END,
                  playtime_seconds = CASE
-                     WHEN $2 < lifetime_playtime_seconds - baseline_playtime_seconds THEN $2
+                     WHEN $2 < lifetime_playtime_seconds THEN $2
                      ELSE GREATEST(GREATEST(lifetime_playtime_seconds, $2) - baseline_playtime_seconds, 0)
                  END
              WHERE uuid = $1",
@@ -1572,8 +1574,8 @@ impl Store {
     /// строки, поэтому формула нового lifetime повторена в обоих
     /// присваиваниях каждой метрики.
     /// Абсолютная синхронизация deaths/blocks/distance из stats-файла.
-    /// Логика смены мира — та же, что в `set_playtime_absolute`: каждая
-    /// метрика независимо, при X меньше текущего live, сдвигает baseline.
+    /// Модель эпох — та же, что в `set_playtime_absolute`: каждая метрика
+    /// независимо — пока X ниже lifetime, baseline = lifetime - X.
     pub async fn set_player_stats_absolute(
         &self,
         uuid: &str,
@@ -1585,24 +1587,23 @@ impl Store {
             "UPDATE accounts
              SET lifetime_deaths = GREATEST(lifetime_deaths, $2),
                  baseline_deaths = CASE
-                     WHEN $2 < lifetime_deaths - baseline_deaths
-                     THEN lifetime_deaths - $2 ELSE baseline_deaths END,
+                     WHEN $2 < lifetime_deaths THEN lifetime_deaths - $2 ELSE baseline_deaths END,
                  deaths = CASE
-                     WHEN $2 < lifetime_deaths - baseline_deaths THEN $2
+                     WHEN $2 < lifetime_deaths THEN $2
                      ELSE GREATEST(GREATEST(lifetime_deaths, $2) - baseline_deaths, 0) END,
                  lifetime_blocks_mined = GREATEST(lifetime_blocks_mined, $3),
                  baseline_blocks_mined = CASE
-                     WHEN $3 < lifetime_blocks_mined - baseline_blocks_mined
-                     THEN lifetime_blocks_mined - $3 ELSE baseline_blocks_mined END,
+                     WHEN $3 < lifetime_blocks_mined THEN lifetime_blocks_mined - $3
+                     ELSE baseline_blocks_mined END,
                  blocks_mined = CASE
-                     WHEN $3 < lifetime_blocks_mined - baseline_blocks_mined THEN $3
+                     WHEN $3 < lifetime_blocks_mined THEN $3
                      ELSE GREATEST(GREATEST(lifetime_blocks_mined, $3) - baseline_blocks_mined, 0) END,
                  lifetime_distance_cm = GREATEST(lifetime_distance_cm, $4),
                  baseline_distance_cm = CASE
-                     WHEN $4 < lifetime_distance_cm - baseline_distance_cm
-                     THEN lifetime_distance_cm - $4 ELSE baseline_distance_cm END,
+                     WHEN $4 < lifetime_distance_cm THEN lifetime_distance_cm - $4
+                     ELSE baseline_distance_cm END,
                  distance_cm = CASE
-                     WHEN $4 < lifetime_distance_cm - baseline_distance_cm THEN $4
+                     WHEN $4 < lifetime_distance_cm THEN $4
                      ELSE GREATEST(GREATEST(lifetime_distance_cm, $4) - baseline_distance_cm, 0) END
              WHERE uuid = $1",
         )
