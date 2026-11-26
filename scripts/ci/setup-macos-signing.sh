@@ -33,7 +33,9 @@ openssl pkcs12 -legacy -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWOR
   -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null \
   || openssl pkcs12 -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -nokeys -clcerts \
        -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null
+# Без sudo на headless-раннере add-trusted-cert вечно ждёт GUI-подтверждения trust.
 security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem" 2>/dev/null \
+  || sudo security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem" \
   || security add-trusted-cert -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem"
 
 if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
