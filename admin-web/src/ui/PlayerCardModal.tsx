@@ -341,6 +341,17 @@ function BadgesTab({
       await api.setAccountBadges(account.uuid, data.ownedBadgeIds);
       await api.setAccountGradients(account.uuid, data.ownedGradientIds);
       await api.setAccountActive(account.uuid, data.activeBadgeId, data.activeGradientId);
+      // Сдвигаем baseline на только что сохранённые значения: иначе dirty
+      // остаётся true и карточка при закрытии спрашивает о «несохранённых»
+      // правках. Функциональный setData — чтобы не затереть правки, сделанные
+      // во время запроса (тогда разница с baseline честно останется).
+      const saved = {
+        ownedBadgeIds: data.ownedBadgeIds,
+        ownedGradientIds: data.ownedGradientIds,
+        activeBadgeId: data.activeBadgeId,
+        activeGradientId: data.activeGradientId,
+      };
+      setData((prev) => (prev ? { ...prev, pristine: saved } : prev));
       toast.success("Бейджи и кастомизация сохранены");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Не удалось сохранить бейджи");
@@ -525,10 +536,14 @@ function ActionsTab({
 
   async function handleRename(e: React.FormEvent) {
     e.preventDefault();
-    if (!username.trim() || username.trim() === account.username) return;
+    const next = username.trim();
+    if (!next || next === account.username) return;
     setBusy(true);
     try {
-      onUpdated(await api.renameAccount(account.uuid, username.trim()));
+      onUpdated(await api.renameAccount(account.uuid, next));
+      // Черновик синхронизируем с сохранённым ником: хвостовые пробелы
+      // иначе оставляли бы dirty=true после успешного сохранения.
+      setUsername(next);
       toast.success("Ник изменен");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Не удалось выполнить действие");

@@ -17,7 +17,7 @@ interface SeenState {
 
 /** Новинки текущего релиза: обновлять при добавлении фич в кастомизацию. */
 const NEW_FEATURES = {
-  version: "1.0.41",
+  version: "1.0.42",
   tabs: ["skin", "nick"],
 } as const;
 
