@@ -1513,11 +1513,26 @@ impl Store {
     /// baseline. lifetime при этом не убывает (GREATEST). Все выражения SET
     /// в PostgreSQL вычисляются от старых значений строки, поэтому формула
     /// нового lifetime повторена в обоих присваиваниях.
+    /// Абсолютная синхронизация времени игры из stats-файла SFTP.
+    ///
+    /// X приходят монотонно, пока жив мир. Если X меньше текущего live
+    /// (`lifetime - baseline`) — мир сменился (новый сезон = новый мир) и
+    /// stats-файлы пошли с нуля: baseline сдвигается на `lifetime - X`,
+    /// live = X, lifetime остаётся рекордом. Без этого live застревал бы
+    /// на 0 до тех пор, пока новое время не догонит старый рекорд.
     pub async fn set_playtime_absolute(&self, uuid: &str, seconds: i64) -> Result<(), StoreError> {
         sqlx::query(
             "UPDATE accounts
              SET lifetime_playtime_seconds = GREATEST(lifetime_playtime_seconds, $2),
-                 playtime_seconds = GREATEST(GREATEST(lifetime_playtime_seconds, $2) - baseline_playtime_seconds, 0)
+                 baseline_playtime_seconds = CASE
+                     WHEN $2 < lifetime_playtime_seconds - baseline_playtime_seconds
+                     THEN lifetime_playtime_seconds - $2
+                     ELSE baseline_playtime_seconds
+                 END,
+                 playtime_seconds = CASE
+                     WHEN $2 < lifetime_playtime_seconds - baseline_playtime_seconds THEN $2
+                     ELSE GREATEST(GREATEST(lifetime_playtime_seconds, $2) - baseline_playtime_seconds, 0)
+                 END
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
@@ -1556,6 +1571,9 @@ impl Store {
     /// Все выражения SET в PostgreSQL вычисляются от старых значений
     /// строки, поэтому формула нового lifetime повторена в обоих
     /// присваиваниях каждой метрики.
+    /// Абсолютная синхронизация deaths/blocks/distance из stats-файла.
+    /// Логика смены мира — та же, что в `set_playtime_absolute`: каждая
+    /// метрика независимо, при X меньше текущего live, сдвигает baseline.
     pub async fn set_player_stats_absolute(
         &self,
         uuid: &str,
@@ -1566,11 +1584,26 @@ impl Store {
         sqlx::query(
             "UPDATE accounts
              SET lifetime_deaths = GREATEST(lifetime_deaths, $2),
-                 deaths = GREATEST(GREATEST(lifetime_deaths, $2) - baseline_deaths, 0),
+                 baseline_deaths = CASE
+                     WHEN $2 < lifetime_deaths - baseline_deaths
+                     THEN lifetime_deaths - $2 ELSE baseline_deaths END,
+                 deaths = CASE
+                     WHEN $2 < lifetime_deaths - baseline_deaths THEN $2
+                     ELSE GREATEST(GREATEST(lifetime_deaths, $2) - baseline_deaths, 0) END,
                  lifetime_blocks_mined = GREATEST(lifetime_blocks_mined, $3),
-                 blocks_mined = GREATEST(GREATEST(lifetime_blocks_mined, $3) - baseline_blocks_mined, 0),
+                 baseline_blocks_mined = CASE
+                     WHEN $3 < lifetime_blocks_mined - baseline_blocks_mined
+                     THEN lifetime_blocks_mined - $3 ELSE baseline_blocks_mined END,
+                 blocks_mined = CASE
+                     WHEN $3 < lifetime_blocks_mined - baseline_blocks_mined THEN $3
+                     ELSE GREATEST(GREATEST(lifetime_blocks_mined, $3) - baseline_blocks_mined, 0) END,
                  lifetime_distance_cm = GREATEST(lifetime_distance_cm, $4),
-                 distance_cm = GREATEST(GREATEST(lifetime_distance_cm, $4) - baseline_distance_cm, 0)
+                 baseline_distance_cm = CASE
+                     WHEN $4 < lifetime_distance_cm - baseline_distance_cm
+                     THEN lifetime_distance_cm - $4 ELSE baseline_distance_cm END,
+                 distance_cm = CASE
+                     WHEN $4 < lifetime_distance_cm - baseline_distance_cm THEN $4
+                     ELSE GREATEST(GREATEST(lifetime_distance_cm, $4) - baseline_distance_cm, 0) END
              WHERE uuid = $1",
         )
         .bind(normalize_uuid(uuid))
