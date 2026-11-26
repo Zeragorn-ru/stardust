@@ -7,7 +7,7 @@
 # --- Общая база рантайма ---
 FROM debian:bookworm-slim AS runtime-base
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && apt-get install -y --no-install-recommends ca-certificates curl tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # --- auth-server ---

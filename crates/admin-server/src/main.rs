@@ -298,14 +298,16 @@ async fn main() {
         }
     });
 
-    // Ежедневный бекап: первый запуск после старта, затем раз в 24 часа.
+    // Ежедневный бекап: в полночь по локальному времени сервера (TZ контейнера).
     let backup_state = Arc::clone(&state);
     tokio::spawn(async move {
         loop {
+            let until_midnight = secs_until_next_midnight();
+            tracing::info!("[backup] следующий бекап через {until_midnight} c");
+            tokio::time::sleep(Duration::from_secs(until_midnight)).await;
             if let Err(e) = start_backup(Arc::clone(&backup_state), false).await {
                 tracing::warn!("[backup] {e}");
             }
-            tokio::time::sleep(Duration::from_secs(24 * 60 * 60)).await;
         }
     });
 
@@ -1492,6 +1494,15 @@ async fn run_backup(
         StatusCode::ACCEPTED,
         Json(serde_json::json!({ "inProgress": true })),
     ))
+}
+
+/// Секунды до ближайшей полуночи по локальному времени сервера.
+/// Если TZ-база недоступна (нет tzdata/TZ) — полночь считается по UTC.
+fn secs_until_next_midnight() -> u64 {
+    let now = time::OffsetDateTime::now_local()
+        .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+    let next_midnight = (now + time::Duration::days(1)).replace_time(time::Time::MIDNIGHT);
+    (next_midnight - now).whole_seconds().max(0) as u64
 }
 
 async fn start_backup(state: Shared, manual: bool) -> Result<(), String> {

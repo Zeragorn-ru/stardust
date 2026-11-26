@@ -144,6 +144,9 @@ services:
       # Весь host data монтируется только для чтения: архив создаётся внутри
       # admin-server и отправляется в Object Storage.
       BACKUP_SOURCE_DIR: /backup-data
+      # Полночь для ежедневного бекапа считается по локальному времени
+      # контейнера; по умолчанию — МСК.
+      TZ: ${TZ:-Europe/Moscow}
     volumes:
       # Файлы сборок — ./data/modpack.
       - ./data/modpack:/data/modpack
