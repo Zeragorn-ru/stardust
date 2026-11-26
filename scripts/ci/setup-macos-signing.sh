@@ -63,6 +63,9 @@ if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
     exit 1
   fi
 else
+  # Прокидываем в GITHUB_ENV: шаг ⑧ читает identity из env-контекста,
+  # секреты туда автоматически не попадают.
+  echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
   echo "Using APPLE_SIGNING_IDENTITY from env"
 fi
 
