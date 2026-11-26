@@ -29,14 +29,25 @@ security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 # Self-signed сертификаты (без Apple-корня) не валидны, пока им явно не доверять.
 # Доверяем корневому сертификату импортированного p12 — работает и для Developer ID.
 # OpenSSL 3 читает legacy-форматы p12 (RC2/3DES) только с -legacy — пробуем оба варианта.
+LEAF="$RUNNER_TEMP/leaf.pem"
 openssl pkcs12 -legacy -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -nokeys -clcerts \
-  -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null \
+  -out "$LEAF" 2>&1 \
   || openssl pkcs12 -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -nokeys -clcerts \
-       -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null
+       -out "$LEAF" 2>&1
+if [ ! -s "$LEAF" ]; then
+  echo "::error::Не удалось извлечь сертификат из p12 (leaf.pem пуст)"
+  exit 1
+fi
+echo "leaf.pem: $(wc -c < "$LEAF") bytes"
+grep -c "BEGIN CERTIFICATE" "$LEAF" || true
+
 # На headless-раннере non-sudo вызов вечно ждёт GUI-подтверждения trust —
 # поэтому сначала sudo в admin-домен (на runner sudo passwordless), fallback — локальный сценарий.
-sudo security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem" \
-  || security add-trusted-cert -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem"
+sudo security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$LEAF" \
+  || security add-trusted-cert -r trustRoot -k "$KEYCHAIN_PATH" "$LEAF"
+
+echo "==> Identities after trust:"
+security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
 
 if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
   # Сначала ищем Developer ID, затем — любой валидный codesigning identity (self-signed).
