@@ -572,11 +572,15 @@ button,
 .screen-enter-left    { will-change: opacity, transform; animation-name: t-enter-left;   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
 
 /* Exit classes — короче входа: уходящий экран исчезает до того, как
-   входящий наберёт непрозрачность. */
-.screen-exit-up    { animation-name: t-exit-up;    animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
-.screen-exit-down  { animation-name: t-exit-down;  animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
-.screen-exit-left  { animation-name: t-exit-left;  animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
-.screen-exit-right { animation-name: t-exit-right; animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+   входящий наберёт непрозрачность. fill-mode: forwards обязателен:
+   DOM уходящего экрана держится до конца полного перехода (TRANSITION_MS
+   в App.tsx > длительности exit), без forwards после завершения анимации
+   экран откатывается к opacity: 1 и «вспыхивает» обратно перед
+   размонтированием. */
+.screen-exit-up    { animation-name: t-exit-up;    animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); animation-fill-mode: forwards; }
+.screen-exit-down  { animation-name: t-exit-down;  animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); animation-fill-mode: forwards; }
+.screen-exit-left  { animation-name: t-exit-left;  animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); animation-fill-mode: forwards; }
+.screen-exit-right { animation-name: t-exit-right; animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); animation-fill-mode: forwards; }
 
 @keyframes t-enter-bottom {
     from { opacity: 0; transform: translateY(28px); }
@@ -4787,6 +4791,11 @@ button.info-card__path--link:hover:not(:disabled) {
    (useDelayedUnmount): DOM удерживается до конца анимации закрытия. */
 .build-screen {
     animation: build-screen-in 380ms cubic-bezier(0.16, 1, 0.3, 1);
+    /* Композитный слой на всё время модалки: без него конец expo-out
+       (translateY(28px)→0 на fullscreen) даёт субпиксельный снап и
+       пересоздание слоя — видимый рывок в самом конце входа. Слой живёт
+       только пока модалка в DOM (+200мс exit-задержка useDelayedUnmount). */
+    will-change: opacity, transform;
 }
 
 @keyframes build-screen-in {
