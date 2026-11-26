@@ -225,12 +225,9 @@ jobs:
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+          # Нотаризационные APPLE_ID/APPLE_PASSWORD/APPLE_API_* НЕ прокидываем:
+          # bundler воспринимает даже пустые строки как «нотаризуем» и падает
+          # (настоящего Apple Developer-аккаунта нет). Вернуть при появлении.
 
       - name: "⑧b DMG webloc"
         if: matrix.id == 'macos' && steps.signing.outputs.available == 'true'
