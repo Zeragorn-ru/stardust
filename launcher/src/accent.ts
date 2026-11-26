@@ -42,18 +42,6 @@ export function hexToRgb(hex: string): string {
   )}`;
 }
 
-/** Смешивает hex с белым (k > 0) или чёрным (k < 0); k в долях единицы. */
-function shade(hex: string, k: number): string {
-  const raw = normalizeCustomHex(hex).replace(/^#/, "");
-  if (!raw) return hex;
-  const ch = (i: number) => parseInt(raw.slice(i, i + 2), 16);
-  const mix = (c: number) =>
-    Math.round(k >= 0 ? c + (255 - c) * k : c * (1 + k))
-      .toString(16)
-      .padStart(2, "0");
-  return `#${mix(ch(0))}${mix(ch(1))}${mix(ch(2))}`;
-}
-
 /** Относительная яркость (0..1) — чтобы выбрать цвет текста на акценте. */
 function luminance(hex: string): number {
   const raw = normalizeCustomHex(hex).replace(/^#/, "");
@@ -75,8 +63,10 @@ export function applyAccent(name: AccentName, customHex?: string): void {
   if (name === "custom" && hex) {
     root.dataset.accent = "custom";
     style.setProperty("--accent", hex);
-    style.setProperty("--accent-2", shade(hex, -0.18));
-    style.setProperty("--accent-grad", `linear-gradient(135deg, ${hex} 0%, ${shade(hex, -0.18)} 100%)`);
+    // Сплошной цвет без градиента: оба стопа одинаковые, --accent-2 = hex,
+    // иначе элементы с accent-2/accent-grad выглядят двуцветными.
+    style.setProperty("--accent-2", hex);
+    style.setProperty("--accent-grad", `linear-gradient(135deg, ${hex} 0%, ${hex} 100%)`);
     style.setProperty("--accent-rgb", hexToRgb(hex));
     // Тёмный текст на светлом акценте, почти белый — на тёмном.
     style.setProperty("--text-on-gold", luminance(hex) > 0.35 ? "#191226" : "#f4f2fa");

@@ -139,6 +139,11 @@
     filter: grayscale(1) brightness(0.55);
 }
 
+/* Звёзды в AMOLED выключаем полностью: строгий монохром не терпит шума. */
+:root[data-theme="amoled"] .aurora__stars {
+    display: none;
+}
+
 /* Нативный <input type="color"> внутри сегментированного переключателя:
    компактный кружок с текущим кастомным цветом. */
 .accent-color-input {
