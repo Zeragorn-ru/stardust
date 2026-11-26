@@ -74,6 +74,8 @@ const SkinViewer3D = memo(function SkinViewer3D({
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewerRef = useRef<SkinViewer | null>(null);
+  /** id нашего капнутого RAF-цикла (см. startCappedLoop). */
+  const rafRef = useRef<number | null>(null);
   const { animations } = useMotion();
   const animationsRef = useRef(animations);
   animationsRef.current = animations;
@@ -130,11 +132,43 @@ const SkinViewer3D = memo(function SkinViewer3D({
       renderOnce();
       return;
     }
-    v.startRenderLoop();
+    startCappedLoop(v);
+  }
+
+  /** Свой RAF-цикл с капом ~30 fps вместо встроенного 60 fps рендерера:
+     float-анимация героя остаётся плавной, но WebGL рисует вдвое меньше
+     кадров — заметно меньше GPU-памяти и энергии (рендер живёт часами,
+     пока лаунчер открыт и в фокусе). */
+  function startCappedLoop(v: SkinViewer) {
+    stopCappedLoop();
+    let last = 0;
+    const FRAME_MS = 1000 / 30;
+    const tick = (now: number) => {
+      if (!isViewerActive(v, lifecycleGenerationRef.current)) return;
+      if (now - last >= FRAME_MS) {
+        last = now;
+        if (!visibleRef.current || !focusedRef.current || document.hidden) {
+          // Условия пропали — ждём, но цикл не убиваем: startLoop() перезапустит
+          // логику при возврате видимости, а здесь просто не рисуем.
+        } else {
+          v.render();
+        }
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function stopCappedLoop() {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
   }
 
   /** Остановить цикл рендера. */
   function stopLoop() {
+    stopCappedLoop();
     viewerRef.current?.stopRenderLoop();
   }
 

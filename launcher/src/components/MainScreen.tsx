@@ -358,7 +358,10 @@ export default function MainScreen({
               capeUrl={skin.capeUrl}
               width={240}
               height={340}
-              visible={windowFocused && !running}
+              // Модалка кастомизации рендерит свой WebGL-вьюер — hero-контекст
+              // на это время ставим на паузу: минус один живой WebGL-контекст
+              // и постоянный рендер-цикл.
+              visible={windowFocused && !running && !skinOpen}
             />
           ) : (
             <FaceAvatar dataUrl={skin.dataUrl} size={240} />
