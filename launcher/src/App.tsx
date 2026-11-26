@@ -19,7 +19,9 @@ type View = "onboarding" | "login" | "main" | "news" | "settings";
 type SettingsSection = "game" | "account" | "admin" | "logs";
 
 const VIEW_ORDER: View[] = ["onboarding", "login", "main", "news", "settings"];
-const TRANSITION_MS = 380;
+// Стаггер перехода: вход задерживается на 120 мс (см. .screen-enter-*),
+// полный цикл — delay входа (120) + его длительность (380).
+const TRANSITION_MS = 500;
 
 /** Открыт ли оверлей/модалка, которой положено самой обработать Escape. */
 function hasOpenOverlay(): boolean {

@@ -48,10 +48,6 @@ interface Props {
 
 const MEM_STEP = 512;
 
-// Границы параллельности загрузок (одновременных файлов).
-const DL_MIN = 1;
-const DL_MAX = 16;
-
 /** Заполнение ползунка в % для CSS-градиента трека (--fill). */
 function rangeFillPct(value: number, min: number, max: number): number {
   if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return 0;
@@ -297,7 +293,6 @@ export default function SettingsScreen({
     settings != null &&
     initialSettings != null &&
     (settings.memoryMb !== initialSettings.memoryMb ||
-      settings.downloadConcurrency !== initialSettings.downloadConcurrency ||
       settings.show3dModel !== initialSettings.show3dModel ||
       settings.proxyType !== initialSettings.proxyType ||
       (settings.javaProvider ?? DEFAULT_JAVA_PROVIDER) !==
@@ -960,34 +955,6 @@ export default function SettingsScreen({
               <div className="range-bounds muted">
                 <span>{memoryLimits?.minMb ?? "…"} МБ</span>
                 <span>{memoryLimits?.maxMb ?? "…"} МБ</span>
-              </div>
-            </div>}
-
-            {section === "game" && <div className="field stagger-item">
-              <span>
-                Одновременных загрузок:{" "}
-                <strong>{settings.downloadConcurrency}</strong>
-              </span>
-              <input
-                type="range"
-                aria-label="Одновременных загрузок"
-                min={DL_MIN}
-                max={DL_MAX}
-                step={1}
-                value={settings.downloadConcurrency}
-                style={{
-                  "--fill": `${rangeFillPct(settings.downloadConcurrency, DL_MIN, DL_MAX)}%`,
-                } as CSSProperties}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    downloadConcurrency: Number(e.target.value),
-                  })
-                }
-              />
-              <div className="range-bounds muted">
-                <span>{DL_MIN}</span>
-                <span>{DL_MAX}</span>
               </div>
             </div>}
 

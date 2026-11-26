@@ -123,6 +123,9 @@ export default function MainScreen({
   // Экран «Сборка»: вкладки моды/краши/шейдеры (открывается с карточки).
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildTab, setBuildTab] = useState<BuildTab>("mods");
+  // Exit-анимация экрана сборки: DOM удерживается на время закрытия,
+  // класс --closing успевает отыграть (тот же паттерн, что у кастомизации).
+  const buildModal = useDelayedUnmount(buildOpen);
   // Список модов сборки: на карточке «Опциональных: X из Y» — из него.
   const [mods, setMods] = useState<OptionalMod[] | null>(null);
   // Общее число модов сборки (все kind == Mod из манифеста, включая
@@ -604,9 +607,10 @@ export default function MainScreen({
           }}
         />
       )}
-      {buildOpen && (
+      {buildModal.shouldRender && (
         <BuildModal
           initialTab={buildTab}
+          closing={!buildModal.visible}
           onClose={() => setBuildOpen(false)}
         />
       )}

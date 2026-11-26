@@ -32,6 +32,8 @@ type PackKind = "shader" | "resourcepack";
 interface Props {
   initialTab?: BuildTab;
   onClose: () => void;
+  /** Exit-анимация закрытия: класс --closing (DOM удерживает useDelayedUnmount в MainScreen). */
+  closing?: boolean;
 }
 
 /**
@@ -40,7 +42,7 @@ interface Props {
  * Полноэкранный слой в стилистике настроек (.settings): шапка сверху,
  * навигация по вкладкам — боковая. Escape закрывает, когда ничего не грузится.
  */
-export default function BuildModal({ initialTab = "mods", onClose }: Props) {
+export default function BuildModal({ initialTab = "mods", onClose, closing }: Props) {
   const [tab, setTab] = useState<BuildTab>(initialTab);
   // Что-то грузится во вкладке шейдеров/ресурс-паков — блокируем случайное
   // закрытие.
@@ -60,7 +62,9 @@ export default function BuildModal({ initialTab = "mods", onClose }: Props) {
 
   return (
     <div
-      className="settings build-screen"
+      className={
+        "settings build-screen" + (closing ? " build-screen--closing" : "")
+      }
       role="dialog"
       aria-modal="true"
       aria-label="Сборка"

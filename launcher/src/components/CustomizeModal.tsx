@@ -13,7 +13,7 @@ interface Props {
   closing?: boolean;
 }
 
-export default function CustomizeModal({ playerName, onClose, onNickSaved }: Props) {
+export default function CustomizeModal({ playerName, onClose, onNickSaved, closing }: Props) {
   const [tab, setTab] = useState<Tab>("skin");
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -27,7 +27,15 @@ export default function CustomizeModal({ playerName, onClose, onNickSaved }: Pro
   }, []);
 
   return (
-    <div className="settings build-screen customize-screen" role="dialog" aria-modal="true" aria-label="Кастомизация">
+    <div
+      className={
+        "settings build-screen customize-screen" +
+        (closing ? " build-screen--closing" : "")
+      }
+      role="dialog"
+      aria-modal="true"
+      aria-label="Кастомизация"
+    >
       <Aurora />
       <header className="settings__header" data-tauri-drag-region="deep">
         <button type="button" className="btn btn--ghost" onClick={onClose}>

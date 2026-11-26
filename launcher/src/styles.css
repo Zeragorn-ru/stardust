@@ -154,6 +154,12 @@
     border-radius: 999px;
     background: none;
     cursor: pointer;
+    /* Внутри .segmented (align-items: stretch) кружок по умолчанию
+       тянется к верхней кромке — центрируем по вертикали ряда. */
+    align-self: center;
+    flex-shrink: 0;
+    margin-left: 8px;
+    margin-right: 4px;
 }
 .accent-color-input::-webkit-color-swatch-wrapper {
     padding: 2px;
@@ -612,6 +618,19 @@ button,
     animation-fill-mode: backwards;
 }
 
+/* Стаггер против «призраков»: выход короче и стартует сразу, вход
+   задерживается, пока уходящий экран ещё не растворился. Без него
+   в середине перехода оба экрана полупрозрачны и элементы верхнего
+   (входящего) просвечивают сквозь элементы уходящего (кнопка «Назад»
+   против заголовка настроек). fill-mode: backwards держит входящий
+   экран невидимым на время задержки. */
+.screen-enter-bottom,
+.screen-enter-top,
+.screen-enter-right,
+.screen-enter-left {
+    animation-delay: 120ms;
+}
+
 /* Enter classes — will-change только здесь; на exit не нужен и создаёт
    новый stacking context, сбрасывающий GPU-слои дочерних элементов.
    Вход замедляется (expo-out), выход ускоряется (ease-in) — так переход
@@ -623,11 +642,12 @@ button,
 .screen-enter-right   { will-change: opacity, transform; animation-name: t-enter-right;  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
 .screen-enter-left    { will-change: opacity, transform; animation-name: t-enter-left;   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
 
-/* Exit classes */
-.screen-exit-up    { animation-name: t-exit-up;    animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
-.screen-exit-down  { animation-name: t-exit-down;  animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
-.screen-exit-left  { animation-name: t-exit-left;  animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
-.screen-exit-right { animation-name: t-exit-right; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+/* Exit classes — короче входа: уходящий экран исчезает до того, как
+   входящий наберёт непрозрачность. */
+.screen-exit-up    { animation-name: t-exit-up;    animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+.screen-exit-down  { animation-name: t-exit-down;  animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+.screen-exit-left  { animation-name: t-exit-left;  animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
+.screen-exit-right { animation-name: t-exit-right; animation-duration: 220ms; animation-timing-function: cubic-bezier(0.55, 0, 1, 0.45); }
 
 @keyframes t-enter-bottom {
     from { opacity: 0; transform: translateY(28px); }
@@ -4837,6 +4857,52 @@ button.info-card__path--link:hover:not(:disabled) {
 
 .build-screen .settings__body > .mods-section {
     padding-bottom: 18px;
+}
+
+/* Вход/выход полноэкранных модалок (сборка, кастомизация) — тот же язык,
+   что у переходов экранов .screen-enter-*: expo-out вход ~380мс, короткий
+   слайд 28px + fade (полный экран едет целиком — большие сдвиги рывком);
+   выход ускоренный ease-in ~200мс. Класс --closing рендерится из TSX
+   (useDelayedUnmount): DOM удерживается до конца анимации закрытия. */
+.build-screen {
+    animation: build-screen-in 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes build-screen-in {
+    from {
+        opacity: 0;
+        transform: translateY(28px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Exit-класс строго после базового — при равной специфичности animation
+   решается порядком каскада (как .update-card--closing). */
+.build-screen--closing {
+    animation: build-screen-out 200ms cubic-bezier(0.55, 0, 1, 0.45) forwards;
+    pointer-events: none;
+}
+
+@keyframes build-screen-out {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+}
+
+/* На выходе замораживаем дочерние анимации (аурора, пульс), чтобы слой
+   не мерцал при сдвиге — тот же приём, что у .screen-exit-*. */
+.build-screen--closing *,
+.build-screen--closing *::before,
+.build-screen--closing *::after {
+    animation-play-state: paused !important;
 }
 
 /* --- Вкладка «Шейдеры»: поиск и скачивание с Modrinth --- */
