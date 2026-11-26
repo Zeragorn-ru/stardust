@@ -26,8 +26,18 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN
 echo "==> Available signing identities:"
 security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
+# Self-signed сертификаты (без Apple-корня) не валидны, пока им явно не доверять.
+# Доверяем корневому сертификату импортированного p12 — работает и для Developer ID.
+openssl pkcs12 -in "$CERT_PATH" -passin pass:"$APPLE_CERTIFICATE_PASSWORD" -nokeys -clcerts -out "$RUNNER_TEMP/leaf.pem" 2>/dev/null
+security add-trusted-cert -d -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem" 2>/dev/null \
+  || security add-trusted-cert -r trustRoot -k "$KEYCHAIN_PATH" "$RUNNER_TEMP/leaf.pem"
+
 if [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+  # Сначала ищем Developer ID, затем — любой валидный codesigning identity (self-signed).
   APPLE_SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep 'Developer ID Application' | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
+  if [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+    APPLE_SIGNING_IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -v "valid identities" | head -1 | sed -E 's/.*"([^"]+)".*/\1/' || true)
+  fi
   if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
     echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY" >> "$GITHUB_ENV"
     echo "Detected signing identity: $APPLE_SIGNING_IDENTITY"
