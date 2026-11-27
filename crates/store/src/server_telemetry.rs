@@ -122,6 +122,12 @@ pub struct PendingCrash {
     pub username: Option<String>,
     pub summary: String,
     pub details: serde_json::Value,
+    /// Версия лаунчера на момент краша (из details).
+    pub launcher_version: Option<String>,
+    /// SHA-1 кешированного манифеста сборки (из details).
+    pub modpack_manifest_sha: Option<String>,
+    /// Выборы игрока: опциональные моды «имя: вкл/выкл» (из details).
+    pub player_choices: Option<Vec<String>>,
 }
 
 impl Store {
@@ -482,12 +488,26 @@ impl Store {
         .await?;
         Ok(rows
             .into_iter()
-            .map(|row| PendingCrash {
-                id: row.get("id"),
-                event_type: row.get("event_type"),
-                username: row.get("username"),
-                summary: row.get("summary"),
-                details: row.get("details"),
+            .map(|row| {
+                let details: serde_json::Value = row.get("details");
+                PendingCrash {
+                    id: row.get("id"),
+                    event_type: row.get("event_type"),
+                    username: row.get("username"),
+                    summary: row.get("summary"),
+                    launcher_version: details
+                        .get("launcherVersion")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    modpack_manifest_sha: details
+                        .get("manifestSha")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    player_choices: details
+                        .get("playerChoices")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok()),
+                    details,
+                }
             })
             .collect())
     }

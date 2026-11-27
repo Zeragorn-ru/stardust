@@ -3329,6 +3329,13 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle, launch_id: String
                     collect_crash_environment(&app_handle, launched_manifest.as_ref());
                 let mods = collect_mod_names(&game_dir);
                 let jvm_log = collect_jvm_log(&game_dir, session_start);
+                // Контекст сборки/выборов для AI: версия лаунчера, SHA-1
+                // манифеста и выборы игрока. Ошибки не мешают отправке репорта.
+                let launcher_version = Some(env!("CARGO_PKG_VERSION").to_string());
+                let manifest_sha = crate::modpack::cached_manifest_sha(&data_dir2);
+                let player_choices = launched_manifest
+                    .as_ref()
+                    .and_then(|m| crate::modpack::player_choices_for(m, &data_dir2));
                 let crash_req = backend::ReportCrashRequest {
                     exit_code,
                     log: log_content,
@@ -3339,6 +3346,9 @@ async fn play_game(state: State<'_, AppState>, app: AppHandle, launch_id: String
                     environment: Some(environment),
                     mods,
                     jvm_log,
+                    launcher_version,
+                    manifest_sha,
+                    player_choices,
                 };
                 match backend::report_crash(&http, &token, &crash_req).await {
                     Ok(Some(resp)) if resp.ai_enabled => {
@@ -4537,6 +4547,9 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
             environment: None,
             mods: Some(vec!["fabric-api".into()]),
             jvm_log: None,
+            launcher_version: None,
+            manifest_sha: None,
+            player_choices: None,
         };
         save_pending_crash(&dir, "profile-1", req);
         let raw = std::fs::read(pending_crashes_path(&dir)).unwrap();
@@ -4565,6 +4578,9 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
                     environment: None,
                     mods: None,
                     jvm_log: None,
+                    launcher_version: None,
+                    manifest_sha: None,
+                    player_choices: None,
                 },
             );
         }
@@ -4594,6 +4610,9 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
             environment: Some(serde_json::json!({ "os": "test" })),
             mods: Some((0..200).map(|i| format!("mod-{i}.jar")).collect()),
             jvm_log: Some(line.repeat(120_000)),
+            launcher_version: None,
+            manifest_sha: None,
+            player_choices: None,
         };
         assert!(serde_json::to_vec(&req).unwrap().len() > PENDING_CRASH_BODY_LIMIT);
         let shrunk = shrink_crash_request(req);
@@ -4619,6 +4638,9 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
             environment: None,
             mods: None,
             jvm_log: None,
+            launcher_version: None,
+            manifest_sha: None,
+            player_choices: None,
         };
         let shrunk = shrink_crash_request(req);
         assert_eq!(shrunk.log, "boom");
@@ -4637,6 +4659,9 @@ com.mojang.realmsclient.exception.RealmsServiceException: Realms authentication 
             environment: None,
             mods: None,
             jvm_log: None,
+            launcher_version: None,
+            manifest_sha: None,
+            player_choices: None,
         }
     }
 

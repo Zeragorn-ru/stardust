@@ -613,6 +613,46 @@ pub async fn list_optional_mods(
 /// друг друга (lost update).
 static CHOICES_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+/// Выборы игрока для контекста AI-разбора краша: опциональные моды и моды
+/// с тегами профилей в формате «имя: вкл/выкл» — по состоянию
+/// `mod-choices.json` и выбранного профиля. Пусто/нет сборки → `None`.
+pub fn player_choices_for(manifest: &protocol::Manifest, data_dir: &Path) -> Option<Vec<String>> {
+    let (choices_file, selected_profile_file) = crate::paths::modpack_settings(data_dir, manifest);
+    let choices = read_choices(&choices_file);
+    let selected_profile = resolve_selected_profile(manifest, &selected_profile_file);
+    let items: Vec<String> = manifest
+        .client_files()
+        .filter(|entry| entry.optional || !entry.profiles.is_empty())
+        .map(|entry| {
+            let name = entry
+                .display_name
+                .clone()
+                .unwrap_or_else(|| mod_choice_key(entry));
+            let state = if file_enabled(entry, &choices, selected_profile.as_deref()) {
+                "вкл"
+            } else {
+                "выкл"
+            };
+            format!("{name}: {state}")
+        })
+        .collect();
+    if items.is_empty() {
+        None
+    } else {
+        Some(items)
+    }
+}
+
+/// SHA-1 кешированного манифеста — идентификатор сборки на момент краша.
+/// Нет файла/ошибка чтения → `None` (репорт не должен падать из-за этого).
+pub fn cached_manifest_sha(data_dir: &Path) -> Option<String> {
+    let bytes = std::fs::read(data_dir.join("cached-manifest.json")).ok()?;
+    let mut hasher = sha1::Sha1::new();
+    use sha1::Digest;
+    hasher.update(&bytes);
+    Some(format!("{:x}", hasher.finalize()))
+}
+
 /// Включает/выключает опциональный мод. Сохраняет выбор и, если файл уже
 /// скачан, мгновенно переименовывает его (± `.dis`) без обращения к серверу.
 /// Если файл ещё не установлен, выбор применится при ближайшей синхронизации.

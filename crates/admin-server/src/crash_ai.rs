@@ -70,6 +70,20 @@ pub async fn analyze_log(state: &crate::Shared, id: i64) -> Result<Verdict, Stri
         event_type: crash.event_type,
         username: crash.username,
         summary: crash.summary,
+        launcher_version: crash
+            .details
+            .get("launcherVersion")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        modpack_manifest_sha: crash
+            .details
+            .get("manifestSha")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        player_choices: crash
+            .details
+            .get("playerChoices")
+            .and_then(|v| serde_json::from_value(v.clone()).ok()),
         details: crash.details,
     };
     let verdict = run_analysis(state, &config, &pending).await?;
@@ -89,11 +103,9 @@ async fn run_analysis(
         username: crash.username.clone(),
         summary: crash.summary.clone(),
         details: crash.details.clone(),
-        // Контекст среды (launcher_version/manifest_sha/player_choices) —
-        // заготовка: пока не заполняем.
-        launcher_version: None,
-        modpack_manifest_sha: None,
-        player_choices: None,
+        launcher_version: crash.launcher_version.clone(),
+        modpack_manifest_sha: crash.modpack_manifest_sha.clone(),
+        player_choices: crash.player_choices.clone(),
     };
     match analyze(&state.http, config, &input).await {
         Ok(verdict) => {

@@ -1589,6 +1589,15 @@ struct ReportCrashRequest {
     /// падения рендерера не диагностируются.
     #[serde(default)]
     jvm_log: Option<String>,
+    /// Версия лаунчера на момент краша.
+    #[serde(default)]
+    launcher_version: Option<String>,
+    /// SHA-1 кешированного манифеста сборки — какая сборка крашнулась.
+    #[serde(default)]
+    manifest_sha: Option<String>,
+    /// Выборы игрока: опциональные моды в формате «имя: вкл/выкл».
+    #[serde(default)]
+    player_choices: Option<Vec<String>>,
 }
 
 async fn report_crash(
@@ -1637,6 +1646,9 @@ async fn report_crash(
                 "environment": req.environment,
                 "mods": req.mods,
                 "jvmLog": req.jvm_log,
+                "launcherVersion": req.launcher_version,
+                "manifestSha": req.manifest_sha,
+                "playerChoices": req.player_choices,
             }),
         )
         .await?;
@@ -1700,11 +1712,21 @@ async fn analyze_crash_now(state: &Shared, log_id: i64) -> Result<(), String> {
         event_type: log.event_type,
         username,
         summary: log.summary,
-        details: log.details,
-        // Контекст среды — заготовка, пока не заполняем.
-        launcher_version: None,
-        modpack_manifest_sha: None,
-        player_choices: None,
+        details: log.details.clone(),
+        launcher_version: log
+            .details
+            .get("launcherVersion")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        modpack_manifest_sha: log
+            .details
+            .get("manifestSha")
+            .and_then(|v| v.as_str())
+            .map(String::from),
+        player_choices: log
+            .details
+            .get("playerChoices")
+            .and_then(|v| serde_json::from_value(v.clone()).ok()),
     };
     match crash_ai::analyze(&state.http, &config, &input).await {
         Ok(verdict) => {

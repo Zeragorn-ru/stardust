@@ -830,6 +830,15 @@ pub struct ReportCrashRequest {
     /// JVM-лог нативного краша (hs_err_pid*.log).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jvm_log: Option<String>,
+    /// Версия лаунчера на момент краша (для AI-разбора).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub launcher_version: Option<String>,
+    /// SHA-1 кешированного манифеста сборки — какая именно сборка крашнулась.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manifest_sha: Option<String>,
+    /// Выборы игрока: опциональные моды в формате «имя: вкл/выкл».
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub player_choices: Option<Vec<String>>,
 }
 
 /// Ответ `/api/report-crash`: id записи журнала (для опроса AI-разбора)
