@@ -30,13 +30,20 @@ pub struct Config {
 ///
 /// `event_type` — `client_crash` или `server_crash`; `details` — JSONB
 /// журнала (логи, стек, моды) в том виде, в каком его записал auth-server.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CrashInput {
     pub id: i64,
     pub event_type: String,
     pub username: Option<String>,
     pub summary: String,
     pub details: serde_json::Value,
+    // Заготовки на будущее: пока callers не заполняют (поля опциональные).
+    // Версия лаунчера и SHA манифеста позволят сверить сборку игрока с эталоном.
+    pub launcher_version: Option<String>,
+    pub modpack_manifest_sha: Option<String>,
+    /// Optional-выборы игрока (включённые/выключенные моды) — возможный
+    /// источник несовместимостей внутри управляемой сборки.
+    pub player_choices: Option<Vec<String>>,
 }
 
 /// Вердикт анализа — хранится в `server_logs.ai_analysis`.
@@ -58,6 +65,10 @@ pub struct Verdict {
     pub model: String,
     /// Когда проанализировано (RFC 3339).
     pub analyzed_at: String,
+    /// Влияние optional-выборов игрока на краш: короткая фраза или «нет».
+    /// `None` — старые вердикты до появления поля (не ломаем хранилище/UI).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub player_choice_impact: Option<String>,
 }
 
 impl Verdict {
@@ -230,6 +241,9 @@ pub fn parse_verdict(content: &str, model: &str) -> Result<Verdict, String> {
         suggestion: String,
         #[serde(default)]
         severity: String,
+        // Модель старого промпта может не вернуть поле — не считаем ошибкой.
+        #[serde(default)]
+        player_choice_impact: Option<String>,
     }
 
     let raw: RawVerdict =
@@ -252,6 +266,11 @@ pub fn parse_verdict(content: &str, model: &str) -> Result<Verdict, String> {
         severity,
         model: model.to_string(),
         analyzed_at: now_rfc3339(),
+        // Ограничиваем длину так же, как cause: поле идёт в уведомление.
+        player_choice_impact: raw
+            .player_choice_impact
+            .map(|v| truncate_words(&one_line(&v), MAX_CAUSE_CHARS))
+            .filter(|v| !v.is_empty() && v != "нет"),
     })
 }
 
@@ -339,6 +358,15 @@ fn normalize_actions(text: &str) -> String {
 const SYSTEM_PROMPT: &str = "Ты — диагност крашей Minecraft (загрузчики NeoForge/Fabric, версии 1.21.x и 26.x). \
 Ответ читает обычный игрок, а не программист: пиши по-русски, коротко и без технического жаргона. \
 \
+Контекст платформы (считай его достоверным без проверки): у всех игроков кастомный лаунчер StarDust, \
+сборка модов управляется лаунчером — манифест по SHA-1, профили модов взаимоисключающие, один всегда выбран. \
+Игрок НЕ может добавлять сторонние моды в сборку или менять версии — только включать/выключать optional-моды \
+среди предложенных (выключенные лежат файлами с суффиксом .dis и не грузятся). Версии Java, Minecraft, \
+загрузчика и модов приходят из манифеста лаунчера, а не ставятся игроком вручную. \
+Отсюда порядок подозреваемых: 1) баг самой сборки/манифеста (не те версии, конфликт внутри сборки); \
+2) несовместимость optional-выборов игрока — их комбинация может ломать игру; 3) проблемы среды \
+(Java из манифеста, память, драйверы, ОС). Версию «игрок сам наставил модов» НЕ рассматривай — это невозможно. \
+\
 Методика (внутренняя, в ответ её не переноси): найди корневое исключение — «Description:» \
 crash-отчёта, последний «Caused by:», FATAL/ERROR в логах; определи виновника по стеку мода \
 (пакет вне net.minecraft и загрузчика) и сверь с «Окружением»; учти версии Java/Minecraft/загрузчика, \
@@ -359,9 +387,11 @@ suggestion — от 1 до 3 действий, каждое с новой стр
 Настройках». Самое важное — первой строкой. Не пересказывай логи и не давай общих советов \
 («переустанови игру») без причины. \
 severity — low / medium / high / critical. \
+playerChoiceImpact — одна короткая фраза (до 100 символов): влияют ли optional-выборы игрока на краш. \
+Если да — назови мод(ы) и как; если нет или выборы неизвестны — «нет». \
 \
 Ответь СТРОГО одним JSON-объектом без markdown и без текста вокруг: \
-{\"summary\": \"...\", \"cause\": \"...\", \"suggestion\": \"строка 1\\nстрока 2\", \"severity\": \"low|medium|high|critical\"}. \
+{\"summary\": \"...\", \"cause\": \"...\", \"suggestion\": \"строка 1\\nстрока 2\", \"severity\": \"low|medium|high|critical\", \"playerChoiceImpact\": \"...\"}. \
 severity: critical — сервер не запускается или падает постоянно; high — игра не запускается \
 у игрока или крашится каждый раз в одном месте; medium — разовый краш, игра в целом работает; \
 low — краш без влияния на процесс (например, при выходе из игры).";
@@ -375,6 +405,22 @@ pub fn build_prompt(crash: &CrashInput) -> String {
     let mut out = format!("Тип: краш ({kind})\nЖурнал #{}\n", crash.id);
     if let Some(username) = &crash.username {
         out.push_str(&format!("Игрок: {username}\n"));
+    }
+    // Заготовки на будущее: когда callers начнут заполнять, модель увидит
+    // версию лаунчера, манифест и выборы игрока даже без details.
+    if let Some(version) = &crash.launcher_version {
+        out.push_str(&format!("Версия лаунчера: {version}\n"));
+    }
+    if let Some(sha) = &crash.modpack_manifest_sha {
+        out.push_str(&format!("SHA манифеста сборки: {sha}\n"));
+    }
+    if let Some(choices) = &crash.player_choices {
+        if !choices.is_empty() {
+            out.push_str(&format!(
+                "Optional-выборы игрока: {}\n",
+                choices.join(", ")
+            ));
+        }
     }
     out.push_str(&format!("Сводка: {}\n\n", crash.summary));
 
@@ -487,6 +533,10 @@ pub fn admin_notification(id: i64, username: Option<&str>, verdict: &Verdict) ->
     );
     if !actions.is_empty() {
         text.push_str(&format!("\n\nЧто сделать:\n{actions}"));
+    }
+    // Поле появилось позже остальных — печатаем только когда модель его дала.
+    if let Some(impact) = &verdict.player_choice_impact {
+        text.push_str(&format!("\n\nВлияние выборов игрока: {impact}"));
     }
     text
 }
@@ -616,6 +666,48 @@ mod tests {
     }
 
     #[test]
+    fn parse_verdict_reads_player_choice_impact() {
+        let content = r#"{"summary":"s","cause":"c","suggestion":"x","severity":"high","playerChoiceImpact":"конфликт модов X и Y"}"#;
+        let verdict = parse_verdict(content, "m").expect("verdict");
+        assert_eq!(
+            verdict.player_choice_impact.as_deref(),
+            Some("конфликт модов X и Y")
+        );
+        // Старый промпт без поля — вердикт всё равно валиден.
+        let legacy = parse_verdict(
+            r#"{"summary":"s","cause":"c","suggestion":"x","severity":"low"}"#,
+            "m",
+        )
+        .expect("verdict");
+        assert_eq!(legacy.player_choice_impact, None);
+        // «нет» и пустота схлопываются в None.
+        let none = parse_verdict(
+            r#"{"summary":"s","cause":"c","suggestion":"x","severity":"low","playerChoiceImpact":"нет"}"#,
+            "m",
+        )
+        .expect("verdict");
+        assert_eq!(none.player_choice_impact, None);
+    }
+
+    #[test]
+    fn build_prompt_includes_player_choices_from_input() {
+        let crash = CrashInput {
+            id: 9,
+            event_type: "client_crash".to_string(),
+            username: None,
+            summary: "s".to_string(),
+            details: serde_json::json!({}),
+            launcher_version: Some("0.11.21".to_string()),
+            modpack_manifest_sha: Some("abcd1234".to_string()),
+            player_choices: Some(vec!["sodium".to_string(), "iris".to_string()]),
+        };
+        let prompt = build_prompt(&crash);
+        assert!(prompt.contains("Версия лаунчера: 0.11.21"));
+        assert!(prompt.contains("abcd1234"));
+        assert!(prompt.contains("sodium, iris"));
+    }
+
+    #[test]
     fn truncate_log_keeps_head_and_tail() {
         let text = "A".repeat(100) + &"B".repeat(40_000) + &"C".repeat(100);
         let truncated = truncate_log(&text);
@@ -639,6 +731,7 @@ mod tests {
             severity: "critical".into(),
             model: "m".into(),
             analyzed_at: now_rfc3339(),
+            player_choice_impact: Some("включён мод X".into()),
         };
         let text = admin_notification(7, Some("Steve"), &verdict);
         assert!(text.contains("Steve"));
@@ -646,8 +739,13 @@ mod tests {
         assert!(text.contains("критично"));
         assert!(text.contains("1. Удалить мод"));
         assert!(text.contains("Что сделать"));
+        assert!(text.contains("Влияние выборов игрока"));
         let server_text = admin_notification(8, None, &verdict);
         assert!(server_text.contains("dedicated-сервера"));
+        // Без поля строка про выборы игрока не печатается.
+        let mut old = verdict;
+        old.player_choice_impact = None;
+        assert!(!admin_notification(9, None, &old).contains("выборов игрока"));
     }
 
     #[test]
@@ -663,7 +761,9 @@ mod tests {
                 "latestLog": "[INFO] loading",
                 "debugLog": null,
             }),
+            ..Default::default()
         };
+
         let prompt = build_prompt(&crash);
         assert!(prompt.contains("Журнал #42"));
         assert!(prompt.contains("Steve"));
@@ -694,6 +794,7 @@ mod tests {
                 "mods": ["Volcanic-1.21.1-0.1.3-alpha.jar", "sodium.jar"],
                 "jvmLog": "# SIGSEGV (0xb) at pc=0x...",
             }),
+            ..Default::default()
         };
         let prompt = build_prompt(&crash);
         assert!(prompt.contains("Окружение"));
@@ -713,6 +814,7 @@ mod tests {
             username: None,
             summary: "s".to_string(),
             details: serde_json::json!({ "environment": {}, "mods": [] }),
+            ..Default::default()
         };
         let prompt = build_prompt(&crash);
         assert!(!prompt.contains("Окружение"));

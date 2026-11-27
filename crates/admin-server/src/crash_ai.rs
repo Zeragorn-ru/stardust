@@ -89,6 +89,11 @@ async fn run_analysis(
         username: crash.username.clone(),
         summary: crash.summary.clone(),
         details: crash.details.clone(),
+        // Контекст среды (launcher_version/manifest_sha/player_choices) —
+        // заготовка: пока не заполняем.
+        launcher_version: None,
+        modpack_manifest_sha: None,
+        player_choices: None,
     };
     match analyze(&state.http, config, &input).await {
         Ok(verdict) => {

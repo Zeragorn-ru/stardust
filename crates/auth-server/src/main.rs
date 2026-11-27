@@ -1701,6 +1701,10 @@ async fn analyze_crash_now(state: &Shared, log_id: i64) -> Result<(), String> {
         username,
         summary: log.summary,
         details: log.details,
+        // Контекст среды — заготовка, пока не заполняем.
+        launcher_version: None,
+        modpack_manifest_sha: None,
+        player_choices: None,
     };
     match crash_ai::analyze(&state.http, &config, &input).await {
         Ok(verdict) => {
