@@ -14,6 +14,12 @@ pub const SETTING_SERVER_TELEMETRY_TOKEN: &str = "server_telemetry_token";
 /// Значение "1" — включено. Пишется из админки (admin-server).
 pub const SETTING_EXTERNAL_PURGE: &str = "external_purge";
 
+/// Порог MSPT для уведомления админу о деградации сервера (default 50).
+pub const SETTING_MSPT_ALERT_THRESHOLD: &str = "mspt_alert_threshold";
+
+/// Секунды без телеметрии, после которых сервер считается недоступным (default 300).
+pub const SETTING_SERVER_DOWN_AFTER_SECS: &str = "server_down_after_secs";
+
 const MAX_TELEMETRY_24H_ROWS: i64 = 100_000;
 
 fn telemetry_limit_query(table: &str, columns: &str) -> String {
@@ -55,6 +61,16 @@ pub struct TelemetrySample {
     #[serde(rename = "onlineCount")]
     pub online_count: i32,
     pub players: Vec<String>,
+    pub tps: f64,
+    pub mspt: f64,
+}
+
+/// Последняя телеметрия — внутренний тип для мониторинга здоровья
+/// сервера (admin-server). Не сериализуется наружу.
+#[derive(Debug, Clone)]
+pub struct TelemetryLatest {
+    pub recorded_at: OffsetDateTime,
+    pub online_count: i32,
     pub tps: f64,
     pub mspt: f64,
 }
@@ -538,6 +554,23 @@ impl Store {
         Ok(average)
     }
 
+    /// Последняя телеметрическая выборка — для мониторинга MSPT и
+    /// доступности сервера. `None` — телеметрии ещё не было.
+    pub async fn latest_telemetry_sample(&self) -> Result<Option<TelemetryLatest>, StoreError> {
+        let row = sqlx::query(
+            "SELECT recorded_at, online_count, tps, mspt
+             FROM server_telemetry_samples ORDER BY recorded_at DESC LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|row| TelemetryLatest {
+            recorded_at: row.get("recorded_at"),
+            online_count: row.get("online_count"),
+            tps: row.get("tps"),
+            mspt: row.get("mspt"),
+        }))
+    }
+
     pub async fn player_events_since(
         &self,
         since: OffsetDateTime,
@@ -578,6 +611,6 @@ impl Store {
     }
 }
 
-fn format_recorded_at(value: OffsetDateTime) -> String {
+pub fn format_recorded_at(value: OffsetDateTime) -> String {
     value.format(&Rfc3339).unwrap_or_else(|_| value.to_string())
 }

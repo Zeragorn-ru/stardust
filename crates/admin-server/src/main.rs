@@ -340,6 +340,20 @@ async fn main() {
         }
     });
 
+    // Уведы админу о здоровье игрового сервера: MSPT выше порога или
+    // телеметрия замолчала (сервер упал). Раз в минуту, с дедупликацией —
+    // уведомление уходит один раз на эпизод, затем только «восстановилось».
+    let health_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        let mut alerts = HealthAlerts::default();
+        loop {
+            if let Err(e) = server_health_check(&health_state, &mut alerts).await {
+                tracing::warn!("[health] {e}");
+            }
+            tokio::time::sleep(Duration::from_secs(60)).await;
+        }
+    });
+
     let cors = {
         let allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
             .ok()
@@ -1503,6 +1517,95 @@ fn secs_until_next_midnight() -> u64 {
         .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     let next_midnight = (now + time::Duration::days(1)).replace_time(time::Time::MIDNIGHT);
     (next_midnight - now).whole_seconds().max(0) as u64
+}
+
+/// Дедупликация уведов о здоровье сервера: уведомление уходит один раз
+/// на эпизод (деградация/простой), сброс — только при восстановлении.
+#[derive(Default)]
+struct HealthAlerts {
+    mspt_active: bool,
+    down_active: bool,
+}
+
+/// Один проход проверки здоровья игрового сервера: телеметрия есть →
+/// смотрим MSPT против порога; замолчала дольше `down_after` секунд →
+/// сервер недоступен. Пороги из settings, дедуп — на структуру `alerts`.
+async fn server_health_check(state: &Shared, alerts: &mut HealthAlerts) -> Result<(), String> {
+    let latest = state
+        .store
+        .latest_telemetry_sample()
+        .await
+        .map_err(|e| format!("последняя телеметрия: {e}"))?;
+    let Some(latest) = latest else {
+        // Телеметрии ещё не было — сервер не настроен присылать, молчим.
+        return Ok(());
+    };
+
+    let threshold: f64 = state
+        .store
+        .get_setting(store::server_telemetry::SETTING_MSPT_ALERT_THRESHOLD)
+        .await
+        .map_err(|e| format!("порог MSPT: {e}"))?
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(50.0);
+    let down_after: i64 = state
+        .store
+        .get_setting(store::server_telemetry::SETTING_SERVER_DOWN_AFTER_SECS)
+        .await
+        .map_err(|e| format!("порог простоя: {e}"))?
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(300);
+
+    let age = time::OffsetDateTime::now_utc() - latest.recorded_at;
+    if age.whole_seconds() > down_after {
+        if !alerts.down_active {
+            alerts.down_active = true;
+            alerts.mspt_active = false;
+            state
+                .store
+                .notify_admins(&format!(
+                    "⚠️ Сервер недоступен: телеметрии нет {} c (последняя {})",
+                    age.whole_seconds(),
+                    store::server_telemetry::format_recorded_at(latest.recorded_at)
+                ))
+                .await
+                .map_err(|e| format!("увед о простое: {e}"))?;
+        }
+        return Ok(());
+    }
+    if alerts.down_active {
+        alerts.down_active = false;
+        state
+            .store
+            .notify_admins("✅ Сервер вернулся: телеметрия обновилась")
+            .await
+            .map_err(|e| format!("увед о восстановлении: {e}"))?;
+    }
+
+    if latest.mspt > threshold {
+        if !alerts.mspt_active {
+            alerts.mspt_active = true;
+            state
+                .store
+                .notify_admins(&format!(
+                    "⚠️ MSPT {:.1} выше порога {} (TPS {:.1}, онлайн {})",
+                    latest.mspt, threshold, latest.tps, latest.online_count
+                ))
+                .await
+                .map_err(|e| format!("увед о MSPT: {e}"))?;
+        }
+    } else if alerts.mspt_active {
+        alerts.mspt_active = false;
+        state
+            .store
+            .notify_admins(&format!(
+                "✅ MSPT в норме: {:.1} (TPS {:.1})",
+                latest.mspt, latest.tps
+            ))
+            .await
+            .map_err(|e| format!("увед о MSPT: {e}"))?;
+    }
+    Ok(())
 }
 
 async fn start_backup(state: Shared, manual: bool) -> Result<(), String> {
