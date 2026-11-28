@@ -1,10 +1,13 @@
-// Файловый менеджер сборки в стиле панелей вроде Pterodactyl.
+// Файловый менеджер сборки (admin-v2, этап 4).
 //
 // Сервер хранит файлы плоским списком с полным путём относительно `.minecraft`
-// (напр. `config/foo/bar.toml`). Дерево каталогов мы строим на лету из этих
-// путей: навигация по папкам, хлебные крошки, скачивание и удаление.
+// (напр. `config/foo/bar.toml`). Дерево каталогов строится на лету из этих
+// путей и показывается раскрываемыми нодами: видно всю сборку целиком,
+// поиск/фильтры работают поверх плоского списка. Выбор целевой папки при
+// загрузке — в FileUpload (дерево + создание папки).
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { api, ApiError } from "./api";
 import type { BuildFile, BuildHeader, ModProfile } from "./types";
 import { FileUpload, type FileUploadHandle } from "./FileUpload";
@@ -25,16 +28,15 @@ import { useBodyScrollLock } from "./ui/useBodyScrollLock";
 import { useDialogFocus } from "./ui/useDialogFocus";
 import { useDirtyGuard } from "./ui/useDirtyGuard";
 import { Field } from "./ui/Field";
+import { SidePicker, type ModSide } from "./ui/kit";
 import {
   IconChevronRight,
   IconClose,
   IconCopy,
-  IconCornerUp,
   IconDownload,
   IconFile,
   IconFilter,
   IconFolder,
-  IconHome,
   IconLayers,
   IconPencil,
   IconPlus,
@@ -45,7 +47,7 @@ import {
 } from "./ui/icons";
 
 import "./FileManager.css";
-import { KINDS, SIDES, guessKind } from "./fileUtils";
+import { KINDS, guessKind } from "./fileUtils";
 
 const KIND_LABELS: Record<string, string> = {
   mod: "мод",
@@ -79,48 +81,64 @@ interface FolderEntry {
   totalSize: number;
 }
 
-interface Listing {
-  folders: FolderEntry[];
+// Узел дерева файлов: папка с прямыми файлами и вложенными папками.
+interface TreeNode extends FolderEntry {
   files: BuildFile[];
+  children: TreeNode[];
 }
 
-// Строит листинг одного каталога `dir` из плоского списка файлов.
-function buildListing(files: BuildFile[], dir: string): Listing {
-  const prefix = dir ? dir + "/" : "";
-  const folders = new Map<string, FolderEntry>();
-  const here: BuildFile[] = [];
+/**
+ * Строит дерево каталогов из плоского списка путей. Агрегаты (число файлов,
+ * суммарный размер) — рекурсивные: папка показывает содержимое целиком.
+ */
+function buildTree(files: BuildFile[]): TreeNode[] {
+  const root: TreeNode = {
+    name: "",
+    path: "",
+    fileCount: 0,
+    totalSize: 0,
+    files: [],
+    children: [],
+  };
 
   for (const f of files) {
-    if (prefix && !f.path.startsWith(prefix)) continue;
-    const rest = f.path.slice(prefix.length);
-    const slash = rest.indexOf("/");
-    if (slash === -1) {
-      here.push(f);
-    } else {
-      const name = rest.slice(0, slash);
-      const full = prefix + name;
-      const entry = folders.get(name) ?? {
-        name,
-        path: full,
-        fileCount: 0,
-        totalSize: 0,
-      };
-      entry.fileCount += 1;
-      entry.totalSize += f.sizeBytes;
-      folders.set(name, entry);
+    const parts = f.path.split("/");
+    let node = root;
+    for (let i = 0; i < parts.length - 1; i++) {
+      let child = node.children.find((c) => c.name === parts[i]);
+      if (!child) {
+        child = {
+          name: parts[i],
+          path: parts.slice(0, i + 1).join("/"),
+          fileCount: 0,
+          totalSize: 0,
+          files: [],
+          children: [],
+        };
+        node.children.push(child);
+      }
+      node = child;
     }
+    node.files.push(f);
   }
 
-  return {
-    folders: [...folders.values()].sort((a, b) => a.name.localeCompare(b.name)),
-    files: here.sort((a, b) =>
-      baseName(a.path).localeCompare(baseName(b.path)),
-    ),
-  };
+  function finish(node: TreeNode): number {
+    node.children.sort((a, b) => a.name.localeCompare(b.name));
+    node.files.sort((a, b) => baseName(a.path).localeCompare(baseName(b.path)));
+    node.fileCount =
+      node.files.length +
+      node.children.reduce((sum, c) => sum + finish(c), 0);
+    node.totalSize =
+      node.files.reduce((s, f) => s + f.sizeBytes, 0) +
+      node.children.reduce((s, c) => s + c.totalSize, 0);
+    return node.fileCount;
+  }
+  finish(root);
+
+  return root.children;
 }
 
 const KIND_FILTERS = ["mod", "config", "resource", "other"] as const;
-const SIDE_FILTERS = ["client", "server", "both"] as const;
 
 // Не создаём виртуализированный скролл-контейнер: строки имеют разную высоту
 // (особенно на мобильных), а selection/shift-selection должны продолжать
@@ -225,7 +243,8 @@ export function FileManager({
   const [profilesOpen, setProfilesOpen] = useState(false);
   // Поиск и установка модов из Modrinth/CurseForge.
   const [modSearchOpen, setModSearchOpen] = useState(false);
-  const [dir, setDir] = useState("");
+  // Свёрнутые папки дерева (по пути); по умолчанию дерево раскрыто целиком.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<FileFilters>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -299,7 +318,39 @@ export function FileManager({
   const searching = query.trim().length > 0 || activeFilters;
   const searchQuery = debouncedQuery.trim().toLowerCase();
 
-  const listing = useMemo(() => buildListing(files, dir), [files, dir]);
+  const tree = useMemo(() => buildTree(files), [files]);
+
+  // Счётчики сборки: всего файлов, модов, опциональных, отключённых, размер.
+  const counts = useMemo(
+    () => ({
+      total: files.length,
+      mods: files.filter((f) => f.kind === "mod").length,
+      optional: files.filter((f) => f.optional).length,
+      disabled: files.filter((f) => f.disabled).length,
+      size: files.reduce((s, f) => s + f.sizeBytes, 0),
+    }),
+    [files],
+  );
+
+  /** Свернуть/развернуть папку дерева. */
+  function toggleFolder(path: string) {
+    setCollapsed((cur) => {
+      const next = new Set(cur);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }
+
+  /** Раскрыть цепочку папок до `dir` (после поиска «Открыть папку файла»). */
+  function revealDir(dir: string) {
+    const parts = normalizeDir(dir).split("/").filter(Boolean);
+    setCollapsed((cur) => {
+      const next = new Set(cur);
+      for (let i = 1; i <= parts.length; i++) next.delete(parts.slice(0, i).join("/"));
+      return next.size === cur.size ? cur : next;
+    });
+  }
 
   /** Клик по бейджу профиля: включает фильтр (повторный клик — снимает). */
   function filterByProfile(key: string) {
@@ -357,31 +408,17 @@ export function FileManager({
       .sort((a, b) => a.path.localeCompare(b.path));
   }, [files, filters, searchQuery, searching]);
 
-  const crumbs = useMemo(() => {
-    const norm = normalizeDir(dir);
-    if (!norm) return [] as { name: string; path: string }[];
-    const parts = norm.split("/");
-    return parts.map((name, i) => ({
-      name,
-      path: parts.slice(0, i + 1).join("/"),
-    }));
-  }, [dir]);
-
-  // Файлы, видимые в текущем представлении (для «выбрать всё»).
-  const visibleFiles = searching ? searchResults : listing.files;
+  // Файлы, видимые в текущем представлении (для «выбрать всё»): в дереве
+  // видна вся сборка, в поиске — совпадения.
+  const visibleFiles = searching ? searchResults : files;
   const allVisibleSelected =
     visibleFiles.length > 0 && visibleFiles.every((f) => selected.has(f.id));
-  const progressiveKey = `${dir}|${searching ? query : ""}|${JSON.stringify(filters)}`;
+  const progressiveKey = `${searching ? query : ""}|${JSON.stringify(filters)}`;
   const [visibleFileLimit, showMoreFiles] = useProgressiveLimit(
     visibleFiles.length,
     progressiveKey,
   );
-  const [visibleFolderLimit, showMoreFolders] = useProgressiveLimit(
-    listing.folders.length,
-    dir,
-  );
   const renderedFiles = visibleFiles.slice(0, visibleFileLimit);
-  const renderedFolders = listing.folders.slice(0, visibleFolderLimit);
 
   // Индекс последнего клика — якорь для shift-выделения.
   const anchorIdx = useRef<number | null>(null);
@@ -406,14 +443,6 @@ export function FileManager({
       else next.add(id);
       return next;
     });
-  }
-
-  // Смена папки обнуляет выделение: файлы прошлой папки невидимы, а BulkBar
-  // мог бы применять патчи к ним (id глобальные!).
-  function navigateDir(next: string) {
-    setDir(next);
-    setSelected(new Set());
-    anchorIdx.current = null;
   }
 
   const toggleAllVisible = useCallback(() => {
@@ -625,51 +654,21 @@ export function FileManager({
     onChanged();
   }
 
-  /** Применить однополевой патч ко всем видимым файлам текущей папки (рекурсивно). */
-  async function bulkPatchDir(field: keyof BuildFile, value: unknown, labelField: string) {
-    const norm = normalizeDir(dir);
-    const prefix = norm ? norm + "/" : "";
-    const targets = files.filter((f) => f.path.startsWith(prefix));
-    if (targets.length === 0) return;
-    const patch = {} as Record<string, unknown>;
-    patch[field] = value;
-    const label = `${labelField} (всё содержимое «${norm || ".minecraft"}»):`;
-    setBulkBusy(true);
-    setBulkProgress({ done: 0, total: targets.length });
-    setBulkFailures(null);
-    const failedFiles: BuildFile[] = [];
-    let done = 0;
-    for (const f of targets) {
-      try {
-        await api.updateFile(f.id, patch as Partial<BuildFile>);
-      } catch (err) {
-        failedFiles.push(f);
-      }
-      done++;
-      setBulkProgress({ done, total: targets.length });
-    }
-    setBulkBusy(false);
-    setBulkProgress(null);
-    if (failedFiles.length) {
-      const ids = new Set(failedFiles.map((x) => x.id));
-      setSelected((cur) => new Set([...cur, ...ids]));
-      toast.error(`${label} применено к ${targets.length - failedFiles.length}, не удалось: ${failedFiles.length}`);
-    } else {
-      toast.success(`${label} применено к ${pluralRu(targets.length, 'файл', 'файла', 'файлов')}`);
-    }
-  }
-
-  /** Обёртка bulkPatchDir для передачи в BulkBar через единый коллбэк. */
-  function onBulkPatchDir(field: keyof BuildFile, value: unknown, label: string) {
-    void bulkPatchDir(field, value, label);
-  }
+  /** Обёртка bulkPatchDir удалена вместе с навигацией по папкам: массовые
+   *  правки теперь только по выделению (дерево делает все файлы видимыми). */
 
   async function bulkDelete() {
     const sel = files.filter((f) => selected.has(f.id));
     if (sel.length === 0) return;
+    // В подтверждении показываем первые пути — удаляемое видно до клика.
+    const preview = sel
+      .slice(0, 8)
+      .map((f) => f.path)
+      .join("\n");
+    const more = sel.length > 8 ? `\n…и ещё ${sel.length - 8}` : "";
     const ok = await confirm({
       title: "Удалить выбранные файлы?",
-      body: `Будет удалено ${pluralRu(sel.length, 'файл', 'файла', 'файлов')}`,
+      body: `Будет удалено ${pluralRu(sel.length, 'файл', 'файла', 'файлов')}:\n${preview}${more}`,
       confirmText: "Удалить всё",
       danger: true,
     });
@@ -734,23 +733,14 @@ export function FileManager({
     }
   }
 
-  const empty = listing.folders.length === 0 && listing.files.length === 0;
+  const empty = files.length === 0;
 
-  // При «создать папку» просто переходим в неё: хранилище плоское, папка
-  // «материализуется», как только в неё попадёт файл.
-  function createFolder(name: string) {
-    const clean = normalizeDir(name);
-    if (!clean) return;
-    setQuery("");
-    setFilters(EMPTY_FILTERS);
-    navigateDir(dir ? `${dir}/${clean}` : clean);
-  }
-
-  // Создаёт пустой файл в текущем каталоге и открывает редактор.
+  // Создаёт пустой файл по пути и открывает редактор. Папки материализуются
+  // сервером сами — путь вводится целиком (напр. `config/options.txt`).
   async function createFile(name: string) {
     const fileName = name.trim().replace(/^\/+/, "");
     if (!fileName) return;
-    const path = dir ? `${dir}/${fileName}` : fileName;
+    const path = fileName;
     if (files.some((f) => f.path === path)) {
       toast.error("Файл с таким путём уже есть");
       return;
@@ -771,35 +761,20 @@ export function FileManager({
     }
   }
 
-  /** Правый клик по пустому месту: создание и навигация. */
+  /** Правый клик по пустому месту: создание файла и утилиты. */
   function onBackgroundMenu(e: React.MouseEvent) {
     // Не открываем фоновое меню, если клик пришёл по строке/кнопке — у них свои.
     if (e.target instanceof Element && e.target.closest(".fm-row, .fm-toolbar, button, input, a, label")) {
       return;
     }
     menu(e, {
-      title: dir === "" ? ".minecraft" : dir,
+      title: ".minecraft",
       items: [
-        {
-          label: "Создать папку",
-          icon: <IconFolder size={15} />,
-          onSelect: () => setCreating("folder"),
-        },
         {
           label: "Создать файл",
           icon: <IconPlus size={15} />,
           onSelect: () => setCreating("file"),
         },
-        "-",
-        ...(dir !== ""
-          ? [
-              {
-                label: "На уровень выше",
-                icon: <IconCornerUp size={15} />,
-                onSelect: () => navigateDir(parentDir(dir)),
-              },
-            ]
-          : []),
         ...(activeFilters
           ? [
               {
@@ -818,6 +793,119 @@ export function FileManager({
     });
   }
 
+  // Рекурсивный рендер дерева папок: свёрнутая нода скрывает поддерево.
+  // Отступ ступени — через paddingLeft (дерево «плоское» в DOM, поэтому
+  // выделение/клавиатура работают по-прежнему).
+  function renderNodes(nodes: TreeNode[], depth: number): ReactNode {
+    return nodes.map((node) => {
+      const isCollapsed = collapsed.has(node.path);
+      return (
+        <Fragment key={node.path}>
+          <div
+            className="fm-row folder"
+            style={{ paddingLeft: depth * 18 }}
+            onContextMenu={(e) => {
+              if ((e.target as HTMLElement).closest("button")) return;
+              e.preventDefault();
+              const kebab = e.currentTarget.querySelector<HTMLButtonElement>(".fm-folder-menu");
+              if (kebab) {
+                kebab.dispatchEvent(
+                  new MouseEvent("click", { bubbles: true, cancelable: true }),
+                );
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="fm-tree-toggle"
+              aria-expanded={!isCollapsed}
+              aria-label={isCollapsed ? `Развернуть ${node.name}` : `Свернуть ${node.name}`}
+              onClick={() => toggleFolder(node.path)}
+            >
+              <IconChevronRight size={14} className={`fm-tree-chevron${isCollapsed ? "" : " open"}`} />
+            </button>
+            <button className="fm-main" onClick={() => toggleFolder(node.path)}>
+              <IconFolder size={17} className="fm-icon folder" />
+              <span className="fm-folder-text">
+                <span className="fm-name">{node.name}</span>
+                <span className="fm-meta muted">
+                  {pluralRu(node.fileCount, "файл", "файла", "файлов")} · {formatSize(node.totalSize)}
+                </span>
+              </span>
+            </button>
+            <div className="fm-actions">
+              <button
+                className="danger icon-only"
+                aria-label="Удалить папку"
+                disabled={archivingFolder !== null}
+                onClick={() => removeFolder(node)}
+              >
+                <IconTrash size={15} />
+              </button>
+              <button
+                type="button"
+                className="icon-only fm-folder-menu"
+                aria-label={`Меню папки ${node.name}`}
+                onClick={(e) =>
+                  menu(e, {
+                    title: node.name,
+                    items: [
+                      {
+                        label: isCollapsed ? "Развернуть" : "Свернуть",
+                        icon: <IconChevronRight size={15} />,
+                        onSelect: () => toggleFolder(node.path),
+                      },
+                      "-",
+                      {
+                        label:
+                          archivingFolder === node.path
+                            ? `Готовлю архив… (${pluralRu(node.fileCount, "файл", "файла", "файлов")})`
+                            : `Скачать папку (${node.fileCount})`,
+                        icon: <IconDownload size={15} />,
+                        disabled: archivingFolder !== null,
+                        onSelect: () => void downloadFolder(node),
+                      },
+                      {
+                        label: `Удалить папку (${node.fileCount})`,
+                        icon: <IconTrash size={15} />,
+                        danger: true,
+                        disabled: archivingFolder !== null,
+                        onSelect: () => removeFolder(node),
+                      },
+                    ],
+                  })
+                }
+              >
+                <IconSettings size={15} />
+              </button>
+            </div>
+          </div>
+          {!isCollapsed && (
+            <>
+              {renderNodes(node.children, depth + 1)}
+              {node.files.map((f) => (
+                <div key={f.id} style={{ paddingLeft: depth * 18 }}>
+                  <FileRow
+                    file={f}
+                    selected={selected.has(f.id)}
+                    active={editingProps?.id === f.id}
+                    onToggle={(e) => toggleOne(f.id, e)}
+                    onDelete={() => removeFile(f)}
+                    onEditProps={() => setEditingProps(f)}
+                    onEdit={() => setEditing(f)}
+                    modProfiles={modProfiles}
+                    filters={filters}
+                    onFilterProfile={filterByProfile}
+                  />
+                </div>
+              ))}
+            </>
+          )}
+        </Fragment>
+      );
+    });
+  }
+
   return (
     <div
       className={`fm${dragDepth > 0 ? " fm-dragging" : ""}`}
@@ -831,32 +919,21 @@ export function FileManager({
       onContextMenu={onBackgroundMenu}
     >
       <div className="fm-toolbar fm-toolbar--mobile-sticky">
-        <nav className="breadcrumbs">
-          <button
-            className={`crumb${dir === "" ? " current" : ""}`}
-            onClick={() => navigateDir("")}
-            title=".minecraft"
-          >
-            <IconHome size={15} />
-            <span>.minecraft</span>
-          </button>
-          {crumbs.map((c) => (
-            <span key={c.path} className="crumb-wrap">
-              <IconChevronRight size={14} className="crumb-sep" />
-              <button
-                className={`crumb${dir === c.path ? " current" : ""}`}
-                onClick={() => navigateDir(c.path)}
-              >
-                {c.name}
-              </button>
-            </span>
-          ))}
-        </nav>
+        {/* Счётчики сборки вместо хлебных крошек: дерево показывает всю
+            сборку сразу, навигация по папкам больше не нужна. */}
+        <div className="fm-counters muted" title="Файлов · модов · опциональных · отключённых · размер">
+          <span><strong>{counts.total}</strong> {pluralRu(counts.total, "файл", "файла", "файлов")}</span>
+          <span>·</span>
+          <span>модов: <strong>{counts.mods}</strong></span>
+          <span>·</span>
+          <span>опц.: <strong>{counts.optional}</strong></span>
+          <span>·</span>
+          <span>откл.: <strong>{counts.disabled}</strong></span>
+          <span>·</span>
+          <span><strong>{formatSize(counts.size)}</strong></span>
+        </div>
         <div className="spacer" />
-        <NewMenu
-          onFolder={() => setCreating("folder")}
-          onFile={() => setCreating("file")}
-        />
+        <NewMenu onFile={() => setCreating("file")} />
         <button
           type="button"
           className="secondary icon-btn fm-modsearch-btn"
@@ -995,17 +1072,12 @@ export function FileManager({
           </div>
           <div className="fm-filter-group">
             <span className="fm-filter-label">Сторона</span>
-            <div className="fm-filter-options">
-              {(["all", ...SIDE_FILTERS] as const).map((s) => (
-                <button
-                  key={s}
-                  className={`fm-filter-opt${filters.side === s ? " active" : ""}`}
-                  onClick={() => setFilters((f) => ({ ...f, side: s }))}
-                >
-                  {s === "all" ? "все" : sideLabel(s)}
-                </button>
-              ))}
-            </div>
+            {/* «Все» = любой стороной (значение фильтра). */}
+            <SidePicker<ModSide | "all">
+              value={filters.side as ModSide | "all"}
+              allowAll
+              onChange={(side) => setFilters((f) => ({ ...f, side }))}
+            />
           </div>
           <div className="fm-filter-group">
             <span className="fm-filter-label">Опциональность</span>
@@ -1098,7 +1170,6 @@ export function FileManager({
         ref={uploadRef}
         buildId={buildId}
         onUploaded={onChanged}
-        baseDir={dir}
         modProfiles={modProfiles}
         existingPaths={files.map((f) => f.path)}
       />
@@ -1145,8 +1216,6 @@ export function FileManager({
             clearSelection();
           }}
           onRetryFailed={() => void retryBulkFailed()}
-          onBulkPatchDir={onBulkPatchDir}
-          dir={dir}
         />
       )}
 
@@ -1176,7 +1245,7 @@ export function FileManager({
                 onOpenDir={(d) => {
                   setQuery("");
                   setFilters(EMPTY_FILTERS);
-                  navigateDir(d);
+                  revealDir(d);
                 }}
               />
             ))}
@@ -1189,25 +1258,14 @@ export function FileManager({
         )
       ) : (
         <div className="fm-list">
-          {dir !== "" && (
-            <div className="fm-row up">
-              <button
-                className="fm-main fm-up"
-                onClick={() => navigateDir(parentDir(dir))}
-              >
-                <IconCornerUp size={17} className="fm-icon" />
-                <span className="fm-name">Наверх</span>
-              </button>
-            </div>
-          )}
-
           {empty && (
             <p className="muted fm-empty">
-              Папка пуста. Перетащите файлы ниже, чтобы загрузить их сюда.
+              Файлов пока нет. Перетащите их в зону загрузки ниже или воспользуйтесь
+              поиском модов.
             </p>
           )}
 
-          {visibleFiles.length > 0 && (
+          {files.length > 0 && (
             <SelectAllRow
               checked={allVisibleSelected}
               count={visibleFiles.length}
@@ -1215,116 +1273,7 @@ export function FileManager({
             />
           )}
 
-          {renderedFolders.map((folder) => (
-            <div
-              key={folder.path}
-              className="fm-row folder"
-              // ПКМ по папке открывает то же меню, что и кнопка-«кебаб»:
-              // иначе показывался бы нативный браузерный (файловые строки
-              // своё меню имеют).
-              onContextMenu={(e) => {
-                if ((e.target as HTMLElement).closest("button")) return;
-                e.preventDefault();
-                const kebab = e.currentTarget.querySelector<HTMLButtonElement>(".fm-folder-menu");
-                if (kebab) {
-                  kebab.dispatchEvent(
-                    new MouseEvent("click", { bubbles: true, cancelable: true }),
-                  );
-                }
-              }}
-            >
-              <button className="fm-main" onClick={() => navigateDir(folder.path)}>
-                <IconFolder size={17} className="fm-icon folder" />
-                <span className="fm-folder-text">
-                  <span className="fm-name">{folder.name}</span>
-                  <span className="fm-meta muted">
-                    {pluralRu(folder.fileCount, 'файл', 'файла', 'файлов')} · {formatSize(folder.totalSize)}
-                  </span>
-                </span>
-              </button>
-              <div className="fm-actions">
-                <button
-                  className="danger icon-only"
-                  aria-label="Удалить папку"
-                  disabled={archivingFolder !== null}
-                  onClick={() => removeFolder(folder)}
-                >
-                  <IconTrash size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="icon-only fm-folder-menu"
-                  aria-label={`Меню папки ${folder.name}`}
-                  onClick={(e) =>
-                    menu(e, {
-                      title: folder.name,
-                      items: [
-                        {
-                          label: "Открыть",
-                          icon: <IconFolder size={15} />,
-                          onSelect: () => navigateDir(folder.path),
-                        },
-                        ...(parentDir(folder.path)
-                          ? [
-                              {
-                                label: "На уровень выше",
-                                icon: <IconCornerUp size={15} />,
-                                onSelect: () => navigateDir(parentDir(folder.path)!),
-                              },
-                            ]
-                          : []),
-                        "-",
-                        {
-                          label:
-                            archivingFolder === folder.path
-                              ? `Готовлю архив… (${pluralRu(folder.fileCount, 'файл', 'файла', 'файлов')})`
-                              : `Скачать папку (${folder.fileCount})`,
-                          icon: <IconDownload size={15} />,
-                          disabled: archivingFolder !== null,
-                          onSelect: () => void downloadFolder(folder),
-                        },
-                        {
-                          label: `Удалить папку (${folder.fileCount})`,
-                          icon: <IconTrash size={15} />,
-                          danger: true,
-                          disabled: archivingFolder !== null,
-                          onSelect: () => removeFolder(folder),
-                        },
-                      ],
-                    })
-                  }
-                >
-                  <IconSettings size={15} />
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {renderedFiles.map((f) => (
-            <FileRow
-              key={f.id}
-              file={f}
-              selected={selected.has(f.id)}
-              active={editingProps?.id === f.id}
-              onToggle={(e) => toggleOne(f.id, e)}
-              onDelete={() => removeFile(f)}
-              onEditProps={() => setEditingProps(f)}
-              onEdit={() => setEditing(f)}
-              modProfiles={modProfiles}
-              filters={filters}
-              onFilterProfile={filterByProfile}
-            />
-          ))}
-          <ProgressiveMore
-            shown={renderedFolders.length}
-            total={listing.folders.length}
-            onShowMore={showMoreFolders}
-          />
-          <ProgressiveMore
-            shown={renderedFiles.length}
-            total={listing.files.length}
-            onShowMore={showMoreFiles}
-          />
+          {renderNodes(tree, 0)}
         </div>
       )}
 
@@ -1368,30 +1317,14 @@ export function FileManager({
 
       {creating && (
         <PromptDialog
-          title={creating === "folder" ? "Создать папку" : "Создать файл"}
-          label={
-            creating === "folder"
-              ? `Имя папки в ${dir ? `.minecraft/${dir}/` : ".minecraft/"}`
-              : `Имя файла в ${dir ? `.minecraft/${dir}/` : ".minecraft/"}`
-          }
-          placeholder={
-            creating === "folder" ? "напр. mods" : "напр. options.txt"
-          }
+          title="Создать файл"
+          label="Путь в .minecraft (папки создадутся сами, напр. config/options.txt)"
+          placeholder="напр. config/options.txt"
           confirmText="Создать"
-          hint={
-            creating === "folder"
-              ? "Папка сохранится после того, как в неё попадёт хотя бы один файл."
-              : undefined
-          }
           onCancel={() => setCreating(null)}
           onSubmit={async (value) => {
-            if (creating === "folder") {
-              createFolder(value);
-              setCreating(null);
-            } else {
-              await createFile(value);
-              setCreating(null);
-            }
+            await createFile(value);
+            setCreating(null);
           }}
         />
       )}
@@ -1417,8 +1350,6 @@ function BulkBar({
   onDelete,
   onClear,
   onRetryFailed,
-  onBulkPatchDir,
-  dir,
 }: {
   count: number;
   busy: boolean;
@@ -1450,10 +1381,6 @@ function BulkBar({
   onClear: () => void;
   /** Повторить операцию для неудавшихся строк последнего прогона. */
   onRetryFailed: () => void;
-  /** Массовый патч всех файлов текущей папки по одному полю. */
-  onBulkPatchDir: (field: keyof BuildFile, value: unknown, label: string) => void;
-  /** Текущая папка для подсказок кнопок dir-патча. */
-  dir: string;
 }) {
   // Второй уровень панели раскрыт. Значения чип-групп приходят в `common`
   // (выводятся из выделения), поэтому сворачивание ничего не сбрасывает.
@@ -1477,29 +1404,16 @@ function BulkBar({
       <div className="fm-bulk-controls">
         <div className="fm-bulk-group">
           <span className="fm-bulk-label">Сторона</span>
-          <div className="seg">
-            {SIDES.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className={`seg-btn${common.side === s ? " active" : ""}`}
-                aria-pressed={common.side === s}
-                disabled={busy}
-                onClick={() => onSide(s)}
-              >
-                {sideLabel(s)}
-              </button>
-            ))}
-            <button
-              className="bulk-dir-arrow"
-              type="button"
-              title={`Применить выбранную сторону ко всем файлам в «${dir || ".minecraft"}»`}
-              disabled={busy}
-              onClick={() => onBulkPatchDir("side", common.side ?? SIDES[0], `Сторона → ${common.side ? sideLabel(common.side) : "—"}`)}
-            >
-              <IconCornerUp size={14} />
-            </button>
-          </div>
+          {/* SidePicker с «Все» = «у выделенных разные стороны» — применение
+              только по явному выбору стороны. */}
+          <SidePicker<ModSide | "all">
+            value={(common.side as ModSide | null) ?? "all"}
+            allowAll
+            disabled={busy}
+            onChange={(s) => {
+              if (s !== "all") onSide(s);
+            }}
+          />
         </div>
 
         <div className="fm-bulk-group">
@@ -1517,15 +1431,6 @@ function BulkBar({
                 {kindLabel(k)}
               </button>
             ))}
-            <button
-              className="bulk-dir-arrow"
-              type="button"
-              title={`Применить выбранный тип ко всем файлам в «${dir || ".minecraft"}»`}
-              disabled={busy}
-              onClick={() => onBulkPatchDir("kind", common.kind ?? KINDS[0], `Тип → ${common.kind ? kindLabel(common.kind) : "—"}`)}
-            >
-              <IconCornerUp size={14} />
-            </button>
           </div>
         </div>
 
@@ -1549,15 +1454,6 @@ function BulkBar({
               onClick={() => onDisabled(false)}
             >
               нет
-            </button>
-            <button
-              className="bulk-dir-arrow"
-              type="button"
-              title={`Применить выбранный статус отключения ко всем файлам в «${dir || ".minecraft"}»`}
-              disabled={busy}
-              onClick={() => onBulkPatchDir("disabled", common.disabled, common.disabled ? "Отключены" : "Включены")}
-            >
-              <IconCornerUp size={14} />
             </button>
           </div>
         </div>
@@ -1617,15 +1513,6 @@ function BulkBar({
               >
                 нет
               </button>
-              <button
-                className="bulk-dir-arrow"
-                type="button"
-                title={`Применить выбранную опциональность ко всем файлам в «${dir || ".minecraft"}»`}
-                disabled={busy}
-                onClick={() => onBulkPatchDir("optional", common.optional, common.optional ? "Опциональные" : "Не опциональные")}
-              >
-                <IconCornerUp size={14} />
-              </button>
             </div>
           </div>
 
@@ -1650,15 +1537,6 @@ function BulkBar({
               >
                 выкл
               </button>
-              <button
-                className="bulk-dir-arrow"
-                type="button"
-                title={`Применить выбор по умолчанию ко всем файлам в «${dir || ".minecraft"}»`}
-                disabled={busy}
-                onClick={() => onBulkPatchDir("enabledByDefault", common.enabledByDefault, common.enabledByDefault ? "Вкл. по умолчанию" : "Выкл. по умолчанию")}
-              >
-                <IconCornerUp size={14} />
-              </button>
             </div>
           </div>
 
@@ -1682,15 +1560,6 @@ function BulkBar({
                 onClick={() => onOverwrite(false)}
               >
                 нет
-              </button>
-              <button
-                className="bulk-dir-arrow"
-                type="button"
-                title={`Применить выбор перезаписи ко всем файлам в «${dir || ".minecraft"}»`}
-                disabled={busy}
-                onClick={() => onBulkPatchDir("overwrite", common.overwrite, common.overwrite ? "Перезаписывать" : "Не перезаписывать")}
-              >
-                <IconCornerUp size={14} />
               </button>
             </div>
           </div>
@@ -1750,12 +1619,10 @@ function BulkBar({
   );
 }
 
-// Выпадающее меню «Создать»: папка или файл в текущем каталоге.
+// Выпадающее меню «Создать»: файл по пути в .minecraft.
 function NewMenu({
-  onFolder,
   onFile,
 }: {
-  onFolder: () => void;
   onFile: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -1780,16 +1647,6 @@ function NewMenu({
       </button>
       {open && (
         <div className="fm-newmenu-pop">
-          <button
-            className="fm-newmenu-item"
-            onClick={() => {
-              setOpen(false);
-              onFolder();
-            }}
-          >
-            <IconFolder size={15} className="folder" />
-            Создать папку
-          </button>
           <button
             className="fm-newmenu-item"
             onClick={() => {
@@ -2571,19 +2428,10 @@ function FileSettingsDrawer({
 
             <div className="fm-drawer-field">
               <span className="fm-edit-label muted">Сторона</span>
-              <div className="seg">
-                {SIDES.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`seg-btn${side === s ? " active" : ""}`}
-                    aria-pressed={side === s}
-                    onClick={() => setSide(s)}
-                  >
-                    {sideLabel(s)}
-                  </button>
-                ))}
-              </div>
+              <SidePicker<ModSide>
+                value={side as ModSide}
+                onChange={setSide}
+              />
             </div>
 
             <div className="fm-drawer-field">
@@ -2742,6 +2590,48 @@ function FileSettingsDrawer({
             </div>
           </section>
         </div>
+
+        {/* Предпросмотр diff до сохранения: что уйдёт в манифест. */}
+        {(() => {
+          const fmtBool = (v: boolean) => (v ? "да" : "нет");
+          const changes: { label: string; from: string; to: string }[] = [];
+          if (side !== file.side)
+            changes.push({ label: "Сторона", from: sideLabel(file.side), to: sideLabel(side) });
+          if (kind !== file.kind)
+            changes.push({ label: "Тип", from: kindLabel(file.kind), to: kindLabel(kind) });
+          if (optional !== file.optional)
+            changes.push({ label: "Опциональный", from: fmtBool(file.optional), to: fmtBool(optional) });
+          if (optional && enabledByDefault !== file.enabledByDefault)
+            changes.push({ label: "Вкл. по умолчанию", from: fmtBool(file.enabledByDefault), to: fmtBool(enabledByDefault) });
+          if (overwrite !== file.overwrite)
+            changes.push({ label: "Перезапись", from: fmtBool(file.overwrite), to: fmtBool(overwrite) });
+          if (disabled !== file.disabled)
+            changes.push({ label: "Отключён", from: fmtBool(file.disabled), to: fmtBool(disabled) });
+          if ((optional ? modId.trim() || null : null) !== (file.modId ?? null))
+            changes.push({ label: "modId", from: file.modId ?? "—", to: modId.trim() || "—" });
+          if ((displayName.trim() || null) !== (file.displayName ?? null))
+            changes.push({ label: "Отображаемое имя", from: file.displayName ?? "—", to: displayName.trim() || "—" });
+          if ((description.trim() || null) !== (file.description ?? null))
+            changes.push({ label: "Описание", from: file.description ?? "—", to: description.trim() || "—" });
+          if (profilesDiffers)
+            changes.push({ label: "Профили", from: file.profiles.join(", ") || "—", to: profileKeys.join(", ") || "—" });
+          if (changes.length === 0) return null;
+          return (
+            <div className="fm-diff fm-diff--drawer">
+              <strong className="fm-diff-title">Что изменится в манифесте</strong>
+              <ul className="fm-diff-list">
+                {changes.map((c) => (
+                  <li key={c.label} className="fm-diff-chg">
+                    <span className="fm-diff-sign">~</span>
+                    <span className="fm-diff-path">
+                      {c.label}: {c.from} → <strong>{c.to}</strong>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
 
         <footer className="fm-drawer-foot">
           <button className="ghost" onClick={() => void tryClose()} disabled={saving}>

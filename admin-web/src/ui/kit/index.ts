@@ -8,7 +8,7 @@ export type { ToggleProps } from "./Toggle";
 export { Segmented } from "./Segmented";
 export type { SegmentedProps, SegmentedOption } from "./Segmented";
 export { SidePicker } from "./SidePicker";
-export type { SidePickerProps, ModSide } from "./SidePicker";
+export type { SidePickerProps, ModSide, SideValue } from "./SidePicker";
 export { Select } from "./Select";
 export type { SelectProps, SelectOption } from "./Select";
 export { Metric } from "./Metric";

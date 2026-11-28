@@ -509,6 +509,19 @@ export function EditBuildModal({
 
   const valid = form.name.trim() && form.version.trim() && form.mcVersion.trim();
 
+  // Предпросмотр diff манифеста до применения: какие поля уйдут на сервер.
+  // Файлы правкой параметров не затрагиваются — это тоже показываем явно.
+  const FIELD_LABELS: Record<keyof CreateBuildInput, string> = {
+    name: "Название",
+    version: "Версия сборки",
+    loaderKind: "Загрузчик",
+    mcVersion: "Minecraft",
+    loaderVersion: "Версия загрузчика",
+  };
+  const changes = (Object.keys(FIELD_LABELS) as (keyof CreateBuildInput)[])
+    .filter((k) => form[k] !== initial[k])
+    .map((k) => ({ label: FIELD_LABELS[k], from: initial[k], to: form[k] }));
+
   return (
     <div className="modal-backdrop" onClick={() => void tryClose()}>
       <form
@@ -583,6 +596,26 @@ export function EditBuildModal({
             )}
           </Field>
         </div>
+
+        {changes.length > 0 && (
+          <div className="fm-diff fm-diff--modal" aria-label="Что изменится при сохранении">
+            <strong className="fm-diff-title">Изменится при сохранении</strong>
+            <ul className="fm-diff-list">
+              {changes.map((c) => (
+                <li key={c.label} className="fm-diff-chg">
+                  <span className="fm-diff-sign">~</span>
+                  <span className="fm-diff-path">
+                    {c.label}: <s>{c.from || "—"}</s> → <strong>{c.to || "—"}</strong>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="muted fm-diff-note">
+              Изменятся метаданные манифеста; файлы сборки не затрагиваются.
+            </p>
+          </div>
+        )}
+
         <div className="modal-actions">
           <button type="button" onClick={() => void tryClose()} disabled={busy}>
             Отмена

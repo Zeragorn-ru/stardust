@@ -90,3 +90,209 @@
     min-height: var(--touch-h);
     justify-content: center;
 }
+
+/* ── admin-v2, этап 4: дерево файлов ───────────────────────────── */
+
+/* Кнопка-шеврон сворачивания папки в дереве. */
+.fm-tree-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.fm-tree-toggle:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.fm-tree-chevron {
+    transition: transform var(--ease, 0.15s);
+}
+
+.fm-tree-chevron.open {
+    transform: rotate(90deg);
+}
+
+/* Счётчики сборки в тулбаре (вместо хлебных крошек). */
+.fm-counters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    min-width: 0;
+}
+
+.fm-counters strong {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Выбор целевой папки при загрузке ──────────────────────────── */
+
+.fm-target-picker {
+    margin: 8px 0;
+}
+
+.fm-target-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.fm-target-btn:hover {
+    border-color: var(--star);
+}
+
+.fm-target-chevron {
+    transition: transform var(--ease, 0.15s);
+}
+
+.fm-target-chevron.open {
+    transform: rotate(90deg);
+}
+
+.fm-target-panel {
+    margin-top: 8px;
+    padding: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    max-height: 260px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.fm-target-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.fm-target-row:hover {
+    background: var(--surface);
+}
+
+.fm-target-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fm-target-new {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.fm-target-new input {
+    flex: 1;
+    min-width: 0;
+}
+
+.fm-target-hint {
+    font-size: 12px;
+    margin: 4px 0 0;
+}
+
+/* ── Diff манифеста (+ добавлено, − удалено, ~ изменено) ───────── */
+
+.fm-diff {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    font-size: 13px;
+}
+
+.fm-diff--upload {
+    margin: 8px 0;
+}
+
+.fm-diff--modal,
+.fm-diff--drawer {
+    margin: 12px 0;
+}
+
+.fm-diff summary {
+    cursor: pointer;
+    user-select: none;
+}
+
+.fm-diff-title {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.fm-diff-list {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 260px;
+    overflow: auto;
+}
+
+.fm-diff-list li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+}
+
+.fm-diff-sign {
+    flex: 0 0 auto;
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 700;
+}
+
+.fm-diff-path {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.fm-diff-add .fm-diff-sign,
+.fm-diff-add {
+    color: var(--ok, #5AB8C4);
+}
+
+.fm-diff-chg .fm-diff-sign,
+.fm-diff-chg {
+    color: var(--star, #E8C468);
+}
+
+.fm-diff-del .fm-diff-sign,
+.fm-diff-del {
+    color: var(--bad, #E06A5E);
+}
+
+.fm-diff-note {
+    font-size: 12px;
+    margin: 6px 0 0;
+}
