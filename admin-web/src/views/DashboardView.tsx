@@ -178,7 +178,7 @@ function PlayersSection() {
   });
 
   const list = accounts.data ?? [];
-  const dayAgo = Date.now() - HOUR_MS;
+  const dayAgo = Date.now() - WINDOW_HOURS * HOUR_MS;
   const seenToday = new Set(
     (telemetry.data?.events ?? [])
       .filter((event) => Date.parse(event.recordedAt) >= dayAgo)

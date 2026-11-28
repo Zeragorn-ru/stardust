@@ -565,12 +565,20 @@ impl Store {
             .collect()
     }
 
-    pub async fn telemetry_average_online(&self) -> Result<f64, StoreError> {
-        let average: f64 = sqlx::query_scalar(
-            "SELECT COALESCE(AVG(online_count), 0)::double precision FROM server_telemetry_samples",
-        )
-        .fetch_one(&self.pool)
-        .await?;
+    /// Средний онлайн. `since = None` — за всё время накопленного архива
+    /// (использует LogsView с честной подписью «за всё время»); с окном
+    /// — среднее только по свежим сэмплам (дашборд подписывает «за сутки»).
+    pub async fn telemetry_average_online(
+        &self,
+        since: Option<OffsetDateTime>,
+    ) -> Result<f64, StoreError> {
+        let sql = "SELECT COALESCE(AVG(online_count), 0)::double precision
+                   FROM server_telemetry_samples
+                   WHERE ($1::timestamptz IS NULL OR recorded_at >= $1)";
+        let average: f64 = sqlx::query_scalar(sql)
+            .bind(since)
+            .fetch_one(&self.pool)
+            .await?;
         Ok(average)
     }
 
