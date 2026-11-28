@@ -6062,7 +6062,8 @@ async fn server_telemetry(
         .map_err(map_store)?;
     let average_online = state
         .store
-        .telemetry_average_online()
+        // Окно совпадает с графиком — подпись «средний онлайн за сутки».
+        .telemetry_average_online(Some(since))
         .await
         .map_err(map_store)?;
     Ok(Json(serde_json::json!({
@@ -6080,7 +6081,8 @@ async fn server_logs(
     let since = OffsetDateTime::now_utc() - time::Duration::days(30);
     let (logs, average_online) = tokio::try_join!(
         state.store.server_log_summaries_since(since),
-        state.store.telemetry_average_online(),
+        // LogsView подписывает «за всё время» — окно не ограничиваем.
+        state.store.telemetry_average_online(None),
     )
     .map_err(map_store)?;
     Ok(Json(serde_json::json!({

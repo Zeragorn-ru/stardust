@@ -1,0 +1,781 @@
+/* kit.css — стили комплектов контролов admin-v2 (ui/kit).
+   Живут только на токенах --kit-* / --star из styles/tokens.css.
+   Без градиентов-украшений, без ALL-CAPS, без inline-стилей в TSX. */
+
+.kit {
+  font-family: inherit;
+  color: var(--kit-text);
+}
+
+/* ── Toggle ─────────────────────────────────────────────── */
+
+.kit-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--kit-text);
+  font-size: var(--fs-md);
+  text-align: left;
+}
+
+.kit-toggle-track {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--kit-surface-2);
+  border: 1px solid var(--kit-line);
+  transition: background var(--ease), border-color var(--ease);
+}
+
+.kit-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--kit-muted);
+  transition: transform var(--ease), background var(--ease);
+}
+
+.kit-toggle[aria-checked="true"] .kit-toggle-track {
+  background: var(--kit-ok-soft);
+  border-color: var(--kit-ok);
+}
+
+.kit-toggle[aria-checked="true"] .kit-toggle-thumb {
+  transform: translateX(18px);
+  background: var(--kit-ok);
+}
+
+.kit-toggle:focus-visible {
+  outline: none;
+}
+
+.kit-toggle:focus-visible .kit-toggle-track {
+  box-shadow: 0 0 0 3px rgba(90, 184, 196, 0.35);
+}
+
+.kit-toggle:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* ── Segmented / SidePicker ─────────────────────────────── */
+
+.kit-segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--kit-surface-2);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+}
+
+.kit-segmented-option {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--kit-muted);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--ease), color var(--ease);
+}
+
+.kit-segmented-option:hover {
+  color: var(--kit-text);
+}
+
+.kit-segmented-option[aria-checked="true"] {
+  background: var(--kit-line);
+  color: var(--kit-text);
+}
+
+.kit-segmented-option:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(90, 184, 196, 0.45);
+}
+
+.kit-side-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.kit-side-picker .kit-side-picker-label {
+  font-size: var(--fs-sm);
+  color: var(--kit-muted);
+}
+
+/* ── Select ─────────────────────────────────────────────── */
+
+.kit-select {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.kit-select-label {
+  font-size: var(--fs-sm);
+  color: var(--kit-muted);
+}
+
+.kit-select-control {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  background: var(--kit-surface-2);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  color: var(--kit-text);
+  font-size: var(--fs-md);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--ease);
+}
+
+.kit-select-control:hover {
+  border-color: var(--border-strong);
+}
+
+.kit-select-control:focus-visible {
+  outline: none;
+  border-color: var(--kit-ok);
+  box-shadow: 0 0 0 3px rgba(90, 184, 196, 0.25);
+}
+
+/* ── Metric ─────────────────────────────────────────────── */
+
+.kit-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 96px;
+}
+
+.kit-metric-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-metric);
+  line-height: 1.1;
+  color: var(--kit-text);
+}
+
+.kit-metric--ok .kit-metric-value { color: var(--kit-ok); }
+.kit-metric--warn .kit-metric-value { color: var(--kit-warn); }
+.kit-metric--bad .kit-metric-value { color: var(--kit-bad); }
+
+.kit-metric-label {
+  font-size: var(--fs-sm);
+  color: var(--kit-muted);
+}
+
+.kit-metric-hint {
+  font-size: var(--fs-xs);
+  color: var(--kit-muted);
+}
+
+.kit-metric--hero .kit-metric-value {
+  font-size: 34px;
+}
+
+/* ── Status dot ─────────────────────────────────────────── */
+
+.kit-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--kit-text);
+}
+
+.kit-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kit-muted);
+}
+
+.kit-status--ok .kit-status-dot { background: var(--kit-ok); }
+.kit-status--warn .kit-status-dot { background: var(--kit-warn); }
+.kit-status--bad .kit-status-dot { background: var(--kit-bad); }
+
+.kit-status-value {
+  color: var(--kit-muted);
+}
+
+/* ── SectionCard ────────────────────────────────────────── */
+
+.kit-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--kit-surface);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius);
+}
+
+.kit-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.kit-card-title {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--kit-text);
+}
+
+.kit-card-subtitle {
+  font-size: var(--fs-sm);
+  color: var(--kit-muted);
+}
+
+.kit-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.kit-card-link {
+  color: var(--kit-muted);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  transition: color var(--ease);
+}
+
+.kit-card-link:hover {
+  color: var(--star);
+}
+
+.kit-card-error {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--kit-bad);
+  border-radius: var(--radius-sm);
+  background: var(--kit-bad-soft);
+  color: var(--kit-bad);
+  font-size: var(--fs-sm);
+}
+
+.kit-card-loading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--kit-muted);
+  font-size: var(--fs-sm);
+}
+
+.kit-card-empty {
+  color: var(--kit-muted);
+  font-size: var(--fs-sm);
+}
+
+/* ── LogTable ───────────────────────────────────────────── */
+
+.kit-logtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+
+.kit-logtable th {
+  padding: var(--space-1) var(--space-2) var(--space-2);
+  text-align: left;
+  font-weight: 500;
+  color: var(--kit-muted);
+  border-bottom: 1px solid var(--kit-line);
+}
+
+.kit-logtable td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--kit-line);
+  vertical-align: top;
+}
+
+.kit-logtable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.kit-logtable-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--kit-muted);
+  white-space: nowrap;
+}
+
+.kit-logtable-type {
+  white-space: nowrap;
+}
+
+.kit-logtable-player {
+  font-family: var(--font-mono);
+  color: var(--kit-text);
+  white-space: nowrap;
+}
+
+.kit-logtable-summary {
+  color: var(--kit-text);
+}
+
+.kit-logtable--bad .kit-logtable-type { color: var(--kit-bad); }
+.kit-logtable--warn .kit-logtable-type { color: var(--kit-warn); }
+.kit-logtable--ok .kit-logtable-type { color: var(--kit-ok); }
+.kit-logtable--muted .kit-logtable-type { color: var(--kit-muted); }
+
+.kit-logtable-actions-col { width: 1%; }
+
+.kit-logtable-badge {
+  display: inline-flex;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.kit-logtable-actions {
+  white-space: nowrap;
+}
+
+/* ── Бейджи / заметки / кнопка / инпут ──────────────────── */
+
+.kit-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-pill);
+  background: var(--kit-surface-2);
+  color: var(--kit-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.kit-badge--ok {
+  border-color: var(--kit-ok);
+  background: var(--kit-ok-soft);
+  color: var(--kit-ok);
+}
+
+.kit-badge--bad {
+  border-color: var(--kit-bad);
+  background: var(--kit-bad-soft);
+  color: var(--kit-bad);
+}
+
+.kit-muted-note {
+  font-size: var(--fs-xs);
+  color: var(--kit-muted);
+}
+
+.kit-button {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  background: var(--kit-surface-2);
+  color: var(--kit-text);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--ease), background var(--ease);
+}
+
+.kit-button:hover:not(:disabled) {
+  border-color: var(--kit-ok);
+}
+
+.kit-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.kit-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(90, 184, 196, 0.45);
+}
+
+.kit-input {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.kit-input-label {
+  font-size: var(--fs-sm);
+  color: var(--kit-muted);
+}
+
+.kit-input input {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  background: var(--kit-surface-2);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  color: var(--kit-text);
+  font-size: var(--fs-md);
+  font-family: inherit;
+  transition: border-color var(--ease);
+}
+
+.kit-input input::placeholder {
+  color: var(--kit-muted);
+}
+
+.kit-input input:focus-visible {
+  outline: none;
+  border-color: var(--kit-ok);
+  box-shadow: 0 0 0 3px rgba(90, 184, 196, 0.25);
+}
+
+/* ── Журнал событий ─────────────────────────────────────── */
+
+.kit-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1320px;
+}
+
+.kit-events-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+
+/* ── Chart ──────────────────────────────────────────────── */
+
+.kit-chart {
+  position: relative;
+  width: 100%;
+}
+
+.kit-chart svg {
+  display: block;
+  width: 100%;
+}
+
+.kit-chart-grid line {
+  stroke: var(--kit-line);
+  stroke-width: 1;
+}
+
+.kit-chart-grid text {
+  fill: var(--kit-muted);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.kit-chart-line {
+  fill: none;
+  stroke: var(--kit-ok);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.kit-chart-area {
+  fill: var(--kit-ok);
+  fill-opacity: 0.1;
+}
+
+.kit-chart-gap {
+  fill: none;
+  stroke: var(--kit-line);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+
+.kit-chart-cursor {
+  fill: var(--kit-ok);
+  stroke: var(--kit-bg);
+  stroke-width: 2;
+}
+
+.kit-chart-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  color: var(--kit-muted);
+  font-size: var(--fs-sm);
+}
+
+.kit-chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  padding: var(--space-1) var(--space-2);
+  background: var(--kit-surface-2);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-xs);
+  color: var(--kit-text);
+  white-space: nowrap;
+  transform: translate(-50%, -100%);
+  z-index: 2;
+}
+
+.kit-chart-tooltip-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--kit-ok);
+}
+
+.kit-chart-tooltip-time {
+  color: var(--kit-muted);
+}
+
+/* ── Dashboard shell ────────────────────────────────────── */
+
+.kit-shell {
+  min-height: 100vh;
+  background: var(--kit-bg);
+  color: var(--kit-text);
+}
+
+.kit-shell-body {
+  display: flex;
+  min-height: 100vh;
+}
+
+.kit-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  flex: none;
+  width: 220px;
+  padding: var(--space-5) var(--space-3);
+  background: var(--kit-surface);
+  border-right: 1px solid var(--kit-line);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.kit-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+}
+
+.kit-brand img {
+  width: 24px;
+  height: 24px;
+}
+
+.kit-brand strong {
+  font-size: var(--fs-lg);
+}
+
+.kit-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.kit-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--kit-muted);
+  text-decoration: none;
+  font-size: var(--fs-md);
+  transition: background var(--ease), color var(--ease);
+}
+
+.kit-nav-item:hover {
+  background: var(--kit-surface-2);
+  color: var(--kit-text);
+}
+
+.kit-nav-item.active {
+  background: var(--star-soft);
+  color: var(--star);
+}
+
+.kit-nav-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(90, 184, 196, 0.45);
+}
+
+.kit-nav-group {
+  margin: var(--space-3) var(--space-2) var(--space-1);
+  font-size: var(--fs-xs);
+  color: var(--kit-muted);
+}
+
+.kit-nav-group:first-child {
+  margin-top: 0;
+}
+
+.kit-sidebar-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kit-shell-main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-6) var(--space-6) var(--space-8);
+}
+
+.kit-shell-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--fs-2xl);
+  font-weight: 600;
+}
+
+.kit-shell-subtitle {
+  margin: 0 0 var(--space-6);
+  color: var(--kit-muted);
+  font-size: var(--fs-md);
+}
+
+/* ── Dashboard layout ───────────────────────────────────── */
+
+.kit-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1320px;
+}
+
+.kit-metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.kit-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.kit-channels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kit-channel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--kit-surface-2);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+}
+
+.kit-channel-name {
+  color: var(--kit-muted);
+}
+
+.kit-channel-tag {
+  font-family: var(--font-mono);
+  color: var(--kit-text);
+}
+
+.kit-build-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.kit-build-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  background: var(--kit-surface-2);
+  font-size: var(--fs-sm);
+}
+
+.kit-build-row--active {
+  border-color: var(--star);
+  background: var(--star-soft);
+}
+
+.kit-build-name {
+  color: var(--kit-text);
+}
+
+.kit-build-row--active .kit-build-name {
+  color: var(--star);
+}
+
+.kit-build-meta {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--kit-muted);
+  font-size: var(--fs-xs);
+}
+
+.kit-infra-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.kit-infra-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--fs-sm);
+}
+
+.kit-infra-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--kit-muted);
+  text-align: right;
+}
+
+.kit-accounts-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 980px) {
+  .kit-two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kit-shell-body {
+    flex-direction: column;
+  }
+
+  .kit-sidebar {
+    position: static;
+    width: auto;
+    height: auto;
+  }
+}

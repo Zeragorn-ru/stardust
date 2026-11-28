@@ -8,11 +8,12 @@ import {
 import { api, ApiError } from "./api";
 import type { UploadMeta } from "./types";
 import { formatSize, baseName, slugifyModId } from "./format";
-import { KINDS, SIDES, guessKind } from "./fileUtils";
+import { KINDS, guessKind } from "./fileUtils";
 import { useToast, useConfirm } from "./ui/feedback";
 import { Field } from "./ui/Field";
 import { McText } from "./ui/McText";
-import { IconUpload } from "./ui/icons";
+import { SidePicker, type ModSide } from "./ui/kit";
+import { IconChevronRight, IconFolder, IconUpload } from "./ui/icons";
 
 // Куда по умолчанию кладётся файл в зависимости от типа.
 function defaultDir(kind: string): string {
@@ -28,11 +29,28 @@ function defaultDir(kind: string): string {
   }
 }
 
-// Каталог, куда складывать загружаемый файл: если открыта папка в файловом
-// менеджере — кладём туда, иначе подбираем по типу.
-function targetDir(kind: string, baseDir: string): string {
-  if (baseDir) return baseDir.replace(/\/+$/, "") + "/";
+// Каталог, куда складывать загружаемый файл: если выбрана целевая папка —
+// кладём туда, иначе подбираем по типу.
+function targetDirFor(kind: string, dir: string): string {
+  if (dir) return dir.replace(/\/+$/, "") + "/";
   return defaultDir(kind);
+}
+
+/**
+ * Путь в .minecraft для очереди. Файл из папки (webkitdirectory/drag-drop
+ * каталога) сохраняет структуру подпапок как есть — целевая папка становится
+ * префиксом. Одиночный файл в корень подбирает папку по типу.
+ */
+function computePath(rel: string, kind: string, dir: string): string {
+  const name = baseName(rel);
+  if (rel.includes("/")) {
+    // Файл из папки уже несёт свой каталог (mods/foo.jar) — поверх
+    // подставляем только явно выбранную целевую папку, без defaultDir:
+    // иначе дроп папки в корень дублирует каталог (mods/mods/foo.jar).
+    const prefix = dir ? dir.replace(/\/+$/, "") + "/" : "";
+    return prefix + rel;
+  }
+  return targetDirFor(kind, dir) + name;
 }
 
 type Status = "queued" | "uploading" | "done" | "error";
@@ -42,7 +60,11 @@ interface QueueItem {
   file: File;
   kind: string;
   side: string;
+  /** Относительный путь (для папок — со структурой подпапок). */
+  rel: string;
   path: string;
+  /** Путь проставлен автоматически и следует за целевой папкой. */
+  autoPath: boolean;
   overwrite: boolean;
   optional: boolean;
   enabledByDefault: boolean;
@@ -66,21 +88,20 @@ function relPath(file: File): string {
   return rel && rel.length > 0 ? rel : file.name;
 }
 
-function makeItem(file: File, baseDir: string): QueueItem {
+function makeItem(file: File, dir: string): QueueItem {
   const rel = relPath(file);
   const kind = guessKind(file.name);
-  // Если это файл из папки — сохраняем её структуру как есть под текущим
-  // каталогом. Дефолтный каталог по типу НЕ подставляем: иначе путь
-  // дублируется (напр. перетащили папку `config` в корень → `config/config/…`).
-  const hasDir = rel.includes("/");
-  const prefix = baseDir ? baseDir.replace(/\/+$/, "") + "/" : "";
-  const path = hasDir ? prefix + rel : targetDir(kind, baseDir) + file.name;
+  // Структуру папки сохраняем как есть под целевым каталогом. Дефолтный
+  // каталог по типу НЕ подставляем поверх: иначе путь дублируется
+  // (напр. перетащили папку `config` в корень → `config/config/…`).
   return {
     id: nextItemId++,
     file,
     kind,
     side: "both",
-    path,
+    rel,
+    path: computePath(rel, kind, dir),
+    autoPath: true,
     overwrite: true,
     optional: false,
     enabledByDefault: true,
@@ -105,7 +126,6 @@ export const FileUpload = forwardRef<
   {
     buildId: number;
     onUploaded: () => void;
-    baseDir?: string;
     modProfiles?: { key: string; name: string; description: string | null }[];
     /** Пути файлов, уже существующих в сборке — для предупреждения
      *  о перезаписи (повторная загрузка по тому же пути сбрасывает
@@ -113,7 +133,7 @@ export const FileUpload = forwardRef<
     existingPaths?: string[];
   }
 >(function FileUpload(
-  { buildId, onUploaded, baseDir = "", modProfiles = [], existingPaths = [] },
+  { buildId, onUploaded, modProfiles = [], existingPaths = [] },
   ref,
 ) {
   const toast = useToast();
@@ -121,6 +141,9 @@ export const FileUpload = forwardRef<
   const [items, setItems] = useState<QueueItem[]>([]);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Целевая папка загрузки: дерево существующих папок + ввод новой.
+  // Пустая строка — корень .minecraft.
+  const [targetDir, setTargetDir] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const dirInputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -132,6 +155,22 @@ export const FileUpload = forwardRef<
     () => new Set(existingPaths.map((p) => p.trim().toLowerCase())),
     [existingPaths],
   );
+
+  // Существующие папки сборки (с перечнем прямых файлов) — для дерева выбора
+  // целевой папки.
+  const folders = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of existingPaths) {
+      const parts = p.trim().split("/");
+      for (let i = 1; i < parts.length; i++) {
+        const dir = parts.slice(0, i).join("/");
+        map.set(dir, (map.get(dir) ?? 0) + 1);
+      }
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([path, count]) => ({ path, count }));
+  }, [existingPaths]);
 
   // Повторная загрузка по существующему пути сбрасывает все свойства файла
   // на сервере (optional, modId, профили, отображаемое имя) — такие строки
@@ -149,12 +188,25 @@ export const FileUpload = forwardRef<
   }
 
   function addFiles(files: FileList | File[]) {
-    const arr = Array.from(files).map((f) => makeItem(f, baseDir));
+    const arr = Array.from(files).map((f) => makeItem(f, targetDir));
     if (arr.length) {
       setItems((cur) => [...cur, ...arr]);
       // Дроп на менеджер далеко от очереди: подтверждаем, что файлы приняты.
       toast.info(`Добавлено в очередь: ${arr.length}`);
     }
+  }
+
+  // Смена целевой папки перестраивает автопути очереди (пользовательские
+  // правки пути не трогаем); уже загружаемые/готовые строки не трогаем.
+  function changeTargetDir(dir: string) {
+    setTargetDir(dir);
+    setItems((cur) =>
+      cur.map((it) =>
+        it.autoPath && it.status !== "done" && it.status !== "uploading"
+          ? { ...it, path: computePath(it.rel, it.kind, dir) }
+          : it,
+      ),
+    );
   }
 
   // Рекурсивный обход перетащенной папки через webkitGetAsEntry: собираем
@@ -311,14 +363,42 @@ export const FileUpload = forwardRef<
   const pending = items.filter((it) => it.status !== "done").length;
   // Сколько строк очереди лягут поверх уже существующих путей сборки.
   const overwriteCount = items.filter(warnsOverwrite).length;
-  const target = baseDir ? `.minecraft/${baseDir.replace(/\/+$/, "")}/` : "";
+
+  // Предпросмотр изменений манифеста: очередь против сохранённого состояния
+  // сборки. Добавленные и перезаписываемые файлы с путями и размерами —
+  // до нажатия «Загрузить» видно, что попадёт в манифест.
+  const manifestDiff = useMemo(() => {
+    const pendingItems = items.filter(
+      (it) => it.status === "queued" || it.status === "error",
+    );
+    const added = pendingItems.filter((it) => !overwritesExisting(it.path));
+    const changed = pendingItems.filter((it) => overwritesExisting(it.path));
+    return {
+      added,
+      changed,
+      addedSize: added.reduce((s, it) => s + it.file.size, 0),
+      changedSize: changed.reduce((s, it) => s + it.file.size, 0),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, existingSet]);
+
+  const target = targetDir
+    ? `.minecraft/${targetDir.replace(/\/+$/, "")}/`
+    : ".minecraft/";
 
   return (
     <div className="fm-upload" ref={rootRef}>
       <h2>
         Загрузка файлов
-        {target && <span className="fm-upload-target muted"> → {target}</span>}
+        <span className="fm-upload-target muted"> → {target}</span>
       </h2>
+
+      <TargetFolderPicker
+        targetDir={targetDir}
+        folders={folders}
+        disabled={busy}
+        onChange={changeTargetDir}
+      />
 
       <div
         className={`dropzone${dragging ? " over" : ""}`}
@@ -398,6 +478,42 @@ export const FileUpload = forwardRef<
             )}
           </div>
 
+          {/* Предпросмотр diff манифеста до применения: что появится (+)
+              и что перезапишется (~) с путями и размерами. */}
+          {(manifestDiff.added.length > 0 || manifestDiff.changed.length > 0) && (
+            <details className="fm-diff fm-diff--upload">
+              <summary>
+                Изменения манифеста:{" "}
+                <span className="fm-diff-add">+{manifestDiff.added.length} новых</span>
+                {manifestDiff.added.length > 0 && (
+                  <span className="muted"> ({formatSize(manifestDiff.addedSize)})</span>
+                )}
+                {manifestDiff.changed.length > 0 && (
+                  <>
+                    {" · "}
+                    <span className="fm-diff-chg">~{manifestDiff.changed.length} перезаписей</span>
+                    <span className="muted"> ({formatSize(manifestDiff.changedSize)})</span>
+                  </>
+                )}
+              </summary>
+              <ul className="fm-diff-list">
+                {[...manifestDiff.added, ...manifestDiff.changed].slice(0, 100).map((it) => {
+                  const over = overwritesExisting(it.path);
+                  return (
+                    <li key={it.id} className={over ? "fm-diff-chg" : "fm-diff-add"}>
+                      <span className="fm-diff-sign">{over ? "~" : "+"}</span>
+                      <span className="fm-diff-path" title={it.path}>{it.path}</span>
+                      <span className="muted">{formatSize(it.file.size)}</span>
+                    </li>
+                  );
+                })}
+                {manifestDiff.added.length + manifestDiff.changed.length > 100 && (
+                  <li className="muted">…и ещё {manifestDiff.added.length + manifestDiff.changed.length - 100}</li>
+                )}
+              </ul>
+            </details>
+          )}
+
           {/* Быстрая настройка всей очереди: тип/сторона/опциональность
               и профили — вместо поштучного «настроить» у 30 файлов. */}
           <details className="queue-batch">
@@ -421,18 +537,15 @@ export const FileUpload = forwardRef<
                 </div>
                 <div className="field">
                   <label>Сторона</label>
-                  <select
-                    defaultValue=""
-                    onChange={(e) => {
-                      if (e.target.value) applyToAll({ side: e.target.value });
-                      e.target.value = "";
+                  {/* SidePicker с «Все» = «не менять» (значение-заглушка). */}
+                  <SidePicker<ModSide | "all">
+                    value="all"
+                    allowAll
+                    disabled={busy}
+                    onChange={(side) => {
+                      if (side !== "all") applyToAll({ side });
                     }}
-                  >
-                    <option value="">— выбрать —</option>
-                    {SIDES.map((sd) => (
-                      <option key={sd} value={sd}>{sd}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
               <div className="row">
@@ -491,7 +604,7 @@ export const FileUpload = forwardRef<
                 key={it.id}
                 item={it}
                 disabled={busy}
-                baseDir={baseDir}
+                targetDir={targetDir}
                 modProfiles={modProfiles}
                 overwrite={warnsOverwrite(it)}
                 onPatch={(p) => patch(it.id, p)}
@@ -562,10 +675,111 @@ export const FileUpload = forwardRef<
   );
 });
 
+// Выбор целевой папки загрузки: дерево существующих папок сборки (раскрывается)
+// с выбором радиокнопкой + ввод пути новой папки.
+function TargetFolderPicker({
+  targetDir,
+  folders,
+  disabled,
+  onChange,
+}: {
+  targetDir: string;
+  folders: { path: string; count: number }[];
+  disabled: boolean;
+  onChange: (dir: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [newDir, setNewDir] = useState("");
+
+  const label = targetDir
+    ? `.minecraft/${targetDir.replace(/\/+$/, "")}/`
+    : ".minecraft/ (корень)";
+
+  function pickNew() {
+    const clean = newDir.trim().replace(/^\/+|\/+$/g, "");
+    if (!clean) return;
+    onChange(clean);
+    setNewDir("");
+    setOpen(false);
+  }
+
+  return (
+    <div className="fm-target-picker">
+      <button
+        type="button"
+        className="fm-target-btn"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <IconFolder size={15} className="folder" />
+        Папка назначения: <strong>{label}</strong>
+        <IconChevronRight size={14} className={`fm-target-chevron${open ? " open" : ""}`} />
+      </button>
+      {open && (
+        <div className="fm-target-panel">
+          <label className="fm-target-row">
+            <input
+              type="radio"
+              name="fm-target-dir"
+              checked={targetDir === ""}
+              onChange={() => {
+                onChange("");
+                setOpen(false);
+              }}
+            />
+            <span>.minecraft — корень</span>
+          </label>
+          {folders.map((f) => (
+            <label key={f.path} className="fm-target-row">
+              <input
+                type="radio"
+                name="fm-target-dir"
+                checked={targetDir === f.path}
+                onChange={() => {
+                  onChange(f.path);
+                  setOpen(false);
+                }}
+              />
+              <span className="fm-target-path" title={f.path}>{f.path}/</span>
+              <span className="muted">{f.count}</span>
+            </label>
+          ))}
+          <div className="fm-target-new">
+            <input
+              value={newDir}
+              placeholder="новая папка, напр. shaders"
+              disabled={disabled}
+              onChange={(e) => setNewDir(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  pickNew();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="secondary"
+              disabled={disabled || !newDir.trim()}
+              onClick={pickNew}
+            >
+              Выбрать
+            </button>
+          </div>
+          <p className="muted fm-target-hint">
+            Загрузка папки сохраняет структуру подпапок внутри выбранной папки.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function QueueRow({
   item,
   disabled,
-  baseDir,
+  targetDir,
   modProfiles,
   overwrite,
   onPatch,
@@ -573,9 +787,9 @@ function QueueRow({
 }: {
   item: QueueItem;
   disabled: boolean;
-  baseDir: string;
+  /** Текущая целевая папка очереди — автопуть следует за ней и за типом. */
+  targetDir: string;
   modProfiles: { key: string; name: string; description: string | null }[];
-  /** Файл ляжет поверх существующего пути сборки. */
   overwrite: boolean;
   onPatch: (p: Partial<QueueItem>) => void;
   onRemove: () => void;
@@ -583,13 +797,10 @@ function QueueRow({
   const [open, setOpen] = useState(false);
 
   function changeKind(kind: string) {
-    // Подстраиваем путь под новый тип, если пользователь его не правил вручную.
-    // Когда открыта папка, путь к ней не трогаем — меняем только тип.
-    const auto = targetDir(item.kind, baseDir) + baseName(item.path);
+    // Автопуть следует за типом (в корне файл подбирает папку по типу);
+    // правленый вручную путь не трогаем.
     const patch: Partial<QueueItem> = { kind };
-    if (!baseDir && item.path === auto) {
-      patch.path = targetDir(kind, baseDir) + baseName(item.path);
-    }
+    if (item.autoPath) patch.path = computePath(item.rel, kind, targetDir);
     onPatch(patch);
   }
 
@@ -676,18 +887,16 @@ function QueueRow({
             </Field>
             <Field label="Сторона">
               {(control) => (
-                <select
+                <div
                   id={control.id}
                   aria-describedby={control.describedBy}
-                  value={item.side}
-                  onChange={(e) => onPatch({ side: e.target.value })}
                 >
-                  {SIDES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  <SidePicker<ModSide>
+                    value={item.side as ModSide}
+                    disabled={disabled}
+                    onChange={(side) => onPatch({ side })}
+                  />
+                </div>
               )}
             </Field>
           </div>
@@ -697,7 +906,7 @@ function QueueRow({
                 id={control.id}
                 aria-describedby={control.describedBy}
                 value={item.path}
-                onChange={(e) => onPatch({ path: e.target.value })}
+                onChange={(e) => onPatch({ path: e.target.value, autoPath: false })}
                 placeholder="mods/sodium.jar"
               />
             )}

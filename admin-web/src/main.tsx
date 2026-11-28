@@ -1,7 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { DesktopApp } from "./desktop/DesktopApp";
+import { DesktopAppContent } from "./desktop/DesktopApp";
+import { DashboardShell } from "./ui/DashboardShell";
 import { redirectIfWrongView } from "./app/viewMode";
 import { reloadOnStaleChunk } from "./app/staleChunks";
 import "./styles.css";
@@ -14,9 +15,21 @@ reloadOnStaleChunk();
 //
 // Data-роутер (а не BrowserRouter) нужен для useBlocker: dirty-guard
 // маршрутов-редакторов (/news/:id, /guides/:id) перехватывает SPA-навигацию
-// и жёсткую перезагрузку, чтобы черновик не исчезал молча. Само дерево
-// маршрутов живёт в DesktopApp (Routes) — здесь только корневая обёртка.
-const router = createBrowserRouter([{ path: "*", element: <DesktopApp /> }]);
+// и жёсткую перезагрузку, чтобы черновик не исчезал молча. Дерево маршрутов
+// живёт в DesktopAppContent (Routes), шелл — один на все экраны.
+//
+// admin-v2 (этап 2): сайдбар DashboardShell теперь общий для всех маршрутов,
+// содержимое разделов рендерит DesktopAppContent. «/» уводит на /dashboard.
+const router = createBrowserRouter([
+  {
+    path: "*",
+    element: (
+      <DashboardShell>
+        <DesktopAppContent />
+      </DashboardShell>
+    ),
+  },
+]);
 
 if (!redirectIfWrongView("desktop")) {
   ReactDOM.createRoot(document.getElementById("root")!).render(

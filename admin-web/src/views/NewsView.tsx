@@ -16,6 +16,7 @@ import { useRouteDirtyGuard } from "../ui/useRouteGuard";
 import { EmptyPanel, ErrorPanel, LoadPanel } from "../ui/EmptyState";
 import { NewsAdminList } from "../ui/NewsAdminList";
 import { Markdown } from "../ui/Markdown";
+import { Toggle } from "../ui/kit";
 import { IconArrowLeft } from "../ui/icons";
 
 export function NewsView({ mobile = false }: { mobile?: boolean }) {
@@ -284,10 +285,9 @@ function NewsEditor({ initial, mode, onClose, onSaved, onExit }: {
               <textarea id="news-body" value={markdown} maxLength={12000} rows={20} onChange={(event) => setMarkdown(event.target.value)} required />
               <small className="muted">Поддерживается Markdown: заголовки, списки, жирный текст, курсив и HTTPS-ссылки.</small>
             </div>
-            <label className="news-editor__pin">
-              <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
-              <span><strong>Закрепить новость</strong><small>Она будет показана на главном экране лаунчера.</small></span>
-            </label>
+            <div className="news-editor__pin">
+              <Toggle checked={pinned} onChange={setPinned} label={<span><strong>Закрепить новость</strong><small>Она будет показана на главном экране лаунчера.</small></span>} />
+            </div>
             <div className="route-editor__actions">
               <button type="button" className="secondary" onClick={() => void tryClose()} disabled={busy}>Отмена</button>
               <button className="primary" disabled={busy}>{busy ? "Сохраняем…" : initial ? "Сохранить" : "Опубликовать"}</button>
@@ -335,10 +335,9 @@ function NewsEditor({ initial, mode, onClose, onSaved, onExit }: {
           )}
           <small className="muted">Поддерживается Markdown: заголовки, списки, жирный текст, курсив и HTTPS-ссылки.</small>
         </div>
-        <label className="news-editor__pin">
-          <input type="checkbox" checked={pinned} onChange={(event) => setPinned(event.target.checked)} />
-          <span><strong>Закрепить новость</strong><small>Она будет показана на главном экране лаунчера.</small></span>
-        </label>
+        <div className="news-editor__pin">
+          <Toggle checked={pinned} onChange={setPinned} label={<span><strong>Закрепить новость</strong><small>Она будет показана на главном экране лаунчера.</small></span>} />
+        </div>
         <div className="modal-actions news-editor__actions">
           <button type="button" className="secondary" onClick={() => void tryClose()} disabled={busy}>Отмена</button>
           <button className="primary" disabled={busy}>{busy ? "Сохраняем…" : initial ? "Сохранить" : "Опубликовать"}</button>
