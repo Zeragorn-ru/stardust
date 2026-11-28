@@ -251,6 +251,17 @@
   flex: none;
 }
 
+.kit-card-link {
+  color: var(--kit-muted);
+  font-size: var(--fs-sm);
+  text-decoration: none;
+  transition: color var(--ease);
+}
+
+.kit-card-link:hover {
+  color: var(--star);
+}
+
 .kit-card-error {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--kit-bad);
@@ -324,6 +335,125 @@
 .kit-logtable--warn .kit-logtable-type { color: var(--kit-warn); }
 .kit-logtable--ok .kit-logtable-type { color: var(--kit-ok); }
 .kit-logtable--muted .kit-logtable-type { color: var(--kit-muted); }
+
+.kit-logtable-actions-col { width: 1%; }
+
+.kit-logtable-badge {
+  display: inline-flex;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.kit-logtable-actions {
+  white-space: nowrap;
+}
+
+/* ── Бейджи / заметки / кнопка / инпут ──────────────────── */
+
+.kit-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-pill);
+  background: var(--kit-surface-2);
+  color: var(--kit-muted);
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+
+.kit-badge--ok {
+  border-color: var(--kit-ok);
+  background: var(--kit-ok-soft);
+  color: var(--kit-ok);
+}
+
+.kit-badge--bad {
+  border-color: var(--kit-bad);
+  background: var(--kit-bad-soft);
+  color: var(--kit-bad);
+}
+
+.kit-muted-note {
+  font-size: var(--fs-xs);
+  color: var(--kit-muted);
+}
+
+.kit-button {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  background: var(--kit-surface-2);
+  color: var(--kit-text);
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--ease), background var(--ease);
+}
+
+.kit-button:hover:not(:disabled) {
+  border-color: var(--kit-ok);
+}
+
+.kit-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.kit-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(90, 184, 196, 0.45);
+}
+
+.kit-input {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.kit-input-label {
+  font-size: var(--fs-sm);
+  color: var(--kit-muted);
+}
+
+.kit-input input {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  background: var(--kit-surface-2);
+  border: 1px solid var(--kit-line);
+  border-radius: var(--radius-sm);
+  color: var(--kit-text);
+  font-size: var(--fs-md);
+  font-family: inherit;
+  transition: border-color var(--ease);
+}
+
+.kit-input input::placeholder {
+  color: var(--kit-muted);
+}
+
+.kit-input input:focus-visible {
+  outline: none;
+  border-color: var(--kit-ok);
+  box-shadow: 0 0 0 3px rgba(90, 184, 196, 0.25);
+}
+
+/* ── Журнал событий ─────────────────────────────────────── */
+
+.kit-events {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 1320px;
+}
+
+.kit-events-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
 
 /* ── Chart ──────────────────────────────────────────────── */
 

@@ -3,6 +3,7 @@
 // показывается внутри её карточки и не валит остальные.
 
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import type {
   Account,
@@ -185,7 +186,13 @@ function PlayersSection() {
   ).size;
 
   return (
-    <SectionCard title="Игроки и события" subtitle="Последние события сервера и сводка аккаунтов" loading={logs.loading} error={logs.error}>
+    <SectionCard
+      title="Игроки и события"
+      subtitle="Последние события сервера и сводка аккаунтов"
+      loading={logs.loading}
+      error={logs.error}
+      actions={<Link className="kit-card-link" to="/events">весь журнал →</Link>}
+    >
       <div className="kit-accounts-line">
         <Metric value={accounts.error ? "—" : list.length} label="Аккаунтов" state="neutral" />
         <Metric value={accounts.error ? "—" : list.filter((account) => account.telegramLinked).length} label="С Telegram" />
