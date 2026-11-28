@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { DesktopApp } from "./desktop/DesktopApp";
+import { DashboardShell } from "./ui/DashboardShell";
+import { DashboardView } from "./views/DashboardView";
 import { redirectIfWrongView } from "./app/viewMode";
 import { reloadOnStaleChunk } from "./app/staleChunks";
 import "./styles.css";
@@ -16,7 +18,22 @@ reloadOnStaleChunk();
 // маршрутов-редакторов (/news/:id, /guides/:id) перехватывает SPA-навигацию
 // и жёсткую перезагрузку, чтобы черновик не исчезал молча. Само дерево
 // маршрутов живёт в DesktopApp (Routes) — здесь только корневая обёртка.
-const router = createBrowserRouter([{ path: "*", element: <DesktopApp /> }]);
+// Новый шелл admin-v2 (этап 1): пока только дашборд. «/» остаётся на
+// старом /overview — переключим после переноса остальных экранов.
+const router = createBrowserRouter([
+  {
+    path: "/dashboard",
+    element: (
+      <DashboardShell
+        title="Дашборд"
+        subtitle="Состояние сервера, игроков, сборок и инфраструктуры на одном экране."
+      >
+        <DashboardView />
+      </DashboardShell>
+    ),
+  },
+  { path: "*", element: <DesktopApp /> },
+]);
 
 if (!redirectIfWrongView("desktop")) {
   ReactDOM.createRoot(document.getElementById("root")!).render(
