@@ -16,6 +16,7 @@ import { useRouteDirtyGuard } from "../ui/useRouteGuard";
 import { EmptyPanel, ErrorPanel, LoadPanel } from "../ui/EmptyState";
 import { NewsAdminList } from "../ui/NewsAdminList";
 import { Markdown } from "../ui/Markdown";
+import { Toggle } from "../ui/kit";
 import { IconArrowLeft } from "../ui/icons";
 
 const emptyGuide = { slug: "", title: "", excerpt: "", category: "Общее", markdown: "", published: false };
@@ -236,7 +237,7 @@ function GuideEditor({ initial, mode, onClose, onSaved, onExit }: {
             <div className="field"><label htmlFor="guide-category">Категория</label><input id="guide-category" value={form.category} maxLength={60} onChange={(event) => set("category", event.target.value)} /></div>
             <div className="field"><label htmlFor="guide-excerpt">Короткое описание <span>{form.excerpt.length}/240</span></label><textarea id="guide-excerpt" value={form.excerpt} maxLength={240} rows={3} onChange={(event) => set("excerpt", event.target.value)} /></div>
             <div className="field route-editor__body-field"><label htmlFor="guide-body">Текст <span>{form.markdown.length}/40000</span></label><textarea id="guide-body" value={form.markdown} maxLength={40000} rows={16} onChange={(event) => set("markdown", event.target.value)} required /><small className="muted">Markdown без HTML: заголовки, списки, ссылки, жирный и курсивный текст.</small></div>
-            <label className="news-editor__pin"><input type="checkbox" checked={form.published} onChange={(event) => set("published", event.target.checked)} /><span><strong>Опубликовать на сайте</strong><small>Снимите галочку, чтобы сохранить черновик.</small></span></label>
+            <div className="news-editor__pin"><Toggle checked={form.published} onChange={(published) => set("published", published)} label={<span><strong>Опубликовать на сайте</strong><small>Снимите галочку, чтобы сохранить черновик.</small></span>} /></div>
             <div className="route-editor__actions">
               <button type="button" className="secondary" onClick={() => void tryClose()} disabled={busy}>Отмена</button>
               <button className="primary" disabled={busy}>{busy ? "Сохраняем…" : initial ? "Сохранить" : "Создать гайд"}</button>
@@ -269,7 +270,7 @@ function GuideEditor({ initial, mode, onClose, onSaved, onExit }: {
       </div>
       {showPreview && <div className="news-editor__mobile-preview"><Markdown text={form.markdown} /></div>}
       <small className="muted">Markdown без HTML: заголовки, списки, ссылки, жирный и курсивный текст.</small></div>
-    <label className="news-editor__pin"><input type="checkbox" checked={form.published} onChange={(event) => set("published", event.target.checked)} /><span><strong>Опубликовать на сайте</strong><small>Снимите галочку, чтобы сохранить черновик.</small></span></label>
+    <div className="news-editor__pin"><Toggle checked={form.published} onChange={(published) => set("published", published)} label={<span><strong>Опубликовать на сайте</strong><small>Снимите галочку, чтобы сохранить черновик.</small></span>} /></div>
     <div className="modal-actions news-editor__actions"><button type="button" className="secondary" onClick={() => void tryClose()} disabled={busy}>Отмена</button><button className="primary" disabled={busy}>{busy ? "Сохраняем…" : initial ? "Сохранить" : "Создать гайд"}</button></div>
   </form></div>;
 }

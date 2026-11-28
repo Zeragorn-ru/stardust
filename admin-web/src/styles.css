@@ -518,25 +518,14 @@ label {
 /* .accounts-filter-toolbar удалён (план 3.3): панель фильтров и чипы
    активных фильтров всегда видимы — тумблер свёрнутого режима не нужен. */
 
-.accounts-filter-panel label {
+/* Селекты панели — kit-Select (admin-v2): нативный select под общим скином,
+   старые локальные стили select убраны. */
+.accounts-filter-panel .kit-select {
     display: grid;
     gap: var(--space-2);
     color: var(--muted);
     font-size: var(--fs-sm);
     font-weight: 700;
-}
-
-.accounts-filter-panel select {
-    min-height: 38px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-elev);
-    color: var(--text);
-    padding: 0 var(--space-3);
-}
-
-.accounts-filter-panel select:focus-visible {
-    border-color: var(--accent);
 }
 
 .filter-summary {
@@ -4755,7 +4744,6 @@ input[type="radio"] {
 .news-editor .field label span { color: var(--faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .news-editor__body-field small { display: block; margin-top: var(--space-2); font-size: var(--fs-sm); line-height: 1.45; }
 .news-editor__pin { display: flex; gap: var(--space-3); align-items: flex-start; color: var(--muted); font-size: var(--fs-md); }
-.news-editor__pin input { margin-top: 3px; }
 .news-editor__pin strong, .news-editor__pin small { display: block; }
 .news-editor__pin strong { color: var(--text); font-size: var(--fs-md); }
 .news-editor__pin small { margin-top: 3px; font-size: var(--fs-sm); }
@@ -4967,13 +4955,6 @@ input[type="radio"] {
     display: flex;
     align-items: flex-start;
     gap: var(--space-3);
-}
-
-.external-mods-toggle input {
-    margin-top: 3px;
-    width: 18px;
-    height: 18px;
-    flex-shrink: 0;
 }
 
 .external-mods-toggle span {

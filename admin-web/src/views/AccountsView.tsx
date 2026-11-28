@@ -9,6 +9,7 @@ import { McText } from "../ui/McText";
 import { EmptyPanel, ErrorPanel, LoadPanel } from "../ui/EmptyState";
 import { formatDateTime, formatPlaytime } from "../format";
 import { Badge, Button, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/shadcn";
+import { Select } from "../ui/kit";
 
 function normalizeUuid(uuid: string): string {
   return uuid.replace(/-/g, "").toLowerCase();
@@ -373,47 +374,57 @@ export function AccountsView() {
 
       <div className="panel panel-flat accounts-filter-panel">
         <div className="filter-summary"><strong>{filtered.length}</strong><span>показано из {accounts.length}</span></div>
-        <label>
-          Роль
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as RoleFilter)}>
-            <option value="all">Все</option>
-            <option value="admin">Админы</option>
-            <option value="user">Игроки</option>
-          </select>
-        </label>
-        <label>
-          Статус
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
-            <option value="all">Все</option>
-            <option value="active">Активные</option>
-            <option value="banned">В бане</option>
-          </select>
-        </label>
-        <label>
-          Telegram
-          <select value={telegramFilter} onChange={(e) => setTelegramFilter(e.target.value as TelegramFilter)}>
-            <option value="all">Все</option>
-            <option value="linked">Привязан</option>
-            <option value="unlinked">Не привязан</option>
-          </select>
-        </label>
-        <label>
-          Активность
-          <select value={activityFilter} onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}>
-            <option value="all">Все</option>
-            <option value="joined">Заходили</option>
-            <option value="never">Без входов</option>
-          </select>
-        </label>
-        <label>
-          Сортировка
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as AccountSort)}>
-            <option value="username">По имени</option>
-            <option value="role">Админы сверху</option>
-            <option value="playtime">По времени в игре</option>
-            <option value="lastJoined">По последнему входу</option>
-          </select>
-        </label>
+        <Select
+          label="Роль"
+          value={roleFilter}
+          onChange={setRoleFilter}
+          options={[
+            { value: "all", label: "Все" },
+            { value: "admin", label: "Админы" },
+            { value: "user", label: "Игроки" },
+          ]}
+        />
+        <Select
+          label="Статус"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: "all", label: "Все" },
+            { value: "active", label: "Активные" },
+            { value: "banned", label: "В бане" },
+          ]}
+        />
+        <Select
+          label="Telegram"
+          value={telegramFilter}
+          onChange={setTelegramFilter}
+          options={[
+            { value: "all", label: "Все" },
+            { value: "linked", label: "Привязан" },
+            { value: "unlinked", label: "Не привязан" },
+          ]}
+        />
+        <Select
+          label="Активность"
+          value={activityFilter}
+          onChange={setActivityFilter}
+          options={[
+            { value: "all", label: "Все" },
+            { value: "joined", label: "Заходили" },
+            { value: "never", label: "Без входов" },
+          ]}
+        />
+        <Select
+          label="Сортировка"
+          value={sortBy}
+          onChange={setSortBy}
+          options={[
+            { value: "username", label: "По имени" },
+            { value: "role", label: "Админы сверху" },
+            { value: "playtime", label: "По времени в игре" },
+            { value: "lastJoined", label: "По последнему входу" },
+          ]}
+        />
         <Button variant="ghost" onClick={resetFilters} disabled={!filtersActive}>Сбросить</Button>
       </div>
 

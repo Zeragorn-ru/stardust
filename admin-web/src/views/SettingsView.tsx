@@ -5,6 +5,7 @@ import { useConfirm, useToast } from "../ui/feedback";
 import { IconBox, IconKey, IconPuzzle, IconSettings, IconTelegram } from "../ui/icons";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/shadcn";
 import { Field, FieldInput } from "../ui/Field";
+import { Toggle } from "../ui/kit";
 import { formatDateTime, formatSize } from "../format";
 
 /** Секции настроек (план 2.4/3.4): якорная поднавигация + scroll-spy. */
@@ -869,17 +870,18 @@ export function SettingsView() {
                     {settings?.crashAiApiKeySet && <Badge variant="outline">ключ задан</Badge>}
                   </div>
 
-                  <label className="news-editor__pin">
-                    <input
-                      type="checkbox"
+                  <div className="news-editor__pin">
+                    <Toggle
                       checked={crashAiEnabled}
-                      onChange={(e) => setCrashAiEnabled(e.target.checked)}
+                      onChange={setCrashAiEnabled}
+                      label={
+                        <span>
+                          <strong>Анализировать новые краши автоматически</strong>
+                          <small>Фоновый воркер разбирает краши каждые 5 минут.</small>
+                        </span>
+                      }
                     />
-                    <span>
-                      <strong>Анализировать новые краши автоматически</strong>
-                      <small>Фоновый воркер разбирает краши каждые 5 минут.</small>
-                    </span>
-                  </label>
+                  </div>
 
                   <Field label="Базовый URL API" hint="Без пути /chat/completions, например https://api.openai.com/v1">
                     {(control) => (

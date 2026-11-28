@@ -14,6 +14,7 @@ import { api, ApiError } from "../api";
 import type { ExternalModAllowlistEntry, ExternalModBlockRule } from "../types";
 import { useConfirm, useToast } from "../ui/feedback";
 import { Field, FieldInput, fieldTouchedError } from "../ui/Field";
+import { Toggle } from "../ui/kit";
 import { LoadPanel } from "../ui/EmptyState";
 
 // Валидация хеша — та же, что на бэкенде (64 hex-символа).
@@ -222,22 +223,23 @@ export function ExternalModsView({ mobile = false }: { mobile?: boolean }) {
             <h2>Режим «непослушных игроков»</h2>
           </div>
         </div>
-        <label className="external-mods-toggle">
-          <input
-            type="checkbox"
+        <div className="external-mods-toggle">
+          <Toggle
             checked={purgeExternal}
             disabled={purgeSaving || loading}
-            onChange={(event) => void togglePurgeExternal(event.target.checked)}
+            onChange={(checked) => void togglePurgeExternal(checked)}
+            label={
+              <span>
+                <strong>Удалять всё чужое при запуске</strong>
+                <small className="muted">
+                  Лаунчер удалит из папки mods всё, чего нет в сборке, а из ресурс­паков — всё, что
+                  установлено не через лаунчер. Уведомления о сторонних файлах приходят админам
+                  независимо от этого переключателя.
+                </small>
+              </span>
+            }
           />
-          <span>
-            <strong>Удалять всё чужое при запуске</strong>
-            <small className="muted">
-              Лаунчер удалит из папки mods всё, чего нет в сборке, а из ресурс­паков — всё, что
-              установлено не через лаунчер. Уведомления о сторонних файлах приходят админам
-              независимо от этого переключателя.
-            </small>
-          </span>
-        </label>
+        </div>
       </section>
 
       <section className="panel panel-flat">
